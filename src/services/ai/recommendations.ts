@@ -1,0 +1,52 @@
+import { BusinessProblem } from "./planner";
+
+export interface SuggestedAction {
+  action_type: "update_stock" | "update_price" | "pause_product";
+  product_id: string;
+  product_title: string;
+  sku: string | null;
+  reason: string;
+  proposed_value: any;
+}
+
+export function generateRecommendations(problems: BusinessProblem[]): SuggestedAction[] {
+  const recommendations: SuggestedAction[] = [];
+
+  for (const problem of problems) {
+    if (problem.type === "low_stock") {
+      recommendations.push({
+        action_type: "update_stock",
+        product_id: problem.product_id,
+        product_title: problem.product_title,
+        sku: problem.sku,
+        reason: problem.details,
+        proposed_value: 20, // Sugerimos reponer a 20 unidades
+      });
+    }
+
+    if (problem.type === "no_sales") {
+      recommendations.push({
+        action_type: "pause_product",
+        product_id: problem.product_id,
+        product_title: problem.product_title,
+        sku: problem.sku,
+        reason: problem.details,
+        proposed_value: "paused",
+      });
+    }
+
+    if (problem.type === "low_margin") {
+      // Calcular un aumento del 15% para mejorar margen
+      recommendations.push({
+        action_type: "update_price",
+        product_id: problem.product_id,
+        product_title: problem.product_title,
+        sku: problem.sku,
+        reason: problem.details,
+        proposed_value: { percentageChange: 15 }, 
+      });
+    }
+  }
+
+  return recommendations;
+}

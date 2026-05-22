@@ -19,14 +19,20 @@ export async function confirmPendingAction(tenantId: string, actionId: string) {
     return { success: false, error: "Action not found or not pending" };
   }
 
-  const payload = action.payload as any[];
-  if (payload.length > 50) {
+  let payloadItems: any[] = [];
+  if (Array.isArray(action.payload)) {
+    payloadItems = action.payload;
+  } else if (action.payload && typeof action.payload === 'object' && Array.isArray((action.payload as any).items)) {
+    payloadItems = (action.payload as any).items;
+  }
+
+  if (payloadItems.length > 50) {
     return { success: false, error: "Límite de 50 productos excedido" };
   }
 
   const results = [];
 
-  for (const item of payload) {
+  for (const item of payloadItems) {
     try {
       if (action.action_type === 'update_price') {
         await updatePrice(tenantId, item.product_id, item.new_value);

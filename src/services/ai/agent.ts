@@ -16,10 +16,40 @@ export async function runBusinessAgent({
     return "Alcanzaste el límite mensual de consultas de Inteligencia Artificial. Por favor, actualiza tu plan en la sección de Facturación para seguir operando.";
   }
 
-  // SPRINT 11: Intercept Confirm/Cancel
+  // SPRINT 11 & 12: Intercept Confirm/Cancel with strict rules
   const lowerMsg = userMessage.trim().toLowerCase();
-  if (lowerMsg === 'confirmo' || lowerMsg === 'sí' || lowerMsg === 'si' || lowerMsg === 'dale' || lowerMsg === 'ok') {
+  
+  const validConfirms = ['confirmo', 'confirmar', 'sí, confirmo', 'si, confirmo', 'si confirmo'];
+  const invalidConfirms = ['ok', 'dale', 'si', 'sí', 'bueno', 'perfecto', 'listo', 'avanza', 'hacelo'];
+
+  if (validConfirms.includes(lowerMsg)) {
     const supabase = createAdminClient();
+
+    // 1. Check for pending workflow
+    const { data: pendingWorkflow } = await supabase
+      .from("action_workflows")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (pendingWorkflow) {
+      try {
+        const { executeWorkflow } = await import('@/services/ai/workflows');
+        const res = await executeWorkflow(tenantId, pendingWorkflow.id);
+        if (res.success) {
+          return "¡Plan de acción confirmado y ejecutado con éxito!";
+        } else {
+          return "Hubo errores al ejecutar algunas acciones del plan. Revisa el dashboard.";
+        }
+      } catch (e) {
+        return "No pude confirmar el plan por un error interno.";
+      }
+    }
+
+    // 2. Fallback to single pending action
     const { data: pendingAction } = await supabase
       .from("ai_actions")
       .select("id")
@@ -30,8 +60,6 @@ export async function runBusinessAgent({
       .single();
 
     if (pendingAction) {
-      // In a real scenario, we'd invoke the endpoint logic here.
-      // For simplicity, we just use the endpoint via fetch.
       try {
         const { confirmPendingAction } = await import('@/services/ai/actions/confirm');
         const res = await confirmPendingAction(tenantId, pendingAction.id);
@@ -43,6 +71,22 @@ export async function runBusinessAgent({
       } catch (e) {
         return "No pude confirmar la acción por un error interno.";
       }
+    }
+  }
+
+  if (invalidConfirms.includes(lowerMsg)) {
+    const supabase = createAdminClient();
+    const { data: pendingAction } = await supabase
+      .from("ai_actions")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (pendingAction) {
+      return "⚠️ *Por seguridad*, debes escribir exactamente la palabra **'confirmo'** o **'confirmar'** para ejecutar esta acción crítica.";
     }
   }
 
@@ -248,6 +292,19 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
             },
             required: ["query", "status"],
           },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          function: async () => {
+            const { prepareAutonomousWorkflow } = await import('@/services/ai/tools_workflow');
+            return prepareAutonomousWorkflow(tenantId);
+          },
+          name: "prepareAutonomousWorkflow",
+          description: "Analiza el negocio automáticamente (busca problemas de stock, márgenes bajos y nulas ventas) y prepara un plan de acción sugerido. Úsalo cuando el usuario pide analizar el negocio o 'arreglar lo urgente'.",
+          parse: JSON.parse,
+          parameters: { type: "object", properties: {} },
         },
       },
     ],

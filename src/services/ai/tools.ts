@@ -156,8 +156,16 @@ export async function getProductProfitability(tenantId: string, query: string) {
 }
 
 // ==========================================
-// SPRINT 11: Meli Preparatory Actions
+// SPRINT 11 & 12: Meli Preparatory Actions & Limits
 // ==========================================
+
+function calculateRisk(count: number, maxChangePct: number = 0, isPause: boolean = false): 'LOW' | 'MEDIUM' | 'HIGH' {
+  if (isPause && count > 5) return 'HIGH';
+  if (isPause && count > 2) return 'MEDIUM';
+  if (count > 10 || maxChangePct > 0.2) return 'HIGH';
+  if (count > 5 || maxChangePct > 0.1) return 'MEDIUM';
+  return 'LOW';
+}
 
 export async function preparePriceUpdate(tenantId: string, query: string, newPrice?: number, percentageChange?: number) {
   const supabase = createAdminClient();
@@ -174,24 +182,46 @@ export async function preparePriceUpdate(tenantId: string, query: string, newPri
 
   const products = [resolution.product];
 
+  if (products.length > 20) {
+    return { error: "Cambio masivo excedido (>20 productos). Esta acción requiere revisión manual." };
+  }
+
+  let maxChange = 0;
+  let previewList = "";
+
   const payload = products.map(p => {
     let finalPrice = newPrice;
     if (percentageChange) {
       finalPrice = p.price * (1 + (percentageChange / 100));
     }
+    const finalV = Math.round(finalPrice || p.price);
+    
+    if (p.price > 0) {
+      const changePct = Math.abs((finalV - p.price) / p.price);
+      if (changePct > maxChange) maxChange = changePct;
+    }
+
+    previewList += `- ${p.title} (SKU: ${p.sku || 'N/A'})\n  Precio actual: $${p.price} -> Nuevo: $${finalV}\n`;
+
     return {
       product_id: p.id,
       title: p.title,
       current_value: p.price,
-      new_value: Math.round(finalPrice || p.price)
+      new_value: finalV
     };
   });
+
+  if (maxChange > 0.3) {
+    return { error: `Cambio de precio excede el límite del 30% (${Math.round(maxChange * 100)}%). Esta acción requiere revisión manual.` };
+  }
+
+  const risk = calculateRisk(products.length, maxChange);
 
   const { data: action, error } = await supabase.from("ai_actions").insert({
     tenant_id: tenantId,
     action_type: "update_price",
     title: "Actualización de precio",
-    payload,
+    payload: { items: payload, risk_score: risk },
     status: "pending"
   }).select("id").single();
 
@@ -199,7 +229,7 @@ export async function preparePriceUpdate(tenantId: string, query: string, newPri
 
   return {
     action_id: action.id,
-    message: `Encontré ${payload.length} producto(s) afectados.\nEl cambio estimado actualizará el precio.\n**IMPORTANTE:** Para ejecutar esto en Mercado Libre, por favor responde únicamente con la palabra: **CONFIRMO**`
+    message: `Encontré ${payload.length} producto(s) afectados. Riesgo: ${risk}\n\n**PREVISUALIZACIÓN DE CAMBIOS:**\n${previewList}\nImpacto esperado: Actualización de precio en Mercado Libre.\n\n**IMPORTANTE:** Para ejecutar esto, por favor responde únicamente con la palabra: **CONFIRMO**`
   };
 }
 
@@ -218,10 +248,29 @@ export async function prepareStockUpdate(tenantId: string, query: string, newQua
 
   const products = [resolution.product];
 
+  if (products.length > 20) {
+    return { error: "Cambio masivo excedido (>20 productos). Esta acción requiere revisión manual." };
+  }
+
+  let maxChange = 0;
+  let previewList = "";
+  let hasNegativeStock = false;
+
   const payload = products.map(p => {
     let finalQty = newQuantity;
     if (operation === 'add') finalQty = p.available_quantity + newQuantity;
     if (operation === 'subtract') finalQty = Math.max(0, p.available_quantity - newQuantity);
+
+    if (finalQty < 0) hasNegativeStock = true;
+
+    if (p.available_quantity > 0) {
+      const changePct = Math.abs((finalQty - p.available_quantity) / p.available_quantity);
+      if (changePct > maxChange) maxChange = changePct;
+    } else if (finalQty > 0) {
+      maxChange = 1; // 100% change if going from 0 to something
+    }
+
+    previewList += `- ${p.title} (SKU: ${p.sku || 'N/A'})\n  Stock actual: ${p.available_quantity} -> Nuevo: ${finalQty}\n`;
 
     return {
       product_id: p.id,
@@ -231,11 +280,17 @@ export async function prepareStockUpdate(tenantId: string, query: string, newQua
     };
   });
 
+  if (hasNegativeStock) {
+    return { error: "El stock resultante no puede ser negativo. Esta acción requiere revisión manual." };
+  }
+
+  const risk = calculateRisk(products.length, maxChange);
+
   const { data: action, error } = await supabase.from("ai_actions").insert({
     tenant_id: tenantId,
     action_type: "update_stock",
     title: "Actualización de stock",
-    payload,
+    payload: { items: payload, risk_score: risk },
     status: "pending"
   }).select("id").single();
 
@@ -243,7 +298,7 @@ export async function prepareStockUpdate(tenantId: string, query: string, newQua
 
   return {
     action_id: action.id,
-    message: `Encontré ${payload.length} producto(s) afectados.\nEl stock será actualizado.\n**IMPORTANTE:** Para ejecutar esto en Mercado Libre, por favor responde únicamente con la palabra: **CONFIRMO**`
+    message: `Encontré ${payload.length} producto(s) afectados. Riesgo: ${risk}\n\n**PREVISUALIZACIÓN DE CAMBIOS:**\n${previewList}\nImpacto esperado: Actualización de stock en Mercado Libre.\n\n**IMPORTANTE:** Para ejecutar esto, por favor responde únicamente con la palabra: **CONFIRMO**`
   };
 }
 
@@ -262,18 +317,34 @@ export async function prepareStatusChange(tenantId: string, query: string, statu
 
   const products = [resolution.product];
 
-  const payload = products.map(p => ({
-    product_id: p.id,
-    title: p.title,
-    current_value: p.status,
-    new_value: status
-  }));
+  if (products.length > 20) {
+    return { error: "Cambio masivo excedido (>20 productos). Esta acción requiere revisión manual." };
+  }
+
+  if (status === 'paused' && products.length > 10) {
+    return { error: "Pausa masiva excedida (>10 productos). Esta acción requiere revisión manual." };
+  }
+
+  let previewList = "";
+
+  const payload = products.map(p => {
+    previewList += `- ${p.title} (SKU: ${p.sku || 'N/A'})\n  Estado actual: ${p.status} -> Nuevo: ${status}\n`;
+
+    return {
+      product_id: p.id,
+      title: p.title,
+      current_value: p.status,
+      new_value: status
+    };
+  });
+
+  const risk = calculateRisk(products.length, 0, status === 'paused');
 
   const { data: action, error } = await supabase.from("ai_actions").insert({
     tenant_id: tenantId,
     action_type: status === 'paused' ? 'pause_product' : 'activate_product',
     title: status === 'paused' ? 'Pausar publicación' : 'Activar publicación',
-    payload,
+    payload: { items: payload, risk_score: risk },
     status: "pending"
   }).select("id").single();
 
@@ -281,6 +352,6 @@ export async function prepareStatusChange(tenantId: string, query: string, statu
 
   return {
     action_id: action.id,
-    message: `Encontré ${payload.length} producto(s).\nEstado nuevo: ${status}.\n**IMPORTANTE:** Para ejecutar esto en Mercado Libre, por favor responde únicamente con la palabra: **CONFIRMO**`
+    message: `Encontré ${payload.length} producto(s). Riesgo: ${risk}\n\n**PREVISUALIZACIÓN DE CAMBIOS:**\n${previewList}\nImpacto esperado: Cambio de estado a ${status} en Mercado Libre.\n\n**IMPORTANTE:** Para ejecutar esto, por favor responde únicamente con la palabra: **CONFIRMO**`
   };
 }
