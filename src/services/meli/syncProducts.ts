@@ -1,6 +1,27 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProducts } from "./getProducts";
 
+function extractSku(item: any): string | null {
+  if (item.seller_custom_field) return item.seller_custom_field;
+  
+  if (item.attributes && Array.isArray(item.attributes)) {
+    const skuAttr = item.attributes.find((a: any) => a.id === "SELLER_SKU");
+    if (skuAttr && skuAttr.value_name) return skuAttr.value_name;
+  }
+
+  if (item.variations && Array.isArray(item.variations)) {
+    for (const v of item.variations) {
+      if (v.seller_custom_field) return v.seller_custom_field;
+      if (v.attributes && Array.isArray(v.attributes)) {
+        const vSkuAttr = v.attributes.find((a: any) => a.id === "SELLER_SKU");
+        if (vSkuAttr && vSkuAttr.value_name) return vSkuAttr.value_name;
+      }
+    }
+  }
+
+  return null;
+}
+
 export async function syncProducts(tenantId: string) {
   const supabase = createAdminClient();
 
@@ -29,6 +50,7 @@ export async function syncProducts(tenantId: string) {
     tenant_id: tenantId,
     meli_account_id: meli_account_id,
     meli_item_id: item.id,
+    sku: extractSku(item),
     title: item.title,
     price: item.price,
     base_price: item.base_price,

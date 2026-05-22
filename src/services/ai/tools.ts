@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveProduct } from "@/services/products/resolveProduct";
 
 export async function getTodaySales(tenantId: string) {
   const supabase = createAdminClient();
@@ -160,14 +161,18 @@ export async function getProductProfitability(tenantId: string, productName: str
 
 export async function preparePriceUpdate(tenantId: string, query: string, newPrice?: number, percentageChange?: number) {
   const supabase = createAdminClient();
-  const { data: products } = await supabase
-    .from("products")
-    .select("id, title, price")
-    .eq("tenant_id", tenantId)
-    .ilike("title", `%${query}%`)
-    .limit(50);
+  const resolution = await resolveProduct(tenantId, query);
 
-  if (!products || products.length === 0) return { error: "No encontré productos que coincidan con la búsqueda." };
+  if (resolution.type === 'not_found') {
+    return { error: resolution.error };
+  }
+
+  if (resolution.type === 'multiple') {
+    const list = resolution.products.map(p => `- ${p.title} (SKU: ${p.sku || 'N/A'}, Precio: $${p.price})`).join('\n');
+    return { message: `Encontré varios productos parecidos. ¿Cuál querés modificar?\n\n${list}\n\nPor favor, respóndeme con el SKU exacto o el nombre completo del que quieres elegir.` };
+  }
+
+  const products = [resolution.product];
 
   const payload = products.map(p => {
     let finalPrice = newPrice;
@@ -199,14 +204,18 @@ export async function preparePriceUpdate(tenantId: string, query: string, newPri
 
 export async function prepareStockUpdate(tenantId: string, query: string, newQuantity: number, operation: 'set' | 'add' | 'subtract' = 'set') {
   const supabase = createAdminClient();
-  const { data: products } = await supabase
-    .from("products")
-    .select("id, title, available_quantity")
-    .eq("tenant_id", tenantId)
-    .ilike("title", `%${query}%`)
-    .limit(50);
+  const resolution = await resolveProduct(tenantId, query);
 
-  if (!products || products.length === 0) return { error: "No encontré productos que coincidan con la búsqueda." };
+  if (resolution.type === 'not_found') {
+    return { error: resolution.error };
+  }
+
+  if (resolution.type === 'multiple') {
+    const list = resolution.products.map(p => `- ${p.title} (SKU: ${p.sku || 'N/A'}, Stock: ${p.available_quantity})`).join('\n');
+    return { message: `Encontré varios productos parecidos. ¿Cuál querés modificar?\n\n${list}\n\nPor favor, respóndeme con el SKU exacto o el nombre completo del que quieres elegir.` };
+  }
+
+  const products = [resolution.product];
 
   const payload = products.map(p => {
     let finalQty = newQuantity;
@@ -238,14 +247,18 @@ export async function prepareStockUpdate(tenantId: string, query: string, newQua
 
 export async function prepareStatusChange(tenantId: string, query: string, status: 'paused' | 'active') {
   const supabase = createAdminClient();
-  const { data: products } = await supabase
-    .from("products")
-    .select("id, title, status")
-    .eq("tenant_id", tenantId)
-    .ilike("title", `%${query}%`)
-    .limit(50);
+  const resolution = await resolveProduct(tenantId, query);
 
-  if (!products || products.length === 0) return { error: "No encontré productos que coincidan con la búsqueda." };
+  if (resolution.type === 'not_found') {
+    return { error: resolution.error };
+  }
+
+  if (resolution.type === 'multiple') {
+    const list = resolution.products.map(p => `- ${p.title} (SKU: ${p.sku || 'N/A'}, Estado: ${p.status})`).join('\n');
+    return { message: `Encontré varios productos parecidos. ¿Cuál querés modificar?\n\n${list}\n\nPor favor, respóndeme con el SKU exacto o el nombre completo del que quieres elegir.` };
+  }
+
+  const products = [resolution.product];
 
   const payload = products.map(p => ({
     product_id: p.id,

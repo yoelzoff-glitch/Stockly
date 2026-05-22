@@ -75,7 +75,9 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
 - Nunca inventes datos (alucines). Si una herramienta no devuelve resultados, dile al usuario que no tienes esa información.
 - Formatea los valores monetarios con el símbolo $.
 - No uses lenguaje excesivamente formal, mantén un tono profesional pero cercano.
-- Importante: Tienes herramientas para preparar modificaciones masivas de precio, stock y estado de los productos en Mercado Libre. Cuando las uses, se creará una acción pendiente y deberás terminar tu mensaje pidiendo expresamente al usuario que responda con la palabra 'CONFIRMO' para ejecutar los cambios.`;
+- Importante: Tienes herramientas para preparar modificaciones masivas de precio, stock y estado de los productos en Mercado Libre. Puedes buscar productos por Nombre, SKU exacto o ID de Mercado Libre.
+- Si una herramienta te responde diciendo "Encontré varios productos parecidos. ¿Cuál querés modificar?", MUESTRA al usuario la lista de productos que te devolvió la herramienta y pregúntale cuál de los SKUs o nombres específicos desea elegir antes de continuar.
+- Cuando prepares una acción con éxito, se creará una acción pendiente y deberás terminar tu mensaje pidiendo expresamente al usuario que responda con la palabra 'CONFIRMO' para ejecutar los cambios.`;
 
   const runner = openai.chat.completions.runTools({
     model: process.env.AI_MODEL || "gpt-4o-mini",
@@ -205,7 +207,7 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
           parameters: {
             type: "object",
             properties: {
-              query: { type: "string", description: "Búsqueda del producto" },
+              query: { type: "string", description: "Búsqueda del producto (puede ser SKU exacto, ID de Mercado Libre o Nombre parcial)" },
               newPrice: { type: "number", description: "Nuevo precio exacto" },
               percentageChange: { type: "number", description: "Porcentaje a aumentar/disminuir (ej: 10 para aumentar 10%)" }
             },
@@ -223,7 +225,7 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
           parameters: {
             type: "object",
             properties: {
-              query: { type: "string", description: "Búsqueda del producto" },
+              query: { type: "string", description: "Búsqueda del producto (puede ser SKU exacto, ID de Mercado Libre o Nombre parcial)" },
               newQuantity: { type: "number", description: "Cantidad de stock" },
               operation: { type: "string", enum: ["set", "add", "subtract"], description: "Operación a realizar" }
             },
@@ -241,7 +243,7 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
           parameters: {
             type: "object",
             properties: {
-              query: { type: "string", description: "Búsqueda del producto" },
+              query: { type: "string", description: "Búsqueda del producto (puede ser SKU exacto, ID de Mercado Libre o Nombre parcial)" },
               status: { type: "string", enum: ["paused", "active"], description: "Nuevo estado" }
             },
             required: ["query", "status"],
