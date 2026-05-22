@@ -137,7 +137,7 @@ export async function getProductProfitability(tenantId: string, query: string) {
 
   const { data, error } = await supabase
     .from("products")
-    .select("title, sku, price, cost")
+    .select("title, sku, price, cost, estimated_fee, estimated_shipping_cost, margin_amount, margin_percent, profitability_status")
     .eq("tenant_id", tenantId)
     .or(`sku.eq."${query}",meli_item_id.ilike."*${query}*",title.ilike."*${query}*"`)
     .limit(1);
@@ -151,18 +151,19 @@ export async function getProductProfitability(tenantId: string, query: string) {
       title: p.title,
       price: p.price,
       cost: "No configurado",
-      margin: "No se puede calcular el margen porque el costo no está configurado. Pide al usuario que cargue el costo en el dashboard de productos."
+      margin: "No se puede calcular la rentabilidad real porque el costo no está configurado. Pide al usuario que cargue el costo."
     };
   }
-
-  const margin = p.price - p.cost;
 
   return {
     title: p.title,
     price: p.price,
     cost: p.cost,
-    margin: margin,
-    marginPercentage: ((margin / p.price) * 100).toFixed(1) + "%"
+    estimated_fee: p.estimated_fee !== null ? p.estimated_fee : "Desconocida",
+    estimated_shipping: p.estimated_shipping_cost !== null ? p.estimated_shipping_cost : "Desconocido",
+    net_profit_amount: p.margin_amount !== null ? p.margin_amount : "Incompleto",
+    net_margin_percentage: p.margin_percent !== null ? `${p.margin_percent}%` : "Incompleto",
+    profitability_status: p.profitability_status
   };
 }
 

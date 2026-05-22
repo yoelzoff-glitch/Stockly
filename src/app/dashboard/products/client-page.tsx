@@ -22,14 +22,25 @@ interface Product {
   last_synced_at: string;
 }
 
-export function ProductsClient({ initialProducts }: { initialProducts: Product[] }) {
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+export function ProductsClient({ initialProducts }: { initialProducts: any[] }) {
+  const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isRecalculating, setIsRecalculating] = useState(false);
 
-  // Note: En una app real, onSuccess haría un router.refresh() para recargar desde el server, 
-  // o actualizaríamos el estado local. Para simplificar, recargaremos la página.
   const handleSuccess = () => {
     window.location.reload();
+  };
+
+  const handleRecalculate = async () => {
+    setIsRecalculating(true);
+    try {
+      const res = await fetch("/api/profitability/recalculate", { method: "POST" });
+      if (res.ok) {
+        window.location.reload();
+      }
+    } finally {
+      setIsRecalculating(false);
+    }
   };
 
   return (
@@ -37,6 +48,10 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Productos</h2>
         <div className="flex items-center space-x-2">
+          <Button variant="outline" onClick={handleRecalculate} disabled={isRecalculating}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRecalculating ? 'animate-spin' : ''}`} />
+            Recalcular Rentabilidad
+          </Button>
           <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
             <Upload className="mr-2 h-4 w-4" />
             Importar Costos
@@ -77,18 +92,15 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
                     <th className="h-10 px-4 align-middle">Producto</th>
                     <th className="h-10 px-4 align-middle text-right">Precio</th>
                     <th className="h-10 px-4 align-middle text-right">Costo</th>
-                    <th className="h-10 px-4 align-middle text-right">Margen</th>
-                    <th className="h-10 px-4 align-middle text-right">Stock</th>
-                    <th className="h-10 px-4 align-middle">Estado</th>
+                    <th className="h-10 px-4 align-middle text-right">Comisión</th>
+                    <th className="h-10 px-4 align-middle text-right">Envío</th>
+                    <th className="h-10 px-4 align-middle text-right">Margen Neto</th>
+                    <th className="h-10 px-4 align-middle text-center">Estado Rentab.</th>
                     <th className="h-10 px-4 align-middle text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {initialProducts.map((product) => {
-                    const marginValue = product.cost && product.price > 0 
-                      ? ((product.price - product.cost) / product.price) * 100 
-                      : null;
-
                     return (
                       <tr key={product.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
                         <td className="p-4 align-middle font-medium min-w-[250px]">
@@ -98,7 +110,7 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
                             )}
                             <div className="flex flex-col">
                               <span className="line-clamp-2">{product.title}</span>
-                              <span className="text-xs text-muted-foreground mt-1">SKU: {product.sku || 'N/A'}</span>
+                              <span className="text-xs text-muted-foreground mt-1">SKU: {product.sku || 'N/A'} | Stock: {product.available_quantity}</span>
                             </div>
                           </div>
                         </td>
@@ -112,21 +124,30 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
                             <Badge variant="outline" className="text-muted-foreground border-dashed">Sin costo</Badge>
                           )}
                         </td>
+                        <td className="p-4 align-middle text-right whitespace-nowrap text-muted-foreground">
+                          {product.estimated_fee ? `$${product.estimated_fee.toLocaleString()}` : '-'}
+                        </td>
+                        <td className="p-4 align-middle text-right whitespace-nowrap text-muted-foreground">
+                          {product.estimated_shipping_cost !== null && product.estimated_shipping_cost !== undefined ? `$${product.estimated_shipping_cost.toLocaleString()}` : '-'}
+                        </td>
                         <td className="p-4 align-middle text-right whitespace-nowrap">
-                          {marginValue !== null ? (
-                            <span className={marginValue <= 10 ? 'text-red-500 font-medium' : 'text-green-600 font-medium'}>
-                              {marginValue.toFixed(1)}%
-                            </span>
+                          {product.margin_percent !== null && product.margin_percent !== undefined ? (
+                            <div className="flex flex-col items-end">
+                              <span className={product.margin_percent <= 10 ? 'text-red-500 font-medium' : 'text-green-600 font-medium'}>
+                                {product.margin_percent.toFixed(1)}%
+                              </span>
+                              <span className="text-xs text-muted-foreground">${product.margin_amount?.toLocaleString()}</span>
+                            </div>
                           ) : (
                             <span className="text-muted-foreground">N/A</span>
                           )}
                         </td>
-                        <td className="p-4 align-middle text-right">
-                          {product.available_quantity}
-                        </td>
-                        <td className="p-4 align-middle">
-                          <Badge variant={product.status === "active" ? "default" : "secondary"}>
-                            {product.status}
+                        <td className="p-4 align-middle text-center">
+                          <Badge variant={
+                            product.profitability_status === 'complete' ? 'default' :
+                            product.profitability_status === 'missing_cost' ? 'destructive' : 'secondary'
+                          }>
+                            {product.profitability_status || 'unknown'}
                           </Badge>
                         </td>
                         <td className="p-4 align-middle text-right">
@@ -150,7 +171,7 @@ export function ProductsClient({ initialProducts }: { initialProducts: Product[]
           product={editingProduct} 
           onClose={() => {
             setEditingProduct(null);
-            handleSuccess(); // Reload to see changes
+            handleSuccess(); 
           }} 
         />
       )}

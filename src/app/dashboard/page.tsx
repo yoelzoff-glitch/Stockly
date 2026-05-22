@@ -80,7 +80,7 @@ export default async function DashboardPage() {
   // Products count & low stock
   const { data: allProducts } = await supabase
     .from("products")
-    .select("available_quantity, cost")
+    .select("available_quantity, cost, estimated_fee")
     .eq("tenant_id", tenantId);
 
   const totalProductsCount = allProducts?.length || 0;
@@ -100,6 +100,26 @@ export default async function DashboardPage() {
     name: p.title || "Producto",
     value: p.sold_quantity || 0
   })) || [];
+
+  // Top products by margin
+  const { data: topMarginProducts } = await supabase
+    .from("products")
+    .select("title, margin_percent, margin_amount")
+    .eq("tenant_id", tenantId)
+    .not("margin_percent", "is", null)
+    .order("margin_percent", { ascending: false })
+    .limit(3);
+
+  const { data: bottomMarginProducts } = await supabase
+    .from("products")
+    .select("title, margin_percent, margin_amount")
+    .eq("tenant_id", tenantId)
+    .not("margin_percent", "is", null)
+    .order("margin_percent", { ascending: true })
+    .limit(3);
+
+  const missingFeesCount = allProducts?.filter(p => p.estimated_fee === null || p.estimated_fee === undefined).length || 0;
+
 
   // Recent AI Messages
   const { data: recentMessages } = await supabase
@@ -278,6 +298,51 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <TopProductsChart data={chartData} />
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Rentabilidad Estimada</CardTitle>
+              <CardDescription>Basado en productos con costos cargados</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <h4 className="text-sm font-semibold mb-2 text-green-600">Mejor Margen Neto</h4>
+                {topMarginProducts && topMarginProducts.length > 0 ? (
+                  <ul className="space-y-2 text-sm">
+                    {topMarginProducts.map((p, i) => (
+                      <li key={i} className="flex justify-between items-center">
+                        <span className="truncate max-w-[180px]">{p.title}</span>
+                        <span className="font-medium text-green-600">{p.margin_percent?.toFixed(1)}%</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No hay datos suficientes</p>
+                )}
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold mb-2 text-red-500">Peor Margen Neto</h4>
+                {bottomMarginProducts && bottomMarginProducts.length > 0 ? (
+                  <ul className="space-y-2 text-sm">
+                    {bottomMarginProducts.map((p, i) => (
+                      <li key={i} className="flex justify-between items-center">
+                        <span className="truncate max-w-[180px]">{p.title}</span>
+                        <span className="font-medium text-red-500">{p.margin_percent?.toFixed(1)}%</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No hay datos suficientes</p>
+                )}
+              </div>
+              {missingFeesCount > 0 && (
+                <div className="pt-2 border-t text-xs text-muted-foreground flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3 text-yellow-500" />
+                  {missingFeesCount} productos no tienen comisión ML estimada.
+                </div>
+              )}
             </CardContent>
           </Card>
           
