@@ -26,11 +26,33 @@ export function ChatInterface({ initialMessages }: { initialMessages: Message[] 
     scrollToBottom();
   }, [messages, isLoading]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  const QUICK_QUESTIONS = [
+    "¿Qué vendí hoy?",
+    "¿Qué producto tiene mejor margen?",
+    "¿Qué tengo que reponer?",
+    "¿Vendí más que ayer?"
+  ];
 
-    const userMsg: Message = { id: Date.now().toString(), role: "user", content: input.trim() };
+  const handleQuickSubmit = (question: string) => {
+    if (isLoading) return;
+    setInput(question);
+    
+    // Create a synthetic event to pass to handleSubmit
+    const syntheticEvent = {
+      preventDefault: () => {}
+    } as React.FormEvent;
+    
+    // We need a timeout to ensure state is updated before submitting
+    setTimeout(() => {
+      // Actually we can just call the logic directly to avoid race conditions
+      submitMessage(question);
+    }, 0);
+  };
+
+  const submitMessage = async (text: string) => {
+    if (!text.trim() || isLoading) return;
+
+    const userMsg: Message = { id: Date.now().toString(), role: "user", content: text.trim() };
     setMessages(prev => [...prev, userMsg]);
     setInput("");
     setIsLoading(true);
@@ -60,6 +82,11 @@ export function ChatInterface({ initialMessages }: { initialMessages: Message[] 
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    submitMessage(input);
   };
 
   const handleClear = async () => {
@@ -139,24 +166,42 @@ export function ChatInterface({ initialMessages }: { initialMessages: Message[] 
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-white dark:bg-slate-950 border-t">
-        <form onSubmit={handleSubmit} className="flex gap-2 relative">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Pregúntame sobre tus ventas o stock..."
-            className="flex-1 rounded-full border border-input bg-background px-4 py-3 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pr-12 shadow-sm"
-            disabled={isLoading}
-          />
-          <Button 
-            type="submit" 
-            size="icon" 
-            className="absolute right-1.5 top-1.5 rounded-full w-9 h-9"
-            disabled={!input.trim() || isLoading}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
+      <div className="bg-white dark:bg-slate-950 border-t">
+        {/* Quick Questions */}
+        <div className="px-4 pt-3 flex gap-2 overflow-x-auto no-scrollbar">
+          {QUICK_QUESTIONS.map((q, idx) => (
+            <Button 
+              key={idx} 
+              variant="outline" 
+              size="sm" 
+              className="rounded-full text-xs whitespace-nowrap border-primary/20 text-primary hover:bg-primary/5"
+              onClick={() => handleQuickSubmit(q)}
+              disabled={isLoading}
+            >
+              {q}
+            </Button>
+          ))}
+        </div>
+
+        <div className="p-4">
+          <form onSubmit={handleSubmit} className="flex gap-2 relative">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Pregúntame sobre tus ventas o stock..."
+              className="flex-1 rounded-full border border-input bg-background px-4 py-3 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pr-12 shadow-sm"
+              disabled={isLoading}
+            />
+            <Button 
+              type="submit" 
+              size="icon" 
+              className="absolute right-1.5 top-1.5 rounded-full w-9 h-9"
+              disabled={!input.trim() || isLoading}
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   );

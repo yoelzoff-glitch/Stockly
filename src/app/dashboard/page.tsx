@@ -6,10 +6,12 @@ import { SalesCard } from "@/components/dashboard/sales-card";
 import { RevenueCard } from "@/components/dashboard/revenue-card";
 import { StockAlertCard } from "@/components/dashboard/stock-alert-card";
 import { ProductCard } from "@/components/dashboard/product-card";
-import { AlertCircle, CheckCircle2, MessageSquare, Package, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, MessageSquare, Package, RefreshCw, Sparkles, Lightbulb } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getCachedOrders } from "@/lib/cache";
+import { getOrCreateDailySummary } from "@/services/ai/dailySummary";
+import { generateBusinessInsights } from "@/services/analytics/insights";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -107,6 +109,12 @@ export default async function DashboardPage() {
     .order("created_at", { ascending: false })
     .limit(3);
 
+  // 1. Daily Summary
+  const dailySummary = await getOrCreateDailySummary(tenantId);
+  
+  // 2. Business Insights
+  const insights = await generateBusinessInsights(tenantId);
+
   // Time formatting helper
   const formatTimeAgo = (dateStr: string) => {
     const diffMs = new Date().getTime() - new Date(dateStr).getTime();
@@ -116,10 +124,16 @@ export default async function DashboardPage() {
     return `hace ${Math.floor(diffMins / 60)} horas`;
   };
 
+  const userName = user.email ? user.email.split('@')[0] : "Emprendedor";
+  const formattedName = userName.charAt(0).toUpperCase() + userName.slice(1);
+
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Hola, {formattedName} 👋</h2>
+          <p className="text-muted-foreground mt-1">Aquí está el resumen de tu negocio hoy.</p>
+        </div>
         
         {/* Sync Status Badge */}
         <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 rounded-full text-sm font-medium">
@@ -140,6 +154,50 @@ export default async function DashboardPage() {
           </span>
         </div>
       </div>
+
+      {/* AI Daily Summary Hero */}
+      {dailySummary && (
+        <Card className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-none shadow-md">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-yellow-300" />
+              Resumen Automático
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm md:text-base leading-relaxed whitespace-pre-wrap font-medium">
+              {dailySummary}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stockly Recommends */}
+      {insights.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Lightbulb className="w-5 h-5 text-amber-500" />
+            Stockly Recomienda
+          </h3>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {insights.map(insight => (
+              <Card key={insight.id} className="border-l-4 overflow-hidden" style={{ borderLeftColor: insight.type === 'positive' ? '#10b981' : insight.type === 'negative' ? '#ef4444' : insight.type === 'warning' ? '#f59e0b' : '#3b82f6' }}>
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-sm">{insight.title}</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <p className="text-xs text-muted-foreground mb-3">{insight.description}</p>
+                  {insight.actionLabel && (
+                    <Button variant="outline" size="sm" className="w-full text-xs h-7" asChild>
+                      <Link href={insight.actionHref || "#"}>{insight.actionLabel}</Link>
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <SalesCard amount={salesToday} />
