@@ -142,7 +142,7 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
           parameters: {
             type: "object",
             properties: {
-              query: { type: "string", description: "El nombre o parte del nombre del producto a buscar." },
+              query: { type: "string", description: "El nombre, SKU exacto o ID de Mercado Libre del producto a buscar." },
             },
             required: ["query"],
           },
@@ -191,7 +191,7 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
           parameters: {
             type: "object",
             properties: {
-              productName: { type: "string", description: "El nombre del producto a evaluar." },
+              productName: { type: "string", description: "El nombre, SKU exacto o ID de Mercado Libre del producto a evaluar." },
             },
             required: ["productName"],
           },

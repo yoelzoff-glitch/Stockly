@@ -74,9 +74,9 @@ export async function searchProductByName(tenantId: string, query: string) {
 
   const { data, error } = await supabase
     .from("products")
-    .select("title, price, available_quantity, sold_quantity, status")
+    .select("title, sku, price, available_quantity, sold_quantity, status")
     .eq("tenant_id", tenantId)
-    .ilike("title", `%${query}%`)
+    .or(`sku.eq.${query},meli_item_id.eq.${query},title.ilike.%${query}%`)
     .limit(5);
 
   if (error) throw error;
@@ -132,14 +132,14 @@ export async function compareSalesPeriods(tenantId: string, currentDays: number,
   };
 }
 
-export async function getProductProfitability(tenantId: string, productName: string) {
+export async function getProductProfitability(tenantId: string, query: string) {
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("products")
-    .select("title, price, cost")
+    .select("title, sku, price, cost")
     .eq("tenant_id", tenantId)
-    .ilike("title", `%${productName}%`)
+    .or(`sku.eq.${query},meli_item_id.eq.${query},title.ilike.%${query}%`)
     .limit(1);
 
   if (error || !data || data.length === 0) return { error: "Product not found" };
