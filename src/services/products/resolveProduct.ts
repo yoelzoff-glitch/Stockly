@@ -27,12 +27,12 @@ export async function resolveProduct(tenantId: string, query: string): Promise<R
     safeQuery = safeQuery.substring(3).trim();
   }
 
-  // 1. Intentar match exacto por SKU o meli_item_id
+  // 1. Intentar match exacto por SKU o meli_item_id (o terminación del ID)
   const { data: exactMatches, error: exactError } = await supabase
     .from("products")
     .select("id, title, sku, price, available_quantity, status, meli_item_id")
     .eq("tenant_id", tenantId)
-    .or(`sku.eq."${safeQuery}",meli_item_id.eq."${safeQuery}"`);
+    .or(`sku.eq."${safeQuery}",meli_item_id.ilike."%${safeQuery}"`);
 
   if (exactError) console.error("resolveProduct exact error:", exactError);
 

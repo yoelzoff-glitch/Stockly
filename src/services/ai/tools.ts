@@ -76,7 +76,7 @@ export async function searchProductByName(tenantId: string, query: string) {
     .from("products")
     .select("title, sku, price, available_quantity, sold_quantity, status")
     .eq("tenant_id", tenantId)
-    .or(`sku.eq."${query}",meli_item_id.eq."${query}",title.ilike."%${query}%"`)
+    .or(`sku.eq."${query}",meli_item_id.ilike."%${query}%",title.ilike."%${query}%"`)
     .limit(5);
 
   if (error) throw error;
@@ -139,7 +139,7 @@ export async function getProductProfitability(tenantId: string, query: string) {
     .from("products")
     .select("title, sku, price, cost")
     .eq("tenant_id", tenantId)
-    .or(`sku.eq."${query}",meli_item_id.eq."${query}",title.ilike."%${query}%"`)
+    .or(`sku.eq."${query}",meli_item_id.ilike."%${query}%",title.ilike."%${query}%"`)
     .limit(1);
 
   if (error || !data || data.length === 0) return { error: "Product not found" };
