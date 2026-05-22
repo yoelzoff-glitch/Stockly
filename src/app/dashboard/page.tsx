@@ -80,7 +80,7 @@ export default async function DashboardPage() {
   // Products count & low stock
   const { data: allProducts } = await supabase
     .from("products")
-    .select("available_quantity")
+    .select("available_quantity, cost")
     .eq("tenant_id", tenantId);
 
   const totalProductsCount = allProducts?.length || 0;
@@ -187,6 +187,32 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Missing Costs Alert */}
+      {(() => {
+        const missingCostsCount = allProducts?.filter(p => p.cost === null || p.cost === undefined).length || 0;
+        if (missingCostsCount > 0) {
+          return (
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-sm font-medium text-yellow-800">
+                  Faltan costos de productos
+                </h3>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Tenés {missingCostsCount} productos sin costo cargado. Stockly no puede calcular rentabilidad real.
+                </p>
+                <div className="mt-2">
+                  <Button variant="outline" size="sm" className="h-8 border-yellow-300 text-yellow-800 hover:bg-yellow-100" asChild>
+                    <Link href="/dashboard/products">Cargar costos ahora</Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {/* Stockly Recommends */}
       {insights.length > 0 && (

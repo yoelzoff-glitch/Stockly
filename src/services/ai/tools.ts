@@ -145,13 +145,24 @@ export async function getProductProfitability(tenantId: string, query: string) {
   if (error || !data || data.length === 0) return { error: "Product not found" };
 
   const p = data[0];
-  const margin = p.price - (p.cost || 0);
+  
+  if (p.cost === null || p.cost === undefined) {
+    return {
+      title: p.title,
+      price: p.price,
+      cost: "No configurado",
+      margin: "No se puede calcular el margen porque el costo no está configurado. Pide al usuario que cargue el costo en el dashboard de productos."
+    };
+  }
+
+  const margin = p.price - p.cost;
 
   return {
     title: p.title,
     price: p.price,
-    cost: p.cost || "No configurado",
-    margin: margin
+    cost: p.cost,
+    margin: margin,
+    marginPercentage: ((margin / p.price) * 100).toFixed(1) + "%"
   };
 }
 
