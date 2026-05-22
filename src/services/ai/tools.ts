@@ -190,6 +190,7 @@ export async function preparePriceUpdate(tenantId: string, query: string, newPri
   const { data: action, error } = await supabase.from("ai_actions").insert({
     tenant_id: tenantId,
     action_type: "update_price",
+    title: "Actualización de precio",
     payload,
     status: "pending"
   }).select("id").single();
@@ -233,6 +234,7 @@ export async function prepareStockUpdate(tenantId: string, query: string, newQua
   const { data: action, error } = await supabase.from("ai_actions").insert({
     tenant_id: tenantId,
     action_type: "update_stock",
+    title: "Actualización de stock",
     payload,
     status: "pending"
   }).select("id").single();
@@ -270,6 +272,7 @@ export async function prepareStatusChange(tenantId: string, query: string, statu
   const { data: action, error } = await supabase.from("ai_actions").insert({
     tenant_id: tenantId,
     action_type: status === 'paused' ? 'pause_product' : 'activate_product',
+    title: status === 'paused' ? 'Pausar publicación' : 'Activar publicación',
     payload,
     status: "pending"
   }).select("id").single();
