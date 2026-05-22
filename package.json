@@ -39,6 +39,7 @@
     "@tailwindcss/postcss": "^4.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "crypto": "^1.0.1",
     "inngest": "^4.4.0",
     "lucide-react": "^1.16.0",
     "mercadopago": "^3.0.0",

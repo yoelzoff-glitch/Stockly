@@ -86,9 +86,9 @@ export function MeliCard({ status }: { status: "conectado" | "pendiente" }) {
               </Button>
             </div>
           ) : (
-            <Link href="/api/meli/connect">
+            <a href="/api/meli/connect">
               <Button variant="outline" size="sm">Conectar</Button>
-            </Link>
+            </a>
           )}
         </div>
       </CardContent>

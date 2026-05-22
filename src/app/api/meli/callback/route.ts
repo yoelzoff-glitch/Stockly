@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -42,6 +43,14 @@ export async function GET(request: Request) {
   }
 
   try {
+    const cookieStore = await cookies();
+    const codeVerifier = cookieStore.get("meli_code_verifier")?.value;
+
+    if (!codeVerifier) {
+      console.error("Meli Callback Error: No code_verifier found in cookies.");
+      return NextResponse.redirect(new URL("/dashboard/integrations?meli=error", baseUrl));
+    }
+
     // Exchange code for token
     const tokenResponse = await fetch("https://api.mercadolibre.com/oauth/token", {
       method: "POST",
@@ -54,7 +63,8 @@ export async function GET(request: Request) {
         client_id: clientId,
         client_secret: clientSecret,
         code: code,
-        redirect_uri: redirectUri
+        redirect_uri: redirectUri,
+        code_verifier: codeVerifier
       }).toString()
     });
 
