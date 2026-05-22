@@ -96,7 +96,10 @@ export async function POST(req: Request) {
       });
 
       // 4. Run AI Agent
-      const responseText = await runBusinessAgent(tenantId, textMessage);
+      const responseText = await runBusinessAgent({
+        tenantId, 
+        userMessage: textMessage
+      });
 
       // 5. Save Outbound Message
       await supabase.from("messages").insert({
