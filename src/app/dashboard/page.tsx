@@ -115,6 +115,22 @@ export default async function DashboardPage() {
   // 2. Business Insights
   const insights = await generateBusinessInsights(tenantId);
 
+  // 3. Billing Usage
+  const { data: usage } = await supabase
+    .from("subscription_usage")
+    .select("ai_requests_used, ai_requests_limit")
+    .eq("tenant_id", tenantId)
+    .single();
+    
+  const { data: sub } = await supabase
+    .from("subscriptions")
+    .select("plan")
+    .eq("tenant_id", tenantId)
+    .single();
+
+  const aiUsed = usage?.ai_requests_used || 0;
+  const aiLimit = sub?.plan === 'business' ? '∞' : (usage?.ai_requests_limit || 500);
+
   // Time formatting helper
   const formatTimeAgo = (dateStr: string) => {
     const diffMs = new Date().getTime() - new Date(dateStr).getTime();
@@ -267,6 +283,24 @@ export default async function DashboardPage() {
               ) : (
                 <p className="text-sm text-muted-foreground">No tienes mensajes recientes con la Inteligencia Artificial.</p>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Usage Widget */}
+          <Card className="bg-primary/5 border-primary/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center justify-between">
+                Uso Mensual
+                <Button variant="link" size="sm" className="h-auto p-0" asChild>
+                  <Link href="/dashboard/billing">Ver plan</Link>
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">Consultas IA</span>
+                <span className="text-muted-foreground">{aiUsed} / {aiLimit}</span>
+              </div>
             </CardContent>
           </Card>
         </div>

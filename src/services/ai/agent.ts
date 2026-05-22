@@ -1,6 +1,8 @@
 import { openai } from "@/lib/ai/openai";
 import * as tools from "./tools";
 
+import { checkAILimit, incrementAIUsage } from "../billing/checkLimits";
+
 export async function runBusinessAgent({
   tenantId,
   userMessage,
@@ -8,6 +10,11 @@ export async function runBusinessAgent({
   tenantId: string;
   userMessage: string;
 }) {
+  const isAllowed = await checkAILimit(tenantId);
+  if (!isAllowed) {
+    return "Alcanzaste el límite mensual de consultas de Inteligencia Artificial. Por favor, actualiza tu plan en la sección de Facturación para seguir operando.";
+  }
+
   const systemPrompt = `Eres Stockly, el asistente de inteligencia artificial interno para la gestión del negocio del usuario.
 Tu objetivo es responder de forma clara, directa y concisa a las preguntas del usuario sobre sus ventas, productos y stock.
 Usa las herramientas proporcionadas para obtener datos reales de la base de datos.
@@ -139,5 +146,10 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
   });
 
   const finalContent = await runner.finalContent();
+  
+  if (finalContent) {
+    await incrementAIUsage(tenantId);
+  }
+
   return finalContent || "Lo siento, hubo un problema procesando tu consulta.";
 }
