@@ -21,7 +21,6 @@ export default async function MessagesPage() {
     .from("messages")
     .select("*")
     .eq("tenant_id", tenantId)
-    .eq("channel", "web")
     .order("created_at", { ascending: true });
 
   const initialMessages = messages?.map(m => ({
