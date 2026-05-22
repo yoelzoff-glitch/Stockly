@@ -8,6 +8,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 
+import { MeliCard } from "@/components/dashboard/meli-card";
+
 export default async function IntegrationsPage({
   searchParams,
 }: {
@@ -73,30 +75,7 @@ export default async function IntegrationsPage({
       )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-6">
-        {/* Mercado Libre */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-lg font-medium">Mercado Libre</CardTitle>
-            <ShoppingBag className="h-5 w-5 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <CardDescription className="mt-2 mb-4">
-              Sincroniza tus publicaciones, stock y ventas de Mercado Libre.
-            </CardDescription>
-            <div className="flex items-center justify-between">
-              <Badge variant={meliStatus === 'conectado' ? 'default' : 'secondary'} className="capitalize">
-                {meliStatus}
-              </Badge>
-              {meliStatus === 'conectado' ? (
-                <Button variant="outline" size="sm" disabled>Configurar</Button>
-              ) : (
-                <Link href="/api/meli/connect">
-                  <Button variant="outline" size="sm">Conectar</Button>
-                </Link>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <MeliCard status={meliStatus as any} />
 
         {/* WhatsApp */}
         <Card>
