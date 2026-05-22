@@ -102,6 +102,8 @@ export async function POST(req: Request) {
         tenant_id: tenantId,
         text: message.type === "audio" ? `🎙️ [Audio transcrito]: ${textMessage}` : textMessage,
         direction: "inbound",
+        from_phone: from,
+        to_phone: displayPhoneNumber,
       });
 
       // 4. Run AI Agent
@@ -115,10 +117,22 @@ export async function POST(req: Request) {
         tenant_id: tenantId,
         text: responseText,
         direction: "outbound",
+        from_phone: displayPhoneNumber,
+        to_phone: from,
       });
 
       // 6. Send Response
-      await sendText(from, responseText, phoneNumberId, accessToken);
+      try {
+        await sendText(from, responseText, phoneNumberId, accessToken);
+      } catch (error: any) {
+        logger.error(`Error sending WA message to ${from}: ${error.message}`, "WHATSAPP_WEBHOOK");
+        // Save the error in the database to debug it easily
+        await supabase.from("messages").insert({
+          tenant_id: tenantId,
+          text: `❌ Error enviando mensaje a WhatsApp: ${error.message}`,
+          direction: "outbound",
+        });
+      }
     }
 
     return new NextResponse("OK", { status: 200 });
