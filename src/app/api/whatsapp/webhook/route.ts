@@ -58,14 +58,23 @@ export async function POST(req: Request) {
         .eq("phone_number_id", phoneNumberId)
         .single();
 
-      if (!waAccount?.tenant_id) {
+      let tenantId = waAccount?.tenant_id;
+      let accessToken = waAccount?.access_token;
+
+      // Fallback para pruebas locales / Vercel sin base de datos configurada
+      if (!tenantId && process.env.WHATSAPP_PHONE_NUMBER_ID === phoneNumberId) {
+        logger.info("Using fallback tenant for testing...", "WHATSAPP_WEBHOOK");
+        const { data: firstProfile } = await supabase.from("profiles").select("tenant_id").limit(1).single();
+        if (firstProfile) {
+          tenantId = firstProfile.tenant_id;
+          accessToken = process.env.WHATSAPP_ACCESS_TOKEN!;
+        }
+      }
+
+      if (!tenantId) {
         logger.error(`Unknown WhatsApp number: ${phoneNumberId}`, "WHATSAPP_WEBHOOK");
         continue;
       }
-
-      const tenantId = waAccount.tenant_id;
-      // Use DB token or fallback to ENV if it's the global one for testing
-      const accessToken = waAccount.access_token || process.env.WHATSAPP_ACCESS_TOKEN!;
 
       let textMessage = "";
 
