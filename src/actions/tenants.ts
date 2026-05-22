@@ -50,7 +50,7 @@ export async function submitOnboardingAction(prevState: any, formData: FormData)
 
   if (tenantError || !tenantData) {
     console.error("Tenant creation error:", tenantError);
-    return { error: "Error al configurar el entorno del negocio" };
+    return { error: `Error al configurar el entorno: ${tenantError?.message || "Desconocido"}` };
   }
 
   // Update or Create Profile

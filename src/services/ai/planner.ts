@@ -11,6 +11,7 @@ export interface BusinessProblem {
   product_title: string;
   sku: string | null;
   details: string;
+  action: string;
 }
 
 export async function analyzeBusiness(tenantId: string): Promise<BusinessProblem[]> {
@@ -39,6 +40,7 @@ export async function analyzeBusiness(tenantId: string): Promise<BusinessProblem
       product_title: dp.title,
       sku: null,
       details: dp.reason,
+      action: dp.action || "Pausar publicación",
     });
   }
 
@@ -52,6 +54,7 @@ export async function analyzeBusiness(tenantId: string): Promise<BusinessProblem
       product_title: so.title,
       sku: null,
       details: `Riesgo de quiebre de stock en ${so.estimated_days_remaining} días.`,
+      action: "Reponer stock"
     });
   }
 
@@ -67,6 +70,7 @@ export async function analyzeBusiness(tenantId: string): Promise<BusinessProblem
           product_title: product.title,
           sku: product.sku,
           details: `Margen bajo: ${product.margin_percent.toFixed(1)}%.`,
+          action: `Subir precio aprox ${product.margin_percent <= 5 ? '10%' : '5%'}`
         });
       }
     }

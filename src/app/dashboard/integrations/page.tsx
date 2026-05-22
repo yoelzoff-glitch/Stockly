@@ -9,6 +9,7 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 
 import { MeliCard } from "@/components/dashboard/meli-card";
+import { OpenAIConfigModal, WhatsAppConfigModal } from "./client-page";
 
 export default async function IntegrationsPage({
   searchParams,
@@ -52,6 +53,11 @@ export default async function IntegrationsPage({
   
   // OpenAI relies on env var for now
   const openAIStatus = process.env.OPENAI_API_KEY ? "conectado" : "pendiente";
+
+  // Fetch current AI Settings and Usage
+  const { data: tenant } = await supabase.from("tenants").select("metadata").eq("id", tenantId).single();
+  const { data: usage } = await supabase.from("subscription_usage").select("ai_requests_used, ai_requests_limit").eq("tenant_id", tenantId).single();
+  const aiModel = tenant?.metadata?.ai_settings?.model || "gpt-4o-mini";
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -97,9 +103,11 @@ export default async function IntegrationsPage({
               <Badge variant={waStatus === 'conectado' ? 'default' : 'secondary'} className="capitalize">
                 {waStatus}
               </Badge>
-              <Button variant="outline" size="sm" disabled={waStatus === 'conectado'}>
-                {waStatus === 'conectado' ? 'Configurar' : 'Conectar'}
-              </Button>
+              {waStatus === 'conectado' ? (
+                <WhatsAppConfigModal waStatus={waStatus} />
+              ) : (
+                <Button variant="outline" size="sm">Conectar</Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -118,9 +126,11 @@ export default async function IntegrationsPage({
               <Badge variant={openAIStatus === 'conectado' ? 'default' : 'secondary'} className="capitalize">
                 {openAIStatus}
               </Badge>
-              <Button variant="outline" size="sm" disabled={openAIStatus === 'conectado'}>
-                {openAIStatus === 'conectado' ? 'Configurar' : 'Conectar'}
-              </Button>
+              {openAIStatus === 'conectado' ? (
+                <OpenAIConfigModal currentModel={aiModel} usage={usage?.ai_requests_used || 0} limit={usage?.ai_requests_limit || 500} />
+              ) : (
+                <Button variant="outline" size="sm">Conectar</Button>
+              )}
             </div>
           </CardContent>
         </Card>

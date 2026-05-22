@@ -6,12 +6,14 @@ import { SalesCard } from "@/components/dashboard/sales-card";
 import { RevenueCard } from "@/components/dashboard/revenue-card";
 import { StockAlertCard } from "@/components/dashboard/stock-alert-card";
 import { ProductCard } from "@/components/dashboard/product-card";
-import { AlertCircle, CheckCircle2, MessageSquare, Package, RefreshCw, Sparkles, Lightbulb } from "lucide-react";
+import { AlertCircle, CheckCircle2, MessageSquare, Package, RefreshCw, Sparkles, Lightbulb, ArrowRight, HeartPulse } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getCachedOrders } from "@/lib/cache";
 import { getOrCreateDailySummary } from "@/services/ai/dailySummary";
 import { generateBusinessInsights } from "@/services/analytics/insights";
+import { calculateBusinessHealth } from "@/services/health/calculateHealth";
+import { getActivationProgress } from "@/actions/activation";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -47,8 +49,8 @@ export default async function DashboardPage() {
         <p className="mt-2 mb-6 text-muted-foreground max-w-md">
           Para ver tus métricas de ventas, stock y productos, primero necesitas vincular tu cuenta de Mercado Libre con Stockly.
         </p>
-        <Link href="/dashboard/integrations">
-          <Button>Ir a Integraciones</Button>
+        <Link href="/dashboard/get-started">
+          <Button>Ir a Guía de Inicio</Button>
         </Link>
       </div>
     );
@@ -151,6 +153,10 @@ export default async function DashboardPage() {
   const aiUsed = usage?.ai_requests_used || 0;
   const aiLimit = sub?.plan === 'business' ? '∞' : (usage?.ai_requests_limit || 500);
 
+  // Sprint 16: Health & Activation
+  const activation = await getActivationProgress();
+  const healthData = await calculateBusinessHealth(tenantId);
+
   // Time formatting helper
   const formatTimeAgo = (dateStr: string) => {
     const diffMs = new Date().getTime() - new Date(dateStr).getTime();
@@ -165,13 +171,38 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
+      
+      {activation.percentage < 100 && (
+        <div className="bg-primary/10 border border-primary/20 p-4 rounded-lg flex items-center justify-between mb-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="bg-primary text-primary-foreground font-bold w-10 h-10 rounded-full flex items-center justify-center">
+              {activation.percentage}%
+            </div>
+            <div>
+              <h3 className="font-semibold text-primary">Te falta completar {activation.totalSteps - activation.completedSteps} pasos de configuración</h3>
+              <p className="text-sm text-muted-foreground">Termina de configurar tu cuenta para desbloquear todo el poder de la IA.</p>
+            </div>
+          </div>
+          <Button asChild variant="default" size="sm">
+            <Link href="/dashboard/get-started">Continuar</Link>
+          </Button>
+        </div>
+      )}
+
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Hola, {formattedName} 👋</h2>
           <p className="text-muted-foreground mt-1">Aquí está el resumen de tu negocio hoy.</p>
         </div>
         
-        {/* Sync Status Badge */}
+        <div className="flex items-center gap-3">
+          {/* Health Score Badge */}
+          <Link href="/dashboard/health" className="flex items-center gap-2 px-4 py-2 bg-background border rounded-full text-sm font-medium hover:bg-accent transition-colors">
+            <HeartPulse className={`w-4 h-4 ${healthData.score >= 90 ? 'text-emerald-500' : healthData.score >= 70 ? 'text-blue-500' : healthData.score >= 50 ? 'text-yellow-500' : 'text-red-500'}`} />
+            <span>Salud: {healthData.score}/100</span>
+          </Link>
+
+          {/* Sync Status Badge */}
         <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 rounded-full text-sm font-medium">
           {meliAccount.status === 'syncing' ? (
             <RefreshCw className="w-4 h-4 animate-spin" />
@@ -188,6 +219,7 @@ export default async function DashboardPage() {
                 : `Sincronizado ${meliAccount.last_sync_at ? formatTimeAgo(meliAccount.last_sync_at as string) : 'recientemente'}`
             }
           </span>
+        </div>
         </div>
       </div>
 

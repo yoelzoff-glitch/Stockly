@@ -9,7 +9,7 @@ export async function detectDeadProducts(tenantId: string) {
   // First, get products
   const { data: products } = await supabase
     .from("products")
-    .select("id, title, status, permalink")
+    .select("id, title, status, permalink, available_quantity, unit_cost")
     .eq("tenant_id", tenantId)
     .eq("status", "active");
 
@@ -38,13 +38,22 @@ export async function detectDeadProducts(tenantId: string) {
   }
 
   // Dead products are active products not in the soldProductIds set
-  const deadProducts = products.filter(p => !soldProductIds.has(p.id));
+  const deadProducts = products.filter(p => !soldProductIds.has(p.id) && (p.available_quantity || 0) > 0);
 
-  return deadProducts.map(p => ({
-    product_id: p.id,
-    title: p.title,
-    permalink: p.permalink,
-    reason: "Sin ventas en 60 días",
-    action: "Pausar publicación o aplicar descuento"
-  }));
+  return deadProducts.map(p => {
+    const stock = p.available_quantity || 0;
+    const cost = p.unit_cost || 0;
+    const inmovilizado = stock * cost;
+
+    return {
+      product_id: p.id,
+      title: p.title,
+      permalink: p.permalink,
+      stock: stock,
+      valor_inmovilizado: inmovilizado,
+      dias_sin_vender: 60, // approximate based on query
+      reason: "Sin ventas en 60 días",
+      action: "Pausar publicación o aplicar descuento"
+    };
+  });
 }

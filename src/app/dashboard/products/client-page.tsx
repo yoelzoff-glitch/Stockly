@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Package, RefreshCw, Edit2, Upload } from "lucide-react";
 import Link from "next/link";
-import { EditCostModal } from "@/components/dashboard/edit-cost-modal";
+import { ProductCommandCenter } from "@/components/dashboard/product-command-center";
 import { ImportCostsModal } from "@/components/dashboard/import-costs-modal";
 
 interface Product {
@@ -167,9 +167,11 @@ export function ProductsClient({ initialProducts }: { initialProducts: any[] }) 
       </Card>
 
       {editingProduct && (
-        <EditCostModal 
+        <ProductCommandCenter 
           product={editingProduct} 
-          onClose={() => {
+          isOpen={!!editingProduct}
+          onClose={() => setEditingProduct(null)}
+          onSuccess={() => {
             setEditingProduct(null);
             handleSuccess(); 
           }} 

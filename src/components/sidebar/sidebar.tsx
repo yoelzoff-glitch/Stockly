@@ -13,16 +13,19 @@ import {
   Settings,
   LogOut,
   BrainCircuit,
-  Target
+  Target,
+  Activity
 } from "lucide-react";
 import { logoutAction } from "@/actions/auth";
 
 const sidebarLinks = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Guía de Inicio", href: "/dashboard/get-started", icon: Target },
+  { name: "Health Center", href: "/dashboard/health", icon: Activity },
   { name: "Intelligence Center", href: "/dashboard/intelligence", icon: BrainCircuit },
   { name: "Competencia", href: "/dashboard/competition", icon: Target },
+  { name: "Ventas", href: "/dashboard/sales", icon: ShoppingCart },
   { name: "Productos", href: "/dashboard/products", icon: Package },
-  { name: "Ventas", href: "/dashboard/orders", icon: ShoppingCart },
   { name: "Analíticas", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Integraciones", href: "/dashboard/integrations", icon: Plug },
   { name: "Mensajes", href: "/dashboard/messages", icon: MessageSquare },

@@ -1,0 +1,481 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ExternalLink, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, ShieldCheck, PauseCircle, PlayCircle, Copy, BarChart2, History } from "lucide-react";
+import { 
+  preparePriceChangeAction, 
+  prepareStockChangeAction, 
+  confirmCommandCenterAction, 
+  cancelCommandCenterAction 
+} from "@/actions/product-command-actions";
+import { updateProductCost } from "@/app/dashboard/products/actions";
+import { fetchCompetitionAnalysis } from "@/actions/competition-actions";
+import { Card, CardContent } from "@/components/ui/card";
+
+interface ProductCommandCenterProps {
+  product: any;
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: ProductCommandCenterProps) {
+  const [activeTab, setActiveTab] = useState("general");
+  
+  // States for actions
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [pendingAction, setPendingAction] = useState<any | null>(null);
+  
+  // Competition state
+  const [competitionData, setCompetitionData] = useState<any | null>(null);
+  const [isLoadingCompetition, setIsLoadingCompetition] = useState(false);
+  
+  // Price states
+  const [newPrice, setNewPrice] = useState<string>(product?.price?.toString() || "");
+  
+  // Stock states
+  const [newStock, setNewStock] = useState<string>(product?.available_quantity?.toString() || "");
+
+  // Cost states
+  const [newCost, setNewCost] = useState<string>(product?.cost?.toString() || "");
+
+  useEffect(() => {
+    if (product) {
+      setNewPrice(product.price?.toString() || "");
+      setNewStock(product.available_quantity?.toString() || "");
+      setNewCost(product.cost?.toString() || "");
+      setPendingAction(null);
+      setCompetitionData(null);
+    }
+  }, [product]);
+
+  const handleFetchCompetition = async () => {
+    setIsLoadingCompetition(true);
+    const res = await fetchCompetitionAnalysis(product.id, product.sku, product.title);
+    if (res && !res.error) {
+      setCompetitionData(res);
+    } else if (res?.error) {
+      alert(res.error);
+    }
+    setIsLoadingCompetition(false);
+  };
+
+  const handlePreparePrice = async (priceVal: number) => {
+    setIsProcessing(true);
+    const res = await preparePriceChangeAction(product.id, product.sku, product.title, priceVal);
+    if (res.error) {
+      alert(res.error);
+    } else {
+      setPendingAction(res);
+    }
+    setIsProcessing(false);
+  };
+
+  const handlePrepareStock = async (stockVal: number, op: 'set' | 'add' | 'subtract' = 'set') => {
+    setIsProcessing(true);
+    const res = await prepareStockChangeAction(product.id, product.sku, product.title, stockVal, op);
+    if (res.error) {
+      alert(res.error);
+    } else {
+      setPendingAction(res);
+    }
+    setIsProcessing(false);
+  };
+
+  const handleUpdateCost = async () => {
+    setIsProcessing(true);
+    try {
+      const res = await updateProductCost(product.id, parseFloat(newCost));
+      if (res.success) {
+        alert("Costo actualizado");
+        onSuccess();
+      } else {
+        alert("Error al actualizar costo");
+      }
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleConfirmAction = async () => {
+    if (!pendingAction?.action_id) return;
+    setIsProcessing(true);
+    const res = await confirmCommandCenterAction(pendingAction.action_id);
+    if (res.success) {
+      alert("Acción ejecutada correctamente en Mercado Libre");
+      setPendingAction(null);
+      onSuccess();
+    } else {
+      alert(res.error || "Error al confirmar");
+    }
+    setIsProcessing(false);
+  };
+
+  const handleCancelAction = async () => {
+    if (!pendingAction?.action_id) return;
+    setIsProcessing(true);
+    await cancelCommandCenterAction(pendingAction.action_id);
+    setPendingAction(null);
+    setIsProcessing(false);
+  };
+
+  const renderSecurityPreview = () => {
+    if (!pendingAction) return null;
+
+    return (
+      <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900 mt-4 mb-4">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+            <div className="flex-1 space-y-2">
+              <h4 className="font-medium text-amber-900 dark:text-amber-400">Previsualización de Seguridad</h4>
+              <p className="text-sm text-amber-800 dark:text-amber-500 whitespace-pre-wrap">
+                {pendingAction.message.replace('**PREVISUALIZACIÓN DE CAMBIOS:**', '').replace('**IMPORTANTE:** Para ejecutar esto, por favor responde únicamente con la palabra: **CONFIRMO**', '')}
+              </p>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={handleCancelAction} disabled={isProcessing}>
+                  Cancelar
+                </Button>
+                <Button size="sm" onClick={handleConfirmAction} disabled={isProcessing} className="bg-amber-600 hover:bg-amber-700 text-white">
+                  {isProcessing ? "Ejecutando..." : "Confirmar y Ejecutar"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  if (!product) return null;
+
+  return (
+    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent className="w-full sm:max-w-2xl overflow-hidden flex flex-col p-0">
+        <SheetHeader className="p-6 pb-2">
+          <div className="flex justify-between items-start">
+            <div>
+              <SheetTitle className="text-2xl flex items-center gap-2">
+                Gestión de Producto
+                <Badge variant={product.status === 'active' ? 'default' : 'secondary'}>
+                  {product.status === 'active' ? 'Activo' : 'Pausado'}
+                </Badge>
+              </SheetTitle>
+              <SheetDescription className="line-clamp-1 mt-1">
+                {product.title}
+              </SheetDescription>
+            </div>
+            {product.thumbnail_url && (
+              <img src={product.thumbnail_url} alt="" className="w-12 h-12 rounded-md object-cover border" />
+            )}
+          </div>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+            <div className="px-6 border-b">
+              <TabsList className="bg-transparent h-12 w-full justify-start space-x-2">
+                <TabsTrigger value="general" className="data-[state=active]:bg-muted">General</TabsTrigger>
+                <TabsTrigger value="price" className="data-[state=active]:bg-muted">Precio</TabsTrigger>
+                <TabsTrigger value="stock" className="data-[state=active]:bg-muted">Stock</TabsTrigger>
+                <TabsTrigger value="profit" className="data-[state=active]:bg-muted">Rentabilidad</TabsTrigger>
+                <TabsTrigger value="competition" className="data-[state=active]:bg-muted">Competencia</TabsTrigger>
+                <TabsTrigger value="history" className="data-[state=active]:bg-muted">Historial</TabsTrigger>
+                <TabsTrigger value="ai" className="data-[state=active]:bg-muted">IA</TabsTrigger>
+              </TabsList>
+            </div>
+
+            <ScrollArea className="flex-1 p-6">
+              
+              <TabsContent value="general" className="mt-0 space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">SKU</Label>
+                    <p className="font-medium mt-1">{product.sku || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">ML Item ID</Label>
+                    <p className="font-medium mt-1">{product.id}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Última Sincronización</Label>
+                    <p className="font-medium mt-1">{new Date(product.last_synced_at).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Enlace</Label>
+                    <div className="mt-1">
+                      <a href={product.permalink} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center text-sm font-medium">
+                        Ver publicación <ExternalLink className="w-3 h-3 ml-1" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div>
+                  <h4 className="font-medium mb-3">Acciones Rápidas</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {product.status === 'active' ? (
+                      <Button variant="outline" size="sm">
+                        <PauseCircle className="w-4 h-4 mr-2" /> Pausar
+                      </Button>
+                    ) : (
+                      <Button variant="outline" size="sm">
+                        <PlayCircle className="w-4 h-4 mr-2" /> Reactivar
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm">
+                      <RefreshCw className="w-4 h-4 mr-2" /> Forzar Sincronización
+                    </Button>
+                    <Button variant="outline" size="sm" disabled>
+                      <Copy className="w-4 h-4 mr-2" /> Duplicar (Próximamente)
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="price" className="mt-0 space-y-6">
+                <div className="grid grid-cols-2 gap-4 bg-muted/50 p-4 rounded-lg">
+                  <div>
+                    <Label className="text-muted-foreground">Precio Actual</Label>
+                    <p className="text-2xl font-bold mt-1">${product.price?.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Margen Actual</Label>
+                    <p className={`text-2xl font-bold mt-1 ${product.margin_percent <= 10 ? 'text-red-500' : 'text-green-600'}`}>
+                      {product.margin_percent !== null ? `${product.margin_percent.toFixed(1)}%` : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+
+                {renderSecurityPreview()}
+
+                <div className="space-y-4">
+                  <Label>Actualizar Precio</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handlePreparePrice(product.price * 1.05)} disabled={isProcessing || pendingAction !== null}>
+                      <TrendingUp className="w-4 h-4 mr-1 text-green-600" /> +5%
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handlePreparePrice(product.price * 1.10)} disabled={isProcessing || pendingAction !== null}>
+                      <TrendingUp className="w-4 h-4 mr-1 text-green-600" /> +10%
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handlePreparePrice(product.price * 0.95)} disabled={isProcessing || pendingAction !== null}>
+                      <TrendingDown className="w-4 h-4 mr-1 text-red-600" /> -5%
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handlePreparePrice(product.price * 0.90)} disabled={isProcessing || pendingAction !== null}>
+                      <TrendingDown className="w-4 h-4 mr-1 text-red-600" /> -10%
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-4">
+                    <div className="relative flex-1 max-w-[200px]">
+                      <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
+                      <Input 
+                        type="number" 
+                        className="pl-7" 
+                        value={newPrice} 
+                        onChange={(e) => setNewPrice(e.target.value)}
+                        disabled={isProcessing || pendingAction !== null}
+                      />
+                    </div>
+                    <Button onClick={() => handlePreparePrice(parseFloat(newPrice))} disabled={isProcessing || pendingAction !== null || !newPrice || parseFloat(newPrice) === product.price}>
+                      Preparar Cambio
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="stock" className="mt-0 space-y-6">
+                <div className="grid grid-cols-2 gap-4 bg-muted/50 p-4 rounded-lg">
+                  <div>
+                    <Label className="text-muted-foreground">Stock Actual</Label>
+                    <p className="text-2xl font-bold mt-1">{product.available_quantity}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Ventas Históricas</Label>
+                    <p className="text-2xl font-bold mt-1">{product.sold_quantity}</p>
+                  </div>
+                </div>
+
+                {renderSecurityPreview()}
+
+                <div className="space-y-4">
+                  <Label>Modificar Stock Rápidamente</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handlePrepareStock(5, 'add')} disabled={isProcessing || pendingAction !== null}>+5</Button>
+                    <Button variant="outline" size="sm" onClick={() => handlePrepareStock(10, 'add')} disabled={isProcessing || pendingAction !== null}>+10</Button>
+                    <Button variant="outline" size="sm" onClick={() => handlePrepareStock(20, 'add')} disabled={isProcessing || pendingAction !== null}>+20</Button>
+                    <Button variant="outline" size="sm" onClick={() => handlePrepareStock(5, 'subtract')} disabled={isProcessing || pendingAction !== null || product.available_quantity < 5}>-5</Button>
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-4">
+                    <div className="flex-1 max-w-[200px]">
+                      <Input 
+                        type="number" 
+                        value={newStock} 
+                        onChange={(e) => setNewStock(e.target.value)}
+                        disabled={isProcessing || pendingAction !== null}
+                      />
+                    </div>
+                    <Button onClick={() => handlePrepareStock(parseInt(newStock), 'set')} disabled={isProcessing || pendingAction !== null || !newStock || parseInt(newStock) === product.available_quantity}>
+                      Preparar Cambio
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="profit" className="mt-0 space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Label>Costo del Producto</Label>
+                    {product.profitability_status === 'missing_cost' && (
+                      <Badge variant="destructive" className="ml-auto text-xs">Falta costo</Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1 max-w-[200px]">
+                      <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
+                      <Input 
+                        type="number" 
+                        className="pl-7" 
+                        value={newCost} 
+                        onChange={(e) => setNewCost(e.target.value)}
+                        disabled={isProcessing}
+                      />
+                    </div>
+                    <Button onClick={handleUpdateCost} disabled={isProcessing || !newCost || parseFloat(newCost) === product.cost}>
+                      {isProcessing ? "Guardando..." : "Guardar Costo"}
+                    </Button>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <Label>Desglose Estimado de Rentabilidad</Label>
+                  <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg space-y-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Precio de Venta</span>
+                      <span className="font-medium">${product.price?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Costo de Producto</span>
+                      <span className="text-red-500 font-medium">-${product.cost?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Comisión ML (est.)</span>
+                      <span className="text-red-500 font-medium">-${product.estimated_fee?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Envío (est.)</span>
+                      <span className="text-red-500 font-medium">-${product.estimated_shipping_cost?.toLocaleString() || 0}</span>
+                    </div>
+                    <Separator className="my-2" />
+                    <div className="flex justify-between items-center text-base font-bold">
+                      <span>Ganancia Neta</span>
+                      <span className={product.margin_amount && product.margin_amount > 0 ? "text-green-600" : "text-red-500"}>
+                        ${product.margin_amount?.toLocaleString() || 0}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-muted-foreground">Margen sobre Venta</span>
+                      <span className={product.margin_percent && product.margin_percent > 10 ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
+                        {product.margin_percent?.toFixed(1) || 0}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="competition" className="mt-0 space-y-6">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-medium">Análisis de Mercado</h4>
+                  <Button onClick={handleFetchCompetition} disabled={isLoadingCompetition} variant="outline" size="sm">
+                    <BarChart2 className="w-4 h-4 mr-2" />
+                    {isLoadingCompetition ? "Analizando..." : "Analizar Competencia"}
+                  </Button>
+                </div>
+                
+                {competitionData?.message ? (
+                  <p className="text-sm text-muted-foreground">{competitionData.message}</p>
+                ) : competitionData ? (
+                  <div className="grid gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="bg-muted/50 p-4 rounded-lg">
+                        <Label className="text-muted-foreground text-xs">Mi Precio</Label>
+                        <p className="font-bold">${competitionData.my_price?.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-muted/50 p-4 rounded-lg">
+                        <Label className="text-muted-foreground text-xs">Promedio Mercado</Label>
+                        <p className="font-bold">${competitionData.market_average?.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-muted/50 p-4 rounded-lg">
+                        <Label className="text-muted-foreground text-xs">Más Barato</Label>
+                        <p className="font-bold text-green-600">${competitionData.market_min?.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-muted/50 p-4 rounded-lg">
+                        <Label className="text-muted-foreground text-xs">Más Caro</Label>
+                        <p className="font-bold text-red-600">${competitionData.market_max?.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 p-3 border rounded-lg">
+                      <Badge variant={competitionData.status === 'caro' ? 'destructive' : competitionData.status === 'barato' ? 'default' : 'secondary'}>
+                        {competitionData.status?.toUpperCase()}
+                      </Badge>
+                      <span className="text-sm">
+                        {competitionData.diff_percent > 0 
+                          ? `Tu precio es ${competitionData.diff_percent}% superior al promedio del mercado.` 
+                          : `Tu precio es ${Math.abs(competitionData.diff_percent)}% inferior al promedio del mercado.`}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-8 border border-dashed rounded-lg text-center">
+                    <BarChart2 className="w-8 h-8 text-muted-foreground mb-3" />
+                    <p className="text-sm text-muted-foreground mb-4">Aún no se ha analizado la competencia para este producto.</p>
+                    <Button onClick={handleFetchCompetition} disabled={isLoadingCompetition}>
+                      {isLoadingCompetition ? "Analizando..." : "Iniciar Análisis"}
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="history" className="mt-0 h-[300px] flex flex-col items-center justify-center border-2 border-dashed rounded-lg bg-slate-50/50 dark:bg-slate-900/50">
+                <History className="h-8 w-8 text-slate-400 mb-2" />
+                <h3 className="font-medium">Historial de Acciones</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-[250px] text-center">
+                  Aquí verás el timeline de actualizaciones de precio, stock y sincronizaciones.
+                  <br/><br/>
+                  <Badge variant="outline">Próximamente</Badge>
+                </p>
+              </TabsContent>
+
+              <TabsContent value="ai" className="mt-0 h-[300px] flex flex-col items-center justify-center border-2 border-dashed rounded-lg bg-indigo-50/30 dark:bg-indigo-950/10">
+                <AlertTriangle className="h-8 w-8 text-indigo-400 mb-2" />
+                <h3 className="font-medium">IA Contextual Efímera</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-[250px] text-center">
+                  Aquí podrás hacerle preguntas a Stockly sobre este producto (Ej. "¿Estoy muy caro?").
+                  <br/><br/>
+                  <Badge variant="outline">Próximamente</Badge>
+                </p>
+              </TabsContent>
+
+            </ScrollArea>
+          </Tabs>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}

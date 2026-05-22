@@ -33,12 +33,10 @@ export async function updateStock(tenantId: string, productId: string, newQuanti
 
   const rawData = product.raw_data as any;
   if (rawData && rawData.variations && rawData.variations.length > 0) {
-    body = {
-      variations: rawData.variations.map((v: any) => ({
-        id: v.id,
-        available_quantity: newQuantity
-      }))
-    };
+    body.variations = rawData.variations.map((v: any) => ({
+      id: v.id,
+      available_quantity: newQuantity
+    }));
   }
 
   const url = `https://api.mercadolibre.com/items/${product.meli_item_id}`;

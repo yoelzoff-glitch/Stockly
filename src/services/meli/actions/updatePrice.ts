@@ -33,13 +33,12 @@ export async function updatePrice(tenantId: string, productId: string, newPrice:
 
   const rawData = product.raw_data as any;
   if (rawData && rawData.variations && rawData.variations.length > 0) {
-    body = {
-      variations: rawData.variations.map((v: any) => ({
-        id: v.id,
-        price: newPrice
-      }))
-    };
+    body.variations = rawData.variations.map((v: any) => ({
+      id: v.id,
+      price: newPrice
+    }));
   }
+
 
   const url = `https://api.mercadolibre.com/items/${product.meli_item_id}`;
   const mlResponse = await fetch(url, {

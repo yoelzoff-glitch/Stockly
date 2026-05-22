@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { predictStockOut } from "@/services/predictions";
 import { detectDeadProducts } from "@/services/analytics/deadProducts";
 import { analyzeBusiness } from "@/services/ai/planner";
+import { PackageX, TrendingDown, Bot, Zap, ArrowRight, PlayCircle } from "lucide-react";
+import { GlobalDateFilter } from "@/components/filters/global-date-filter";
 
 export default async function IntelligenceCenter() {
   const supabaseServer = await createClient();
@@ -33,92 +36,159 @@ export default async function IntelligenceCenter() {
   const deadProducts = await detectDeadProducts(tenantId);
   const problems = await analyzeBusiness(tenantId);
 
+  // Suggested Workflows (Mocked based on problems for now)
+  const suggestedWorkflows = [
+    { id: 1, title: "Pausar todos los productos sin ventas", risk: "Bajo", type: "dead_products" },
+    { id: 2, title: "Aumentar 5% precio de productos con margen crítico", risk: "Medio", type: "low_margin" }
+  ];
+
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Intelligence Center</h2>
+    <div className="flex-1 space-y-6 p-8 pt-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Intelligence Center</h2>
+          <p className="text-muted-foreground mt-1">Análisis predictivo y recomendaciones del Operador Autónomo.</p>
+        </div>
+        <GlobalDateFilter />
       </div>
       
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
         
         {/* Predicciones de Quiebre de Stock */}
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Predicción de Stock Out</CardTitle>
-            <CardDescription>Productos que se agotarán pronto basado en ventas recientes</CardDescription>
+        <Card className="col-span-1 border-orange-200 dark:border-orange-900/50">
+          <CardHeader className="bg-orange-50/50 dark:bg-orange-500/10 pb-4">
+            <div className="flex items-center gap-2">
+              <PackageX className="w-5 h-5 text-orange-600" />
+              <CardTitle className="text-lg">Predicción de Stock Out</CardTitle>
+            </div>
+            <CardDescription>Productos que se agotarán pronto basado en consumo de los últimos 30 días.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {stockOuts.length > 0 ? (
               <div className="space-y-4">
                 {stockOuts.map(so => (
-                  <div key={so.product_id} className="flex flex-col gap-1 border-b pb-2">
-                    <span className="font-medium text-sm">{so.title}</span>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Stock: {so.current_stock}</span>
-                      <Badge variant={so.estimated_days_remaining <= 3 ? "destructive" : "secondary"}>
-                        Se agota en {so.estimated_days_remaining} días
-                      </Badge>
+                  <div key={so.product_id} className="flex flex-col gap-2 border-b pb-3 last:border-0 last:pb-0">
+                    <span className="font-semibold text-sm leading-tight">{so.title}</span>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="flex flex-col">
+                        <span className="text-muted-foreground">Stock actual</span>
+                        <span className="font-medium text-base">{so.current_stock}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-muted-foreground">Ventas / 30d</span>
+                        <span className="font-medium text-base">{so.sales_last_30_days}</span>
+                      </div>
+                      <div className="flex flex-col items-end justify-center">
+                        <Badge variant={so.estimated_days_remaining <= 3 ? "destructive" : "secondary"}>
+                          Quedan {so.estimated_days_remaining} días
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No hay riesgo de quiebres de stock inminentes.</p>
+              <p className="text-sm text-muted-foreground text-center py-8">No hay riesgo de quiebres de stock inminentes.</p>
             )}
           </CardContent>
         </Card>
 
         {/* Productos Muertos */}
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Productos Muertos</CardTitle>
-            <CardDescription>Publicaciones sin ventas en los últimos 60 días</CardDescription>
+        <Card className="col-span-1 border-slate-200 dark:border-slate-800">
+          <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 pb-4">
+            <div className="flex items-center gap-2">
+              <TrendingDown className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+              <CardTitle className="text-lg">Capital Inmovilizado</CardTitle>
+            </div>
+            <CardDescription>Productos sin ventas en los últimos 60 días con stock disponible.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {deadProducts.length > 0 ? (
               <div className="space-y-4">
-                {deadProducts.map(dp => (
-                  <div key={dp.product_id} className="flex flex-col gap-1 border-b pb-2">
-                    <span className="font-medium text-sm line-clamp-1">{dp.title}</span>
-                    <span className="text-xs text-red-500 font-medium">{dp.reason}</span>
-                    <span className="text-xs text-muted-foreground">Sugerencia: {dp.action}</span>
+                {deadProducts.slice(0, 4).map((dp: any) => (
+                  <div key={dp.product_id} className="flex flex-col gap-1 border-b pb-3 last:border-0 last:pb-0">
+                    <span className="font-semibold text-sm line-clamp-1">{dp.title}</span>
+                    <div className="flex items-center justify-between text-xs mt-1">
+                      <div className="flex space-x-4">
+                        <span><span className="text-muted-foreground">Días sin vender:</span> {dp.dias_sin_vender}</span>
+                        <span><span className="text-muted-foreground">Stock:</span> {dp.stock}</span>
+                      </div>
+                      <span className="font-semibold text-red-600 dark:text-red-400">
+                        ${dp.valor_inmovilizado?.toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">¡Excelente! Tienes buena rotación en tu catálogo.</p>
+              <p className="text-sm text-muted-foreground text-center py-8">¡Excelente! Todo tu inventario tiene rotación activa.</p>
             )}
           </CardContent>
         </Card>
 
         {/* Recomendaciones Generales de IA */}
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Evaluación del Operador Autónomo</CardTitle>
-            <CardDescription>Problemas detectados por el motor de inteligencia</CardDescription>
+        <Card className="col-span-1 xl:col-span-1 md:col-span-2 border-indigo-200 dark:border-indigo-900/50">
+          <CardHeader className="bg-indigo-50/50 dark:bg-indigo-500/10 pb-4">
+            <div className="flex items-center gap-2">
+              <Bot className="w-5 h-5 text-indigo-600" />
+              <CardTitle className="text-lg">Insights del Operador IA</CardTitle>
+            </div>
+            <CardDescription>Problemas detectados con acciones sugeridas para corregirlos.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {problems.length > 0 ? (
               <div className="space-y-4">
                 {problems.slice(0, 5).map((prob, idx) => (
-                  <div key={idx} className="flex flex-col gap-1 border-b pb-2">
+                  <div key={idx} className="flex flex-col gap-2 border-b pb-3 last:border-0 last:pb-0 bg-white/50 dark:bg-slate-950/50 p-3 rounded-lg">
                     <div className="flex justify-between items-start">
-                      <span className="font-medium text-sm line-clamp-1">{prob.product_title}</span>
-                      <Badge variant={prob.severity === 'critical' ? "destructive" : "outline"}>
-                        {prob.severity}
+                      <span className="font-medium text-sm line-clamp-1 flex-1 pr-2">{prob.product_title}</span>
+                      <Badge variant={prob.severity === 'critical' ? "destructive" : "outline"} className="shrink-0">
+                        {prob.severity === 'critical' ? 'Prioridad Alta' : 'Prioridad Media'}
                       </Badge>
                     </div>
-                    <span className="text-xs text-muted-foreground">{prob.details}</span>
+                    <div className="text-xs space-y-1">
+                      <p><span className="text-muted-foreground">Problema:</span> {prob.details}</p>
+                      <p><span className="text-indigo-600 dark:text-indigo-400 font-medium">Sugerencia:</span> {prob.action}</p>
+                    </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">El negocio opera de manera óptima según el agente IA.</p>
+              <p className="text-sm text-muted-foreground text-center py-8">El negocio opera de manera óptima según la IA.</p>
             )}
           </CardContent>
         </Card>
 
       </div>
+
+      {/* Workflows sugeridos */}
+      <div className="mt-8">
+        <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          <Zap className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+          Workflows Sugeridos
+        </h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          {suggestedWorkflows.map(wf => (
+            <Card key={wf.id} className="overflow-hidden hover:border-primary/50 transition-colors">
+              <div className="p-5 flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold">{wf.title}</h4>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-sm text-muted-foreground">Riesgo de ejecución:</span>
+                    <Badge variant={wf.risk === 'Bajo' ? 'secondary' : 'default'} className="text-xs font-normal">
+                      {wf.risk}
+                    </Badge>
+                  </div>
+                </div>
+                <Button size="icon" className="h-10 w-10 rounded-full shrink-0">
+                  <PlayCircle className="h-6 w-6" />
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 }
