@@ -8,7 +8,7 @@ export async function updateStock(tenantId: string, productId: string, newQuanti
   // 1. Get product and check tenant
   const { data: product, error: prodErr } = await supabase
     .from("products")
-    .select("meli_item_id, available_quantity")
+    .select("meli_item_id, available_quantity, raw_data")
     .eq("id", productId)
     .eq("tenant_id", tenantId)
     .single();
@@ -29,6 +29,18 @@ export async function updateStock(tenantId: string, productId: string, newQuanti
   }
 
   // 3. Call Mercado Libre API
+  let body: any = { available_quantity: newQuantity };
+
+  const rawData = product.raw_data as any;
+  if (rawData && rawData.variations && rawData.variations.length > 0) {
+    body = {
+      variations: rawData.variations.map((v: any) => ({
+        id: v.id,
+        available_quantity: newQuantity
+      }))
+    };
+  }
+
   const url = `https://api.mercadolibre.com/items/${product.meli_item_id}`;
   const mlResponse = await fetch(url, {
     method: "PUT",
@@ -37,7 +49,7 @@ export async function updateStock(tenantId: string, productId: string, newQuanti
       "Content-Type": "application/json",
       "Accept": "application/json"
     },
-    body: JSON.stringify({ available_quantity: newQuantity })
+    body: JSON.stringify(body)
   });
 
   if (!mlResponse.ok) {
@@ -58,9 +70,11 @@ export async function updateStock(tenantId: string, productId: string, newQuanti
   await supabase.from("stock_movements").insert({
     tenant_id: tenantId,
     product_id: productId,
-    old_quantity: oldQuantity,
+    previous_quantity: oldQuantity,
     new_quantity: newQuantity,
-    reason: "ai_update"
+    quantity_delta: newQuantity - oldQuantity,
+    movement_type: "ai_update",
+    reason: "Actualizado por IA"
   });
 
   await supabase.from("audit_logs").insert({

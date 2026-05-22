@@ -8,7 +8,7 @@ export async function updatePrice(tenantId: string, productId: string, newPrice:
   // 1. Get product and check tenant
   const { data: product, error: prodErr } = await supabase
     .from("products")
-    .select("meli_item_id, price")
+    .select("meli_item_id, price, raw_data")
     .eq("id", productId)
     .eq("tenant_id", tenantId)
     .single();
@@ -29,6 +29,18 @@ export async function updatePrice(tenantId: string, productId: string, newPrice:
   }
 
   // 3. Call Mercado Libre API
+  let body: any = { price: newPrice };
+
+  const rawData = product.raw_data as any;
+  if (rawData && rawData.variations && rawData.variations.length > 0) {
+    body = {
+      variations: rawData.variations.map((v: any) => ({
+        id: v.id,
+        price: newPrice
+      }))
+    };
+  }
+
   const url = `https://api.mercadolibre.com/items/${product.meli_item_id}`;
   const mlResponse = await fetch(url, {
     method: "PUT",
@@ -37,7 +49,7 @@ export async function updatePrice(tenantId: string, productId: string, newPrice:
       "Content-Type": "application/json",
       "Accept": "application/json"
     },
-    body: JSON.stringify({ price: newPrice })
+    body: JSON.stringify(body)
   });
 
   if (!mlResponse.ok) {
