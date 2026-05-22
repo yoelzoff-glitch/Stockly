@@ -42,7 +42,13 @@ export default async function IntegrationsPage({
     .eq("tenant_id", tenantId);
 
   const meliStatus = meliCount && meliCount > 0 ? "conectado" : "pendiente";
-  const waStatus = waCount && waCount > 0 ? "conectado" : "pendiente";
+  
+  let waStatus = "pendiente";
+  if (waCount && waCount > 0) {
+    waStatus = "conectado";
+  } else if (process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
+    waStatus = "conectado"; // Local dev fallback
+  }
   
   // OpenAI relies on env var for now
   const openAIStatus = process.env.OPENAI_API_KEY ? "conectado" : "pendiente";
