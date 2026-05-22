@@ -3,7 +3,7 @@ import { logger } from "@/lib/errors/logger";
 
 export async function transcribeAudio(buffer: Buffer, fileName: string = "audio.ogg"): Promise<string> {
   try {
-    const file = new File([buffer], fileName, { type: "audio/ogg" });
+    const file = new File([new Uint8Array(buffer)], fileName, { type: "audio/ogg" });
     
     const response = await openai.audio.transcriptions.create({
       file,

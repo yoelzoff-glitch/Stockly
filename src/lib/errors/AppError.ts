@@ -9,7 +9,11 @@ export type ErrorCode =
   | "OPENAI_ERROR"
   | "OPENAI_QUOTA_EXCEEDED"
   | "SUPABASE_ERROR"
-  | "VALIDATION_ERROR";
+  | "VALIDATION_ERROR"
+  | "WHATSAPP_SEND_ERROR"
+  | "WHATSAPP_MEDIA_ERROR"
+  | "WHATSAPP_DOWNLOAD_ERROR"
+  | "WHATSAPP_ERROR";
 
 export class AppError extends Error {
   public readonly code: ErrorCode;
