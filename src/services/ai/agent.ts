@@ -33,15 +33,12 @@ export async function runBusinessAgent({
       // In a real scenario, we'd invoke the endpoint logic here.
       // For simplicity, we just use the endpoint via fetch.
       try {
-        const res = await fetch(`${process.env.NEXTAUTH_URL}/api/ai/actions/confirm`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action_id: pendingAction.id, tenant_id: tenantId })
-        });
-        if (res.ok) {
+        const { confirmPendingAction } = await import('@/services/ai/actions/confirm');
+        const res = await confirmPendingAction(tenantId, pendingAction.id);
+        if (res.success) {
           return "¡Acción confirmada y ejecutada con éxito en Mercado Libre!";
         } else {
-          return "Hubo un error al ejecutar la acción confirmada. Revisa los logs.";
+          return `Hubo un error al ejecutar la acción: ${res.error || "Revisa los logs"}.`;
         }
       } catch (e) {
         return "No pude confirmar la acción por un error interno.";
@@ -62,11 +59,8 @@ export async function runBusinessAgent({
 
     if (pendingAction) {
       try {
-        await fetch(`${process.env.NEXTAUTH_URL}/api/ai/actions/cancel`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action_id: pendingAction.id, tenant_id: tenantId })
-        });
+        const { cancelPendingAction } = await import('@/services/ai/actions/confirm');
+        await cancelPendingAction(tenantId, pendingAction.id);
         return "Acción cancelada. No se modificó nada en Mercado Libre.";
       } catch(e) {
         return "Error al cancelar la acción.";
