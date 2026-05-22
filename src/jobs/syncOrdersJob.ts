@@ -3,8 +3,10 @@ import { syncOrders } from "../services/meli/syncOrders";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const syncOrdersJob = inngest.createFunction(
-  { id: "sync-orders" },
-  { cron: "*/5 * * * *" }, // Cada 5 minutos
+  { 
+    id: "sync-orders",
+    triggers: [{ cron: "*/5 * * * *" }]
+  },
   async ({ step }) => {
     const supabase = createAdminClient();
     const { data: accounts } = await supabase.from("meli_accounts").select("tenant_id");

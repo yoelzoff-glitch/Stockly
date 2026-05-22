@@ -4,8 +4,10 @@ import { generateResponse } from "../services/meli/questions/generateResponse";
 import { sendResponse } from "../services/meli/questions/sendResponse";
 
 export const questionsJob = inngest.createFunction(
-  { id: "process-meli-question" },
-  { event: "meli/questions.received" },
+  { 
+    id: "process-meli-question",
+    triggers: [{ event: "meli/questions.received" as any }]
+  },
   async ({ event, step }) => {
     const { tenantId, resource } = event.data;
 
