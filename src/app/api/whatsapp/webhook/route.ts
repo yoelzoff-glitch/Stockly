@@ -121,11 +121,17 @@ export async function POST(req: Request) {
         to_phone: from,
       });
 
+      // Fix para Argentina: Si Meta envía '54911...' pero verificó '5411...'
+      let sendTo = from;
+      if (sendTo.startsWith("549") && sendTo.length === 13) {
+        sendTo = "54" + sendTo.substring(3);
+      }
+
       // 6. Send Response
       try {
-        await sendText(from, responseText, phoneNumberId, accessToken);
+        await sendText(sendTo, responseText, phoneNumberId, accessToken);
       } catch (error: any) {
-        logger.error(`Error sending WA message to ${from}: ${error.message}`, "WHATSAPP_WEBHOOK");
+        logger.error(`Error sending WA message to ${sendTo}: ${error.message}`, "WHATSAPP_WEBHOOK");
         // Save the error in the database to debug it easily
         await supabase.from("messages").insert({
           tenant_id: tenantId,
