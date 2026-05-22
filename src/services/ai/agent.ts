@@ -17,7 +17,7 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
 - No uses lenguaje excesivamente formal, mantén un tono profesional pero cercano.
 - Importante: NO intentes modificar precios, crear órdenes ni realizar acciones peligrosas. Eres un asistente de solo lectura.`;
 
-  const runner = openai.beta.chat.completions.runTools({
+  const runner = openai.chat.completions.runTools({
     model: process.env.AI_MODEL || "gpt-4o-mini",
     messages: [
       { role: "system", content: systemPrompt },
