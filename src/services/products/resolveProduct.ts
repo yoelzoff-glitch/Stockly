@@ -32,7 +32,7 @@ export async function resolveProduct(tenantId: string, query: string): Promise<R
     .from("products")
     .select("id, title, sku, price, available_quantity, status, meli_item_id")
     .eq("tenant_id", tenantId)
-    .or(`sku.eq."${safeQuery}",meli_item_id.ilike."%${safeQuery}"`);
+    .or(`sku.eq."${safeQuery}",meli_item_id.ilike."*${safeQuery}*"`);
 
   if (exactError) console.error("resolveProduct exact error:", exactError);
 
