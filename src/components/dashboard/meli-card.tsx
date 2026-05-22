@@ -15,17 +15,26 @@ export function MeliCard({ status }: { status: "conectado" | "pendiente" }) {
   const handleSync = async () => {
     setIsSyncing(true);
     try {
-      const res = await fetch("/api/meli/sync-products", { method: "POST" });
-      const data = await res.json();
+      // Sync products first so order items can find them
+      const resProducts = await fetch("/api/meli/sync-products", { method: "POST" });
+      const dataProducts = await resProducts.json();
       
-      if (res.ok) {
-        alert(`¡Sincronización exitosa! Se procesaron ${data.syncedCount} publicaciones.`);
-        router.refresh();
-      } else {
-        alert(`Error al sincronizar: ${data.error}`);
+      if (!resProducts.ok) {
+        throw new Error(dataProducts.error || "Error al sincronizar productos");
       }
-    } catch (error) {
-      alert("Error de red al intentar sincronizar.");
+
+      // Then sync orders
+      const resOrders = await fetch("/api/meli/sync-orders", { method: "POST" });
+      const dataOrders = await resOrders.json();
+
+      if (!resOrders.ok) {
+        throw new Error(dataOrders.error || "Error al sincronizar órdenes");
+      }
+
+      alert(`¡Sincronización exitosa!\n\nProductos procesados: ${dataProducts.syncedCount}\nÓrdenes procesadas: ${dataOrders.syncedCount}`);
+      router.refresh();
+    } catch (error: any) {
+      alert(`Falló la sincronización: ${error.message}`);
     } finally {
       setIsSyncing(false);
     }

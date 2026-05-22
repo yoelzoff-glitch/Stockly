@@ -78,22 +78,27 @@ export default async function DashboardPage() {
     }
   });
 
-  // Low stock products (less than 10)
+  // Low stock products (less than or equal to 5)
   const { count: lowStockCount } = await supabase
     .from("products")
     .select("*", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
-    .lt("available_quantity", 10);
+    .lte("available_quantity", 5);
 
-  // Top product
+  // Top products
   const { data: topProducts } = await supabase
     .from("products")
     .select("title, sold_quantity")
     .eq("tenant_id", tenantId)
     .order("sold_quantity", { ascending: false })
-    .limit(1);
+    .limit(5);
 
   const topProduct = topProducts?.[0];
+
+  const chartData = topProducts?.filter(p => p.sold_quantity && p.sold_quantity > 0).map(p => ({
+    name: p.title || "Producto",
+    value: p.sold_quantity || 0
+  })) || [];
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -128,7 +133,7 @@ export default async function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <TopProductsChart />
+            <TopProductsChart data={chartData} />
           </CardContent>
         </Card>
       </div>
