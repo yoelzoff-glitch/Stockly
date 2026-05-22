@@ -15,13 +15,25 @@ export function CompetitionClient({ products }: CompetitionClientProps) {
   const [selectedSnapshot, setSelectedSnapshot] = useState<any>(null);
   const [selectedTitle, setSelectedTitle] = useState("");
 
-  const handleAnalyze = async (productId: string, title: string) => {
+  const handleAnalyze = async (productId: string, title: string, categoryId: string | null) => {
     setAnalyzingId(productId);
     try {
+      // 1. Fetch from ML directly in the browser to bypass backend firewall
+      let url = `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(title)}&limit=50`;
+      if (categoryId) url += `&category=${categoryId}`;
+      
+      const mlRes = await fetch(url);
+      if (!mlRes.ok) throw new Error("Mercado Libre bloqueó la consulta desde tu navegador.");
+      const mlData = await mlRes.json();
+
+      // 2. Enviar a nuestro backend para procesar y guardar
       const res = await fetch("/api/competition/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ product_id: productId })
+        body: JSON.stringify({ 
+          product_id: productId, 
+          raw_results: mlData.results 
+        })
       });
       
       const data = await res.json();
@@ -76,7 +88,7 @@ export function CompetitionClient({ products }: CompetitionClientProps) {
                       variant="outline" 
                       size="sm"
                       disabled={analyzingId === p.id}
-                      onClick={() => handleAnalyze(p.id, p.title)}
+                      onClick={() => handleAnalyze(p.id, p.title, p.category_id)}
                     >
                       {analyzingId === p.id ? (
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />

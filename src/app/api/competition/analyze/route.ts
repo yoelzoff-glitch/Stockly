@@ -13,10 +13,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { product_id } = await req.json();
+    const { product_id, raw_results } = await req.json();
 
-    if (!product_id) {
-      return NextResponse.json({ error: "Missing product_id" }, { status: 400 });
+    if (!product_id || !raw_results) {
+      return NextResponse.json({ error: "Missing product_id or raw_results" }, { status: 400 });
     }
 
     const supabase = createAdminClient();
@@ -33,10 +33,49 @@ export async function POST(req: Request) {
 
     const tenantId = profile.tenant_id;
 
-    // 1. Search competitors
-    const { query, own_price, competitors } = await searchCompetitors(tenantId, product_id);
+    // 1. Get our product and seller id to filter results
+    const { data: product } = await supabase
+      .from("products")
+      .select("title, price")
+      .eq("id", product_id)
+      .eq("tenant_id", tenantId)
+      .single();
 
-    // 2. Normalize and calculate metrics
+    const { data: account } = await supabase
+      .from("meli_accounts")
+      .select("meli_user_id")
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (!product || !account) {
+      return NextResponse.json({ error: "Product or account not found" }, { status: 404 });
+    }
+
+    const mySellerId = account.meli_user_id;
+
+    // 2. Filter our own products and normalize array
+    const competitors = raw_results
+      .filter((r: any) => String(r.seller?.id) !== String(mySellerId))
+      .slice(0, 20)
+      .map((r: any) => ({
+        item_id: r.id,
+        title: r.title,
+        price: r.price,
+        currency_id: r.currency_id,
+        available_quantity: r.available_quantity,
+        sold_quantity: r.sold_quantity,
+        permalink: r.permalink,
+        thumbnail: r.thumbnail,
+        seller_id: r.seller?.id,
+        condition: r.condition,
+        listing_type_id: r.listing_type_id,
+        free_shipping: r.shipping?.free_shipping || false,
+      }));
+
+    const query = product.title;
+    const own_price = product.price;
+
+    // 3. Normalize and calculate metrics
     const metrics = normalizeCompetitors(own_price, competitors);
 
     // 3. Save snapshot to DB

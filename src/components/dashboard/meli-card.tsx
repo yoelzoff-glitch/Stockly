@@ -72,6 +72,18 @@ export function MeliCard({ status }: { status: "conectado" | "pendiente" }) {
                   "Sincronizar"
                 )}
               </Button>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={async () => {
+                  if (confirm("¿Estás seguro de desconectar tu cuenta de Mercado Libre?")) {
+                    await fetch("/api/meli/disconnect", { method: "POST" });
+                    router.refresh();
+                  }
+                }}
+              >
+                Desconectar
+              </Button>
             </div>
           ) : (
             <Link href="/api/meli/connect">
