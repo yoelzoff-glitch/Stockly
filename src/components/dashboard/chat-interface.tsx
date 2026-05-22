@@ -142,6 +142,16 @@ export function ChatInterface({ initialMessages }: { initialMessages: Message[] 
               }`}
             >
               <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+              {m.role === 'assistant' && m.content.includes("**CONFIRMO**") && (
+                <div className="mt-3 flex gap-2 border-t pt-3">
+                  <Button size="sm" onClick={() => submitMessage("Confirmo")} className="bg-green-600 hover:bg-green-700 text-white w-full">
+                    Confirmar
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => submitMessage("Cancelar")} className="w-full">
+                    Cancelar
+                  </Button>
+                </div>
+              )}
             </div>
             {m.role === 'user' && (
               <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">

@@ -2,6 +2,7 @@ import { openai } from "@/lib/ai/openai";
 import * as tools from "./tools";
 
 import { checkAILimit, incrementAIUsage } from "../billing/checkLimits";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function runBusinessAgent({
   tenantId,
@@ -15,6 +16,64 @@ export async function runBusinessAgent({
     return "Alcanzaste el límite mensual de consultas de Inteligencia Artificial. Por favor, actualiza tu plan en la sección de Facturación para seguir operando.";
   }
 
+  // SPRINT 11: Intercept Confirm/Cancel
+  const lowerMsg = userMessage.trim().toLowerCase();
+  if (lowerMsg === 'confirmo' || lowerMsg === 'sí' || lowerMsg === 'si' || lowerMsg === 'dale' || lowerMsg === 'ok') {
+    const supabase = createAdminClient();
+    const { data: pendingAction } = await supabase
+      .from("ai_actions")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (pendingAction) {
+      // In a real scenario, we'd invoke the endpoint logic here.
+      // For simplicity, we just use the endpoint via fetch.
+      try {
+        const res = await fetch(`${process.env.NEXTAUTH_URL}/api/ai/actions/confirm`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action_id: pendingAction.id, tenant_id: tenantId })
+        });
+        if (res.ok) {
+          return "¡Acción confirmada y ejecutada con éxito en Mercado Libre!";
+        } else {
+          return "Hubo un error al ejecutar la acción confirmada. Revisa los logs.";
+        }
+      } catch (e) {
+        return "No pude confirmar la acción por un error interno.";
+      }
+    }
+  }
+
+  if (lowerMsg === 'cancelar' || lowerMsg === 'no') {
+    const supabase = createAdminClient();
+    const { data: pendingAction } = await supabase
+      .from("ai_actions")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (pendingAction) {
+      try {
+        await fetch(`${process.env.NEXTAUTH_URL}/api/ai/actions/cancel`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action_id: pendingAction.id, tenant_id: tenantId })
+        });
+        return "Acción cancelada. No se modificó nada en Mercado Libre.";
+      } catch(e) {
+        return "Error al cancelar la acción.";
+      }
+    }
+  }
+
   const systemPrompt = `Eres Stockly, el asistente de inteligencia artificial interno para la gestión del negocio del usuario.
 Tu objetivo es responder de forma clara, directa y concisa a las preguntas del usuario sobre sus ventas, productos y stock.
 Usa las herramientas proporcionadas para obtener datos reales de la base de datos.
@@ -22,7 +81,7 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
 - Nunca inventes datos (alucines). Si una herramienta no devuelve resultados, dile al usuario que no tienes esa información.
 - Formatea los valores monetarios con el símbolo $.
 - No uses lenguaje excesivamente formal, mantén un tono profesional pero cercano.
-- Importante: NO intentes modificar precios, crear órdenes ni realizar acciones peligrosas. Eres un asistente de solo lectura.`;
+- Importante: Tienes herramientas para preparar modificaciones masivas de precio, stock y estado de los productos en Mercado Libre. Cuando las uses, se creará una acción pendiente y deberás terminar tu mensaje pidiendo expresamente al usuario que responda con la palabra 'CONFIRMO' para ejecutar los cambios.`;
 
   const runner = openai.chat.completions.runTools({
     model: process.env.AI_MODEL || "gpt-4o-mini",
@@ -139,6 +198,59 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
               productName: { type: "string", description: "El nombre del producto a evaluar." },
             },
             required: ["productName"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          function: async (args: { query: string; newPrice?: number; percentageChange?: number }) => tools.preparePriceUpdate(tenantId, args.query, args.newPrice, args.percentageChange),
+          name: "preparePriceUpdate",
+          description: "Prepara una actualización de precio para uno o más productos. Puede ser un precio exacto o un cambio porcentual. Solo pre-calcula los cambios.",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Búsqueda del producto" },
+              newPrice: { type: "number", description: "Nuevo precio exacto" },
+              percentageChange: { type: "number", description: "Porcentaje a aumentar/disminuir (ej: 10 para aumentar 10%)" }
+            },
+            required: ["query"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          function: async (args: { query: string; newQuantity: number; operation?: 'set' | 'add' | 'subtract' }) => tools.prepareStockUpdate(tenantId, args.query, args.newQuantity, args.operation),
+          name: "prepareStockUpdate",
+          description: "Prepara un cambio de stock para uno o más productos. Puede establecer un valor, sumar o restar.",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Búsqueda del producto" },
+              newQuantity: { type: "number", description: "Cantidad de stock" },
+              operation: { type: "string", enum: ["set", "add", "subtract"], description: "Operación a realizar" }
+            },
+            required: ["query", "newQuantity"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          function: async (args: { query: string; status: 'paused' | 'active' }) => tools.prepareStatusChange(tenantId, args.query, args.status),
+          name: "prepareStatusChange",
+          description: "Prepara pausar o reactivar uno o más productos.",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Búsqueda del producto" },
+              status: { type: "string", enum: ["paused", "active"], description: "Nuevo estado" }
+            },
+            required: ["query", "status"],
           },
         },
       },

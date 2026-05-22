@@ -153,3 +153,118 @@ export async function getProductProfitability(tenantId: string, productName: str
     margin: margin
   };
 }
+
+// ==========================================
+// SPRINT 11: Meli Preparatory Actions
+// ==========================================
+
+export async function preparePriceUpdate(tenantId: string, query: string, newPrice?: number, percentageChange?: number) {
+  const supabase = createAdminClient();
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, title, price")
+    .eq("tenant_id", tenantId)
+    .ilike("title", `%${query}%`)
+    .limit(50);
+
+  if (!products || products.length === 0) return { error: "No encontré productos que coincidan con la búsqueda." };
+
+  const payload = products.map(p => {
+    let finalPrice = newPrice;
+    if (percentageChange) {
+      finalPrice = p.price * (1 + (percentageChange / 100));
+    }
+    return {
+      product_id: p.id,
+      title: p.title,
+      current_value: p.price,
+      new_value: Math.round(finalPrice || p.price)
+    };
+  });
+
+  const { data: action, error } = await supabase.from("ai_actions").insert({
+    tenant_id: tenantId,
+    action_type: "update_price",
+    payload,
+    status: "pending"
+  }).select("id").single();
+
+  if (error) return { error: "No pude preparar la acción en la base de datos." };
+
+  return {
+    action_id: action.id,
+    message: `Encontré ${payload.length} producto(s) afectados.\nEl cambio estimado actualizará el precio.\n**IMPORTANTE:** Para ejecutar esto en Mercado Libre, por favor responde únicamente con la palabra: **CONFIRMO**`
+  };
+}
+
+export async function prepareStockUpdate(tenantId: string, query: string, newQuantity: number, operation: 'set' | 'add' | 'subtract' = 'set') {
+  const supabase = createAdminClient();
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, title, available_quantity")
+    .eq("tenant_id", tenantId)
+    .ilike("title", `%${query}%`)
+    .limit(50);
+
+  if (!products || products.length === 0) return { error: "No encontré productos que coincidan con la búsqueda." };
+
+  const payload = products.map(p => {
+    let finalQty = newQuantity;
+    if (operation === 'add') finalQty = p.available_quantity + newQuantity;
+    if (operation === 'subtract') finalQty = Math.max(0, p.available_quantity - newQuantity);
+
+    return {
+      product_id: p.id,
+      title: p.title,
+      current_value: p.available_quantity,
+      new_value: finalQty
+    };
+  });
+
+  const { data: action, error } = await supabase.from("ai_actions").insert({
+    tenant_id: tenantId,
+    action_type: "update_stock",
+    payload,
+    status: "pending"
+  }).select("id").single();
+
+  if (error) return { error: "No pude preparar la acción en la base de datos." };
+
+  return {
+    action_id: action.id,
+    message: `Encontré ${payload.length} producto(s) afectados.\nEl stock será actualizado.\n**IMPORTANTE:** Para ejecutar esto en Mercado Libre, por favor responde únicamente con la palabra: **CONFIRMO**`
+  };
+}
+
+export async function prepareStatusChange(tenantId: string, query: string, status: 'paused' | 'active') {
+  const supabase = createAdminClient();
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, title, status")
+    .eq("tenant_id", tenantId)
+    .ilike("title", `%${query}%`)
+    .limit(50);
+
+  if (!products || products.length === 0) return { error: "No encontré productos que coincidan con la búsqueda." };
+
+  const payload = products.map(p => ({
+    product_id: p.id,
+    title: p.title,
+    current_value: p.status,
+    new_value: status
+  }));
+
+  const { data: action, error } = await supabase.from("ai_actions").insert({
+    tenant_id: tenantId,
+    action_type: status === 'paused' ? 'pause_product' : 'activate_product',
+    payload,
+    status: "pending"
+  }).select("id").single();
+
+  if (error) return { error: "No pude preparar la acción en la base de datos." };
+
+  return {
+    action_id: action.id,
+    message: `Encontré ${payload.length} producto(s).\nEstado nuevo: ${status}.\n**IMPORTANTE:** Para ejecutar esto en Mercado Libre, por favor responde únicamente con la palabra: **CONFIRMO**`
+  };
+}
