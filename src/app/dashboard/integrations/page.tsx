@@ -4,7 +4,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ShoppingBag, MessageCircle, Bot } from "lucide-react";
 
-export default async function IntegrationsPage() {
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { CheckCircle2, XCircle } from "lucide-react";
+import Link from "next/link";
+
+export default async function IntegrationsPage({
+  searchParams,
+}: {
+  searchParams: { meli?: string };
+}) {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -44,6 +52,26 @@ export default async function IntegrationsPage() {
       </div>
       <p className="text-muted-foreground">Administra las conexiones de tu negocio con otras plataformas.</p>
 
+      {searchParams.meli === "connected" && (
+        <Alert className="mt-4 border-green-500 bg-green-500/10 text-green-600 dark:text-green-400">
+          <CheckCircle2 className="h-4 w-4" color="currentColor" />
+          <AlertTitle>¡Conexión Exitosa!</AlertTitle>
+          <AlertDescription>
+            Tu cuenta de Mercado Libre se ha vinculado correctamente.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {searchParams.meli === "error" && (
+        <Alert variant="destructive" className="mt-4">
+          <XCircle className="h-4 w-4" />
+          <AlertTitle>Error de Conexión</AlertTitle>
+          <AlertDescription>
+            Hubo un problema al vincular tu cuenta de Mercado Libre. Por favor, intenta de nuevo.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-6">
         {/* Mercado Libre */}
         <Card>
@@ -59,9 +87,13 @@ export default async function IntegrationsPage() {
               <Badge variant={meliStatus === 'conectado' ? 'default' : 'secondary'} className="capitalize">
                 {meliStatus}
               </Badge>
-              <Button variant="outline" size="sm" disabled={meliStatus === 'conectado'}>
-                {meliStatus === 'conectado' ? 'Configurar' : 'Conectar'}
-              </Button>
+              {meliStatus === 'conectado' ? (
+                <Button variant="outline" size="sm" disabled>Configurar</Button>
+              ) : (
+                <Link href="/api/meli/connect">
+                  <Button variant="outline" size="sm">Conectar</Button>
+                </Link>
+              )}
             </div>
           </CardContent>
         </Card>
