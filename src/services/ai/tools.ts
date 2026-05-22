@@ -35,6 +35,24 @@ export async function getWeeklySales(tenantId: string) {
   return { sales: total, count: data.length };
 }
 
+export async function getSalesByDays(tenantId: string, days: number) {
+  const supabase = createAdminClient();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  startDate.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from("orders")
+    .select("total_amount")
+    .eq("tenant_id", tenantId)
+    .gte("date_created", startDate.toISOString());
+
+  if (error) throw error;
+
+  const total = data.reduce((acc, order) => acc + (Number(order.total_amount) || 0), 0);
+  return { sales: total, count: data.length, days };
+}
+
 export async function getLowStockProducts(tenantId: string) {
   const supabase = createAdminClient();
 

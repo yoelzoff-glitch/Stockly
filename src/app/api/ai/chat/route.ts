@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { runBusinessAgent } from "@/services/ai/agent";
+import { logger } from "@/lib/errors/logger";
+import { AppError } from "@/lib/errors/AppError";
 
 export async function POST(request: Request) {
   try {
@@ -61,9 +63,17 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ response: aiResponse });
   } catch (error: any) {
-    console.error("Error in AI chat route:", error);
+    if (error?.status === 429 || error?.code === 'insufficient_quota') {
+      logger.error(new AppError("OPENAI_QUOTA_EXCEEDED", "Sin saldo en OpenAI", 429, error.message), "AI_CHAT");
+      return NextResponse.json(
+        { error: "Nos hemos quedado sin saldo en el servicio de Inteligencia Artificial. Por favor, recarga tu cuenta de OpenAI." }, 
+        { status: 429 }
+      );
+    }
+    
+    logger.error(error, "AI_CHAT");
     return NextResponse.json(
-      { error: error.message || "Failed to process chat" }, 
+      { error: error.message || "Error interno procesando el chat." }, 
       { status: 500 }
     );
   }

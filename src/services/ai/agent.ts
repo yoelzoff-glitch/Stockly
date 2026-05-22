@@ -57,6 +57,22 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
       {
         type: "function",
         function: {
+          function: async (args: { days: number }) => tools.getSalesByDays(tenantId, args.days),
+          name: "getSalesByDays",
+          description: "Obtiene la suma total de dinero vendido y la cantidad de órdenes en los últimos N días (por ejemplo, para el último año, days=365).",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              days: { type: "number", description: "Cantidad de días hacia atrás a consultar (ej: 365 para un año, 30 para un mes)." },
+            },
+            required: ["days"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
           function: async (args: { query: string }) => tools.searchProductByName(tenantId, args.query),
           name: "searchProductByName",
           description: "Busca un producto por nombre y devuelve su precio, stock disponible, estado y cantidad vendida.",

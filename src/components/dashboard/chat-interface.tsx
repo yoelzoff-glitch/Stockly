@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2 } from "lucide-react";
+import { Send, Bot, User, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 
 type Message = {
   id: string;
@@ -11,6 +12,7 @@ type Message = {
 };
 
 export function ChatInterface({ initialMessages }: { initialMessages: Message[] }) {
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -60,8 +62,35 @@ export function ChatInterface({ initialMessages }: { initialMessages: Message[] 
     }
   };
 
+  const handleClear = async () => {
+    if (!confirm("¿Estás seguro de que deseas eliminar todo el historial de conversación?")) return;
+    
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/ai/chat/clear", { method: "DELETE" });
+      if (!res.ok) throw new Error("Error clearing chat");
+      setMessages([]);
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      alert("Error eliminando el historial");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900/50">
+      {/* Header / Clear Button */}
+      {messages.length > 0 && (
+        <div className="flex justify-end p-2 border-b bg-white dark:bg-slate-950">
+          <Button variant="ghost" size="sm" onClick={handleClear} disabled={isLoading} className="text-muted-foreground hover:text-destructive">
+            <Trash2 className="w-4 h-4 mr-2" />
+            Limpiar Historial
+          </Button>
+        </div>
+      )}
+
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (

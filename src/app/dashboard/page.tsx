@@ -6,9 +6,10 @@ import { SalesCard } from "@/components/dashboard/sales-card";
 import { RevenueCard } from "@/components/dashboard/revenue-card";
 import { StockAlertCard } from "@/components/dashboard/stock-alert-card";
 import { ProductCard } from "@/components/dashboard/product-card";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, MessageSquare, Package, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { getCachedOrders } from "@/lib/cache";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -25,18 +26,18 @@ export default async function DashboardPage() {
 
   const tenantId = profile?.tenant_id;
 
-  // Check if Meli is connected
-  const { count: meliCount } = await supabase
+  // Check Meli account status
+  const { data: meliAccount } = await supabase
     .from("meli_accounts")
-    .select("*", { count: "exact", head: true })
-    .eq("tenant_id", tenantId);
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .single();
 
-  const isMeliConnected = meliCount && meliCount > 0;
+  const isMeliConnected = !!meliAccount;
 
-  // If no integration, show empty state
   if (!isMeliConnected) {
     return (
-      <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+      <div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center p-8 text-center">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
           <AlertCircle className="h-10 w-10 text-muted-foreground" />
         </div>
@@ -59,12 +60,8 @@ export default async function DashboardPage() {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   sevenDaysAgo.setHours(0, 0, 0, 0);
 
-  // Orders last 7 days
-  const { data: recentOrders } = await supabase
-    .from("orders")
-    .select("total_amount, date_created")
-    .eq("tenant_id", tenantId)
-    .gte("date_created", sevenDaysAgo.toISOString());
+  // Orders last 7 days using Cache
+  const recentOrders = await getCachedOrders(tenantId);
 
   // Calculate metrics
   let salesToday = 0;
@@ -78,12 +75,14 @@ export default async function DashboardPage() {
     }
   });
 
-  // Low stock products (less than or equal to 5)
-  const { count: lowStockCount } = await supabase
+  // Products count & low stock
+  const { data: allProducts } = await supabase
     .from("products")
-    .select("*", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .lte("available_quantity", 5);
+    .select("available_quantity")
+    .eq("tenant_id", tenantId);
+
+  const totalProductsCount = allProducts?.length || 0;
+  const lowStockCount = allProducts?.filter(p => p.available_quantity <= 5).length || 0;
 
   // Top products
   const { data: topProducts } = await supabase
@@ -100,16 +99,64 @@ export default async function DashboardPage() {
     value: p.sold_quantity || 0
   })) || [];
 
+  // Recent AI Messages
+  const { data: recentMessages } = await supabase
+    .from("messages")
+    .select("text, direction, created_at")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .limit(3);
+
+  // Time formatting helper
+  const formatTimeAgo = (dateStr: string) => {
+    const diffMs = new Date().getTime() - new Date(dateStr).getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "hace instantes";
+    if (diffMins < 60) return `hace ${diffMins} minutos`;
+    return `hace ${Math.floor(diffMins / 60)} horas`;
+  };
+
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
+    <div className="flex-1 space-y-6 p-8 pt-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        
+        {/* Sync Status Badge */}
+        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 rounded-full text-sm font-medium">
+          {meliAccount.status === 'syncing' ? (
+            <RefreshCw className="w-4 h-4 animate-spin" />
+          ) : meliAccount.status === 'error' ? (
+            <AlertCircle className="w-4 h-4 text-red-500" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4" />
+          )}
+          <span>
+            {meliAccount.status === 'syncing' 
+              ? "Sincronizando Mercado Libre..." 
+              : meliAccount.status === 'error' 
+                ? "Error de sincronización" 
+                : `Sincronizado ${meliAccount.last_sync_at ? formatTimeAgo(meliAccount.last_sync_at as string) : 'recientemente'}`
+            }
+          </span>
+        </div>
       </div>
       
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <SalesCard amount={salesToday} />
         <RevenueCard amount={revenueWeek} />
-        <StockAlertCard count={lowStockCount || 0} />
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Productos</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalProductsCount}</div>
+            <p className="text-xs text-muted-foreground">En tu catálogo</p>
+          </CardContent>
+        </Card>
+
+        <StockAlertCard count={lowStockCount} />
         <ProductCard name={topProduct?.title || "Sin datos"} quantity={topProduct?.sold_quantity || 0} />
       </div>
 
@@ -117,25 +164,54 @@ export default async function DashboardPage() {
         <Card className="col-span-4">
           <CardHeader>
             <CardTitle>Ventas últimos 7 días</CardTitle>
-            <CardDescription>
-              Resumen de ingresos de la última semana.
-            </CardDescription>
+            <CardDescription>Resumen de ingresos de la última semana.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <OverviewChart data={recentOrders || []} />
           </CardContent>
         </Card>
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Productos más vendidos</CardTitle>
-            <CardDescription>
-              Distribución de ventas por producto.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <TopProductsChart data={chartData} />
-          </CardContent>
-        </Card>
+        
+        <div className="col-span-3 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Productos más vendidos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TopProductsChart data={chartData} />
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Agente IA</CardTitle>
+                <CardDescription>Actividad reciente</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/dashboard/messages">
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Ir al Chat
+                </Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {recentMessages && recentMessages.length > 0 ? (
+                <div className="space-y-3">
+                  {recentMessages.map((msg, idx) => (
+                    <div key={idx} className="text-sm">
+                      <span className="font-semibold text-xs uppercase text-muted-foreground mr-2">
+                        {msg.direction === 'inbound' ? 'Tú' : 'Stockly'}
+                      </span>
+                      <span className="line-clamp-1">{msg.text}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No tienes mensajes recientes con la Inteligencia Artificial.</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
