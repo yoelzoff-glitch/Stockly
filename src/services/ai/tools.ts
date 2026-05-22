@@ -367,3 +367,5 @@ export async function prepareStatusChange(tenantId: string, query: string, statu
     message: `Encontré ${payload.length} producto(s). Riesgo: ${risk}\n\n**PREVISUALIZACIÓN DE CAMBIOS:**\n${previewList}\nImpacto esperado: Cambio de estado a ${status} en Mercado Libre.\n\n**IMPORTANTE:** Para ejecutar esto, por favor responde únicamente con la palabra: **CONFIRMO**`
   };
 }
+
+export { getCompetitionAnalysis } from './getCompetitionAnalysis';

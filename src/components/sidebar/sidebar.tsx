@@ -12,11 +12,15 @@ import {
   MessageSquare,
   Settings,
   LogOut,
+  BrainCircuit,
+  Target
 } from "lucide-react";
 import { logoutAction } from "@/actions/auth";
 
 const sidebarLinks = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Intelligence Center", href: "/dashboard/intelligence", icon: BrainCircuit },
+  { name: "Competencia", href: "/dashboard/competition", icon: Target },
   { name: "Productos", href: "/dashboard/products", icon: Package },
   { name: "Ventas", href: "/dashboard/orders", icon: ShoppingCart },
   { name: "Analíticas", href: "/dashboard/analytics", icon: BarChart3 },

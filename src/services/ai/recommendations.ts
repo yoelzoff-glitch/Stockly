@@ -13,7 +13,7 @@ export function generateRecommendations(problems: BusinessProblem[]): SuggestedA
   const recommendations: SuggestedAction[] = [];
 
   for (const problem of problems) {
-    if (problem.type === "low_stock") {
+    if (problem.type === "low_stock" || problem.type === "stock_out_warning") {
       recommendations.push({
         action_type: "update_stock",
         product_id: problem.product_id,
@@ -24,7 +24,7 @@ export function generateRecommendations(problems: BusinessProblem[]): SuggestedA
       });
     }
 
-    if (problem.type === "no_sales") {
+    if (problem.type === "no_sales" || problem.type === "dead_product") {
       recommendations.push({
         action_type: "pause_product",
         product_id: problem.product_id,

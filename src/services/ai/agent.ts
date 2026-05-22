@@ -145,6 +145,22 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
       {
         type: "function",
         function: {
+          function: async (args: { query: string }) => tools.getCompetitionAnalysis(tenantId, args.query),
+          name: "getCompetitionAnalysis",
+          description: "Analiza los precios de la competencia para un producto específico usando su nombre o SKU. Responde si estás caro, barato o en precio con respecto al promedio del mercado.",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "El nombre o SKU del producto a analizar en la competencia." },
+            },
+            required: ["query"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
           function: async () => tools.getWeeklySales(tenantId),
           name: "getWeeklySales",
           description: "Obtiene la suma total de dinero vendido en los últimos 7 días y la cantidad de órdenes.",

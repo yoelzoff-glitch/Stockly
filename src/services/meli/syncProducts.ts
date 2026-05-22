@@ -36,7 +36,11 @@ export async function syncProducts(tenantId: string) {
     throw new Error("Mercado Libre account not connected for this tenant.");
   }
 
-  const { access_token, meli_user_id, id: meli_account_id } = meliAccount;
+  const { meli_user_id, id: meli_account_id } = meliAccount;
+  
+  // 1b. Validate and refresh token
+  const { refreshMeliToken } = await import("./refreshToken");
+  const access_token = await refreshMeliToken(tenantId);
 
   // 2. Fetch products from Meli API
   const rawProducts = await getProducts(access_token, meli_user_id);
@@ -124,7 +128,7 @@ export async function syncProducts(tenantId: string) {
 
   if (upsertError) {
     console.error("Error upserting products to DB:", upsertError);
-    throw new Error("Failed to save synced products to database.");
+    throw new Error(`Failed to save synced products to database: ${upsertError.message}`);
   }
 
   // Also update last_sync_at on meli_accounts

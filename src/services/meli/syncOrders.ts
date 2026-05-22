@@ -15,7 +15,11 @@ export async function syncOrders(tenantId: string) {
     throw new Error("Mercado Libre account not connected for this tenant.");
   }
 
-  const { access_token, meli_user_id, id: meli_account_id } = meliAccount;
+  const { meli_user_id, id: meli_account_id } = meliAccount;
+
+  // 1b. Validate and refresh token
+  const { refreshMeliToken } = await import("./refreshToken");
+  const access_token = await refreshMeliToken(tenantId);
 
   // 2. Fetch orders from Meli API
   const rawOrders = await getOrders(access_token, meli_user_id);
