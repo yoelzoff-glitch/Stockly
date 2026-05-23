@@ -8,6 +8,8 @@ import { Package, RefreshCw, Edit2, Upload } from "lucide-react";
 import Link from "next/link";
 import { ProductCommandCenter } from "@/components/dashboard/product-command-center";
 import { ImportCostsModal } from "@/components/dashboard/import-costs-modal";
+import { SearchInput } from "@/components/ui/search-input";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 interface Product {
   id: string;
@@ -22,8 +24,21 @@ interface Product {
   last_synced_at: string;
 }
 
-export function ProductsClient({ initialProducts }: { initialProducts: any[] }) {
+export function ProductsClient({ 
+  initialProducts, 
+  totalCount = 0, 
+  currentPage = 1, 
+  searchQuery = "" 
+}: { 
+  initialProducts: any[], 
+  totalCount?: number,
+  currentPage?: number,
+  searchQuery?: string
+}) {
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
 
@@ -66,11 +81,16 @@ export function ProductsClient({ initialProducts }: { initialProducts: any[] }) 
       </div>
       
       <Card>
-        <CardHeader>
-          <CardTitle>Inventario</CardTitle>
-          <CardDescription>
-            Tus productos sincronizados desde Mercado Libre.
-          </CardDescription>
+        <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+          <div>
+            <CardTitle>Inventario</CardTitle>
+            <CardDescription>
+              Tus productos sincronizados desde Mercado Libre.
+            </CardDescription>
+          </div>
+          <div className="w-full sm:w-auto">
+            <SearchInput placeholder="Buscar por título, SKU..." />
+          </div>
         </CardHeader>
         <CardContent>
           {!initialProducts || initialProducts.length === 0 ? (
@@ -125,13 +145,27 @@ export function ProductsClient({ initialProducts }: { initialProducts: any[] }) 
                           )}
                         </td>
                         <td className="p-4 align-middle text-right whitespace-nowrap text-muted-foreground">
-                          {product.estimated_fee ? `$${product.estimated_fee.toLocaleString()}` : '-'}
+                          {product.estimated_fee ? (
+                            <div className="flex flex-col items-end">
+                              <span>${((product.estimated_fee || 0) + (product.extra_fee_amount || 0)).toLocaleString()}</span>
+                              {product.extra_fee_amount > 0 && (
+                                <span className="text-[10px] text-amber-600 font-medium">Incl. cuotas</span>
+                              )}
+                            </div>
+                          ) : '-'}
                         </td>
                         <td className="p-4 align-middle text-right whitespace-nowrap text-muted-foreground">
                           {product.estimated_shipping_cost !== null && product.estimated_shipping_cost !== undefined ? `$${product.estimated_shipping_cost.toLocaleString()}` : '-'}
                         </td>
                         <td className="p-4 align-middle text-right whitespace-nowrap">
-                          {product.margin_percent !== null && product.margin_percent !== undefined ? (
+                          {product.profit_real_margin !== null && product.profit_real_margin !== undefined ? (
+                            <div className="flex flex-col items-end">
+                              <span className={product.profit_real_margin <= 10 ? 'text-red-500 font-medium' : 'text-green-600 font-medium'}>
+                                {product.profit_real_margin.toFixed(1)}%
+                              </span>
+                              <span className="text-xs text-muted-foreground">${product.profit_real_estimated?.toLocaleString()}</span>
+                            </div>
+                          ) : product.margin_percent !== null && product.margin_percent !== undefined ? (
                             <div className="flex flex-col items-end">
                               <span className={product.margin_percent <= 10 ? 'text-red-500 font-medium' : 'text-green-600 font-medium'}>
                                 {product.margin_percent.toFixed(1)}%
@@ -161,6 +195,40 @@ export function ProductsClient({ initialProducts }: { initialProducts: any[] }) 
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+          
+          {totalCount > 50 && (
+            <div className="flex items-center justify-between px-2 py-4 border-t">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {initialProducts.length} de {totalCount} productos
+              </div>
+              <div className="flex space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={currentPage <= 1}
+                  onClick={() => {
+                    const params = new URLSearchParams(searchParams);
+                    params.set("page", (currentPage - 1).toString());
+                    router.push(`${pathname}?${params.toString()}`);
+                  }}
+                >
+                  Anterior
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={currentPage * 50 >= totalCount}
+                  onClick={() => {
+                    const params = new URLSearchParams(searchParams);
+                    params.set("page", (currentPage + 1).toString());
+                    router.push(`${pathname}?${params.toString()}`);
+                  }}
+                >
+                  Siguiente
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

@@ -11,12 +11,13 @@ type Message = {
   content: string;
 };
 
-export function ChatInterface({ initialMessages }: { initialMessages: Message[] }) {
+export function ChatInterface({ initialMessages, initialPrompt }: { initialMessages: Message[], initialPrompt?: string }) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const initializedRef = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -25,6 +26,15 @@ export function ChatInterface({ initialMessages }: { initialMessages: Message[] 
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    if (initialPrompt && !initializedRef.current) {
+      initializedRef.current = true;
+      setTimeout(() => {
+        submitMessage(initialPrompt);
+      }, 500);
+    }
+  }, [initialPrompt]);
 
   const QUICK_QUESTIONS = [
     "¿Qué vendí hoy?",

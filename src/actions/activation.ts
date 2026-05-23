@@ -25,7 +25,7 @@ export async function getActivationProgress() {
   const { data: meli } = await supabase.from("meli_accounts").select("id").eq("tenant_id", tenantId).single();
   const { count: productCount } = await supabase.from("products").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
   const { count: orderCount } = await supabase.from("orders").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
-  const { count: costCount } = await supabase.from("products").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).gt("unit_cost", 0);
+  const { count: costCount } = await supabase.from("products").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).gt("cost", 0);
   const { data: tenant } = await supabase.from("tenants").select("metadata").eq("id", tenantId).single();
 
   // Read manually completed steps from tenant_progress

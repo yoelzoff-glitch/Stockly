@@ -1,16 +1,36 @@
 import { meliFetch } from "./client";
 
-export async function getProducts(accessToken: string, meliUserId: string) {
+export async function getProducts(tenantId: string, meliUserId: string) {
   let allItemIds: string[] = [];
-  let scrollId: string | undefined = undefined;
   
   // 1. Fetch all item IDs for the user
   try {
-    const searchUrl = `/users/${meliUserId}/items/search`;
-    const data = await meliFetch(accessToken, searchUrl);
-    
-    if (data.results && Array.isArray(data.results)) {
-      allItemIds = data.results;
+    let offset = 0;
+    const limit = 50;
+    let hasMore = true;
+
+    while (hasMore) {
+      const searchUrl = `/users/${meliUserId}/items/search?offset=${offset}&limit=${limit}`;
+      const data = await meliFetch({
+        tenantId,
+        endpoint: searchUrl,
+        method: "GET"
+      });
+      
+      if (data.results && Array.isArray(data.results) && data.results.length > 0) {
+        allItemIds = allItemIds.concat(data.results);
+        offset += limit;
+      } else {
+        hasMore = false;
+      }
+
+      if (data.paging) {
+        if (offset >= data.paging.total) {
+          hasMore = false;
+        }
+      } else {
+        hasMore = false;
+      }
     }
   } catch (error) {
     console.error("Error fetching user items from Meli:", error);
@@ -30,8 +50,11 @@ export async function getProducts(accessToken: string, meliUserId: string) {
     const idsString = chunk.join(",");
     
     try {
-      // /items endpoint requires an array of items, returned as [{ code: 200, body: {...} }, ...]
-      const itemsData = await meliFetch(accessToken, `/items?ids=${idsString}`);
+      const itemsData = await meliFetch({
+        tenantId,
+        endpoint: `/items?ids=${idsString}`,
+        method: "GET"
+      });
       
       if (Array.isArray(itemsData)) {
         for (const itemResponse of itemsData) {
@@ -42,7 +65,6 @@ export async function getProducts(accessToken: string, meliUserId: string) {
       }
     } catch (error) {
       console.error(`Error fetching item details for chunk ${i}:`, error);
-      // We continue to the next chunk even if one fails
     }
   }
 

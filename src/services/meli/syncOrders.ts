@@ -17,12 +17,10 @@ export async function syncOrders(tenantId: string) {
 
   const { meli_user_id, id: meli_account_id } = meliAccount;
 
-  // 1b. Validate and refresh token
-  const { refreshMeliToken } = await import("./refreshToken");
-  const access_token = await refreshMeliToken(tenantId);
-
-  // 2. Fetch orders from Meli API
-  const rawOrders = await getOrders(access_token, meli_user_id);
+  // 2. Fetch orders from Meli API (incremental sync: last 48 hours only, passing tenantId)
+  const twoDaysAgo = new Date();
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+  const rawOrders = await getOrders(tenantId, meli_user_id, twoDaysAgo.toISOString());
 
   if (rawOrders.length === 0) {
     return 0; // No orders to sync
@@ -42,7 +40,8 @@ export async function syncOrders(tenantId: string) {
     });
   }
 
-  // 4. Map Orders to DB Schema
+  // 4. Map Orders to DB Schema (including last_seen_at)
+  const syncTimestamp = new Date().toISOString();
   const ordersToUpsert = rawOrders.map((order: any) => ({
     tenant_id: tenantId,
     meli_account_id: meli_account_id,
@@ -56,7 +55,9 @@ export async function syncOrders(tenantId: string) {
     date_created: order.date_created,
     date_closed: order.date_closed,
     raw_data: order,
-    updated_at: new Date().toISOString()
+    meli_shipment_id: order.shipping?.id?.toString(),
+    last_seen_at: syncTimestamp,
+    updated_at: syncTimestamp
   }));
 
   // 5. Upsert Orders
@@ -91,11 +92,6 @@ export async function syncOrders(tenantId: string) {
       const meliItemId = item.item?.id;
       const localProductId = meliItemId ? productMap[meliItemId] : undefined;
 
-      // Un order_item en Meli puede no tener un ID único explícito por item vendido a veces,
-      // usaremos el order_id + meli_item_id como base para el upsert o crearemos registros simples.
-      // Ya que no tenemos un constraint único claro definido para order_items, insertaremos/actualizaremos
-      // basado en order_id y meli_item_id asumiendo que un ítem específico aparece una vez por orden.
-
       orderItemsToUpsert.push({
         tenant_id: tenantId,
         order_id: localOrderId,
@@ -113,10 +109,6 @@ export async function syncOrders(tenantId: string) {
 
   if (orderItemsToUpsert.length > 0) {
     // Delete existing items for these orders to avoid duplicates, then insert
-    // Or we just rely on standard insert if there's no conflict key.
-    // For safety, we will clear items for the updated orders and re-insert.
-    
-    // We get a list of unique local order IDs
     const localOrderIds = Array.from(new Set(Object.values(orderMap)));
     
     // In chunks of 100 to avoid limits
@@ -133,9 +125,9 @@ export async function syncOrders(tenantId: string) {
       .from("order_items")
       .insert(orderItemsToUpsert);
       
-    if (itemsError) {
-      console.error("Error inserting order items:", itemsError);
-    }
+      if (itemsError) {
+        console.error("Error inserting order items:", itemsError);
+      }
   }
 
   return ordersToUpsert.length;

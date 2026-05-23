@@ -43,6 +43,29 @@ export default async function AnalyticsPage() {
     .order("sold_quantity", { ascending: false })
     .limit(5);
 
+  // Cancellations
+  const { data: cancellations } = await supabase
+    .from("order_cancellations")
+    .select("refund_amount")
+    .eq("tenant_id", tenantId);
+
+  // Shipments
+  const { data: shipments } = await supabase
+    .from("shipments")
+    .select("substatus, shipping_cost")
+    .eq("tenant_id", tenantId);
+
+  const totalCancellations = cancellations?.length || 0;
+  const lostRevenue = cancellations?.reduce((acc, c) => acc + (Number(c.refund_amount) || 0), 0) || 0;
+  const cancellationRate = orders && orders.length > 0 ? ((totalCancellations / orders.length) * 100).toFixed(1) : "0.0";
+
+  const totalShipments = shipments?.length || 0;
+  const delayedShipments = shipments?.filter(s => s.substatus === 'delayed').length || 0;
+  const delayedRate = totalShipments > 0 ? ((delayedShipments / totalShipments) * 100).toFixed(1) : "0.0";
+  const totalShippingCost = shipments?.reduce((acc, s) => acc + (Number(s.shipping_cost) || 0), 0) || 0;
+  const avgShippingCost = totalShipments > 0 ? (totalShippingCost / totalShipments).toFixed(2) : "0.00";
+
+
   const totalOrders = orders?.length || 0;
   const totalRevenue = orders?.reduce((acc, order) => acc + (Number(order.total_amount) || 0), 0) || 0;
   const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
@@ -98,6 +121,49 @@ export default async function AnalyticsPage() {
           <CardContent>
             <div className="text-2xl font-bold">{lowStockProducts?.length || 0}</div>
             <p className="text-xs text-muted-foreground">Productos con stock crítico (≤ 5)</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tasa de Cancelación</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{cancellationRate}%</div>
+            <p className="text-xs text-muted-foreground">{totalCancellations} ventas canceladas</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pérdida por Cancelaciones</CardTitle>
+            <TrendingUp className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-500">${lostRevenue.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Monto devuelto acumulado</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Envíos Demorados</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{delayedShipments}</div>
+            <p className="text-xs text-muted-foreground">{delayedRate}% de tus envíos</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Costo Promedio Envío</CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${avgShippingCost}</div>
+            <p className="text-xs text-muted-foreground">Por paquete enviado</p>
           </CardContent>
         </Card>
       </div>

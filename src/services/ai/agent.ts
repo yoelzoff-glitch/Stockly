@@ -142,22 +142,7 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
           parameters: { type: "object", properties: {} },
         },
       },
-      {
-        type: "function",
-        function: {
-          function: async (args: { query: string }) => tools.getCompetitionAnalysis(tenantId, args.query),
-          name: "getCompetitionAnalysis",
-          description: "Analiza los precios de la competencia para un producto específico usando su nombre o SKU. Responde si estás caro, barato o en precio con respecto al promedio del mercado.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              query: { type: "string", description: "El nombre o SKU del producto a analizar en la competencia." },
-            },
-            required: ["query"],
-          },
-        },
-      },
+
       {
         type: "function",
         function: {
@@ -325,6 +310,80 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
           parameters: { type: "object", properties: {} },
         },
       },
+      {
+        type: "function",
+        function: {
+          function: async () => tools.getDelayedShipments(tenantId),
+          name: "getDelayedShipments",
+          description: "Consulta y devuelve una lista de los envíos que actualmente se encuentran demorados.",
+          parse: JSON.parse,
+          parameters: { type: "object", properties: {} },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          function: async () => tools.getCancellationStats(tenantId),
+          name: "getCancellationStats",
+          description: "Devuelve estadísticas de ventas canceladas (total, pérdida de ingresos y desglose por motivo).",
+          parse: JSON.parse,
+          parameters: { type: "object", properties: {} },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          function: async () => tools.getTopCancelledProducts(tenantId),
+          name: "getTopCancelledProducts",
+          description: "Devuelve una lista de los productos que tienen más cancelaciones de ventas.",
+          parse: JSON.parse,
+          parameters: { type: "object", properties: {} },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          function: async () => tools.getGrowingProducts(tenantId),
+          name: "getGrowingProducts",
+          description: "Devuelve los productos con mejor tracción o crecimiento de ventas recientes. Úsalo cuando te pregunten qué productos están creciendo o vendiendo más.",
+          parse: JSON.parse,
+          parameters: { type: "object", properties: {} },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          function: async () => tools.getFallingProducts(tenantId),
+          name: "getFallingProducts",
+          description: "Devuelve los productos que están cayendo en ventas o no tienen ventas (productos estancados).",
+          parse: JSON.parse,
+          parameters: { type: "object", properties: {} },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          function: async () => tools.getProductsToReview(tenantId),
+          name: "getProductsToReview",
+          description: "Devuelve productos con alertas críticas: bajos márgenes o falta de stock. Úsalo cuando el usuario pregunte qué debe revisar o qué le preocupa a la IA.",
+          parse: JSON.parse,
+          parameters: { type: "object", properties: {} },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          function: async (args: { days?: string }) => tools.getFinancialSummary(tenantId, args.days),
+          name: "getFinancialSummary",
+          description: "Calcula la facturación bruta, costos, comisiones, envíos, ganancia neta real y margen del negocio en un periodo de tiempo. Úsalo cuando pregunten por rentabilidad, ganancias, margen real, o gastos.",
+          parameters: {
+            type: "object",
+            properties: {
+              days: { type: "string", description: "Cantidad de días hacia atrás a analizar. Ejemplo: '30' para último mes, '7' para última semana." }
+            }
+          }
+        }
+      }
     ],
   });
 

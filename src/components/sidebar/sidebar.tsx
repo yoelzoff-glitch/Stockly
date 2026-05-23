@@ -12,9 +12,13 @@ import {
   MessageSquare,
   Settings,
   LogOut,
-  BrainCircuit,
   Target,
-  Activity
+  BrainCircuit,
+  Activity,
+  Truck,
+  Ban,
+  LineChart,
+  DollarSign
 } from "lucide-react";
 import { logoutAction } from "@/actions/auth";
 
@@ -23,8 +27,11 @@ const sidebarLinks = [
   { name: "Guía de Inicio", href: "/dashboard/get-started", icon: Target },
   { name: "Health Center", href: "/dashboard/health", icon: Activity },
   { name: "Intelligence Center", href: "/dashboard/intelligence", icon: BrainCircuit },
-  { name: "Competencia", href: "/dashboard/competition", icon: Target },
+  { name: "Market Insights", href: "/dashboard/market-insights", icon: LineChart },
   { name: "Ventas", href: "/dashboard/sales", icon: ShoppingCart },
+  { name: "Finanzas", href: "/dashboard/finance", icon: DollarSign },
+  { name: "Envíos", href: "/dashboard/shipments", icon: Truck },
+  { name: "Cancelaciones", href: "/dashboard/cancellations", icon: Ban },
   { name: "Productos", href: "/dashboard/products", icon: Package },
   { name: "Analíticas", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Integraciones", href: "/dashboard/integrations", icon: Plug },

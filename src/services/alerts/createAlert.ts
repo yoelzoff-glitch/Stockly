@@ -10,11 +10,26 @@ export async function createAlert({
   tenantId: string;
   title: string;
   body?: string;
-  severity?: "info" | "warning" | "error";
+  severity?: "info" | "warning" | "error" | "critical";
 }) {
   try {
     const supabase = createAdminClient();
     
+    const yesterday = new Date();
+    yesterday.setHours(yesterday.getHours() - 24);
+
+    const { data: existing } = await supabase
+      .from("alerts")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("title", title)
+      .gte("created_at", yesterday.toISOString())
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return; // Skip duplicate
+    }
+
     await supabase.from("alerts").insert({
       tenant_id: tenantId,
       title,

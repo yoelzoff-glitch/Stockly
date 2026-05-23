@@ -9,7 +9,7 @@ export async function detectDeadProducts(tenantId: string) {
   // First, get products
   const { data: products } = await supabase
     .from("products")
-    .select("id, title, status, permalink, available_quantity, unit_cost")
+    .select("id, title, status, permalink, available_quantity, cost")
     .eq("tenant_id", tenantId)
     .eq("status", "active");
 
@@ -42,7 +42,7 @@ export async function detectDeadProducts(tenantId: string) {
 
   return deadProducts.map(p => {
     const stock = p.available_quantity || 0;
-    const cost = p.unit_cost || 0;
+    const cost = p.cost || 0;
     const inmovilizado = stock * cost;
 
     return {

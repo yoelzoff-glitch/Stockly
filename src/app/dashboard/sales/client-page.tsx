@@ -1,80 +1,129 @@
 "use client";
 
-import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, Search, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Package } from "lucide-react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Legend } from "recharts";
+import { Button } from "@/components/ui/button";
+import { Download, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Package, Activity } from "lucide-react";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Pie, PieChart, Cell, Legend } from "recharts";
+import { SearchInput } from "@/components/ui/search-input";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
-export default function SalesClientPage({ initialOrders }: { initialOrders: any[] }) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [dateRange, setDateRange] = useState("30"); // days
+export default function SalesClientPage({ 
+  initialOrders, 
+  allPeriodOrders,
+  totalCount,
+  currentPage,
+  searchQuery,
+  currentStatus,
+  currentDays
+}: { 
+  initialOrders: any[],
+  allPeriodOrders: any[],
+  totalCount: number,
+  currentPage: number,
+  searchQuery: string,
+  currentStatus: string,
+  currentDays: number
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  // Filter logic
-  const filteredOrders = initialOrders.filter((o) => {
-    const matchesSearch = o.buyer_nickname?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          o.meli_order_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          o.product_title?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || o.status === statusFilter;
-    
-    const orderDate = new Date(o.date_created);
-    const today = new Date();
-    const diffDays = Math.ceil((today.getTime() - orderDate.getTime()) / (1000 * 3600 * 24));
-    const matchesDate = diffDays <= parseInt(dateRange);
-
-    return matchesSearch && matchesStatus && matchesDate;
-  });
-
-  // Export Logic
-  const handleExport = () => {
-    window.location.href = `/api/sales/export?days=${dateRange}&status=${statusFilter}&search=${encodeURIComponent(searchTerm)}`;
+  const handleFilterChange = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams);
+    params.set(key, value);
+    params.delete("page"); // Reset page
+    router.push(`${pathname}?${params.toString()}`);
   };
 
-  // KPIs
-  const totalSales = filteredOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
-  const totalOrdersCount = filteredOrders.length;
+  const handleExport = () => {
+    window.location.href = `/api/sales/export?days=${currentDays}&status=${currentStatus}&search=${encodeURIComponent(searchQuery)}`;
+  };
+
+  // KPIs use allPeriodOrders to be accurate regardless of pagination
+  const totalSales = allPeriodOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+  const totalOrdersCount = allPeriodOrders.length;
   const avgTicket = totalOrdersCount > 0 ? totalSales / totalOrdersCount : 0;
 
   const today = new Date();
   today.setHours(0,0,0,0);
-  const salesToday = filteredOrders.filter(o => new Date(o.date_created) >= today)
+  const salesToday = allPeriodOrders.filter(o => new Date(o.date_created) >= today)
     .reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
-  // Mocked AI Insights
+  // Chart Data preparation
+  const chartData = Array.from({ length: currentDays }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (currentDays - 1 - i));
+    d.setHours(0,0,0,0);
+    return {
+      dateObj: d,
+      name: d.toLocaleDateString("es-AR", { day: "2-digit", month: "short" }),
+      total: 0
+    };
+  });
+
+  allPeriodOrders.forEach(o => {
+    const d = new Date(o.date_created);
+    d.setHours(0,0,0,0);
+    const dayIndex = chartData.findIndex(cd => cd.dateObj.getTime() === d.getTime());
+    if (dayIndex !== -1) {
+      chartData[dayIndex].total += (Number(o.total_amount) || 0);
+    }
+  });
+
+  const productSales: Record<string, number> = {};
+  allPeriodOrders.forEach(o => {
+    const title = o.product_title || "Varios / Otros";
+    productSales[title] = (productSales[title] || 0) + (Number(o.total_amount) || 0);
+  });
+  
+  const categoryData = Object.entries(productSales)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(entry => ({ name: entry[0].length > 20 ? entry[0].substring(0, 20) + "..." : entry[0], value: entry[1] }));
+    
+  if (categoryData.length === 0) {
+    categoryData.push({ name: "Sin datos", value: 1 });
+  }
+
+  // Dynamic AI Insights
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const salesYesterday = allPeriodOrders.filter(o => {
+    const d = new Date(o.date_created);
+    d.setHours(0,0,0,0);
+    return d.getTime() === yesterday.getTime();
+  }).reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+
+  let todayVsYesterdayMsg = "Tus ventas de hoy están igualadas con las de ayer.";
+  let todayVsYesterdayColor = "text-blue-500";
+  let todayVsYesterdayIcon = Activity;
+
+  if (salesToday > salesYesterday) {
+    const increase = salesYesterday > 0 ? ((salesToday - salesYesterday) / salesYesterday) * 100 : 100;
+    todayVsYesterdayMsg = `Tus ventas de hoy superan las de ayer en un ${increase.toFixed(1)}%.`;
+    todayVsYesterdayColor = "text-emerald-500";
+    todayVsYesterdayIcon = TrendingUp;
+  } else if (salesToday < salesYesterday && salesToday > 0) {
+    const decrease = salesYesterday > 0 ? ((salesYesterday - salesToday) / salesYesterday) * 100 : 0;
+    todayVsYesterdayMsg = `Tus ventas de hoy están un ${decrease.toFixed(1)}% por debajo de las de ayer.`;
+    todayVsYesterdayColor = "text-orange-500";
+    todayVsYesterdayIcon = TrendingDown;
+  }
+
+  const topProduct = Object.entries(productSales).sort((a,b) => b[1] - a[1])[0];
+  const topProductMsg = topProduct ? `Tu producto líder es '${topProduct[0]}' generó $${topProduct[1].toLocaleString('es-AR')} en este periodo.` : "Sin suficientes datos.";
+
   const insights = [
-    { title: "Tendencia Positiva", desc: "Tus ventas aumentaron un 12% respecto a la semana pasada.", icon: TrendingUp, color: "text-green-500" },
-    { title: "Atención", desc: "El producto 'Zapatillas Running' bajó sus ventas en un 30%.", icon: TrendingDown, color: "text-red-500" },
-    { title: "Oportunidad", desc: "El margen neto promedio subió a 22%. Recomendamos mantener estrategia.", icon: TrendingUp, color: "text-green-500" }
+    { title: "Rendimiento Diario", desc: todayVsYesterdayMsg, icon: todayVsYesterdayIcon, color: todayVsYesterdayColor },
+    { title: "Producto Estrella", desc: topProductMsg, icon: ShoppingBag, color: "text-blue-500" },
+    { title: "Ticket Promedio", desc: `Tu ticket promedio actual es de $${avgTicket.toLocaleString('es-AR', { maximumFractionDigits: 0 })} por orden.`, icon: DollarSign, color: "text-indigo-500" }
   ];
 
-  // Chart Data preparation (Mocked/Simplified for demo)
-  // In a real app, we'd group by day.
-  const chartData = [
-    { name: "Lun", total: 4000 },
-    { name: "Mar", total: 3000 },
-    { name: "Mie", total: 2000 },
-    { name: "Jue", total: 2780 },
-    { name: "Vie", total: 1890 },
-    { name: "Sab", total: 2390 },
-    { name: "Dom", total: 3490 },
-  ];
-
-  const categoryData = [
-    { name: "Electrónica", value: 400 },
-    { name: "Ropa", value: 300 },
-    { name: "Hogar", value: 300 },
-    { name: "Otros", value: 200 },
-  ];
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
 
   return (
     <div className="space-y-6">
-      
-      {/* Header & Export */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Ventas y Analíticas</h2>
@@ -86,7 +135,6 @@ export default function SalesClientPage({ initialOrders }: { initialOrders: any[
         </Button>
       </div>
 
-      {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -95,7 +143,6 @@ export default function SalesClientPage({ initialOrders }: { initialOrders: any[
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${salesToday.toLocaleString("es-AR")}</div>
-            <p className="text-xs text-muted-foreground">+20.1% respecto a ayer</p>
           </CardContent>
         </Card>
         <Card>
@@ -105,7 +152,7 @@ export default function SalesClientPage({ initialOrders }: { initialOrders: any[
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${totalSales.toLocaleString("es-AR")}</div>
-            <p className="text-xs text-muted-foreground">Últimos {dateRange} días</p>
+            <p className="text-xs text-muted-foreground">Últimos {currentDays} días</p>
           </CardContent>
         </Card>
         <Card>
@@ -115,7 +162,6 @@ export default function SalesClientPage({ initialOrders }: { initialOrders: any[
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${avgTicket.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</div>
-            <p className="text-xs text-muted-foreground">Por orden</p>
           </CardContent>
         </Card>
         <Card>
@@ -125,12 +171,10 @@ export default function SalesClientPage({ initialOrders }: { initialOrders: any[
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalOrdersCount}</div>
-            <p className="text-xs text-muted-foreground">Completadas exitosamente</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Insights IA */}
       <div className="grid gap-4 md:grid-cols-3">
         {insights.map((insight, idx) => (
           <Card key={idx} className="bg-primary/5 border-primary/10">
@@ -147,12 +191,10 @@ export default function SalesClientPage({ initialOrders }: { initialOrders: any[
         ))}
       </div>
 
-      {/* Charts */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4">
           <CardHeader>
             <CardTitle>Ingresos en el tiempo</CardTitle>
-            <CardDescription>Evolución de ventas en el periodo seleccionado</CardDescription>
           </CardHeader>
           <CardContent className="pl-0 h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -174,13 +216,12 @@ export default function SalesClientPage({ initialOrders }: { initialOrders: any[
 
         <Card className="col-span-3">
           <CardHeader>
-            <CardTitle>Distribución por Categoría</CardTitle>
-            <CardDescription>Top categorías vendidas</CardDescription>
+            <CardTitle>Top Productos Vendidos</CardTitle>
           </CardHeader>
           <CardContent className="h-[300px] pb-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} fill="#8884d8" paddingAngle={5} dataKey="value">
+                <Pie data={categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                   {categoryData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
@@ -193,30 +234,22 @@ export default function SalesClientPage({ initialOrders }: { initialOrders: any[
         </Card>
       </div>
 
-      {/* Table Section */}
       <Card>
         <CardHeader className="pb-3 border-b">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <CardTitle>Historial de Órdenes</CardTitle>
-              <CardDescription>Detalle de todas tus ventas recientes.</CardDescription>
+              <CardDescription>Detalle de todas tus ventas.</CardDescription>
             </div>
             
-            <div className="flex flex-col sm:flex-row items-center gap-3">
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Buscar orden, SKU o comprador..."
-                  className="pl-9 bg-muted/50 w-full"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+              <div className="w-full sm:w-64">
+                <SearchInput placeholder="Buscar orden, comprador, producto..." />
               </div>
 
               <select 
-                value={statusFilter} 
-                onChange={(e) => setStatusFilter(e.target.value)}
+                value={currentStatus} 
+                onChange={(e) => handleFilterChange("status", e.target.value)}
                 className="flex h-9 w-full sm:w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
               >
                 <option value="all">Todos</option>
@@ -225,8 +258,8 @@ export default function SalesClientPage({ initialOrders }: { initialOrders: any[
               </select>
 
               <select 
-                value={dateRange} 
-                onChange={(e) => setDateRange(e.target.value)}
+                value={currentDays} 
+                onChange={(e) => handleFilterChange("days", e.target.value)}
                 className="flex h-9 w-full sm:w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
               >
                 <option value="7">Últimos 7 días</option>
@@ -251,32 +284,26 @@ export default function SalesClientPage({ initialOrders }: { initialOrders: any[
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredOrders.length === 0 ? (
+                {initialOrders.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                      No se encontraron órdenes con estos filtros.
+                      No se encontraron órdenes.
                     </td>
                   </tr>
                 ) : (
-                  filteredOrders.map((o) => (
+                  initialOrders.map((o) => (
                     <tr key={o.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                        {new Intl.DateTimeFormat("es-AR", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit"
-                        }).format(new Date(o.date_created))}
+                        {new Date(o.date_created).toLocaleDateString("es-AR")}
                       </td>
                       <td className="px-4 py-3 font-medium">#{o.meli_order_id}</td>
                       <td className="px-4 py-3">{o.buyer_nickname || "Anónimo"}</td>
-                      <td className="px-4 py-3 max-w-[200px] truncate" title={o.product_title || "Varios productos"}>
+                      <td className="px-4 py-3 max-w-[200px] truncate" title={o.product_title || ""}>
                         {o.product_title || "Varios productos"}
                       </td>
                       <td className="px-4 py-3 text-right">{o.total_quantity || 1}</td>
                       <td className="px-4 py-3 font-medium text-right">
-                        ${Number(o.total_amount).toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+                        ${Number(o.total_amount).toLocaleString("es-AR")}
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={o.status === 'paid' ? 'default' : 'secondary'} className={o.status === 'paid' ? 'bg-emerald-500 hover:bg-emerald-600' : ''}>
@@ -289,6 +316,32 @@ export default function SalesClientPage({ initialOrders }: { initialOrders: any[
               </tbody>
             </table>
           </div>
+          
+          {totalCount > 50 && (
+            <div className="flex items-center justify-between px-4 py-4 border-t bg-muted/10">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {initialOrders.length} de {totalCount} órdenes
+              </div>
+              <div className="flex space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={currentPage <= 1}
+                  onClick={() => handleFilterChange("page", (currentPage - 1).toString())}
+                >
+                  Anterior
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={currentPage * 50 >= totalCount}
+                  onClick={() => handleFilterChange("page", (currentPage + 1).toString())}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

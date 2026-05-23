@@ -30,11 +30,12 @@ export default async function IntegrationsPage({
 
   const tenantId = profile?.tenant_id;
 
-  // Check Mercado Libre
-  const { count: meliCount } = await supabase
+  // Fetch Mercado Libre Account Details
+  const { data: meliAccount } = await supabase
     .from("meli_accounts")
-    .select("*", { count: "exact", head: true })
-    .eq("tenant_id", tenantId);
+    .select("id, status, token_expires_at, sync_error, last_success_refresh")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
 
   // Check WhatsApp
   const { count: waCount } = await supabase
@@ -42,7 +43,7 @@ export default async function IntegrationsPage({
     .select("*", { count: "exact", head: true })
     .eq("tenant_id", tenantId);
 
-  const meliStatus = meliCount && meliCount > 0 ? "conectado" : "pendiente";
+  const meliStatus = meliAccount && meliAccount.status === "connected" ? "conectado" : meliAccount?.status === "error" ? "error" : "pendiente";
   
   let waStatus = "pendiente";
   if (waCount && waCount > 0) {
@@ -87,7 +88,7 @@ export default async function IntegrationsPage({
       )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-6">
-        <MeliCard status={meliStatus as any} />
+        <MeliCard meliAccount={meliAccount} />
 
         {/* WhatsApp */}
         <Card>

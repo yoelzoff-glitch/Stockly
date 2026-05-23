@@ -13,14 +13,12 @@ export const questionsJob = inngest.createFunction(
 
     // Fetch the question from Mercado Libre API
     const question = await step.run("fetch-question", async () => {
-      const { refreshMeliToken } = await import("../services/meli/refreshToken");
-      const accessToken = await refreshMeliToken(tenantId);
-      
-      const res = await fetch(`https://api.mercadolibre.com${resource}`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
+      const { meliFetch } = await import("../services/meli/client");
+      return await meliFetch({
+        tenantId,
+        endpoint: resource,
+        method: "GET"
       });
-      if (!res.ok) throw new Error("Failed to fetch question");
-      return res.json();
     });
 
     if (question.status !== "UNANSWERED") {

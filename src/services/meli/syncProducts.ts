@@ -37,13 +37,9 @@ export async function syncProducts(tenantId: string) {
   }
 
   const { meli_user_id, id: meli_account_id } = meliAccount;
-  
-  // 1b. Validate and refresh token
-  const { refreshMeliToken } = await import("./refreshToken");
-  const access_token = await refreshMeliToken(tenantId);
 
-  // 2. Fetch products from Meli API
-  const rawProducts = await getProducts(access_token, meli_user_id);
+  // 2. Fetch products from Meli API (passing tenantId)
+  const rawProducts = await getProducts(tenantId, meli_user_id);
 
   if (rawProducts.length === 0) {
     return 0; // No products to sync
@@ -61,28 +57,46 @@ export async function syncProducts(tenantId: string) {
   // 4. Map products and fetch fees/shipping
   const { getListingFees } = await import("./getListingFees");
   const { getShippingCostEstimate } = await import("./getShippingCostEstimate");
-  const { calculateProductProfitability } = await import("../profitability/calculateProductProfitability");
+  const { getCampaigns } = await import("./getCampaigns");
+  const { getPromotions } = await import("./getPromotions");
+  const { calculateRealProfitability } = await import("../profitability/calculateRealProfitability");
 
   const productsToUpsert = [];
+  const syncTimestamp = new Date().toISOString();
 
   for (const item of rawProducts) {
     const siteId = item.site_id || "MLA";
     const existingCost = costMap.get(item.id) || null;
 
-    // Fetch Fees
-    const feeData = await getListingFees(siteId, item.price, item.category_id, item.listing_type_id, access_token);
+    // Fetch Fees (passing tenantId)
+    const feeData = await getListingFees(siteId, item.price, item.category_id, item.listing_type_id, tenantId);
     const estimatedFee = feeData?.sale_fee_amount ?? null;
 
-    // Fetch Shipping
-    const shippingData = await getShippingCostEstimate(item.id, access_token);
+    // Fetch Shipping (optimized: pass pre-fetched item details to avoid redundant API call)
+    const shippingData = await getShippingCostEstimate(item.id, tenantId, item.shipping, item.seller_id, item.currency_id);
     const estimatedShipping = shippingData.estimated_shipping_cost;
 
+    // Fetch Campaigns and Promotions (passing tenantId)
+    const campaigns = await getCampaigns(item.id, meli_user_id, tenantId);
+    const promotions = await getPromotions(item.id, meli_user_id, tenantId);
+
+    let extraFeeAmount = campaigns.reduce((acc: number, c: any) => acc + (c.fee_extra || 0), 0);
+    
+    // Fallback: Si el API de campañas devolvió 403 o no detectó nada, pero el item tiene Cuota Simple (pcj-co-funded)
+    if (extraFeeAmount === 0 && item.tags && item.tags.includes("pcj-co-funded")) {
+      extraFeeAmount = item.price * 0.05; // Cuota simple cobra exactamente 5%
+    }
+
+    const promoDiscountAmount = promotions.reduce((acc: number, p: any) => acc + (p.discount_amount || 0), 0);
+
     // Calculate profitability
-    const profitResult = calculateProductProfitability({
+    const profitResult = calculateRealProfitability({
       price: item.price,
       cost: existingCost,
       estimated_fee: estimatedFee,
+      extra_fee_amount: extraFeeAmount,
       estimated_shipping_cost: estimatedShipping,
+      promotion_discount_amount: promoDiscountAmount,
       estimated_tax: 0 // Simplification for now
     });
 
@@ -112,9 +126,16 @@ export async function syncProducts(tenantId: string) {
       estimated_tax: 0,
       margin_amount: profitResult.margin_amount,
       margin_percent: profitResult.margin_percent,
+      profit_real_estimated: profitResult.real_margin_amount,
+      profit_real_margin: profitResult.real_margin_percent,
       profitability_status: profitResult.profitability_status,
+      campaign_data: campaigns,
+      promotion_data: promotions,
+      extra_fee_amount: extraFeeAmount,
+      promotion_discount_amount: promoDiscountAmount,
       profit_last_calculated_at: new Date().toISOString(),
-      last_synced_at: new Date().toISOString(),
+      last_synced_at: syncTimestamp,
+      last_seen_at: syncTimestamp,
       updated_at: new Date().toISOString(),
     });
   }
@@ -130,6 +151,14 @@ export async function syncProducts(tenantId: string) {
     console.error("Error upserting products to DB:", upsertError);
     throw new Error(`Failed to save synced products to database: ${upsertError.message}`);
   }
+
+  // 5. Mark local active products no longer present in Mercado Libre as deleted_from_meli
+  const fewMinutesAgo = new Date(new Date(syncTimestamp).getTime() - 2 * 60 * 1000).toISOString();
+  await supabase
+    .from("products")
+    .update({ status: "deleted_from_meli" })
+    .eq("tenant_id", tenantId)
+    .lt("last_seen_at", fewMinutesAgo);
 
   // Also update last_sync_at on meli_accounts
   await supabase

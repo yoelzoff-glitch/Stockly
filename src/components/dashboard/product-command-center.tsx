@@ -10,14 +10,16 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ExternalLink, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, ShieldCheck, PauseCircle, PlayCircle, Copy, BarChart2, History } from "lucide-react";
+import { ProductHistoryTab } from "./product-history-tab";
+import { ProductChat } from "./product-chat";
 import { 
   preparePriceChangeAction, 
   prepareStockChangeAction, 
+  prepareStatusChangeAction,
   confirmCommandCenterAction, 
   cancelCommandCenterAction 
 } from "@/actions/product-command-actions";
 import { updateProductCost } from "@/app/dashboard/products/actions";
-import { fetchCompetitionAnalysis } from "@/actions/competition-actions";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface ProductCommandCenterProps {
@@ -34,10 +36,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingAction, setPendingAction] = useState<any | null>(null);
   
-  // Competition state
-  const [competitionData, setCompetitionData] = useState<any | null>(null);
-  const [isLoadingCompetition, setIsLoadingCompetition] = useState(false);
-  
+
   // Price states
   const [newPrice, setNewPrice] = useState<string>(product?.price?.toString() || "");
   
@@ -53,20 +52,9 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
       setNewStock(product.available_quantity?.toString() || "");
       setNewCost(product.cost?.toString() || "");
       setPendingAction(null);
-      setCompetitionData(null);
     }
   }, [product]);
 
-  const handleFetchCompetition = async () => {
-    setIsLoadingCompetition(true);
-    const res = await fetchCompetitionAnalysis(product.id, product.sku, product.title);
-    if (res && !res.error) {
-      setCompetitionData(res);
-    } else if (res?.error) {
-      alert(res.error);
-    }
-    setIsLoadingCompetition(false);
-  };
 
   const handlePreparePrice = async (priceVal: number) => {
     setIsProcessing(true);
@@ -82,6 +70,17 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
   const handlePrepareStock = async (stockVal: number, op: 'set' | 'add' | 'subtract' = 'set') => {
     setIsProcessing(true);
     const res = await prepareStockChangeAction(product.id, product.sku, product.title, stockVal, op);
+    if (res.error) {
+      alert(res.error);
+    } else {
+      setPendingAction(res);
+    }
+    setIsProcessing(false);
+  };
+
+  const handlePrepareStatus = async (status: 'paused' | 'active') => {
+    setIsProcessing(true);
+    const res = await prepareStatusChangeAction(product.id, product.sku, product.title, status);
     if (res.error) {
       alert(res.error);
     } else {
@@ -127,6 +126,19 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
     await cancelCommandCenterAction(pendingAction.action_id);
     setPendingAction(null);
     setIsProcessing(false);
+  };
+
+  const handleForceSync = async () => {
+    setIsProcessing(true);
+    try {
+      const res = await fetch("/api/meli/sync-products", { method: "POST" });
+      if (!res.ok) throw new Error("Error sincronizando");
+      onSuccess();
+    } catch (e: any) {
+      alert("Error forzando sincronización: " + e.message);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const renderSecurityPreview = () => {
@@ -189,7 +201,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                 <TabsTrigger value="price" className="data-[state=active]:bg-muted">Precio</TabsTrigger>
                 <TabsTrigger value="stock" className="data-[state=active]:bg-muted">Stock</TabsTrigger>
                 <TabsTrigger value="profit" className="data-[state=active]:bg-muted">Rentabilidad</TabsTrigger>
-                <TabsTrigger value="competition" className="data-[state=active]:bg-muted">Competencia</TabsTrigger>
+                <TabsTrigger value="insights" className="data-[state=active]:bg-muted">Insights</TabsTrigger>
                 <TabsTrigger value="history" className="data-[state=active]:bg-muted">Historial</TabsTrigger>
                 <TabsTrigger value="ai" className="data-[state=active]:bg-muted">IA</TabsTrigger>
               </TabsList>
@@ -198,6 +210,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
             <ScrollArea className="flex-1 p-6">
               
               <TabsContent value="general" className="mt-0 space-y-6">
+                {renderSecurityPreview()}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-muted-foreground">SKU</Label>
@@ -227,17 +240,17 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                   <h4 className="font-medium mb-3">Acciones Rápidas</h4>
                   <div className="flex flex-wrap gap-2">
                     {product.status === 'active' ? (
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => handlePrepareStatus('paused')} disabled={isProcessing || pendingAction !== null}>
                         <PauseCircle className="w-4 h-4 mr-2" /> Pausar
                       </Button>
                     ) : (
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => handlePrepareStatus('active')} disabled={isProcessing || pendingAction !== null}>
                         <PlayCircle className="w-4 h-4 mr-2" /> Reactivar
                       </Button>
                     )}
-                    <Button variant="outline" size="sm">
-                      <RefreshCw className="w-4 h-4 mr-2" /> Forzar Sincronización
-                    </Button>
+                      <Button variant="outline" size="sm" onClick={handleForceSync} disabled={isProcessing || pendingAction !== null}>
+                        <RefreshCw className={`w-4 h-4 mr-2 ${isProcessing ? 'animate-spin' : ''}`} /> Forzar Sincronización
+                      </Button>
                     <Button variant="outline" size="sm" disabled>
                       <Copy className="w-4 h-4 mr-2" /> Duplicar (Próximamente)
                     </Button>
@@ -363,113 +376,116 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                 <Separator />
 
                 <div className="space-y-4">
-                  <Label>Desglose Estimado de Rentabilidad</Label>
-                  <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg space-y-3 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Precio de Venta</span>
-                      <span className="font-medium">${product.price?.toLocaleString() || 0}</span>
+                    <Label>Impacto Comercial (Rentabilidad Real)</Label>
+                    <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg space-y-3 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Precio de Venta</span>
+                        <span className="font-medium">${product.price?.toLocaleString() || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Costo de Producto</span>
+                        <span className="text-red-500 font-medium">-${product.cost?.toLocaleString() || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Comisión ML (est.)</span>
+                        <span className="text-red-500 font-medium">-${product.estimated_fee?.toLocaleString() || 0}</span>
+                      </div>
+                      
+                      {product.extra_fee_amount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Costo Cuotas (Campañas)</span>
+                          <span className="text-red-500 font-medium">-${product.extra_fee_amount?.toLocaleString() || 0}</span>
+                        </div>
+                      )}
+                      
+                      {product.promotion_discount_amount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Descuentos Promocionales</span>
+                          <span className="text-red-500 font-medium">-${product.promotion_discount_amount?.toLocaleString() || 0}</span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Envío (est.)</span>
+                        <span className="text-red-500 font-medium">-${product.estimated_shipping_cost?.toLocaleString() || 0}</span>
+                      </div>
+                      <Separator className="my-2" />
+                      <div className="flex justify-between items-center text-base font-bold">
+                        <span>Ganancia Neta</span>
+                        <span className={product.profit_real_estimated && product.profit_real_estimated > 0 ? "text-green-600" : "text-red-500"}>
+                          ${product.profit_real_estimated?.toLocaleString() || product.margin_amount?.toLocaleString() || 0}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-muted-foreground">Margen Real</span>
+                        <span className={product.profit_real_margin && product.profit_real_margin > 10 ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
+                          {product.profit_real_margin?.toFixed(1) || product.margin_percent?.toFixed(1) || 0}%
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Costo de Producto</span>
-                      <span className="text-red-500 font-medium">-${product.cost?.toLocaleString() || 0}</span>
+                  </div>
+              </TabsContent>
+
+              <TabsContent value="insights" className="mt-0 space-y-6">
+                <div className="space-y-4">
+                  <h4 className="font-medium">Market Insights (Interno)</h4>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-muted/50 p-4 rounded-lg">
+                      <Label className="text-muted-foreground text-xs">Ventas Históricas</Label>
+                      <p className="font-bold text-xl mt-1">{product.sold_quantity}</p>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Comisión ML (est.)</span>
-                      <span className="text-red-500 font-medium">-${product.estimated_fee?.toLocaleString() || 0}</span>
+                    <div className="bg-muted/50 p-4 rounded-lg">
+                      <Label className="text-muted-foreground text-xs">Margen Real Actual</Label>
+                      <p className={`font-bold text-xl mt-1 ${product.profit_real_margin && product.profit_real_margin > 10 ? 'text-green-600' : 'text-orange-500'}`}>
+                        {product.profit_real_margin?.toFixed(1) || product.margin_percent?.toFixed(1) || 0}%
+                      </p>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Envío (est.)</span>
-                      <span className="text-red-500 font-medium">-${product.estimated_shipping_cost?.toLocaleString() || 0}</span>
-                    </div>
-                    <Separator className="my-2" />
-                    <div className="flex justify-between items-center text-base font-bold">
-                      <span>Ganancia Neta</span>
-                      <span className={product.margin_amount && product.margin_amount > 0 ? "text-green-600" : "text-red-500"}>
-                        ${product.margin_amount?.toLocaleString() || 0}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-muted-foreground">Margen sobre Venta</span>
-                      <span className={product.margin_percent && product.margin_percent > 10 ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
-                        {product.margin_percent?.toFixed(1) || 0}%
-                      </span>
+                  </div>
+
+                  <div className="space-y-3 mt-4">
+                    <Label>Alertas y Recomendaciones IA</Label>
+                    <div className="bg-indigo-50/50 dark:bg-indigo-950/20 p-4 rounded-lg border border-indigo-100 dark:border-indigo-900/50 space-y-3">
+                      {product.available_quantity === 0 ? (
+                        <div className="flex gap-2 items-start text-sm text-red-600">
+                          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                          <p>Producto sin stock. Renueva el inventario para no perder posicionamiento.</p>
+                        </div>
+                      ) : product.available_quantity <= 5 ? (
+                        <div className="flex gap-2 items-start text-sm text-orange-600">
+                          <TrendingDown className="w-4 h-4 shrink-0 mt-0.5" />
+                          <p>Stock crítico ({product.available_quantity} unidades). Reabastecimiento urgente sugerido.</p>
+                        </div>
+                      ) : null}
+                      
+                      {product.sold_quantity === 0 ? (
+                        <div className="flex gap-2 items-start text-sm text-orange-600">
+                          <TrendingDown className="w-4 h-4 shrink-0 mt-0.5" />
+                          <p>Producto sin ventas históricas. Considera bajar el precio o mejorar las imágenes.</p>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2 items-start text-sm text-emerald-600">
+                          <TrendingUp className="w-4 h-4 shrink-0 mt-0.5" />
+                          <p>Este producto tiene tracción de ventas probada en tu catálogo.</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               </TabsContent>
 
-              <TabsContent value="competition" className="mt-0 space-y-6">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-medium">Análisis de Mercado</h4>
-                  <Button onClick={handleFetchCompetition} disabled={isLoadingCompetition} variant="outline" size="sm">
-                    <BarChart2 className="w-4 h-4 mr-2" />
-                    {isLoadingCompetition ? "Analizando..." : "Analizar Competencia"}
-                  </Button>
-                </div>
-                
-                {competitionData?.message ? (
-                  <p className="text-sm text-muted-foreground">{competitionData.message}</p>
-                ) : competitionData ? (
-                  <div className="grid gap-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-muted/50 p-4 rounded-lg">
-                        <Label className="text-muted-foreground text-xs">Mi Precio</Label>
-                        <p className="font-bold">${competitionData.my_price?.toLocaleString()}</p>
-                      </div>
-                      <div className="bg-muted/50 p-4 rounded-lg">
-                        <Label className="text-muted-foreground text-xs">Promedio Mercado</Label>
-                        <p className="font-bold">${competitionData.market_average?.toLocaleString()}</p>
-                      </div>
-                      <div className="bg-muted/50 p-4 rounded-lg">
-                        <Label className="text-muted-foreground text-xs">Más Barato</Label>
-                        <p className="font-bold text-green-600">${competitionData.market_min?.toLocaleString()}</p>
-                      </div>
-                      <div className="bg-muted/50 p-4 rounded-lg">
-                        <Label className="text-muted-foreground text-xs">Más Caro</Label>
-                        <p className="font-bold text-red-600">${competitionData.market_max?.toLocaleString()}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 p-3 border rounded-lg">
-                      <Badge variant={competitionData.status === 'caro' ? 'destructive' : competitionData.status === 'barato' ? 'default' : 'secondary'}>
-                        {competitionData.status?.toUpperCase()}
-                      </Badge>
-                      <span className="text-sm">
-                        {competitionData.diff_percent > 0 
-                          ? `Tu precio es ${competitionData.diff_percent}% superior al promedio del mercado.` 
-                          : `Tu precio es ${Math.abs(competitionData.diff_percent)}% inferior al promedio del mercado.`}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center p-8 border border-dashed rounded-lg text-center">
-                    <BarChart2 className="w-8 h-8 text-muted-foreground mb-3" />
-                    <p className="text-sm text-muted-foreground mb-4">Aún no se ha analizado la competencia para este producto.</p>
-                    <Button onClick={handleFetchCompetition} disabled={isLoadingCompetition}>
-                      {isLoadingCompetition ? "Analizando..." : "Iniciar Análisis"}
-                    </Button>
-                  </div>
-                )}
+              <TabsContent value="history" className="mt-0 space-y-6">
+                <ProductHistoryTab productId={product.id} />
               </TabsContent>
 
-              <TabsContent value="history" className="mt-0 h-[300px] flex flex-col items-center justify-center border-2 border-dashed rounded-lg bg-slate-50/50 dark:bg-slate-900/50">
-                <History className="h-8 w-8 text-slate-400 mb-2" />
-                <h3 className="font-medium">Historial de Acciones</h3>
-                <p className="text-sm text-muted-foreground mt-1 max-w-[250px] text-center">
-                  Aquí verás el timeline de actualizaciones de precio, stock y sincronizaciones.
-                  <br/><br/>
-                  <Badge variant="outline">Próximamente</Badge>
-                </p>
-              </TabsContent>
-
-              <TabsContent value="ai" className="mt-0 h-[300px] flex flex-col items-center justify-center border-2 border-dashed rounded-lg bg-indigo-50/30 dark:bg-indigo-950/10">
-                <AlertTriangle className="h-8 w-8 text-indigo-400 mb-2" />
-                <h3 className="font-medium">IA Contextual Efímera</h3>
-                <p className="text-sm text-muted-foreground mt-1 max-w-[250px] text-center">
-                  Aquí podrás hacerle preguntas a Stockly sobre este producto (Ej. "¿Estoy muy caro?").
-                  <br/><br/>
-                  <Badge variant="outline">Próximamente</Badge>
-                </p>
+              <TabsContent value="ai" className="mt-0 space-y-6">
+                <ProductChat 
+                  product={product} 
+                  onActionPending={(action) => {
+                    setPendingAction(action);
+                    setActiveTab("general");
+                  }} 
+                />
               </TabsContent>
 
             </ScrollArea>

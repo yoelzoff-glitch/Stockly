@@ -1,6 +1,6 @@
 import { meliFetch } from "./client";
 
-export async function getOrders(accessToken: string, meliUserId: string) {
+export async function getOrders(tenantId: string, meliUserId: string, dateFrom?: string) {
   let allOrders: any[] = [];
   let offset = 0;
   const limit = 50; // Max allowed by Meli is usually 50
@@ -8,8 +8,12 @@ export async function getOrders(accessToken: string, meliUserId: string) {
 
   try {
     while (hasMore) {
-      const searchUrl = `/orders/search?seller=${meliUserId}&offset=${offset}&limit=${limit}`;
-      const data = await meliFetch(accessToken, searchUrl);
+      const searchUrl = `/orders/search?seller=${meliUserId}&offset=${offset}&limit=${limit}${dateFrom ? `&order.date_created.from=${dateFrom}` : ""}`;
+      const data = await meliFetch({
+        tenantId,
+        endpoint: searchUrl,
+        method: "GET"
+      });
       
       if (data.results && Array.isArray(data.results) && data.results.length > 0) {
         allOrders = allOrders.concat(data.results);
@@ -23,6 +27,8 @@ export async function getOrders(accessToken: string, meliUserId: string) {
         if (offset >= data.paging.total) {
           hasMore = false;
         }
+      } else {
+        hasMore = false;
       }
     }
   } catch (error) {

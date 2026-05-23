@@ -137,7 +137,7 @@ export async function getProductProfitability(tenantId: string, query: string) {
 
   const { data, error } = await supabase
     .from("products")
-    .select("title, sku, price, cost, estimated_fee, estimated_shipping_cost, margin_amount, margin_percent, profitability_status")
+    .select("title, sku, price, cost, estimated_fee, estimated_shipping_cost, margin_amount, margin_percent, profit_real_estimated, profit_real_margin, extra_fee_amount, promotion_discount_amount, profitability_status")
     .eq("tenant_id", tenantId)
     .or(`sku.eq."${query}",meli_item_id.ilike."*${query}*",title.ilike."*${query}*"`)
     .limit(1);
@@ -150,19 +150,24 @@ export async function getProductProfitability(tenantId: string, query: string) {
     return {
       title: p.title,
       price: p.price,
-      cost: "No configurado",
-      margin: "No se puede calcular la rentabilidad real porque el costo no está configurado. Pide al usuario que cargue el costo."
+      cost: "No definido",
+      status: "Falta costo para calcular rentabilidad"
     };
   }
 
   return {
     title: p.title,
+    sku: p.sku,
     price: p.price,
     cost: p.cost,
     estimated_fee: p.estimated_fee !== null ? p.estimated_fee : "Desconocida",
     estimated_shipping: p.estimated_shipping_cost !== null ? p.estimated_shipping_cost : "Desconocido",
-    net_profit_amount: p.margin_amount !== null ? p.margin_amount : "Incompleto",
-    net_margin_percentage: p.margin_percent !== null ? `${p.margin_percent}%` : "Incompleto",
+    gross_profit_amount: p.margin_amount !== null ? p.margin_amount : "Incompleto",
+    gross_margin_percentage: p.margin_percent !== null ? `${p.margin_percent}%` : "Incompleto",
+    cost_installments_campaigns: p.extra_fee_amount,
+    cost_promotions_coupons: p.promotion_discount_amount,
+    net_real_profit_amount: p.profit_real_estimated !== null ? p.profit_real_estimated : (p.margin_amount !== null ? p.margin_amount : "Incompleto"),
+    net_real_margin_percentage: p.profit_real_margin !== null ? `${p.profit_real_margin}%` : (p.margin_percent !== null ? `${p.margin_percent}%` : "Incompleto"),
     profitability_status: p.profitability_status
   };
 }
@@ -368,4 +373,7 @@ export async function prepareStatusChange(tenantId: string, query: string, statu
   };
 }
 
-export { getCompetitionAnalysis } from './getCompetitionAnalysis';
+export * from './tools/shipments';
+export * from './tools/market_insights';
+export * from './tools/finance';
+export * from './tools/finance';

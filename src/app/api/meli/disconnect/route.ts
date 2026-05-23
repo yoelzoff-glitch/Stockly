@@ -19,24 +19,38 @@ export async function POST(req: Request) {
       .eq("id", user.id)
       .single();
 
-    if (!profile || !profile.tenant_id) {
-      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-    }
-
-    // Delete the meli account
-    const { error } = await supabase
-      .from("meli_accounts")
-      .delete()
-      .eq("tenant_id", profile.tenant_id);
-
-    if (error) {
-      console.error("Error disconnecting Mercado Libre:", error);
-      return NextResponse.json({ error: "Failed to disconnect account" }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("Disconnect error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  if (!profile || !profile.tenant_id) {
+    return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
   }
+
+  // MÓDULO 5: Update status to disconnected instead of deleting the row (prevents cascade deletion)
+  const { error } = await supabase
+    .from("meli_accounts")
+    .update({
+      status: "disconnected",
+      access_token: null,
+      refresh_token: null,
+      token_expires_at: null,
+      sync_error: null
+    })
+    .eq("tenant_id", profile.tenant_id);
+
+  if (error) {
+    console.error("Error disconnecting Mercado Libre:", error);
+    return NextResponse.json({ error: "Failed to disconnect account" }, { status: 500 });
+  }
+
+  // Create Audit Log
+  await supabase.from("audit_logs").insert({
+    tenant_id: profile.tenant_id,
+    action: "meli_disconnected",
+    resource_type: "meli_account",
+    details: { message: "Conexión desconectada manualmente por el usuario conservando los datos históricos." }
+  });
+
+  return NextResponse.json({ success: true });
+} catch (error: any) {
+  console.error("Disconnect error:", error);
+  return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+}
 }

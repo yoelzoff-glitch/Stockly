@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -36,10 +37,49 @@ export default async function IntelligenceCenter() {
   const deadProducts = await detectDeadProducts(tenantId);
   const problems = await analyzeBusiness(tenantId);
 
+  // Sprint 22: Logistics & Cancellations Insights
+  const { data: delayedShipments } = await supabase
+    .from("shipments")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("substatus", "delayed");
+    
+  if (delayedShipments && delayedShipments.length > 0) {
+    problems.unshift({
+      product_id: "logistics-delayed",
+      sku: "N/A",
+      type: "logistics_delay",
+      product_title: "Logística: Envíos Demorados",
+      severity: "critical",
+      details: `Tenés ${delayedShipments.length} envíos demorados actualmente.`,
+      action: "Revisa los envíos en la sección de Envíos y contacta a los compradores para evitar reclamos."
+    } as any); // Cast as any if we don't have the exact literal types, or just satisfy the base shape
+  }
+
+  const { data: recentCancellations } = await supabase
+    .from("order_cancellations")
+    .select("id, orders(meli_order_id, buyer_nickname)")
+    .eq("tenant_id", tenantId)
+    .order("date_cancelled", { ascending: false })
+    .limit(5);
+
+  if (recentCancellations && recentCancellations.length > 0) {
+    problems.unshift({
+      product_id: "logistics-cancellations",
+      sku: "N/A",
+      type: "logistics_cancellations",
+      product_title: "Alertas de Cancelación",
+      severity: "medium",
+      details: `Se registraron ${recentCancellations.length} cancelaciones recientes. Revisa los motivos para detectar patrones.`,
+      action: "Analiza el historial en la sección de Ventas Canceladas."
+    } as any);
+  }
+
   // Suggested Workflows (Mocked based on problems for now)
   const suggestedWorkflows = [
     { id: 1, title: "Pausar todos los productos sin ventas", risk: "Bajo", type: "dead_products" },
-    { id: 2, title: "Aumentar 5% precio de productos con margen crítico", risk: "Medio", type: "low_margin" }
+    { id: 2, title: "Aumentar 5% precio de productos con margen crítico", risk: "Medio", type: "low_margin" },
+    { id: 3, title: "¿Cuáles son los motivos de mis últimas cancelaciones?", risk: "Bajo", type: "ai_chat" }
   ];
 
   return (
@@ -180,9 +220,11 @@ export default async function IntelligenceCenter() {
                     </Badge>
                   </div>
                 </div>
-                <Button size="icon" className="h-10 w-10 rounded-full shrink-0">
-                  <PlayCircle className="h-6 w-6" />
-                </Button>
+                <Link href={`/dashboard/messages?msg=${encodeURIComponent(wf.title)}`}>
+                  <Button size="icon" className="h-10 w-10 rounded-full shrink-0">
+                    <PlayCircle className="h-6 w-6" />
+                  </Button>
+                </Link>
               </div>
             </Card>
           ))}

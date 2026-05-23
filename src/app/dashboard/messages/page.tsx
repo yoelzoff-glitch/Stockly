@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { ChatInterface } from "@/components/dashboard/chat-interface";
 
-export default async function MessagesPage() {
+export default async function MessagesPage({ searchParams }: { searchParams: { msg?: string } }) {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -37,7 +37,7 @@ export default async function MessagesPage() {
       <p className="text-muted-foreground mb-6">Pregúntale a nuestra Inteligencia Artificial sobre tus ventas, stock y productos usando lenguaje natural.</p>
       
       <div className="flex-1 overflow-hidden border rounded-xl shadow-sm bg-background">
-        <ChatInterface initialMessages={initialMessages as any} />
+        <ChatInterface initialMessages={initialMessages as any} initialPrompt={searchParams?.msg} />
       </div>
     </div>
   );

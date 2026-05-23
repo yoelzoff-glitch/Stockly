@@ -61,8 +61,8 @@ export async function POST(req: Request) {
       let tenantId = waAccount?.tenant_id;
       let accessToken = waAccount?.access_token;
 
-      // Fallback para pruebas locales / Vercel sin base de datos configurada
-      if (!tenantId && process.env.WHATSAPP_PHONE_NUMBER_ID === phoneNumberId) {
+      // Fallback para pruebas locales (solo en modo desarrollo)
+      if (!tenantId && process.env.NODE_ENV !== 'production' && process.env.WHATSAPP_PHONE_NUMBER_ID === phoneNumberId) {
         logger.info("Using fallback tenant for testing...", "WHATSAPP_WEBHOOK");
         const { data: firstProfile } = await supabase.from("profiles").select("tenant_id").limit(1).single();
         if (firstProfile) {

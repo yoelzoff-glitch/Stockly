@@ -12,7 +12,7 @@ export async function calculateBusinessHealth(tenantId: string) {
   // 1. Check Products and Stock
   const { data: products } = await supabase
     .from("products")
-    .select("available_quantity, unit_cost")
+    .select("title, available_quantity, cost, extra_fee_amount, promotion_discount_amount, profit_real_margin")
     .eq("tenant_id", tenantId);
 
   if (!products || products.length === 0) {
@@ -26,10 +26,27 @@ export async function calculateBusinessHealth(tenantId: string) {
   const totalProducts = products.length;
   let noCostCount = 0;
   let lowStockCount = 0;
+  
+  // Sprint 20: Real Profitability Alerts
+  let productsWithInstallmentsPenalty = 0;
+  let productsWithPromotions = 0;
+  let productsBelowMinimumMargin = 0;
 
   products.forEach(p => {
-    if (!p.unit_cost || p.unit_cost <= 0) noCostCount++;
+    if (!p.cost || p.cost <= 0) noCostCount++;
     if (p.available_quantity !== null && p.available_quantity <= 5) lowStockCount++;
+    
+    // Sprint 20 rules
+    if (p.extra_fee_amount && p.extra_fee_amount > 0) {
+      productsWithInstallmentsPenalty++;
+    }
+    if (p.promotion_discount_amount && p.promotion_discount_amount > 0) {
+      productsWithPromotions++;
+    }
+    // Asume un margen mínimo genérico del 10% si no está en preferences
+    if (p.profit_real_margin !== null && p.profit_real_margin < 10) {
+      productsBelowMinimumMargin++;
+    }
   });
 
   // Cost rules
@@ -50,6 +67,31 @@ export async function calculateBusinessHealth(tenantId: string) {
     issues.push({ 
       severity: (lowStockPercentage > 0.3 ? "critical" : "warning") as "critical" | "warning", 
       message: `${lowStockCount} productos tienen stock bajo (<= 5)` 
+    });
+  }
+
+  // Sprint 20: Rentabilidad Real Alerts
+  if (productsWithInstallmentsPenalty > 0) {
+    score -= 5;
+    issues.push({
+      severity: "warning",
+      message: `${productsWithInstallmentsPenalty} productos están perdiendo margen por campañas de cuotas`
+    });
+  }
+
+  if (productsWithPromotions > 0) {
+    score -= 5;
+    issues.push({
+      severity: "warning",
+      message: `${productsWithPromotions} productos tienen descuentos promocionales o cupones activos`
+    });
+  }
+
+  if (productsBelowMinimumMargin > 0) {
+    score -= 15;
+    issues.push({
+      severity: "critical",
+      message: `${productsBelowMinimumMargin} productos cayeron debajo del margen mínimo de ganancia`
     });
   }
 

@@ -6,40 +6,50 @@ export interface MeliShippingEstimate {
 
 export async function getShippingCostEstimate(
   meli_item_id: string,
-  access_token: string
+  access_token: string,
+  prefetchedShipping?: any,
+  prefetchedSellerId?: number,
+  prefetchedCurrencyId?: string
 ): Promise<MeliShippingEstimate> {
   try {
-    // 1. Obtener detalles del ítem para ver su configuración de envío
-    const itemUrl = `https://api.mercadolibre.com/items/${meli_item_id}`;
-    const itemRes = await fetch(itemUrl, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${access_token}`,
-        "Content-Type": "application/json"
-      }
-    });
+    let shipping = prefetchedShipping;
+    let sellerId = prefetchedSellerId;
+    let currencyId = prefetchedCurrencyId || "ARS";
+    let rawResponse: any = null;
 
-    if (!itemRes.ok) return { estimated_shipping_cost: null, currency_id: null, raw_response: null };
+    if (!shipping) {
+      // 1. Obtener detalles del ítem para ver su configuración de envío (solo si no fue pre-cargado)
+      const itemUrl = `https://api.mercadolibre.com/items/${meli_item_id}`;
+      const itemRes = await fetch(itemUrl, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${access_token}`,
+          "Content-Type": "application/json"
+        }
+      });
 
-    const itemData = await itemRes.json();
-    const shipping = itemData.shipping;
+      if (!itemRes.ok) return { estimated_shipping_cost: null, currency_id: null, raw_response: null };
 
-    if (!shipping) return { estimated_shipping_cost: null, currency_id: itemData.currency_id, raw_response: itemData };
+      const itemData = await itemRes.json();
+      shipping = itemData.shipping;
+      sellerId = itemData.seller_id;
+      currencyId = itemData.currency_id;
+      rawResponse = itemData;
+    }
+
+    if (!shipping) return { estimated_shipping_cost: null, currency_id: currencyId, raw_response: rawResponse };
 
     // Si el envío no es gratis, el vendedor no asume costo de envío base (generalmente)
     if (!shipping.free_shipping) {
       return {
         estimated_shipping_cost: 0,
-        currency_id: itemData.currency_id,
+        currency_id: currencyId,
         raw_response: { mode: shipping.mode, free_shipping: false }
       };
     }
 
     // Si el envío es gratis, ML tiene un endpoint para consultar el costo exacto a cargo del vendedor:
     // GET /users/{user_id}/shipping_options/free?item_id={item_id}
-    // Como requiere user_id, y tenemos el token, podemos consultar el seller_id del item
-    const sellerId = itemData.seller_id;
-    
     if (sellerId) {
       const freeShippingUrl = `https://api.mercadolibre.com/users/${sellerId}/shipping_options/free?item_id=${meli_item_id}`;
       const freeRes = await fetch(freeShippingUrl, {
@@ -56,7 +66,7 @@ export async function getShippingCostEstimate(
         if (freeData && freeData.coverage && freeData.coverage.all_country) {
           return {
             estimated_shipping_cost: freeData.coverage.all_country.list_cost || freeData.coverage.all_country.billable_weight_cost || null,
-            currency_id: freeData.coverage.all_country.currency_id || itemData.currency_id,
+            currency_id: freeData.coverage.all_country.currency_id || currencyId,
             raw_response: freeData
           };
         }
@@ -66,7 +76,7 @@ export async function getShippingCostEstimate(
     // Fallback: Sabemos que es gratis pero no pudimos obtener el costo
     return {
       estimated_shipping_cost: null,
-      currency_id: itemData.currency_id,
+      currency_id: currencyId,
       raw_response: { free_shipping: true, detail: "Cost endpoint failed" }
     };
 

@@ -3,6 +3,7 @@ import { inngest } from "../../../inngest/client";
 import { syncProductsJob } from "../../../jobs/syncProductsJob";
 import { syncOrdersJob } from "../../../jobs/syncOrdersJob";
 import { questionsJob } from "../../../jobs/questionsJob";
+import { refreshMeliTokensJob } from "../../../jobs/refreshMeliTokensJob";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -10,6 +11,6 @@ export const { GET, POST, PUT } = serve({
     syncProductsJob,
     syncOrdersJob,
     questionsJob,
-    // future jobs will be imported here
+    refreshMeliTokensJob,
   ],
 });
