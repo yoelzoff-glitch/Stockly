@@ -50,19 +50,29 @@ export async function POST(req: Request) {
       const message = messages[0];
       const from = message.from; // Sender number
 
-      // 1. Identify Tenant
+      // 1. Identify Tenant by SENDER'S cell phone number (from) instead of global bot number
       const supabase = createAdminClient();
+      
+      let cleanedFrom = from.replace("+", "").trim();
+      let alternativeFrom = cleanedFrom;
+      if (cleanedFrom.startsWith("549") && cleanedFrom.length === 13) {
+        alternativeFrom = "54" + cleanedFrom.substring(3);
+      } else if (cleanedFrom.startsWith("54") && !cleanedFrom.startsWith("549") && cleanedFrom.length === 12) {
+        alternativeFrom = "549" + cleanedFrom.substring(2);
+      }
+
       const { data: waAccount } = await supabase
         .from("whatsapp_numbers")
         .select("tenant_id, access_token")
-        .eq("phone_number_id", phoneNumberId)
-        .single();
+        .or(`phone_number.eq."${cleanedFrom}",phone_number.eq."${alternativeFrom}",phone_number.eq."+${cleanedFrom}",phone_number.eq."+${alternativeFrom}"`)
+        .maybeSingle();
 
       let tenantId = waAccount?.tenant_id;
-      let accessToken = waAccount?.access_token;
+      // Use the global WHATSAPP_TOKEN as primary, falling back to the tenant's access_token
+      let accessToken = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || waAccount?.access_token;
 
       // Fallback para pruebas locales (solo en modo desarrollo)
-      if (!tenantId && process.env.NODE_ENV !== 'production' && process.env.WHATSAPP_PHONE_NUMBER_ID === phoneNumberId) {
+      if (!tenantId && process.env.NODE_ENV !== 'production') {
         logger.info("Using fallback tenant for testing...", "WHATSAPP_WEBHOOK");
         const { data: firstProfile } = await supabase.from("profiles").select("tenant_id").limit(1).single();
         if (firstProfile) {
@@ -72,7 +82,7 @@ export async function POST(req: Request) {
       }
 
       if (!tenantId) {
-        logger.error(`Unknown WhatsApp number: ${phoneNumberId}`, "WHATSAPP_WEBHOOK");
+        logger.error(`Unknown sender number: ${from} writing to ${phoneNumberId}`, "WHATSAPP_WEBHOOK");
         continue;
       }
 
