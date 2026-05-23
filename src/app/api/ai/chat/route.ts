@@ -36,14 +36,17 @@ export async function POST(request: Request) {
     const adminSupabase = createAdminClient();
 
     // 3. Save inbound message
-    await adminSupabase.from("messages").insert({
+    const { error: inboundError } = await adminSupabase.from("messages").insert({
       tenant_id: tenantId,
-      channel: "web",
+      channel: "whatsapp", // Mapped to whatsapp due to database enum constraints
       direction: "inbound",
       text: message,
       raw_payload: {},
       created_at: new Date().toISOString(),
     });
+    if (inboundError) {
+      console.error("Error inserting inbound message:", inboundError);
+    }
 
     // 4. Run the AI Agent
     const aiResult = await runBusinessAgent({
@@ -57,15 +60,18 @@ export async function POST(request: Request) {
     const productId = typeof aiResult === "string" ? null : aiResult.product_id;
 
     // 5. Save outbound message
-    await adminSupabase.from("messages").insert({
+    const { error: outboundError } = await adminSupabase.from("messages").insert({
       tenant_id: tenantId,
-      channel: "web",
+      channel: "whatsapp", // Mapped to whatsapp due to database enum constraints
       direction: "outbound",
       text: aiResponse,
       product_id: productId,
       raw_payload: {},
       created_at: new Date().toISOString(),
     });
+    if (outboundError) {
+      console.error("Error inserting outbound message:", outboundError);
+    }
 
     return NextResponse.json({ response: aiResponse });
   } catch (error: any) {

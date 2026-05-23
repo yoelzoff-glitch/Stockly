@@ -16,11 +16,12 @@ export default async function MessagesPage({ searchParams }: { searchParams: { m
 
   const tenantId = profile?.tenant_id;
 
-  // Fetch previous messages for this tenant
+  // Fetch previous messages for this tenant (only web chat where from_phone is null)
   const { data: messages } = await supabase
     .from("messages")
     .select("*")
     .eq("tenant_id", tenantId)
+    .is("from_phone", null)
     .order("created_at", { ascending: true });
 
   const initialMessages = messages?.map(m => ({

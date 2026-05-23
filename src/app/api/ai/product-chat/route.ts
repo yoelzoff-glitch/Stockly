@@ -35,14 +35,17 @@ export async function POST(request: Request) {
 
     // Save User Message
     const adminSupabase = createAdminClient();
-    await adminSupabase.from("messages").insert({
+    const { error: inboundError } = await adminSupabase.from("messages").insert({
       tenant_id: tenantId,
       product_id: product_id,
-      channel: "dashboard",
+      channel: "whatsapp", // Mapped to whatsapp due to database enum constraints
       direction: "inbound",
       text: message,
       intent: "product_context"
     });
+    if (inboundError) {
+      console.error("Error inserting product-chat inbound message:", inboundError);
+    }
 
     const systemPrompt = `Sos Stockly, un asistente IA experto en Mercado Libre.
 Estás conversando con el vendedor sobre un producto en particular.
@@ -137,15 +140,18 @@ CONTEXTO DEL PRODUCTO:
     }
 
     // Save AI response
-    await adminSupabase.from("messages").insert({
+    const { error: outboundError } = await adminSupabase.from("messages").insert({
       tenant_id: tenantId,
       product_id: product_id,
-      channel: "dashboard",
+      channel: "whatsapp", // Mapped to whatsapp due to database enum constraints
       direction: "outbound",
       text: replyText,
       intent: "product_context",
       ai_response: true
     });
+    if (outboundError) {
+      console.error("Error inserting product-chat outbound message:", outboundError);
+    }
 
     return NextResponse.json({ reply: replyText, action_pending: actionPending });
 

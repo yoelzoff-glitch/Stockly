@@ -38,6 +38,9 @@ export async function getRecentConversationContext({
 }: ConversationContextParams) {
   const supabase = createAdminClient();
 
+  // Mapeamos el canal "web" o "dashboard" a "whatsapp" en base de datos para cumplir con el enum
+  const dbChannel = (channel === "web" || channel === "dashboard") ? "whatsapp" : channel;
+
   let query = supabase
     .from("messages")
     .select(`
@@ -52,11 +55,14 @@ export async function getRecentConversationContext({
       )
     `)
     .eq("tenant_id", tenantId)
-    .eq("channel", channel)
+    .eq("channel", dbChannel)
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (channel === "whatsapp" && fromPhone) {
+  if (channel === "web" || channel === "dashboard") {
+    // Los chats de la web no tienen número de teléfono de origen (from_phone es null)
+    query = query.is("from_phone", null);
+  } else if (channel === "whatsapp" && fromPhone) {
     // Asumiendo que guardamos el from_phone en raw_payload o de alguna manera en metadata
     // Si tenemos una columna from_phone (no está en el schema actual de messages de forma nativa), 
     // pero podemos filtrar a través del payload si existe, o limitarlo.

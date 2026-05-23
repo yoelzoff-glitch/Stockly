@@ -25,12 +25,13 @@ export async function DELETE() {
     const tenantId = profile.tenant_id;
     const adminSupabase = createAdminClient();
 
-    // Delete all web messages for this tenant
+    // Delete all web messages for this tenant (mapped to whatsapp but with null from_phone)
     const { error } = await adminSupabase
       .from("messages")
       .delete()
       .eq("tenant_id", tenantId)
-      .eq("channel", "web");
+      .eq("channel", "whatsapp")
+      .is("from_phone", null);
 
     if (error) throw error;
 
