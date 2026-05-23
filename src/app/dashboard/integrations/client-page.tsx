@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { updateAISettings } from "@/actions/ai-settings";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { connectWhatsAppNumberAction, disconnectWhatsAppNumberAction } from "@/actions/whatsapp-connection";
 
 export function OpenAIConfigModal({ currentModel = "gpt-4o-mini", usage = 0, limit = 500 }: { currentModel?: string, usage?: number, limit?: number }) {
   const [loading, setLoading] = useState(false);
@@ -71,9 +73,65 @@ export function OpenAIConfigModal({ currentModel = "gpt-4o-mini", usage = 0, lim
   );
 }
 
-export function WhatsAppConfigModal({ waStatus }: { waStatus: string }) {
+export function WhatsAppConfigModal({ waStatus, currentPhoneNumber }: { waStatus: string; currentPhoneNumber?: string }) {
+  const [open, setOpen] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState(currentPhoneNumber || "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const handleConnect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const formData = new FormData();
+      formData.append("phone_number", phoneNumber);
+      const res = await connectWhatsAppNumberAction(null, formData);
+      if (res.error) {
+        setError(res.error);
+      } else {
+        setSuccess(res.success || "WhatsApp conectado");
+        setError(null);
+        setTimeout(() => {
+          setOpen(false);
+          setSuccess(null);
+        }, 1500);
+      }
+    } catch (err: any) {
+      setError(err.message || "Error al conectar");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await disconnectWhatsAppNumberAction();
+      if (res.error) {
+        setError(res.error);
+      } else {
+        setSuccess(res.success || "WhatsApp desvinculado");
+        setError(null);
+        setPhoneNumber("");
+        setTimeout(() => {
+          setOpen(false);
+          setSuccess(null);
+        }, 1500);
+      }
+    } catch (err: any) {
+      setError(err.message || "Error al desvincular");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">Configurar</Button>
       </DialogTrigger>
@@ -88,21 +146,65 @@ export function WhatsAppConfigModal({ waStatus }: { waStatus: string }) {
         <div className="grid gap-4 py-4">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Estado:</span>
-            <Badge variant={waStatus === 'conectado' ? 'default' : 'secondary'} className="capitalize">{waStatus}</Badge>
+            <Badge variant={currentPhoneNumber ? 'default' : 'secondary'} className="capitalize">
+              {currentPhoneNumber ? 'conectado' : 'pendiente'}
+            </Badge>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Webhook Status:</span>
             <Badge variant="outline" className="text-green-600 bg-green-50 border-green-200">Activo y escuchando</Badge>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Última actividad:</span>
-            <span className="text-sm text-muted-foreground">Hace 12 minutos</span>
-          </div>
 
-          <div className="pt-4 border-t flex flex-col gap-2">
-            <Button variant="outline" className="w-full">Enviar mensaje de prueba</Button>
-            <Button variant="destructive" className="w-full" disabled>Desconectar número</Button>
-          </div>
+          {currentPhoneNumber ? (
+            <div className="space-y-2 border-t pt-4">
+              <label className="text-sm font-medium text-muted-foreground">Número vinculado</label>
+              <div className="text-lg font-bold tracking-wider bg-secondary/50 p-2.5 rounded-md border text-center">
+                +{currentPhoneNumber}
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                Los mensajes que envíes desde este número al bot serán asignados a tu empresa.
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleConnect} className="space-y-3 border-t pt-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Número de WhatsApp (Vendedor/Admin)</label>
+                <Input 
+                  type="text" 
+                  placeholder="Ej: +54 9 11 4145-3929 o 541141453929" 
+                  value={phoneNumber} 
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  required
+                  disabled={loading}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Ingresa tu número personal/comercial desde el cual escribirás al bot de la plataforma.
+                </p>
+              </div>
+              
+              {error && <div className="text-sm text-destructive font-medium">{error}</div>}
+              {success && <div className="text-sm text-green-600 font-medium">{success}</div>}
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Vinculando..." : "Vincular número"}
+              </Button>
+            </form>
+          )}
+
+          {currentPhoneNumber && (
+            <div className="pt-4 border-t flex flex-col gap-2">
+              {error && <div className="text-sm text-destructive font-medium">{error}</div>}
+              {success && <div className="text-sm text-green-600 font-medium">{success}</div>}
+              <Button 
+                variant="destructive" 
+                className="w-full" 
+                onClick={handleDisconnect}
+                disabled={loading}
+              >
+                {loading ? "Desconectando..." : "Desconectar número"}
+              </Button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

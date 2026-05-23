@@ -38,15 +38,16 @@ export default async function IntegrationsPage({
     .maybeSingle();
 
   // Check WhatsApp
-  const { count: waCount } = await supabase
+  const { data: waAccount } = await supabase
     .from("whatsapp_numbers")
-    .select("*", { count: "exact", head: true })
-    .eq("tenant_id", tenantId);
+    .select("phone_number, status")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
 
   const meliStatus = meliAccount && meliAccount.status === "connected" ? "conectado" : meliAccount?.status === "error" ? "error" : "pendiente";
   
   let waStatus = "pendiente";
-  if (waCount && waCount > 0) {
+  if (waAccount && waAccount.status === "connected") {
     waStatus = "conectado";
   } else if (process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
     waStatus = "conectado"; // Local dev fallback
@@ -104,11 +105,7 @@ export default async function IntegrationsPage({
               <Badge variant={waStatus === 'conectado' ? 'default' : 'secondary'} className="capitalize">
                 {waStatus}
               </Badge>
-              {waStatus === 'conectado' ? (
-                <WhatsAppConfigModal waStatus={waStatus} />
-              ) : (
-                <Button variant="outline" size="sm">Conectar</Button>
-              )}
+              <WhatsAppConfigModal waStatus={waStatus} currentPhoneNumber={waAccount?.phone_number} />
             </div>
           </CardContent>
         </Card>
