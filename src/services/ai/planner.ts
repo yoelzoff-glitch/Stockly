@@ -2,8 +2,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { predictStockOut } from "../predictions";
 import { detectDeadProducts } from "../analytics/deadProducts";
 
+/**
+ * Nivel de severidad de un problema del negocio detectado de manera autónoma.
+ */
 export type ProblemSeverity = "low" | "medium" | "critical";
 
+/**
+ * Representa un diagnóstico o problema comercial identificado de forma automatizada.
+ */
 export interface BusinessProblem {
   type: "low_stock" | "low_margin" | "no_sales" | "dead_product" | "stock_out_warning";
   severity: ProblemSeverity;
@@ -14,6 +20,19 @@ export interface BusinessProblem {
   action: string;
 }
 
+/**
+ * Ejecuta una auditoría de negocio profunda sobre toda la tienda.
+ * Analiza de forma autónoma:
+ * 1. Productos inactivos sin ventas (detectDeadProducts).
+ * 2. Advertencias de rotura o quiebre de stock inminente (predictStockOut).
+ * 3. Márgenes comerciales bajos (menores a 15% o críticos menores a 5%).
+ * 
+ * Ordena todos los problemas por orden de severidad (los críticos primero) para que
+ * la IA pueda priorizar las soluciones en su plan autónomo.
+ * 
+ * @param tenantId Identificador único del comercio
+ * @returns Promesa con una lista estructurada de problemas de salud comercial detectados
+ */
 export async function analyzeBusiness(tenantId: string): Promise<BusinessProblem[]> {
   const supabase = createAdminClient();
   const problems: BusinessProblem[] = [];

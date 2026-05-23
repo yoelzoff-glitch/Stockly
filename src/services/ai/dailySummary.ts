@@ -2,6 +2,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { openai } from "@/lib/ai/openai";
 import { logger } from "@/lib/errors/logger";
 
+/**
+ * Obtiene o genera el resumen diario del negocio utilizando Inteligencia Artificial.
+ * Si ya se ha generado un resumen en el día de hoy, lo recupera directamente desde la 
+ * tabla de alertas en la base de datos para optimizar costes. De lo contrario, consulta
+ * las métricas básicas de ventas de hoy, productos críticos con bajo stock y el producto
+ * estrella, e invoca a OpenAI GPT-4o-Mini para redactar un resumen breve y amigable (máximo 4 líneas)
+ * con emojis, guardando el resultado como una nueva alerta en base de datos.
+ * 
+ * @param tenantId Identificador único del comercio
+ * @returns Promesa que resuelve en el texto del resumen diario generado, o null si ocurre algún error
+ */
 export async function getOrCreateDailySummary(tenantId: string): Promise<string | null> {
   const supabase = createAdminClient();
   const todayStart = new Date();

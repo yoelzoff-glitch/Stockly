@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Package, RefreshCw, Edit2, Upload } from "lucide-react";
 import Link from "next/link";
@@ -94,20 +95,22 @@ export function ProductsClient({
         </CardHeader>
         <CardContent>
           {!initialProducts || initialProducts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-8 text-center border rounded-lg border-dashed">
-              <Package className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium">Todavía no sincronizaste productos</h3>
-              <p className="text-sm text-muted-foreground mt-1 mb-4">
-                Conecta tu cuenta de Mercado Libre y sincroniza tu catálogo para verlo aquí.
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-5">
+                <Package className="h-8 w-8 text-slate-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-slate-900 mb-2">Todavía no sincronizaste productos</h3>
+              <p className="text-sm text-slate-500 max-w-sm mx-auto mb-6">
+                Conecta tu cuenta de Mercado Libre y sincroniza tu catálogo para verlo aquí y empezar a operar.
               </p>
               <Link href="/dashboard/integrations">
-                <Button variant="outline">Ir a Integraciones</Button>
+                <Button className="rounded-full shadow-sm">Ir a Integraciones</Button>
               </Link>
             </div>
           ) : (
-            <div className="rounded-md border overflow-x-auto">
+            <div className="rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
               <table className="w-full text-sm text-left">
-                <thead className="border-b bg-muted/50 font-medium">
+                <thead className="border-b bg-slate-50 font-medium text-slate-600">
                   <tr>
                     <th className="h-10 px-4 align-middle">Producto</th>
                     <th className="h-10 px-4 align-middle text-right">Precio</th>
@@ -122,7 +125,7 @@ export function ProductsClient({
                 <tbody>
                   {initialProducts.map((product) => {
                     return (
-                      <tr key={product.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                      <tr key={product.id} className="border-b border-slate-100 transition-colors hover:bg-slate-50 data-[state=selected]:bg-slate-50">
                         <td className="p-4 align-middle font-medium min-w-[250px]">
                           <div className="flex items-center gap-3">
                             {product.thumbnail_url && (
@@ -130,7 +133,18 @@ export function ProductsClient({
                             )}
                             <div className="flex flex-col">
                               <span className="line-clamp-2">{product.title}</span>
-                              <span className="text-xs text-muted-foreground mt-1">SKU: {product.sku || 'N/A'} | Stock: {product.available_quantity}</span>
+                              <div className="flex flex-col gap-1 mt-1">
+                                <span className="text-xs text-muted-foreground">SKU: {product.sku || 'N/A'} | Stock: {product.available_quantity}</span>
+                                {product.product_sku_components && product.product_sku_components.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {product.product_sku_components.map((c: any, i: number) => (
+                                      <Badge key={i} variant="secondary" className="text-[10px] px-1 py-0 h-4 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                                        {c.component_normalized}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -141,7 +155,7 @@ export function ProductsClient({
                           {product.cost ? (
                             `$${product.cost.toLocaleString()}`
                           ) : (
-                            <Badge variant="outline" className="text-muted-foreground border-dashed">Sin costo</Badge>
+                            <StatusBadge variant="neutral">Sin costo</StatusBadge>
                           )}
                         </td>
                         <td className="p-4 align-middle text-right whitespace-nowrap text-muted-foreground">
@@ -177,12 +191,12 @@ export function ProductsClient({
                           )}
                         </td>
                         <td className="p-4 align-middle text-center">
-                          <Badge variant={
-                            product.profitability_status === 'complete' ? 'default' :
-                            product.profitability_status === 'missing_cost' ? 'destructive' : 'secondary'
+                          <StatusBadge variant={
+                            product.profitability_status === 'complete' ? 'success' :
+                            product.profitability_status === 'missing_cost' ? 'danger' : 'warning'
                           }>
                             {product.profitability_status || 'unknown'}
-                          </Badge>
+                          </StatusBadge>
                         </td>
                         <td className="p-4 align-middle text-right">
                           <Button variant="ghost" size="sm" onClick={() => setEditingProduct(product)}>

@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Download, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Package, Activity } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Pie, PieChart, Cell, Legend } from "recharts";
@@ -272,7 +273,7 @@ export default function SalesClientPage({
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs uppercase bg-muted/50 text-muted-foreground">
+              <thead className="text-xs uppercase bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
                 <tr>
                   <th className="px-4 py-3 font-medium">Fecha</th>
                   <th className="px-4 py-3 font-medium">Nº Orden</th>
@@ -283,16 +284,22 @@ export default function SalesClientPage({
                   <th className="px-4 py-3 font-medium">Estado</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-slate-100">
                 {initialOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                      No se encontraron órdenes.
+                    <td colSpan={7} className="px-4 py-16 text-center">
+                      <div className="flex flex-col items-center justify-center">
+                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-4">
+                          <ShoppingBag className="h-8 w-8 text-slate-400" />
+                        </div>
+                        <h3 className="text-lg font-medium text-slate-900">No hay ventas en este período</h3>
+                        <p className="text-sm text-slate-500 mt-1">Probá sincronizar órdenes o cambiar el filtro de fechas.</p>
+                      </div>
                     </td>
                   </tr>
                 ) : (
                   initialOrders.map((o) => (
-                    <tr key={o.id} className="hover:bg-muted/30 transition-colors">
+                    <tr key={o.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                         {new Date(o.date_created).toLocaleDateString("es-AR")}
                       </td>
@@ -306,9 +313,9 @@ export default function SalesClientPage({
                         ${Number(o.total_amount).toLocaleString("es-AR")}
                       </td>
                       <td className="px-4 py-3">
-                        <Badge variant={o.status === 'paid' ? 'default' : 'secondary'} className={o.status === 'paid' ? 'bg-emerald-500 hover:bg-emerald-600' : ''}>
+                        <StatusBadge variant={o.status === 'paid' ? 'success' : 'neutral'}>
                           {o.status === 'paid' ? 'Pagado' : o.status}
-                        </Badge>
+                        </StatusBadge>
                       </td>
                     </tr>
                   ))

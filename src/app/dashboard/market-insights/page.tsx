@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, DollarSign, PackageX, Ban, Activity, AlertTriangle, Cpu } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { MetricCard } from "@/components/dashboard/metric-card";
 
 import ParetoChart from "./pareto-chart";
 import { getParetoAnalysis } from "@/services/analytics/pareto";
@@ -101,42 +102,10 @@ export default async function MarketInsightsPage(props: { searchParams: Promise<
 
       {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ventas Últimos 7 Días</CardTitle>
-            <TrendingUp className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${salesLast7Days.toLocaleString('es-AR')}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ganancia Neta Estimada</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalEstimatedProfit.toLocaleString('es-AR')}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Cancelaciones</CardTitle>
-            <Ban className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-500">{totalCancellationsCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Costo Promedio Envío</CardTitle>
-            <Activity className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${avgShippingCost.toFixed(2)}</div>
-          </CardContent>
-        </Card>
+        <MetricCard title="Ventas Últimos 7 Días" value={`$${salesLast7Days.toLocaleString('es-AR')}`} icon={<TrendingUp className="w-5 h-5" />} variant="blue" />
+        <MetricCard title="Ganancia Neta Estimada" value={`$${totalEstimatedProfit.toLocaleString('es-AR')}`} icon={<DollarSign className="w-5 h-5" />} variant="green" />
+        <MetricCard title="Total Cancelaciones" value={totalCancellationsCount} icon={<Ban className="w-5 h-5" />} variant="red" />
+        <MetricCard title="Costo Promedio Envío" value={`$${avgShippingCost.toFixed(2)}`} icon={<Activity className="w-5 h-5" />} variant="amber" />
       </div>
 
       <div className="grid gap-6 md:grid-cols-12">
@@ -245,7 +214,7 @@ export default async function MarketInsightsPage(props: { searchParams: Promise<
           <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="text-xs uppercase bg-muted/50 text-muted-foreground">
+                <thead className="text-xs uppercase bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3 font-medium">Rank</th>
                     <th className="px-4 py-3 font-medium">Producto</th>
@@ -254,9 +223,9 @@ export default async function MarketInsightsPage(props: { searchParams: Promise<
                     <th className="px-4 py-3 font-medium text-right">% Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-slate-100">
                   {pareto.paretoProducts.concat(pareto.longTailProducts).slice(0, 10).map((p, idx) => (
-                    <tr key={p.product_id || idx} className="hover:bg-muted/30 transition-colors">
+                    <tr key={p.product_id || idx} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 font-medium">#{idx + 1}</td>
                       <td className="px-4 py-3 max-w-[200px] truncate" title={p.title}>{p.title}</td>
                       <td className="px-4 py-3 text-right">{p.units_sold}</td>
@@ -269,7 +238,7 @@ export default async function MarketInsightsPage(props: { searchParams: Promise<
                     </tr>
                   ))}
                   {pareto.paretoProducts.length === 0 && (
-                    <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No hay datos de ventas en este periodo.</td></tr>
+                    <tr><td colSpan={5} className="px-4 py-16 text-center text-slate-500">No hay datos de ventas en este periodo.</td></tr>
                   )}
                 </tbody>
               </table>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { Search, Check, Trash2, AlertTriangle, Info, AlertCircle, PackageX, Calendar } from "lucide-react";
@@ -105,14 +106,18 @@ export default function NotificationsClientPage({ initialAlerts }: { initialAler
       <CardContent className="p-0">
         <div className="divide-y">
           {filteredAlerts.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">
-              No se encontraron notificaciones que coincidan con los filtros.
+            <div className="p-16 flex flex-col items-center text-center text-slate-500">
+              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-4">
+                <Info className="h-8 w-8 text-slate-400" />
+              </div>
+              <h3 className="text-lg font-medium text-slate-900">No hay notificaciones</h3>
+              <p className="text-sm mt-1">No se encontraron notificaciones que coincidan con los filtros.</p>
             </div>
           ) : (
             filteredAlerts.map(alert => (
               <div 
                 key={alert.id} 
-                className={`p-4 flex gap-4 hover:bg-muted/20 transition-colors ${!alert.is_read ? 'bg-indigo-50/20 dark:bg-indigo-900/10' : ''}`}
+                className={`p-4 flex gap-4 hover:bg-slate-50 transition-colors ${!alert.is_read ? 'bg-indigo-50/20 dark:bg-indigo-900/10' : ''}`}
               >
                 <div className="mt-1 shrink-0">
                   {getIcon(alert.severity)}
@@ -138,13 +143,13 @@ export default function NotificationsClientPage({ initialAlerts }: { initialAler
                   )}
                   
                   <div className="pt-2 flex gap-3">
-                    <Badge variant={alert.severity === 'critical' ? 'destructive' : alert.severity === 'warning' ? 'secondary' : 'outline'}>
+                    <StatusBadge variant={alert.severity === 'critical' || alert.severity === 'error' ? 'danger' : alert.severity === 'warning' ? 'warning' : 'neutral'}>
                       {alert.severity.toUpperCase()}
-                    </Badge>
+                    </StatusBadge>
                     {!alert.is_read && (
-                      <Badge variant="default" className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200 border-none">
+                      <StatusBadge variant="info">
                         NUEVA
-                      </Badge>
+                      </StatusBadge>
                     )}
                   </div>
                 </div>

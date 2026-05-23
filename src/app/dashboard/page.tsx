@@ -2,11 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { OverviewChart } from "@/components/dashboard/overview-chart";
 import { TopProductsChart } from "@/components/dashboard/top-products-chart";
-import { SalesCard } from "@/components/dashboard/sales-card";
-import { RevenueCard } from "@/components/dashboard/revenue-card";
-import { StockAlertCard } from "@/components/dashboard/stock-alert-card";
-import { ProductCard } from "@/components/dashboard/product-card";
-import { AlertCircle, CheckCircle2, MessageSquare, Package, RefreshCw, Sparkles, Lightbulb, ArrowRight, HeartPulse } from "lucide-react";
+import { MetricCard } from "@/components/dashboard/metric-card";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { AlertCircle, CheckCircle2, MessageSquare, Package, RefreshCw, Sparkles, Lightbulb, ArrowRight, HeartPulse, DollarSign, LineChart } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getCachedOrders } from "@/lib/cache";
@@ -170,20 +168,20 @@ export default async function DashboardPage() {
   const formattedName = userName.charAt(0).toUpperCase() + userName.slice(1);
 
   return (
-    <div className="flex-1 space-y-6 p-8 pt-6">
+    <div className="flex-1 space-y-8 p-8 pt-6">
       
       {activation.percentage < 100 && (
-        <div className="bg-primary/10 border border-primary/20 p-4 rounded-lg flex items-center justify-between mb-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary text-primary-foreground font-bold w-10 h-10 rounded-full flex items-center justify-center">
+        <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl flex items-center justify-between shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+          <div className="flex items-center gap-4">
+            <div className="bg-indigo-600 text-white font-bold w-12 h-12 rounded-full flex items-center justify-center text-lg shadow-sm">
               {activation.percentage}%
             </div>
             <div>
-              <h3 className="font-semibold text-primary">Te falta completar {activation.totalSteps - activation.completedSteps} pasos de configuración</h3>
-              <p className="text-sm text-muted-foreground">Termina de configurar tu cuenta para desbloquear todo el poder de la IA.</p>
+              <h3 className="font-semibold text-indigo-900 text-lg">Te falta completar {activation.totalSteps - activation.completedSteps} pasos de configuración</h3>
+              <p className="text-sm text-indigo-700/80 mt-0.5">Termina de configurar tu cuenta para desbloquear todo el poder de la IA.</p>
             </div>
           </div>
-          <Button asChild variant="default" size="sm">
+          <Button asChild className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm rounded-full px-6">
             <Link href="/dashboard/get-started">Continuar</Link>
           </Button>
         </div>
@@ -191,49 +189,46 @@ export default async function DashboardPage() {
 
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Hola, {formattedName} 👋</h2>
-          <p className="text-muted-foreground mt-1">Aquí está el resumen de tu negocio hoy.</p>
+          <h2 className="text-3xl font-bold tracking-tight text-slate-900">Hola, {formattedName} 👋</h2>
+          <p className="text-slate-500 mt-1.5">Aquí está el resumen de tu negocio hoy.</p>
         </div>
         
         <div className="flex items-center gap-3">
-          {/* Health Score Badge */}
-          <Link href="/dashboard/health" className="flex items-center gap-2 px-4 py-2 bg-background border rounded-full text-sm font-medium hover:bg-accent transition-colors">
-            <HeartPulse className={`w-4 h-4 ${healthData.score >= 90 ? 'text-emerald-500' : healthData.score >= 70 ? 'text-blue-500' : healthData.score >= 50 ? 'text-yellow-500' : 'text-red-500'}`} />
-            <span>Salud: {healthData.score}/100</span>
+          <Link href="/dashboard/health">
+            <StatusBadge variant={healthData.score >= 90 ? 'success' : healthData.score >= 70 ? 'info' : healthData.score >= 50 ? 'warning' : 'danger'} className="px-3 py-1.5 text-sm">
+              <HeartPulse className="w-4 h-4 mr-1.5" /> Salud: {healthData.score}/100
+            </StatusBadge>
           </Link>
 
-          {/* Sync Status Badge */}
-        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 rounded-full text-sm font-medium">
-          {meliAccount.status === 'syncing' ? (
-            <RefreshCw className="w-4 h-4 animate-spin" />
-          ) : meliAccount.status === 'error' ? (
-            <AlertCircle className="w-4 h-4 text-red-500" />
-          ) : (
-            <CheckCircle2 className="w-4 h-4" />
-          )}
-          <span>
+          <StatusBadge variant={meliAccount.status === 'syncing' ? 'info' : meliAccount.status === 'error' ? 'danger' : 'success'} className="px-3 py-1.5 text-sm">
+            {meliAccount.status === 'syncing' ? (
+              <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" />
+            ) : meliAccount.status === 'error' ? (
+              <AlertCircle className="w-4 h-4 mr-1.5" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 mr-1.5" />
+            )}
             {meliAccount.status === 'syncing' 
-              ? "Sincronizando Mercado Libre..." 
+              ? "Sincronizando..." 
               : meliAccount.status === 'error' 
                 ? "Error de sincronización" 
                 : `Sincronizado ${meliAccount.last_sync_at ? formatTimeAgo(meliAccount.last_sync_at as string) : 'recientemente'}`
             }
-          </span>
-        </div>
+          </StatusBadge>
         </div>
       </div>
 
       {/* AI Daily Summary Hero */}
       {dailySummary && (
-        <Card className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-none shadow-md">
+        <Card className="bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 text-white border-none shadow-[0_12px_32px_rgba(99,102,241,0.2)]">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-yellow-300" />
+            <CardTitle className="text-lg flex items-center gap-2 font-medium">
+              <Sparkles className="w-5 h-5 text-yellow-300 drop-shadow-sm" />
               Resumen Automático
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm md:text-base leading-relaxed whitespace-pre-wrap font-medium">
+            <p className="text-sm md:text-base leading-relaxed whitespace-pre-wrap opacity-95">
               {dailySummary}
             </p>
           </CardContent>
@@ -245,17 +240,17 @@ export default async function DashboardPage() {
         const missingCostsCount = allProducts?.filter(p => p.cost === null || p.cost === undefined).length || 0;
         if (missingCostsCount > 0) {
           return (
-            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3 shadow-sm">
+              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="text-sm font-medium text-yellow-800">
+                <h3 className="text-sm font-semibold text-amber-900">
                   Faltan costos de productos
                 </h3>
-                <p className="text-sm text-yellow-700 mt-1">
+                <p className="text-sm text-amber-700/90 mt-1">
                   Tenés {missingCostsCount} productos sin costo cargado. Stockly no puede calcular rentabilidad real.
                 </p>
-                <div className="mt-2">
-                  <Button variant="outline" size="sm" className="h-8 border-yellow-300 text-yellow-800 hover:bg-yellow-100" asChild>
+                <div className="mt-3">
+                  <Button variant="outline" size="sm" className="h-8 border-amber-300 text-amber-800 hover:bg-amber-100 rounded-full bg-amber-50" asChild>
                     <Link href="/dashboard/products">Cargar costos ahora</Link>
                   </Button>
                 </div>
@@ -268,21 +263,21 @@ export default async function DashboardPage() {
 
       {/* Stockly Recommends */}
       {insights.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2 text-slate-900">
             <Lightbulb className="w-5 h-5 text-amber-500" />
             Stockly Recomienda
           </h3>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {insights.map(insight => (
-              <Card key={insight.id} className="border-l-4 overflow-hidden" style={{ borderLeftColor: insight.type === 'positive' ? '#10b981' : insight.type === 'negative' ? '#ef4444' : insight.type === 'warning' ? '#f59e0b' : '#3b82f6' }}>
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-sm">{insight.title}</CardTitle>
+              <Card key={insight.id} className="border-l-[6px]" style={{ borderLeftColor: insight.type === 'positive' ? '#10b981' : insight.type === 'negative' ? '#ef4444' : insight.type === 'warning' ? '#f59e0b' : '#6366f1' }}>
+                <CardHeader className="p-5 pb-2">
+                  <CardTitle className="text-sm font-semibold text-slate-900">{insight.title}</CardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <p className="text-xs text-muted-foreground mb-3">{insight.description}</p>
+                <CardContent className="p-5 pt-0">
+                  <p className="text-xs text-slate-500 mb-4">{insight.description}</p>
                   {insight.actionLabel && (
-                    <Button variant="outline" size="sm" className="w-full text-xs h-7" asChild>
+                    <Button variant="outline" size="sm" className="w-full text-xs h-8 rounded-full" asChild>
                       <Link href={insight.actionHref || "#"}>{insight.actionLabel}</Link>
                     </Button>
                   )}
@@ -294,22 +289,39 @@ export default async function DashboardPage() {
       )}
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <SalesCard amount={salesToday} />
-        <RevenueCard amount={revenueWeek} />
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Productos</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalProductsCount}</div>
-            <p className="text-xs text-muted-foreground">En tu catálogo</p>
-          </CardContent>
-        </Card>
-
-        <StockAlertCard count={lowStockCount} />
-        <ProductCard name={topProduct?.title || "Sin datos"} quantity={topProduct?.sold_quantity || 0} />
+        <MetricCard 
+          title="Ventas Hoy" 
+          value={`$${salesToday.toLocaleString()}`} 
+          icon={<DollarSign className="w-5 h-5" />} 
+          variant="blue" 
+        />
+        <MetricCard 
+          title="Ingresos (7 días)" 
+          value={`$${revenueWeek.toLocaleString()}`} 
+          icon={<LineChart className="w-5 h-5" />} 
+          variant="green" 
+        />
+        <MetricCard 
+          title="Catálogo" 
+          value={totalProductsCount} 
+          description="Productos activos" 
+          icon={<Package className="w-5 h-5" />} 
+          variant="slate" 
+        />
+        <MetricCard 
+          title="Stock Crítico" 
+          value={lowStockCount} 
+          description="Con 5 unidades o menos" 
+          icon={<AlertCircle className="w-5 h-5" />} 
+          variant="amber" 
+        />
+        <MetricCard 
+          title="Producto Estrella" 
+          value={topProduct?.sold_quantity || 0} 
+          description={topProduct?.title || "Sin datos"} 
+          icon={<Sparkles className="w-5 h-5" />} 
+          variant="purple" 
+        />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">

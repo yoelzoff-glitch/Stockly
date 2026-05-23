@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { ShoppingBag, MessageCircle, Bot } from "lucide-react";
 
@@ -102,9 +103,9 @@ export default async function IntegrationsPage({
               Responde automáticamente a tus clientes usando la API oficial.
             </CardDescription>
             <div className="flex items-center justify-between">
-              <Badge variant={waStatus === 'conectado' ? 'default' : 'secondary'} className="capitalize">
+              <StatusBadge variant={waStatus === 'conectado' ? 'success' : 'neutral'} className="capitalize">
                 {waStatus}
-              </Badge>
+              </StatusBadge>
               <WhatsAppConfigModal waStatus={waStatus} currentPhoneNumber={waAccount?.phone_number} />
             </div>
           </CardContent>
@@ -121,9 +122,9 @@ export default async function IntegrationsPage({
               Habilita la IA para responder preguntas y consultar tus ventas.
             </CardDescription>
             <div className="flex items-center justify-between">
-              <Badge variant={openAIStatus === 'conectado' ? 'default' : 'secondary'} className="capitalize">
+              <StatusBadge variant={openAIStatus === 'conectado' ? 'success' : 'neutral'} className="capitalize">
                 {openAIStatus}
-              </Badge>
+              </StatusBadge>
               {openAIStatus === 'conectado' ? (
                 <OpenAIConfigModal currentModel={aiModel} usage={usage?.ai_requests_used || 0} limit={usage?.ai_requests_limit || 500} />
               ) : (

@@ -4,6 +4,17 @@ import { updateStock } from '@/services/meli/actions/updateStock';
 import { pauseProduct, activateProduct } from '@/services/meli/actions/statusProduct';
 import { logger } from '@/lib/errors/logger';
 
+/**
+ * Confirma y ejecuta de forma definitiva una acción de actualización de producto pendiente.
+ * Valida los límites físicos de seguridad, itera sobre los items de la acción y ejecuta 
+ * las llamadas correspondientes al SDK/API de Mercado Libre (cambio de precio, stock, pausa 
+ * o reactivación), actualizando finalmente el estado de la acción en la base de datos local
+ * con el resultado pormenorizado de la ejecución.
+ * 
+ * @param tenantId Identificador único del comercio (tenant)
+ * @param actionId Identificador de la acción individual a ejecutar
+ * @returns Promesa con estado de éxito y los resultados individuales por producto
+ */
 export async function confirmPendingAction(tenantId: string, actionId: string) {
   const supabase = createAdminClient();
 
@@ -59,6 +70,14 @@ export async function confirmPendingAction(tenantId: string, actionId: string) {
   return { success: true, results };
 }
 
+/**
+ * Cancela una acción pendiente de forma segura, marcando su estado como 'cancelled'
+ * para evitar cualquier impacto en Mercado Libre o alertas adicionales en el panel.
+ * 
+ * @param tenantId Identificador único del comercio
+ * @param actionId Identificador de la acción a cancelar
+ * @returns Promesa con estado de éxito de la actualización de base de datos
+ */
 export async function cancelPendingAction(tenantId: string, actionId: string) {
   const supabase = createAdminClient();
   const { error } = await supabase.from("ai_actions").update({

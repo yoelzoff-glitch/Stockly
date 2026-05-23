@@ -46,10 +46,15 @@ export async function POST(request: Request) {
     });
 
     // 4. Run the AI Agent
-    const aiResponse = await runBusinessAgent({
+    const aiResult = await runBusinessAgent({
       tenantId,
       userMessage: message,
+      channel: "web"
     });
+
+    // Handle string fallback just in case some logic still returns a string
+    const aiResponse = typeof aiResult === "string" ? aiResult : aiResult.response;
+    const productId = typeof aiResult === "string" ? null : aiResult.product_id;
 
     // 5. Save outbound message
     await adminSupabase.from("messages").insert({
@@ -57,6 +62,7 @@ export async function POST(request: Request) {
       channel: "web",
       direction: "outbound",
       text: aiResponse,
+      product_id: productId,
       raw_payload: {},
       created_at: new Date().toISOString(),
     });

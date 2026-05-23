@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeSku } from "./sku/normalizeSku";
 
 export type ResolvedProduct = {
   id: string;
@@ -8,6 +9,7 @@ export type ResolvedProduct = {
   available_quantity: number;
   status: string;
   meli_item_id: string;
+  match_type?: 'sku_exact' | 'sku_component' | 'meli_item_id' | 'title';
 };
 
 export type ResolveResult = 
@@ -27,7 +29,7 @@ export async function resolveProduct(tenantId: string, query: string): Promise<R
     safeQuery = safeQuery.substring(3).trim();
   }
 
-  // 1. Intentar match exacto por SKU o meli_item_id (o terminación del ID)
+  // 1. Intentar match exacto por SKU o meli_item_id
   const { data: exactMatches, error: exactError } = await supabase
     .from("products")
     .select("id, title, sku, price, available_quantity, status, meli_item_id")
@@ -36,30 +38,63 @@ export async function resolveProduct(tenantId: string, query: string): Promise<R
 
   if (exactError) console.error("resolveProduct exact error:", exactError);
 
-  if (exactMatches && exactMatches.length === 1) {
-    return { type: 'exact', product: exactMatches[0] as ResolvedProduct };
+  if (exactMatches && exactMatches.length > 0) {
+    const products = exactMatches.map(p => ({
+      ...p,
+      match_type: p.sku === safeQuery ? 'sku_exact' : 'meli_item_id'
+    })) as ResolvedProduct[];
+    if (products.length === 1) return { type: 'exact', product: products[0] };
+    return { type: 'multiple', products };
   }
 
-  if (exactMatches && exactMatches.length > 1) {
-    return { type: 'multiple', products: exactMatches as ResolvedProduct[] };
+  // 2. Buscar por componente SKU exacto normalizado
+  const normalizedQuery = normalizeSku(safeQuery);
+  if (normalizedQuery) {
+    const { data: compMatches, error: compError } = await supabase
+      .from("product_sku_components")
+      .select("product_id")
+      .eq("tenant_id", tenantId)
+      .eq("component_normalized", normalizedQuery);
+
+    if (compError) console.error("resolveProduct component error:", compError);
+
+    if (compMatches && compMatches.length > 0) {
+      const productIds = Array.from(new Set(compMatches.map(c => c.product_id)));
+      const { data: prodMatches, error: prodError } = await supabase
+        .from("products")
+        .select("id, title, sku, price, available_quantity, status, meli_item_id")
+        .in("id", productIds);
+
+      if (prodError) console.error("resolveProduct component products error:", prodError);
+
+      if (prodMatches && prodMatches.length > 0) {
+        const products = prodMatches.map(p => ({
+          ...p,
+          match_type: 'sku_component'
+        })) as ResolvedProduct[];
+        if (products.length === 1) return { type: 'exact', product: products[0] };
+        return { type: 'multiple', products };
+      }
+    }
   }
 
-  // 2. Si no hay match exacto, buscar parcialmente por título (o sku parcial si queremos ser laxos)
+  // 3. Buscar parcialmente por título
   const { data: titleMatches, error: titleError } = await supabase
     .from("products")
     .select("id, title, sku, price, available_quantity, status, meli_item_id")
     .eq("tenant_id", tenantId)
     .ilike("title", `%${safeQuery}%`)
-    .limit(10); // Traemos hasta 10 para mostrarle opciones al usuario
+    .limit(10);
 
   if (titleError) console.error("resolveProduct title error:", titleError);
 
-  if (titleMatches && titleMatches.length === 1) {
-    return { type: 'exact', product: titleMatches[0] as ResolvedProduct };
-  }
-
-  if (titleMatches && titleMatches.length > 1) {
-    return { type: 'multiple', products: titleMatches as ResolvedProduct[] };
+  if (titleMatches && titleMatches.length > 0) {
+    const products = titleMatches.map(p => ({
+      ...p,
+      match_type: 'title'
+    })) as ResolvedProduct[];
+    if (products.length === 1) return { type: 'exact', product: products[0] };
+    return { type: 'multiple', products };
   }
 
   return { type: 'not_found', error: `No encontré ningún producto que coincida con "${query}".` };

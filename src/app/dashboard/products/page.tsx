@@ -25,7 +25,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
 
   let query = supabase
     .from("products")
-    .select("*", { count: "exact" })
+    .select("*, product_sku_components(component_normalized)", { count: "exact" })
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false })
     .range(from, to);

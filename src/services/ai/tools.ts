@@ -74,7 +74,7 @@ export async function searchProductByName(tenantId: string, query: string) {
 
   const { data, error } = await supabase
     .from("products")
-    .select("title, sku, price, available_quantity, sold_quantity, status")
+    .select("id, title, sku, price, available_quantity, sold_quantity, status")
     .eq("tenant_id", tenantId)
     .or(`sku.eq."${query}",meli_item_id.ilike."*${query}*",title.ilike."*${query}*"`)
     .limit(5);
@@ -137,7 +137,7 @@ export async function getProductProfitability(tenantId: string, query: string) {
 
   const { data, error } = await supabase
     .from("products")
-    .select("title, sku, price, cost, estimated_fee, estimated_shipping_cost, margin_amount, margin_percent, profit_real_estimated, profit_real_margin, extra_fee_amount, promotion_discount_amount, profitability_status")
+    .select("id, title, sku, price, cost, estimated_fee, estimated_shipping_cost, margin_amount, margin_percent, profit_real_estimated, profit_real_margin, extra_fee_amount, promotion_discount_amount, profitability_status")
     .eq("tenant_id", tenantId)
     .or(`sku.eq."${query}",meli_item_id.ilike."*${query}*",title.ilike."*${query}*"`)
     .limit(1);
@@ -156,6 +156,7 @@ export async function getProductProfitability(tenantId: string, query: string) {
   }
 
   return {
+    product_id: p.id,
     title: p.title,
     sku: p.sku,
     price: p.price,
@@ -184,7 +185,7 @@ function calculateRisk(count: number, maxChangePct: number = 0, isPause: boolean
   return 'LOW';
 }
 
-export async function preparePriceUpdate(tenantId: string, query: string, newPrice?: number, percentageChange?: number) {
+export async function preparePriceUpdate(tenantId: string, query: string, newPrice?: number, percentageChange?: number, allowMultiple: boolean = false) {
   const supabase = createAdminClient();
   const resolution = await resolveProduct(tenantId, query);
 
@@ -192,15 +193,19 @@ export async function preparePriceUpdate(tenantId: string, query: string, newPri
     return { error: resolution.error };
   }
 
+  let products = [];
   if (resolution.type === 'multiple') {
-    const list = resolution.products.map(p => `- ${p.title} (SKU: ${p.sku || 'N/A'}, Precio: $${p.price})`).join('\n');
-    return { message: `Encontré varios productos parecidos. ¿Cuál querés modificar?\n\n${list}\n\nPor favor, respóndeme con el SKU exacto o el nombre completo del que quieres elegir.` };
+    if (!allowMultiple) {
+      const list = resolution.products.map(p => `- ${p.title} (SKU: ${p.sku || 'N/A'}, Precio: $${p.price})`).join('\n');
+      return { message: `Encontré varios productos parecidos. ¿Cuál querés modificar?\n\n${list}\n\nPor favor, respóndeme con el SKU exacto o el nombre completo del que quieres elegir.` };
+    }
+    products = resolution.products;
+  } else {
+    products = [resolution.product];
   }
 
-  const products = [resolution.product];
-
-  if (products.length > 20) {
-    return { error: "Cambio masivo excedido (>20 productos). Esta acción requiere revisión manual." };
+  if (products.length > 50) {
+    return { error: "Cambio masivo excedido (>50 productos). Esta acción requiere revisión manual." };
   }
 
   let maxChange = 0;
@@ -246,11 +251,12 @@ export async function preparePriceUpdate(tenantId: string, query: string, newPri
 
   return {
     action_id: action.id,
+    product_id: products[0].id,
     message: `Encontré ${payload.length} producto(s) afectados. Riesgo: ${risk}\n\n**PREVISUALIZACIÓN DE CAMBIOS:**\n${previewList}\nImpacto esperado: Actualización de precio en Mercado Libre.\n\n**IMPORTANTE:** Para ejecutar esto, por favor responde únicamente con la palabra: **CONFIRMO**`
   };
 }
 
-export async function prepareStockUpdate(tenantId: string, query: string, newQuantity: number, operation: 'set' | 'add' | 'subtract' = 'set') {
+export async function prepareStockUpdate(tenantId: string, query: string, newQuantity: number, operation: 'set' | 'add' | 'subtract' = 'set', allowMultiple: boolean = false) {
   const supabase = createAdminClient();
   const resolution = await resolveProduct(tenantId, query);
 
@@ -258,15 +264,19 @@ export async function prepareStockUpdate(tenantId: string, query: string, newQua
     return { error: resolution.error };
   }
 
+  let products = [];
   if (resolution.type === 'multiple') {
-    const list = resolution.products.map(p => `- ${p.title} (SKU: ${p.sku || 'N/A'}, Stock: ${p.available_quantity})`).join('\n');
-    return { message: `Encontré varios productos parecidos. ¿Cuál querés modificar?\n\n${list}\n\nPor favor, respóndeme con el SKU exacto o el nombre completo del que quieres elegir.` };
+    if (!allowMultiple) {
+      const list = resolution.products.map(p => `- ${p.title} (SKU: ${p.sku || 'N/A'}, Stock: ${p.available_quantity})`).join('\n');
+      return { message: `Encontré varios productos parecidos. ¿Cuál querés modificar?\n\n${list}\n\nPor favor, respóndeme con el SKU exacto o el nombre completo del que quieres elegir.` };
+    }
+    products = resolution.products;
+  } else {
+    products = [resolution.product];
   }
 
-  const products = [resolution.product];
-
-  if (products.length > 20) {
-    return { error: "Cambio masivo excedido (>20 productos). Esta acción requiere revisión manual." };
+  if (products.length > 50) {
+    return { error: "Cambio masivo excedido (>50 productos). Esta acción requiere revisión manual." };
   }
 
   let maxChange = 0;
@@ -315,11 +325,12 @@ export async function prepareStockUpdate(tenantId: string, query: string, newQua
 
   return {
     action_id: action.id,
+    product_id: products[0].id,
     message: `Encontré ${payload.length} producto(s) afectados. Riesgo: ${risk}\n\n**PREVISUALIZACIÓN DE CAMBIOS:**\n${previewList}\nImpacto esperado: Actualización de stock en Mercado Libre.\n\n**IMPORTANTE:** Para ejecutar esto, por favor responde únicamente con la palabra: **CONFIRMO**`
   };
 }
 
-export async function prepareStatusChange(tenantId: string, query: string, status: 'paused' | 'active') {
+export async function prepareStatusChange(tenantId: string, query: string, status: 'paused' | 'active', allowMultiple: boolean = false) {
   const supabase = createAdminClient();
   const resolution = await resolveProduct(tenantId, query);
 
@@ -327,19 +338,23 @@ export async function prepareStatusChange(tenantId: string, query: string, statu
     return { error: resolution.error };
   }
 
+  let products = [];
   if (resolution.type === 'multiple') {
-    const list = resolution.products.map(p => `- ${p.title} (SKU: ${p.sku || 'N/A'}, Estado: ${p.status})`).join('\n');
-    return { message: `Encontré varios productos parecidos. ¿Cuál querés modificar?\n\n${list}\n\nPor favor, respóndeme con el SKU exacto o el nombre completo del que quieres elegir.` };
+    if (!allowMultiple) {
+      const list = resolution.products.map(p => `- ${p.title} (SKU: ${p.sku || 'N/A'}, Estado: ${p.status})`).join('\n');
+      return { message: `Encontré varios productos parecidos. ¿Cuál querés modificar?\n\n${list}\n\nPor favor, respóndeme con el SKU exacto o el nombre completo del que quieres elegir.` };
+    }
+    products = resolution.products;
+  } else {
+    products = [resolution.product];
   }
 
-  const products = [resolution.product];
-
-  if (products.length > 20) {
-    return { error: "Cambio masivo excedido (>20 productos). Esta acción requiere revisión manual." };
+  if (products.length > 50) {
+    return { error: "Cambio masivo excedido (>50 productos). Esta acción requiere revisión manual." };
   }
 
-  if (status === 'paused' && products.length > 10) {
-    return { error: "Pausa masiva excedida (>10 productos). Esta acción requiere revisión manual." };
+  if (status === 'paused' && products.length > 20) {
+    return { error: "Pausa masiva excedida (>20 productos). Esta acción requiere revisión manual." };
   }
 
   let previewList = "";
@@ -369,6 +384,7 @@ export async function prepareStatusChange(tenantId: string, query: string, statu
 
   return {
     action_id: action.id,
+    product_id: products[0].id,
     message: `Encontré ${payload.length} producto(s). Riesgo: ${risk}\n\n**PREVISUALIZACIÓN DE CAMBIOS:**\n${previewList}\nImpacto esperado: Cambio de estado a ${status} en Mercado Libre.\n\n**IMPORTANTE:** Para ejecutar esto, por favor responde únicamente con la palabra: **CONFIRMO**`
   };
 }

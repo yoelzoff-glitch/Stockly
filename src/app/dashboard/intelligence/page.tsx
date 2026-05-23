@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { predictStockOut } from "@/services/predictions";
 import { detectDeadProducts } from "@/services/analytics/deadProducts";
@@ -119,9 +120,9 @@ export default async function IntelligenceCenter() {
                         <span className="font-medium text-base">{so.sales_last_30_days}</span>
                       </div>
                       <div className="flex flex-col items-end justify-center">
-                        <Badge variant={so.estimated_days_remaining <= 3 ? "destructive" : "secondary"}>
+                        <StatusBadge variant={so.estimated_days_remaining <= 3 ? "danger" : "warning"}>
                           Quedan {so.estimated_days_remaining} días
-                        </Badge>
+                        </StatusBadge>
                       </div>
                     </div>
                   </div>
@@ -182,9 +183,9 @@ export default async function IntelligenceCenter() {
                   <div key={idx} className="flex flex-col gap-2 border-b pb-3 last:border-0 last:pb-0 bg-white/50 dark:bg-slate-950/50 p-3 rounded-lg">
                     <div className="flex justify-between items-start">
                       <span className="font-medium text-sm line-clamp-1 flex-1 pr-2">{prob.product_title}</span>
-                      <Badge variant={prob.severity === 'critical' ? "destructive" : "outline"} className="shrink-0">
+                      <StatusBadge variant={prob.severity === 'critical' ? "danger" : "warning"} className="shrink-0">
                         {prob.severity === 'critical' ? 'Prioridad Alta' : 'Prioridad Media'}
-                      </Badge>
+                      </StatusBadge>
                     </div>
                     <div className="text-xs space-y-1">
                       <p><span className="text-muted-foreground">Problema:</span> {prob.details}</p>
@@ -215,9 +216,9 @@ export default async function IntelligenceCenter() {
                   <h4 className="font-semibold">{wf.title}</h4>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm text-muted-foreground">Riesgo de ejecución:</span>
-                    <Badge variant={wf.risk === 'Bajo' ? 'secondary' : 'default'} className="text-xs font-normal">
+                    <StatusBadge variant={wf.risk === 'Bajo' ? 'success' : 'warning'} className="text-xs font-normal">
                       {wf.risk}
-                    </Badge>
+                    </StatusBadge>
                   </div>
                 </div>
                 <Link href={`/dashboard/messages?msg=${encodeURIComponent(wf.title)}`}>

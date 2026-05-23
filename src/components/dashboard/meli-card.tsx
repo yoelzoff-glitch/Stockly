@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { ShoppingBag, Loader2, RefreshCw, AlertTriangle, CheckCircle, Flame } from "lucide-react";
 import Link from "next/link";
@@ -111,11 +112,11 @@ export function MeliCard({ meliAccount }: { meliAccount: any }) {
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-muted-foreground">Estado de conexión:</span>
             {isConnected ? (
-              <Badge className="bg-emerald-500 hover:bg-emerald-600">Conectado</Badge>
+              <StatusBadge variant="success">Conectado</StatusBadge>
             ) : isError ? (
-              <Badge variant="destructive">Error</Badge>
+              <StatusBadge variant="danger">Error</StatusBadge>
             ) : (
-              <Badge variant="secondary">Desconectado</Badge>
+              <StatusBadge variant="neutral">Desconectado</StatusBadge>
             )}
           </div>
 

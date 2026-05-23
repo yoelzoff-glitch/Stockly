@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard } from "@/components/dashboard/metric-card";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Truck, AlertCircle, CheckCircle2, Clock } from "lucide-react";
 
 export default async function ShipmentsPage() {
@@ -48,42 +50,10 @@ export default async function ShipmentsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pendientes</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{pendientes}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">En Camino</CardTitle>
-            <Truck className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{enCamino}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Demorados</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-500">{demorados}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Entregados</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{entregados}</div>
-          </CardContent>
-        </Card>
+        <MetricCard title="Pendientes" value={pendientes} icon={<Clock className="w-5 h-5" />} variant="slate" />
+        <MetricCard title="En Camino" value={enCamino} icon={<Truck className="w-5 h-5" />} variant="blue" />
+        <MetricCard title="Demorados" value={demorados} icon={<AlertCircle className="w-5 h-5" />} variant="red" />
+        <MetricCard title="Entregados" value={entregados} icon={<CheckCircle2 className="w-5 h-5" />} variant="green" />
       </div>
 
       <Card>
@@ -94,7 +64,7 @@ export default async function ShipmentsPage() {
           {shipments && shipments.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="text-xs text-muted-foreground uppercase bg-muted/50">
+                <thead className="text-xs uppercase bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3">Fecha</th>
                     <th className="px-4 py-3">Orden</th>
@@ -106,14 +76,24 @@ export default async function ShipmentsPage() {
                     <th className="px-4 py-3">Costo</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {shipments.map((s) => (
-                    <tr key={s.id} className="border-b">
+                    <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">{new Date(s.date_created).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">{s.orders?.meli_order_id || 'N/A'}</td>
+                      <td className="px-4 py-3 font-medium">{s.orders?.meli_order_id || 'N/A'}</td>
                       <td className="px-4 py-3">{s.orders?.buyer_nickname || 'N/A'}</td>
-                      <td className="px-4 py-3 capitalize">{s.status}</td>
-                      <td className="px-4 py-3 capitalize text-red-500">{s.substatus === 'delayed' ? 'Demorado' : s.substatus}</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge variant={s.status === 'delivered' ? 'success' : s.status === 'shipped' ? 'info' : 'neutral'}>
+                          {s.status}
+                        </StatusBadge>
+                      </td>
+                      <td className="px-4 py-3">
+                        {s.substatus ? (
+                          <StatusBadge variant={s.substatus === 'delayed' ? 'danger' : 'neutral'}>
+                            {s.substatus === 'delayed' ? 'Demorado' : s.substatus}
+                          </StatusBadge>
+                        ) : '-'}
+                      </td>
                       <td className="px-4 py-3">{s.logistic_type}</td>
                       <td className="px-4 py-3">{s.tracking_number}</td>
                       <td className="px-4 py-3">${s.shipping_cost}</td>
@@ -123,7 +103,13 @@ export default async function ShipmentsPage() {
               </table>
             </div>
           ) : (
-            <p className="text-muted-foreground text-sm py-4">No hay envíos registrados.</p>
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-4">
+                <Truck className="h-8 w-8 text-slate-400" />
+              </div>
+              <h3 className="text-lg font-medium text-slate-900">No hay envíos registrados</h3>
+              <p className="text-sm text-slate-500 mt-1">Aún no procesamos información de logística.</p>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -43,9 +43,12 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-screen w-64 flex-col border-r bg-card px-3 py-4">
-      <div className="mb-8 px-4">
-        <h1 className="text-2xl font-bold tracking-tight">Stockly</h1>
+    <div className="flex h-screen w-64 flex-col border-r border-slate-200 bg-white px-3 py-4">
+      <div className="mb-8 px-4 flex items-center gap-2">
+        <div className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+          <Package className="h-5 w-5 text-white" />
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Stockly</h1>
       </div>
       <nav className="flex-1 space-y-1">
         {sidebarLinks.map((item) => {
@@ -55,11 +58,16 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
-                isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                "group flex items-center rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                isActive 
+                  ? "bg-indigo-50 text-indigo-700 relative" 
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
               )}
             >
-              <item.icon className="mr-3 h-5 w-5" />
+              {isActive && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-indigo-600 rounded-r-full" />
+              )}
+              <item.icon className={cn("mr-3 h-5 w-5", isActive ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600")} />
               {item.name}
             </Link>
           );

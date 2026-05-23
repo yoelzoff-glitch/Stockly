@@ -110,25 +110,31 @@ export async function POST(req: Request) {
       // 3. Save Inbound Message
       await supabase.from("messages").insert({
         tenant_id: tenantId,
+        channel: "whatsapp",
         text: message.type === "audio" ? `🎙️ [Audio transcrito]: ${textMessage}` : textMessage,
         direction: "inbound",
-        from_phone: from,
-        to_phone: displayPhoneNumber,
+        raw_payload: { from, to: displayPhoneNumber }
       });
 
       // 4. Run AI Agent
-      const responseText = await runBusinessAgent({
+      const aiResult = await runBusinessAgent({
         tenantId, 
-        userMessage: textMessage
+        userMessage: textMessage,
+        channel: "whatsapp",
+        fromPhone: from
       });
+
+      const responseText = typeof aiResult === "string" ? aiResult : aiResult.response;
+      const productId = typeof aiResult === "string" ? null : aiResult.product_id;
 
       // 5. Save Outbound Message
       await supabase.from("messages").insert({
         tenant_id: tenantId,
+        channel: "whatsapp",
         text: responseText,
         direction: "outbound",
-        from_phone: displayPhoneNumber,
-        to_phone: from,
+        product_id: productId,
+        raw_payload: { from: displayPhoneNumber, to: from }
       });
 
       // Fix para Argentina: Si Meta envía '54911...' pero verificó '5411...'

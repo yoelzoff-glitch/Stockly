@@ -1,6 +1,16 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveProduct } from "@/services/products/resolveProduct";
 
+/**
+ * Consulta y devuelve el análisis de competencia para un producto específico del comercio.
+ * Resuelve el producto utilizando el motor de resolución (SKU, ID o Título) y recupera 
+ * el último snapshot de precios de competidores grabado en la base de datos, calculando 
+ * desvíos y posicionamiento de precio (caro, en precio o barato).
+ * 
+ * @param tenantId Identificador del comercio
+ * @param searchInput Término de búsqueda (SKU exacto, componente, ID de Mercado Libre o título)
+ * @returns Promesa que resuelve en un objeto con el estado de precios del mercado, desvíos y detalles del producto
+ */
 export async function getCompetitionAnalysis(tenantId: string, searchInput: string) {
   const supabase = createAdminClient();
   const result = await resolveProduct(tenantId, searchInput);

@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { DollarSign, Download, AlertTriangle, CheckCircle2, AlertCircle } from "lucide-react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
@@ -247,10 +248,10 @@ export default function FinanceClientPage({
             <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Precisión Datos</CardTitle>
           </CardHeader>
           <CardContent className="flex items-center gap-2">
-            <Badge className={accuracyColor} variant="outline">
-              <AccuracyIcon className="w-4 h-4 mr-1" />
+            <StatusBadge variant={accuracyLabel === "Alta" ? "success" : accuracyLabel === "Media" ? "warning" : "danger"}>
+              <AccuracyIcon className="w-4 h-4 mr-1.5" />
               {accuracyLabel} ({costAccuracyPercent.toFixed(0)}%)
-            </Badge>
+            </StatusBadge>
           </CardContent>
         </Card>
       </div>
@@ -263,7 +264,7 @@ export default function FinanceClientPage({
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs uppercase bg-muted/50 text-muted-foreground">
+              <thead className="text-xs uppercase bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
                 <tr>
                   <th className="px-4 py-3 font-medium">Producto</th>
                   <th className="px-4 py-3 font-medium text-right">Cant.</th>
@@ -276,16 +277,22 @@ export default function FinanceClientPage({
                   <th className="px-4 py-3 font-medium text-right">Margen</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-slate-100">
                 {tableData.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
-                      No hay ventas registradas en este periodo.
+                    <td colSpan={9} className="px-4 py-16 text-center">
+                      <div className="flex flex-col items-center justify-center">
+                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-4">
+                          <DollarSign className="h-8 w-8 text-slate-400" />
+                        </div>
+                        <h3 className="text-lg font-medium text-slate-900">No hay ventas registradas en este periodo</h3>
+                        <p className="text-sm text-slate-500 mt-1">Cambia las fechas del filtro para ver tu rendimiento financiero.</p>
+                      </div>
                     </td>
                   </tr>
                 ) : (
                   tableData.map((row, i) => (
-                    <tr key={i} className="hover:bg-muted/30 transition-colors">
+                    <tr key={i} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 max-w-[200px] truncate" title={row.title}>
                         <div className="font-medium">{row.title}</div>
                         <div className="text-xs text-muted-foreground">{row.sku}</div>
@@ -293,7 +300,7 @@ export default function FinanceClientPage({
                       <td className="px-4 py-3 text-right">{row.qty}</td>
                       <td className="px-4 py-3 text-right font-medium">${row.revenue.toLocaleString("es-AR")}</td>
                       <td className="px-4 py-3 text-right text-muted-foreground">
-                        {row.cost > 0 ? `$${row.cost.toLocaleString("es-AR")}` : <Badge variant="outline" className="text-[10px]">Falta</Badge>}
+                        {row.cost > 0 ? `$${row.cost.toLocaleString("es-AR")}` : <StatusBadge variant="danger">Falta</StatusBadge>}
                       </td>
                       <td className="px-4 py-3 text-right text-muted-foreground">${row.fee.toLocaleString("es-AR")}</td>
                       <td className="px-4 py-3 text-right text-muted-foreground">${row.shipping.toLocaleString("es-AR")}</td>

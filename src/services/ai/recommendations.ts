@@ -1,5 +1,8 @@
 import { BusinessProblem } from "./planner";
 
+/**
+ * Representa una acción sugerida y preparada de manera automática para resolver un problema de negocio.
+ */
 export interface SuggestedAction {
   action_type: "update_stock" | "update_price" | "pause_product";
   product_id: string;
@@ -9,6 +12,15 @@ export interface SuggestedAction {
   proposed_value: any;
 }
 
+/**
+ * Traduce una lista de problemas diagnosticados en recomendaciones de acción concretas.
+ * - Advertencias de stock y quiebres $\rightarrow$ Sugiere actualizar/reponer stock a 20 unidades.
+ * - Productos estancados sin ventas $\rightarrow$ Sugiere pausar la publicación.
+ * - Márgenes bajos $\rightarrow$ Sugiere subir el precio un 15% para absorber la pérdida.
+ * 
+ * @param problems Lista de problemas comerciales diagnosticados
+ * @returns Lista de acciones sugeridas que pueden estructurarse en un workflow transaccional
+ */
 export function generateRecommendations(problems: BusinessProblem[]): SuggestedAction[] {
   const recommendations: SuggestedAction[] = [];
 

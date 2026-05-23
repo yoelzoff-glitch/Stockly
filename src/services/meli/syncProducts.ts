@@ -141,15 +141,51 @@ export async function syncProducts(tenantId: string) {
   }
 
   // 4. Upsert into Supabase `products` table
-  const { error: upsertError } = await supabase
+  const { data: upsertedData, error: upsertError } = await supabase
     .from("products")
     .upsert(productsToUpsert, {
       onConflict: "tenant_id, meli_item_id", 
-    });
+    }).select("id, sku");
 
   if (upsertError) {
     console.error("Error upserting products to DB:", upsertError);
     throw new Error(`Failed to save synced products to database: ${upsertError.message}`);
+  }
+
+  // 4.1. Process and save SKU components
+  if (upsertedData && upsertedData.length > 0) {
+    const { parseCompositeSku } = await import("../products/sku/parseCompositeSku");
+    const componentsToInsert: any[] = [];
+    const productIdsToClear: string[] = [];
+
+    for (const p of upsertedData) {
+      if (!p.sku) continue;
+      const parsed = parseCompositeSku(p.sku);
+      if (parsed.components.length > 0) {
+        productIdsToClear.push(p.id);
+        for (const comp of parsed.components) {
+          componentsToInsert.push({
+            tenant_id: tenantId,
+            product_id: p.id,
+            component_sku: comp,
+            component_normalized: comp
+          });
+        }
+      }
+    }
+
+    if (productIdsToClear.length > 0) {
+      const chunkSize = 100;
+      for (let i = 0; i < productIdsToClear.length; i += chunkSize) {
+        const chunk = productIdsToClear.slice(i, i + chunkSize);
+        await supabase.from("product_sku_components").delete().in("product_id", chunk);
+      }
+      for (let i = 0; i < componentsToInsert.length; i += chunkSize) {
+        const chunk = componentsToInsert.slice(i, i + chunkSize);
+        const { error: compError } = await supabase.from("product_sku_components").insert(chunk);
+        if (compError) console.error("Error inserting SKU components:", compError);
+      }
+    }
   }
 
   // 5. Mark local active products no longer present in Mercado Libre as deleted_from_meli

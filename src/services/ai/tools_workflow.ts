@@ -2,6 +2,16 @@ import { analyzeBusiness } from "./planner";
 import { generateRecommendations } from "./recommendations";
 import { createWorkflow } from "./workflows";
 
+/**
+ * Dispara el motor autónomo de Stockly para preparar un plan de mantenimiento integrado.
+ * 1. Analiza el comercio buscando alertas comerciales críticas (márgenes bajos, quiebres de stock, productos muertos).
+ * 2. Genera recomendaciones inteligentes para mitigar o solucionar cada alerta.
+ * 3. Agrupa las acciones resultantes en un único Workflow pendiente de aprobación humana.
+ * 4. Formatea un reporte narrado detallado para que el usuario conozca las advertencias y el plan propuesto.
+ * 
+ * @param tenantId Identificador único del comercio (tenant)
+ * @returns Promesa que resuelve en el id del workflow generado y el mensaje textual descriptivo para el chat
+ */
 export async function prepareAutonomousWorkflow(tenantId: string) {
   // 1. Analizar
   const problems = await analyzeBusiness(tenantId);

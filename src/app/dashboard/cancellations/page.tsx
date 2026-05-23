@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard } from "@/components/dashboard/metric-card";
 import { Ban, DollarSign, TrendingDown, Users } from "lucide-react";
 
 export default async function CancellationsPage() {
@@ -58,42 +59,10 @@ export default async function CancellationsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Canceladas Hoy</CardTitle>
-            <Ban className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-500">{hoy}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Este Mes</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{mes}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monto Devuelto</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${montoPerdido.toLocaleString('es-AR')}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tasa de Cancelación</CardTitle>
-            <TrendingDown className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{rate}%</div>
-          </CardContent>
-        </Card>
+        <MetricCard title="Canceladas Hoy" value={hoy} icon={<Ban className="w-5 h-5" />} variant="red" />
+        <MetricCard title="Este Mes" value={mes} icon={<Users className="w-5 h-5" />} variant="slate" />
+        <MetricCard title="Monto Devuelto" value={`$${montoPerdido.toLocaleString('es-AR')}`} icon={<DollarSign className="w-5 h-5" />} variant="amber" />
+        <MetricCard title="Tasa de Cancelación" value={`${rate}%`} icon={<TrendingDown className="w-5 h-5" />} variant="purple" />
       </div>
 
       <Card>
@@ -104,7 +73,7 @@ export default async function CancellationsPage() {
           {cancellations && cancellations.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="text-xs text-muted-foreground uppercase bg-muted/50">
+                <thead className="text-xs uppercase bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3">Fecha</th>
                     <th className="px-4 py-3">Orden</th>
@@ -114,11 +83,11 @@ export default async function CancellationsPage() {
                     <th className="px-4 py-3">Devolución</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {cancellations.map((c) => (
-                    <tr key={c.id} className="border-b">
+                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">{new Date(c.date_cancelled).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">{c.orders?.meli_order_id || 'N/A'}</td>
+                      <td className="px-4 py-3 font-medium">{c.orders?.meli_order_id || 'N/A'}</td>
                       <td className="px-4 py-3">{c.orders?.buyer_nickname || 'N/A'}</td>
                       <td className="px-4 py-3 truncate max-w-[200px]" title={c.reason}>{c.reason}</td>
                       <td className="px-4 py-3 capitalize">{c.cancelled_by}</td>
@@ -129,7 +98,13 @@ export default async function CancellationsPage() {
               </table>
             </div>
           ) : (
-            <p className="text-muted-foreground text-sm py-4">No hay cancelaciones registradas.</p>
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-4">
+                <Ban className="h-8 w-8 text-slate-400" />
+              </div>
+              <h3 className="text-lg font-medium text-slate-900">No hay cancelaciones registradas</h3>
+              <p className="text-sm text-slate-500 mt-1">Aún no se ha detectado ninguna cancelación de orden.</p>
+            </div>
           )}
         </CardContent>
       </Card>

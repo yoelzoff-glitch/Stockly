@@ -2,6 +2,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { SuggestedAction } from "./recommendations";
 import { confirmPendingAction } from "./actions/confirm";
 
+/**
+ * Crea e inicializa un plan de acción integrado (Workflow) en la base de datos de Stockly.
+ * A partir de una lista de recomendaciones de IA, genera un registro padre en
+ * `action_workflows` (calculando un puntaje de riesgo global para el plan completo)
+ * y da de alta de forma pendiente cada acción individual en la tabla `ai_actions` 
+ * vinculándolas a través de pasos numerados en la tabla `workflow_steps`.
+ * 
+ * @param tenantId Identificador único del comercio (tenant)
+ * @param actions Lista de acciones sugeridas y pre-calculadas por el recomendador
+ * @returns Promesa con los datos del workflow creado (id, puntaje de riesgo y recuento de acciones) o un mensaje de error
+ */
 export async function createWorkflow(tenantId: string, actions: SuggestedAction[]) {
   const supabase = createAdminClient();
 
@@ -85,6 +96,16 @@ export async function createWorkflow(tenantId: string, actions: SuggestedAction[
   };
 }
 
+/**
+ * Ejecuta de manera secuencial y transaccional cada uno de los pasos de un plan de acción (Workflow).
+ * Cambia el estado del plan a 'executing', itera sobre las acciones asociadas a través de
+ * `workflow_steps` en el orden establecido, invoca a `confirmPendingAction` para impactar los cambios 
+ * en Mercado Libre y registra el estado final de cada paso (completed o failed) y del workflow general.
+ * 
+ * @param tenantId Identificador único del comercio (tenant)
+ * @param workflowId Identificador del workflow a ejecutar
+ * @returns Promesa con el resultado consolidado del éxito y los resultados individuales de cada acción
+ */
 export async function executeWorkflow(tenantId: string, workflowId: string) {
   const supabase = createAdminClient();
 
