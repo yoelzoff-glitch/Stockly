@@ -376,6 +376,7 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
           function: async (args: { days?: string }) => tools.getFinancialSummary(tenantId, args.days),
           name: "getFinancialSummary",
           description: "Calcula la facturación bruta, costos, comisiones, envíos, ganancia neta real y margen del negocio en un periodo de tiempo. Úsalo cuando pregunten por rentabilidad, ganancias, margen real, o gastos.",
+          parse: JSON.parse,
           parameters: {
             type: "object",
             properties: {
