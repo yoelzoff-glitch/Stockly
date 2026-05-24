@@ -73,7 +73,7 @@ export async function syncProducts(tenantId: string) {
     const estimatedFee = feeData?.sale_fee_amount ?? null;
 
     // Fetch Shipping (optimized: pass pre-fetched item details to avoid redundant API call)
-    const shippingData = await getShippingCostEstimate(item.id, tenantId, item.shipping, item.seller_id, item.currency_id);
+    const shippingData = await getShippingCostEstimate(item.id, meliAccount.access_token, item.shipping, item.seller_id, item.currency_id);
     const estimatedShipping = shippingData.estimated_shipping_cost;
 
     // Fetch Campaigns and Promotions (passing tenantId)
