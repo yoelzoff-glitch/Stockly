@@ -72,7 +72,7 @@ export async function runBusinessAgent({
           await clearSessionState(session.id);
           const hasErrors = res.results?.some((r: any) => !r.success);
           if (hasErrors) {
-            const errors = res.results.filter((r: any) => !r.success).map((r: any) => r.error).join(", ");
+            const errors = (res.results || []).filter((r: any) => !r.success).map((r: any) => r.error).join(", ");
             return { response: `Intenté aplicar la acción, pero Mercado Libre respondió con un error: ${errors}`, product_id: null };
           }
           return { response: "¡Acción confirmada y ejecutada con éxito en Mercado Libre!", product_id: null };
