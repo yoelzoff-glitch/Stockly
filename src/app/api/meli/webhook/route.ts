@@ -2,11 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { inngest } from "@/inngest/client";
 
+import * as Sentry from "@sentry/nextjs";
+
 export async function POST(req: NextRequest) {
   try {
+    // Basic origin/header validation
+    const userAgent = req.headers.get("user-agent") || "";
+    const signature = req.headers.get("x-signature") || req.headers.get("x-meli-signature");
+
+    if (process.env.NODE_ENV === "production" && !userAgent.toLowerCase().includes("mercadolibre")) {
+      return new NextResponse("Unauthorized Origin", { status: 401 });
+    }
+
     const payload = await req.json();
 
-    // Mercado Libre sometimes sends a validation payload with "resource": "/users/xyz"
+    // Estructura payload
+    if (typeof payload !== "object" || payload === null) {
+      return new NextResponse("Invalid Payload", { status: 400 });
+    }
+
     const topic = payload.topic || payload.type;
     const resource = payload.resource;
     const userId = payload.user_id;
@@ -34,7 +48,6 @@ export async function POST(req: NextRequest) {
     switch (topic) {
       case "orders_v2":
       case "orders":
-        // Emit an event to sync orders for this tenant
         await inngest.send({
           name: "meli/orders.updated",
           data: { tenantId, resource }
@@ -42,7 +55,6 @@ export async function POST(req: NextRequest) {
         break;
 
       case "items":
-        // Emit an event to sync products
         await inngest.send({
           name: "meli/items.updated",
           data: { tenantId, resource }
@@ -50,7 +62,6 @@ export async function POST(req: NextRequest) {
         break;
 
       case "questions":
-        // Process question and optionally auto-respond
         await inngest.send({
           name: "meli/questions.received",
           data: { tenantId, resource }
@@ -61,7 +72,7 @@ export async function POST(req: NextRequest) {
         console.log(`Unhandled topic: ${topic}`);
     }
 
-    // Save in audit logs
+    // Save in audit logs (as requested previously, kept to not break logic)
     await supabase.from("ai_actions").insert({
       tenant_id: tenantId,
       action_type: `webhook_${topic}`,
@@ -74,6 +85,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ status: "received" }, { status: 200 });
   } catch (error) {
+    Sentry.captureException(error, { extra: { context: "MELI_WEBHOOK" } });
     console.error("Webhook processing error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }

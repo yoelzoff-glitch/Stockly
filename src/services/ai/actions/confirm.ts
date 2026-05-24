@@ -105,7 +105,7 @@ export async function confirmPendingAction(tenantId: string, actionId: string) {
     status: "executed",
     executed_at: new Date().toISOString(),
     result: results
-  }).eq("id", action.id);
+  }).eq("id", action.id).eq("tenant_id", tenantId);
 
   return { success: true, results };
 }

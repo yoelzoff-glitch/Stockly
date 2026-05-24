@@ -121,6 +121,24 @@ export default async function AccountSettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <div className="mt-8">
+        <Card className="border-indigo-100 bg-indigo-50/50">
+          <CardHeader>
+            <CardTitle className="text-lg text-indigo-900">Exportación de Datos</CardTitle>
+            <CardDescription className="text-indigo-700/70">
+              Descargá un respaldo completo de tu catálogo, órdenes y ventas en formato Excel (.xlsx).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <a href="/api/export" download="stockly_backup.xlsx">
+              <div className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2">
+                Exportar datos empresa
+              </div>
+            </a>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

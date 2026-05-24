@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { OverviewChart } from "@/components/dashboard/overview-chart";
 import { TopProductsChart } from "@/components/dashboard/top-products-chart";
 import { MetricCard } from "@/components/dashboard/metric-card";
+import { SystemMonitor } from "@/components/dashboard/system-monitor";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { AlertCircle, CheckCircle2, MessageSquare, Package, RefreshCw, Sparkles, Lightbulb, ArrowRight, HeartPulse, DollarSign, LineChart } from "lucide-react";
 import Link from "next/link";
@@ -421,23 +422,7 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Usage Widget */}
-          <Card className="bg-primary/5 border-primary/20">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center justify-between">
-                Uso Mensual
-                <Button variant="link" size="sm" className="h-auto p-0" asChild>
-                  <Link href="/dashboard/billing">Ver plan</Link>
-                </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">Consultas IA</span>
-                <span className="text-muted-foreground">{aiUsed} / {aiLimit}</span>
-              </div>
-            </CardContent>
-          </Card>
+          <SystemMonitor />
         </div>
       </div>
     </div>

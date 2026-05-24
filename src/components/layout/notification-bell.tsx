@@ -13,6 +13,8 @@ export function NotificationBell() {
   const router = useRouter();
   const supabase = createClient();
 
+  const [tenantId, setTenantId] = useState<string | null>(null);
+
   const fetchAlerts = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -24,6 +26,7 @@ export function NotificationBell() {
       .single();
     
     if (!profile?.tenant_id) return;
+    setTenantId(profile.tenant_id);
 
     const { data } = await supabase
       .from("alerts")
@@ -41,6 +44,21 @@ export function NotificationBell() {
   useEffect(() => {
     fetchAlerts();
 
+    // Supabase Realtime Subscription
+    let channel: any;
+    if (tenantId) {
+      channel = supabase
+        .channel('alerts-channel')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'alerts', filter: `tenant_id=eq.${tenantId}` },
+          (payload) => {
+            fetchAlerts(); // Re-fetch alerts on any change
+          }
+        )
+        .subscribe();
+    }
+
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
@@ -48,19 +66,24 @@ export function NotificationBell() {
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [tenantId]);
 
   const markAsRead = async (id: string) => {
-    await supabase.from("alerts").update({ is_read: true }).eq("id", id);
+    if (!tenantId) return;
+    await supabase.from("alerts").update({ is_read: true }).eq("id", id).eq("tenant_id", tenantId);
     fetchAlerts();
   };
 
   const markAllAsRead = async () => {
+    if (!tenantId) return;
     const unreadIds = alerts.filter(a => !a.is_read).map(a => a.id);
     if (unreadIds.length === 0) return;
 
-    await supabase.from("alerts").update({ is_read: true }).in("id", unreadIds);
+    await supabase.from("alerts").update({ is_read: true }).in("id", unreadIds).eq("tenant_id", tenantId);
     fetchAlerts();
   };
 

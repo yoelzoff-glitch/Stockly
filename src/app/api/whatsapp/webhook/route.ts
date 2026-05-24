@@ -4,6 +4,7 @@ import { getMediaUrl, downloadMedia, sendText } from "@/integrations/whatsapp/cl
 import { transcribeAudio } from "@/services/audio/transcribe";
 import { runBusinessAgent } from "@/services/ai/agent";
 import { logger } from "@/lib/errors/logger";
+import * as Sentry from "@sentry/nextjs";
 
 // Verify Webhook
 export async function GET(req: Request) {
@@ -158,7 +159,8 @@ export async function POST(req: Request) {
     }
 
     return new NextResponse("OK", { status: 200 });
-  } catch (error) {
+  } catch (error: any) {
+    Sentry.captureException(error, { extra: { context: "WHATSAPP_WEBHOOK" } });
     logger.error(error, "WHATSAPP_WEBHOOK");
     return new NextResponse("Internal Server Error", { status: 500 });
   }

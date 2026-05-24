@@ -81,7 +81,7 @@ export async function prepareCreatePromotion(
       title: `Crear promoción: ${type} - ${product.title}`,
       payload,
       updated_at: new Date().toISOString()
-    }).eq("id", existingAction.id);
+    }).eq("id", existingAction.id).eq("tenant_id", tenantId);
     if (error) return { error: "No pude actualizar la promoción en la base de datos." };
     actionId = existingAction.id;
   } else {

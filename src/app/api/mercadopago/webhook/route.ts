@@ -3,9 +3,18 @@ import { getSubscription } from '@/integrations/mercadopago/client';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/errors/logger';
 
+import * as Sentry from "@sentry/nextjs";
+
 export async function POST(req: Request) {
   try {
     const url = new URL(req.url);
+
+    // Seguridad: Validar secreto de webhook de Mercado Pago
+    const secret = url.searchParams.get("secret");
+    if (process.env.MERCADOPAGO_WEBHOOK_SECRET && secret !== process.env.MERCADOPAGO_WEBHOOK_SECRET) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
     const id = url.searchParams.get("id") || url.searchParams.get("data.id");
     const type = url.searchParams.get("type");
 
@@ -43,6 +52,7 @@ export async function POST(req: Request) {
 
     return new NextResponse("OK", { status: 200 });
   } catch (error: any) {
+    Sentry.captureException(error, { extra: { context: "MERCADOPAGO_WEBHOOK" } });
     logger.error(`Webhook error: ${error.message}`, "MERCADOPAGO_WEBHOOK");
     return new NextResponse("Error", { status: 500 });
   }

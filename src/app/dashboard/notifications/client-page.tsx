@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Search, Check, Trash2, AlertTriangle, Info, AlertCircle, PackageX, Calendar } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-export default function NotificationsClientPage({ initialAlerts }: { initialAlerts: any[] }) {
+export default function NotificationsClientPage({ initialAlerts, tenantId }: { initialAlerts: any[], tenantId: string }) {
   const [alerts, setAlerts] = useState(initialAlerts);
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all");
@@ -42,7 +42,7 @@ export default function NotificationsClientPage({ initialAlerts }: { initialAler
     const original = [...alerts];
     setAlerts(alerts.map(a => a.id === id ? { ...a, is_read: true } : a));
     
-    const { error } = await supabase.from("alerts").update({ is_read: true }).eq("id", id);
+    const { error } = await supabase.from("alerts").update({ is_read: true }).eq("id", id).eq("tenant_id", tenantId);
     if (error) {
       setAlerts(original);
       console.error(error);
@@ -56,13 +56,13 @@ export default function NotificationsClientPage({ initialAlerts }: { initialAler
     if (unreadIds.length === 0) return;
 
     setAlerts(alerts.map(a => ({ ...a, is_read: true })));
-    await supabase.from("alerts").update({ is_read: true }).in("id", unreadIds);
+    await supabase.from("alerts").update({ is_read: true }).in("id", unreadIds).eq("tenant_id", tenantId);
     router.refresh();
   };
 
   const deleteAlert = async (id: string) => {
     setAlerts(alerts.filter(a => a.id !== id));
-    await supabase.from("alerts").delete().eq("id", id);
+    await supabase.from("alerts").delete().eq("id", id).eq("tenant_id", tenantId);
   };
 
   return (

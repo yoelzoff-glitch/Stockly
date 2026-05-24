@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getListingFees } from "@/services/meli/getListingFees";
 import { getShippingCostEstimate } from "@/services/meli/getShippingCostEstimate";
 import { calculateProductProfitability } from "@/services/profitability/calculateProductProfitability";
+import * as Sentry from "@sentry/nextjs";
 
 export async function POST() {
   try {
@@ -76,7 +77,7 @@ export async function POST() {
         margin_percent: profitResult.margin_percent,
         profitability_status: profitResult.profitability_status,
         profit_last_calculated_at: new Date().toISOString()
-      }).eq("id", product.id);
+      }).eq("id", product.id).eq("tenant_id", tenantId);
 
       updatedCount++;
     }
@@ -84,6 +85,7 @@ export async function POST() {
     return NextResponse.json({ success: true, updated: updatedCount });
 
   } catch (error: any) {
+    Sentry.captureException(error, { extra: { context: "PROFITABILITY_RECALCULATE" } });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

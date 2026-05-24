@@ -32,7 +32,7 @@ export default async function NotificationsPage() {
           <p className="text-muted-foreground mt-1">Historial completo de alertas y eventos del sistema.</p>
         </div>
       </div>
-      <NotificationsClientPage initialAlerts={alerts || []} />
+      <NotificationsClientPage initialAlerts={alerts || []} tenantId={profile.tenant_id} />
     </div>
   );
 }

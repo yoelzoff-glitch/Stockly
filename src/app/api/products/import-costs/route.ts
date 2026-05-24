@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import * as Sentry from "@sentry/nextjs";
 
 export async function POST(req: Request) {
   try {
@@ -93,6 +94,7 @@ export async function POST(req: Request) {
     });
 
   } catch (error: any) {
+    Sentry.captureException(error, { extra: { context: "IMPORT_COSTS" } });
     return NextResponse.json({ error: error.message || "Error interno" }, { status: 500 });
   }
 }
