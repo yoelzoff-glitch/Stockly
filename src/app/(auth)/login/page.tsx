@@ -30,7 +30,7 @@ export default function LoginPage() {
               <Label htmlFor="password">Contraseña</Label>
               <Input id="password" name="password" type="password" required disabled={isPending} />
             </div>
-            
+
             {state?.error && (
               <p className="text-sm text-destructive font-medium">{state.error}</p>
             )}
@@ -38,7 +38,7 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" disabled={isPending}>
               {isPending ? "Ingresando..." : "Ingresar"}
             </Button>
-            
+
             <div className="mt-4 text-center text-sm">
               ¿No tienes cuenta?{" "}
               <Link href="/register" className="text-primary hover:underline">
