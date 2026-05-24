@@ -131,5 +131,13 @@ export async function meliFetch({
     throw new AppError("VALIDATION_ERROR", `Mercado Libre API Error: ${errorMessage}`, response.status);
   }
 
-  return response.json();
+  const responseText = await response.text();
+  if (!responseText) {
+    return {};
+  }
+  try {
+    return JSON.parse(responseText);
+  } catch (e) {
+    return responseText;
+  }
 }
