@@ -481,3 +481,4 @@ export * from './tools/shipments';
 export * from './tools/market_insights';
 export * from './tools/finance';
 export * from './tools/promotions';
+export * from './tools/noMovement';

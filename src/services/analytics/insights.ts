@@ -92,6 +92,8 @@ export async function generateBusinessInsights(tenantId: string): Promise<Busine
       type: "info",
       title: "Productos sin movimiento",
       description: `Tienes ${stagnantCount} productos que nunca se han vendido. Intenta ajustar el precio o mejorar la publicación.`,
+      actionLabel: "Ver productos",
+      actionHref: "/dashboard/products/no-movement"
     });
   }
 
