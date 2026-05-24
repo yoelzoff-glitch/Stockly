@@ -26,6 +26,17 @@ export async function prepareCreatePromotion(
     product = resolution.product;
   }
 
+  if (!duration) {
+    return {
+      _session_state: {
+        action_type: 'create_promotion',
+        missing_fields: ['duration'],
+        context: { query, type, discountPercent, discountAmount }
+      },
+      message: "Para crear la oferta necesito saber la duración exacta (ej: 24 horas, 3 días). ¿Me decís por favor?"
+    };
+  }
+
   const simulation = await simulateDiscount({
     tenantId,
     productId: product.id,
@@ -50,15 +61,40 @@ export async function prepareCreatePromotion(
     simulation
   };
 
-  const { data: action, error } = await supabase.from("ai_actions").insert({
-    tenant_id: tenantId,
-    action_type: "create_promotion",
-    title: `Crear promoción: ${type} - ${product.title}`,
-    payload,
-    status: "pending"
-  }).select("id").single();
+  const tenMinsAgo = new Date(Date.now() - 10 * 60000).toISOString();
+  let actionId;
 
-  if (error) return { error: "No pude preparar la promoción en la base de datos." };
+  const { data: existingAction } = await supabase
+    .from("ai_actions")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("action_type", "create_promotion")
+    .eq("status", "pending")
+    .gte("created_at", tenMinsAgo)
+    .contains("payload", { product_id: product.id })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (existingAction) {
+    const { error } = await supabase.from("ai_actions").update({
+      title: `Crear promoción: ${type} - ${product.title}`,
+      payload,
+      updated_at: new Date().toISOString()
+    }).eq("id", existingAction.id);
+    if (error) return { error: "No pude actualizar la promoción en la base de datos." };
+    actionId = existingAction.id;
+  } else {
+    const { data: newAction, error } = await supabase.from("ai_actions").insert({
+      tenant_id: tenantId,
+      action_type: "create_promotion",
+      title: `Crear promoción: ${type} - ${product.title}`,
+      payload,
+      status: "pending"
+    }).select("id").single();
+    if (error) return { error: "No pude preparar la promoción en la base de datos." };
+    actionId = newAction.id;
+  }
 
   const preview = `Voy a crear una oferta para:
 
@@ -76,7 +112,7 @@ Duración: ${duration || 'No especificada'}
 **IMPORTANTE:** ¿Confirmás? (Respondé únicamente 'CONFIRMO')`;
 
   return {
-    action_id: action.id,
+    action_id: actionId,
     message: preview
   };
 }
@@ -92,6 +128,17 @@ export async function prepareCreateCoupon(
 ) {
   const supabase = createAdminClient();
 
+  if (!duration) {
+    return {
+      _session_state: {
+        action_type: 'create_coupon',
+        missing_fields: ['duration'],
+        context: { discountType, discountValue, targetAudience, maxUses, minPurchaseAmount }
+      },
+      message: "Para crear el cupón necesito saber la vigencia o duración (ej: 1 semana, hasta fin de mes). ¿Me decís por favor?"
+    };
+  }
+
   const payload = {
     discountType,
     discountValue,
@@ -101,15 +148,39 @@ export async function prepareCreateCoupon(
     duration
   };
 
-  const { data: action, error } = await supabase.from("ai_actions").insert({
-    tenant_id: tenantId,
-    action_type: "create_coupon",
-    title: `Crear cupón ${discountType === 'percent' ? discountValue + '%' : '$' + discountValue} OFF`,
-    payload,
-    status: "pending"
-  }).select("id").single();
+  const tenMinsAgo = new Date(Date.now() - 10 * 60000).toISOString();
+  let actionId;
 
-  if (error) return { error: "No pude preparar el cupón en la base de datos." };
+  const { data: existingAction } = await supabase
+    .from("ai_actions")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("action_type", "create_coupon")
+    .eq("status", "pending")
+    .gte("created_at", tenMinsAgo)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (existingAction) {
+    const { error } = await supabase.from("ai_actions").update({
+      title: `Crear cupón ${discountType === 'percent' ? discountValue + '%' : '$' + discountValue} OFF`,
+      payload,
+      updated_at: new Date().toISOString()
+    }).eq("id", existingAction.id);
+    if (error) return { error: "No pude actualizar el cupón en la base de datos." };
+    actionId = existingAction.id;
+  } else {
+    const { data: newAction, error } = await supabase.from("ai_actions").insert({
+      tenant_id: tenantId,
+      action_type: "create_coupon",
+      title: `Crear cupón ${discountType === 'percent' ? discountValue + '%' : '$' + discountValue} OFF`,
+      payload,
+      status: "pending"
+    }).select("id").single();
+    if (error) return { error: "No pude preparar el cupón en la base de datos." };
+    actionId = newAction.id;
+  }
 
   const preview = `Voy a crear un cupón:
 
@@ -122,7 +193,7 @@ Vigencia: ${duration || 'No especificada'}
 **IMPORTANTE:** ¿Confirmás? (Respondé únicamente 'CONFIRMO')`;
 
   return {
-    action_id: action.id,
+    action_id: actionId,
     message: preview
   };
 }

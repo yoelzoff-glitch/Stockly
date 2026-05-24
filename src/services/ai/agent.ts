@@ -35,30 +35,26 @@ export async function runBusinessAgent({
     return { response: "Alcanzaste el límite mensual de consultas de Inteligencia Artificial. Por favor, actualiza tu plan en la sección de Facturación para seguir operando.", product_id: null };
   }
 
-  // SPRINT 11 & 12: Intercept Confirm/Cancel with strict rules
+  const { getActiveSession, createSession, updateSessionState, clearSessionState } = await import('@/services/ai/session');
+  
+  let session = await getActiveSession({ tenantId, channel, fromPhone });
+  if (!session) {
+    session = await createSession({ tenantId, channel, fromPhone });
+  }
+
+  // SPRINT 32: Intercept Confirm/Cancel using explicit session
   const lowerMsg = userMessage.trim().toLowerCase();
   
   const validConfirms = ['confirmo', 'confirmar', 'sí, confirmo', 'si, confirmo', 'si confirmo'];
   const invalidConfirms = ['ok', 'dale', 'si', 'sí', 'bueno', 'perfecto', 'listo', 'avanza', 'hacelo'];
 
   if (validConfirms.includes(lowerMsg)) {
-    const supabase = createAdminClient();
-
-    // 1. Check for pending workflow
-    const { data: pendingWorkflow } = await supabase
-      .from("action_workflows")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (pendingWorkflow) {
+    if (session && session.current_workflow_id) {
       try {
         const { executeWorkflow } = await import('@/services/ai/workflows');
-        const res = await executeWorkflow(tenantId, pendingWorkflow.id);
+        const res = await executeWorkflow(tenantId, session.current_workflow_id);
         if (res.success) {
+          await clearSessionState(session.id);
           return { response: "¡Plan de acción confirmado y ejecutado con éxito!", product_id: null };
         } else {
           return { response: "Hubo errores al ejecutar algunas acciones del plan. Revisa el dashboard.", product_id: null };
@@ -68,29 +64,12 @@ export async function runBusinessAgent({
       }
     }
 
-    // 2. Fallback to single pending action
-    const { data: pendingActions } = await supabase
-      .from("ai_actions")
-      .select("id, title, created_at")
-      .eq("tenant_id", tenantId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(5);
-
-    if (pendingActions && pendingActions.length > 0) {
-      // If there are multiple recent pending actions (e.g. within last 10 mins), ask for clarification
-      const tenMinutesAgo = new Date(Date.now() - 10 * 60000);
-      const recentActions = pendingActions.filter(a => new Date(a.created_at) > tenMinutesAgo);
-
-      if (recentActions.length > 1) {
-        const list = recentActions.map(a => `- Acción: ${a.title}`).join('\n');
-        return { response: `Tenés varias acciones pendientes recientes. ¿Cuál querés confirmar? Por favor se más específico.\n${list}`, product_id: null };
-      }
-
+    if (session && session.current_action_id) {
       try {
         const { confirmPendingAction } = await import('@/services/ai/actions/confirm');
-        const res = await confirmPendingAction(tenantId, recentActions[0].id);
+        const res = await confirmPendingAction(tenantId, session.current_action_id);
         if (res.success) {
+          await clearSessionState(session.id);
           return { response: "¡Acción confirmada y ejecutada con éxito en Mercado Libre!", product_id: null };
         } else {
           return { response: `Hubo un error al ejecutar la acción: ${res.error || "Revisa los logs"}.`, product_id: null };
@@ -99,43 +78,60 @@ export async function runBusinessAgent({
         return { response: "No pude confirmar la acción por un error interno.", product_id: null };
       }
     }
+
+    return { response: "No tienes ninguna acción pendiente en esta conversación para confirmar.", product_id: null };
   }
 
   if (invalidConfirms.includes(lowerMsg)) {
-    const supabase = createAdminClient();
-    const { data: pendingAction } = await supabase
-      .from("ai_actions")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (pendingAction) {
+    if (session && (session.current_action_id || session.current_workflow_id)) {
       return { response: "⚠️ *Por seguridad*, debes escribir exactamente la palabra **'confirmo'** o **'confirmar'** para ejecutar esta acción crítica.", product_id: null };
     }
   }
 
   if (lowerMsg === 'cancelar' || lowerMsg === 'no') {
-    const supabase = createAdminClient();
-    const { data: pendingAction } = await supabase
-      .from("ai_actions")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (pendingAction) {
+    if (session && session.current_action_id) {
       try {
         const { cancelPendingAction } = await import('@/services/ai/actions/confirm');
-        await cancelPendingAction(tenantId, pendingAction.id);
+        await cancelPendingAction(tenantId, session.current_action_id);
+        await clearSessionState(session.id);
         return { response: "Acción cancelada. No se modificó nada en Mercado Libre.", product_id: null };
       } catch(e) {
         return { response: "Error al cancelar la acción.", product_id: null };
       }
+    } else if (session && session.missing_fields && session.missing_fields.length > 0) {
+      await clearSessionState(session.id);
+      return { response: "Operación cancelada.", product_id: null };
+    }
+  }
+
+  // Intercept if session is waiting for fields
+  if (session && session.missing_fields && session.missing_fields.length > 0) {
+    const extractionPrompt = `El usuario está en medio de una acción (${session.current_action_type}).
+Faltan los siguientes campos: ${session.missing_fields.join(", ")}.
+Extrae los valores de estos campos del mensaje del usuario: "${userMessage}".
+Devuelve ÚNICAMENTE un objeto JSON plano con las claves correspondientes a los campos faltantes. Si el usuario no proporciona la información, devuelve un JSON vacío {}.`;
+    
+    const extractionResponse = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: extractionPrompt }]
+    });
+
+    try {
+      const content = extractionResponse.choices[0].message.content || "{}";
+      const extracted = JSON.parse(content.replace(/```json/g, '').replace(/```/g, ''));
+
+      const updatedContext = { ...session.context, ...extracted };
+      const remainingFields = session.missing_fields.filter((f: string) => !extracted[f]);
+
+      if (remainingFields.length > 0) {
+        await updateSessionState(session.id, { missing_fields: remainingFields, context: updatedContext });
+        return { response: `Aún necesito que me indiques: ${remainingFields.join(", ")}.`, product_id: null };
+      } else {
+        await updateSessionState(session.id, { missing_fields: [], context: updatedContext });
+        userMessage = `El usuario completó los parámetros para la acción ${session.current_action_type}. Por favor ejecuta la herramienta correspondiente usando TODOS estos parámetros: ${JSON.stringify(updatedContext)}`;
+      }
+    } catch (e) {
+      return { response: "No pude entender tu respuesta. Por favor indícame los valores para: " + session.missing_fields.join(", "), product_id: null };
     }
   }
 
@@ -502,6 +498,21 @@ ${chatHistory}
         if (parsed.product_id) foundProductId = parsed.product_id;
         else if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].id) {
           foundProductId = parsed[0].id;
+        }
+
+        // Catch Session State changes from tools
+        if (session) {
+          if (parsed._session_state) {
+            await updateSessionState(session.id, {
+              current_action_type: parsed._session_state.action_type,
+              missing_fields: parsed._session_state.missing_fields,
+              context: parsed._session_state.context
+            });
+          } else if (parsed.action_id) {
+            await updateSessionState(session.id, { current_action_id: parsed.action_id });
+          } else if (parsed.workflow_id) {
+            await updateSessionState(session.id, { current_workflow_id: parsed.workflow_id });
+          }
         }
       } catch (e) {}
     }
