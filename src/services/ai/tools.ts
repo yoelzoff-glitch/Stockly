@@ -1,6 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveProduct } from "@/services/products/resolveProduct";
 
+/**
+ * Obtiene el total facturado y la cantidad de órdenes del día de hoy.
+ * 
+ * @param tenantId Identificador del comercio
+ * @returns Promesa con las ventas y cantidad de órdenes del día
+ */
 export async function getTodaySales(tenantId: string) {
   const supabase = createAdminClient();
   const today = new Date();
@@ -18,6 +24,12 @@ export async function getTodaySales(tenantId: string) {
   return { sales: total, count: data.length };
 }
 
+/**
+ * Obtiene el total facturado y la cantidad de órdenes de los últimos 7 días.
+ * 
+ * @param tenantId Identificador del comercio
+ * @returns Promesa con las ventas y cantidad de órdenes de la última semana
+ */
 export async function getWeeklySales(tenantId: string) {
   const supabase = createAdminClient();
   const weekAgo = new Date();
@@ -36,6 +48,13 @@ export async function getWeeklySales(tenantId: string) {
   return { sales: total, count: data.length };
 }
 
+/**
+ * Obtiene el total facturado y la cantidad de órdenes de los últimos N días.
+ * 
+ * @param tenantId Identificador del comercio
+ * @param days Cantidad de días a analizar
+ * @returns Promesa con las ventas y cantidad de órdenes del período
+ */
 export async function getSalesByDays(tenantId: string, days: number) {
   const supabase = createAdminClient();
   const startDate = new Date();
@@ -54,6 +73,12 @@ export async function getSalesByDays(tenantId: string, days: number) {
   return { sales: total, count: data.length, days };
 }
 
+/**
+ * Recupera la lista de productos cuyo stock disponible es crítico (5 unidades o menos).
+ * 
+ * @param tenantId Identificador del comercio
+ * @returns Promesa con los productos con stock bajo
+ */
 export async function getLowStockProducts(tenantId: string) {
   const supabase = createAdminClient();
 
@@ -69,6 +94,13 @@ export async function getLowStockProducts(tenantId: string) {
   return data;
 }
 
+/**
+ * Busca productos en la base de datos coincidiendo parcialmente por título, SKU o Item ID de ML.
+ * 
+ * @param tenantId Identificador del comercio
+ * @param query Término de búsqueda
+ * @returns Promesa con hasta 5 productos coincidentes
+ */
 export async function searchProductByName(tenantId: string, query: string) {
   const supabase = createAdminClient();
 
@@ -84,6 +116,13 @@ export async function searchProductByName(tenantId: string, query: string) {
   return data;
 }
 
+/**
+ * Obtiene los productos más vendidos del comercio.
+ * 
+ * @param tenantId Identificador del comercio
+ * @param limit Cantidad máxima de productos a devolver (por defecto 5)
+ * @returns Promesa con los productos top en ventas
+ */
 export async function getTopProducts(tenantId: string, limit: number = 5) {
   const supabase = createAdminClient();
 
@@ -99,6 +138,15 @@ export async function getTopProducts(tenantId: string, limit: number = 5) {
   return data;
 }
 
+/**
+ * Compara las ventas de dos períodos consecutivos de igual duración.
+ * Útil para ver el crecimiento o caída de ventas respecto al período anterior.
+ * 
+ * @param tenantId Identificador del comercio
+ * @param currentDays Cantidad de días del período actual
+ * @param previousDays Cantidad de días adicionales del período anterior
+ * @returns Promesa con la comparación de ventas
+ */
 export async function compareSalesPeriods(tenantId: string, currentDays: number, previousDays: number) {
   const supabase = createAdminClient();
   const now = new Date();
@@ -132,6 +180,14 @@ export async function compareSalesPeriods(tenantId: string, currentDays: number,
   };
 }
 
+/**
+ * Recupera y detalla el análisis de rentabilidad unitaria de un producto específico, 
+ * desglosando comisiones, envíos e impuestos adicionales.
+ * 
+ * @param tenantId Identificador del comercio
+ * @param query Término de búsqueda para resolver el producto
+ * @returns Promesa con el análisis detallado de rentabilidad del producto
+ */
 export async function getProductProfitability(tenantId: string, query: string) {
   const supabase = createAdminClient();
 
@@ -185,6 +241,17 @@ function calculateRisk(count: number, maxChangePct: number = 0, isPause: boolean
   return 'LOW';
 }
 
+/**
+ * Prepara (sin ejecutar en Mercado Libre) una actualización de precio de uno o múltiples productos.
+ * Evalúa el riesgo del cambio e inserta una acción pendiente en la base de datos para confirmación.
+ * 
+ * @param tenantId Identificador del comercio
+ * @param query Término de búsqueda del producto(s)
+ * @param newPrice Nuevo precio fijo (opcional)
+ * @param percentageChange Porcentaje de variación de precio (opcional)
+ * @param allowMultiple Permite la afectación masiva de productos (por defecto falso)
+ * @returns Promesa con el id de la acción pendiente y un mensaje de resumen
+ */
 export async function preparePriceUpdate(tenantId: string, query: string, newPrice?: number, percentageChange?: number, allowMultiple: boolean = false) {
   const supabase = createAdminClient();
   const resolution = await resolveProduct(tenantId, query);
@@ -256,6 +323,17 @@ export async function preparePriceUpdate(tenantId: string, query: string, newPri
   };
 }
 
+/**
+ * Prepara (sin ejecutar en Mercado Libre) una actualización o modificación de stock de uno o múltiples productos.
+ * Evalúa el riesgo del cambio e inserta una acción pendiente en la base de datos para confirmación.
+ * 
+ * @param tenantId Identificador del comercio
+ * @param query Término de búsqueda del producto(s)
+ * @param newQuantity Cantidad de stock a afectar
+ * @param operation Tipo de operación ('set' fijo, 'add' sumar, 'subtract' restar)
+ * @param allowMultiple Permite la afectación masiva de productos (por defecto falso)
+ * @returns Promesa con el id de la acción pendiente y un mensaje de resumen
+ */
 export async function prepareStockUpdate(tenantId: string, query: string, newQuantity: number, operation: 'set' | 'add' | 'subtract' = 'set', allowMultiple: boolean = false) {
   const supabase = createAdminClient();
   const resolution = await resolveProduct(tenantId, query);
@@ -330,6 +408,16 @@ export async function prepareStockUpdate(tenantId: string, query: string, newQua
   };
 }
 
+/**
+ * Prepara (sin ejecutar en Mercado Libre) un cambio de estado (Pausar o Activar) de uno o múltiples productos.
+ * Evalúa el riesgo del cambio e inserta una acción pendiente en la base de datos para confirmación.
+ * 
+ * @param tenantId Identificador del comercio
+ * @param query Término de búsqueda del producto(s)
+ * @param status Nuevo estado ('paused' o 'active')
+ * @param allowMultiple Permite la afectación masiva de productos (por defecto falso)
+ * @returns Promesa con el id de la acción pendiente y un mensaje de resumen
+ */
 export async function prepareStatusChange(tenantId: string, query: string, status: 'paused' | 'active', allowMultiple: boolean = false) {
   const supabase = createAdminClient();
   const resolution = await resolveProduct(tenantId, query);
@@ -392,4 +480,4 @@ export async function prepareStatusChange(tenantId: string, query: string, statu
 export * from './tools/shipments';
 export * from './tools/market_insights';
 export * from './tools/finance';
-export * from './tools/finance';
+export * from './tools/promotions';

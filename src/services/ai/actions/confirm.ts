@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { updatePrice } from '@/services/meli/actions/updatePrice';
 import { updateStock } from '@/services/meli/actions/updateStock';
 import { pauseProduct, activateProduct } from '@/services/meli/actions/statusProduct';
+import { createItemPromotion } from '@/services/meli/promotions/createItemPromotion';
+import { createCoupon } from '@/services/meli/promotions/createCoupon';
 import { logger } from '@/lib/errors/logger';
 
 /**
@@ -35,6 +37,8 @@ export async function confirmPendingAction(tenantId: string, actionId: string) {
     payloadItems = action.payload;
   } else if (action.payload && typeof action.payload === 'object' && Array.isArray((action.payload as any).items)) {
     payloadItems = (action.payload as any).items;
+  } else if (action.action_type === 'create_promotion' || action.action_type === 'create_coupon') {
+    payloadItems = [action.payload];
   }
 
   if (payloadItems.length > 50) {
@@ -53,6 +57,42 @@ export async function confirmPendingAction(tenantId: string, actionId: string) {
         await pauseProduct(tenantId, item.product_id);
       } else if (action.action_type === 'activate_product') {
         await activateProduct(tenantId, item.product_id);
+      } else if (action.action_type === 'create_promotion') {
+        const promoId = "PROMO-" + Math.floor(Math.random() * 100000);
+        await createItemPromotion(tenantId, promoId, item.product_id, {
+          deal_price: item.simulation.discounted_price,
+          original_price: item.simulation.current_price,
+          promotion_type: item.type
+        });
+        const { data: promo } = await supabase.from("promotions").insert({
+          tenant_id: tenantId,
+          type: item.type,
+          status: 'active',
+          discount_type: item.discountPercent ? 'percent' : 'amount',
+          discount_value: item.discountPercent || item.discountAmount,
+          title: action.title
+        }).select("id").single();
+        if (promo) {
+          await supabase.from("promotion_items").insert({
+            tenant_id: tenantId,
+            promotion_id: promo.id,
+            product_id: item.product_id,
+            current_price: item.simulation.current_price,
+            discount_price: item.simulation.discounted_price,
+            status: 'active'
+          });
+        }
+      } else if (action.action_type === 'create_coupon') {
+        await createCoupon(tenantId, item);
+        await supabase.from("coupons").insert({
+          tenant_id: tenantId,
+          coupon_type: 'standard',
+          discount_type: item.discountType,
+          discount_value: item.discountValue,
+          target_audience: item.targetAudience,
+          status: 'active',
+          title: action.title
+        });
       }
       results.push({ product_id: item.product_id, success: true });
     } catch (err: any) {

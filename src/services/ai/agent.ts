@@ -156,7 +156,7 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
 - Cuando el usuario pregunte por rentabilidad, margen o ganancias, DESGLOSA los valores (Precio de venta, Costo cargado, Comisión ML, Envío, Ganancia Neta, Margen Neto). Si falta la fee o el envío, aclara que es una estimación incompleta.
 - Formatea los valores monetarios con el símbolo $.
 - No uses lenguaje excesivamente formal, mantén un tono profesional pero cercano.
-- Importante: Tienes herramientas para preparar modificaciones masivas de precio, stock y estado de los productos en Mercado Libre. Puedes buscar productos por Nombre, SKU exacto o ID de Mercado Libre.
+- Importante: Tienes herramientas para preparar modificaciones masivas de precio, stock y estado de los productos en Mercado Libre, así como la creación de OFERTAS, PROMOCIONES y CUPONES. Puedes buscar productos por Nombre, SKU exacto o ID de Mercado Libre.
 - Si una herramienta te responde diciendo "Encontré varios productos parecidos. ¿Cuál querés modificar?", MUESTRA al usuario la lista de productos que te devolvió la herramienta y pregúntale cuál de los SKUs o nombres específicos desea elegir antes de continuar.
 - Cuando prepares una acción con éxito, se creará una acción pendiente y deberás terminar tu mensaje pidiendo expresamente al usuario que responda con la palabra 'CONFIRMO' para ejecutar los cambios.
 
@@ -435,6 +435,53 @@ ${chatHistory}
             properties: {
               days: { type: "string", description: "Cantidad de días hacia atrás a analizar. Ejemplo: '30' para último mes, '7' para última semana." }
             }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          function: async (args: { query: string; type: string; discountPercent?: number; discountAmount?: number; duration?: string }) => {
+            const promos = await import('@/services/ai/tools/promotions');
+            return promos.prepareCreatePromotion(tenantId, args.query, args.type, args.discountPercent, args.discountAmount, args.duration);
+          },
+          name: "prepareCreatePromotion",
+          description: "Prepara una oferta o descuento para un producto. Úsalo cuando el usuario pide poner en oferta, crear promo o descuento.",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "El nombre o SKU del producto" },
+              type: { type: "string", description: "El tipo de promoción (oferta, relampago, descuento)" },
+              discountPercent: { type: "number", description: "El porcentaje de descuento si aplica" },
+              discountAmount: { type: "number", description: "El monto de descuento fijo si aplica" },
+              duration: { type: "string", description: "La duración (ej: 48 horas)" }
+            },
+            required: ["query", "type"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          function: async (args: { discountType: string; discountValue: number; targetAudience?: string; maxUses?: number; minPurchaseAmount?: number; duration?: string }) => {
+            const promos = await import('@/services/ai/tools/promotions');
+            return promos.prepareCreateCoupon(tenantId, args.discountType, args.discountValue, args.targetAudience, args.maxUses, args.minPurchaseAmount, args.duration);
+          },
+          name: "prepareCreateCoupon",
+          description: "Prepara la creación de un cupón de descuento.",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              discountType: { type: "string", description: "'percent' o 'amount'" },
+              discountValue: { type: "number", description: "El valor del descuento" },
+              targetAudience: { type: "string", description: "Audiencia (ej: seguidores, nuevos)" },
+              maxUses: { type: "number", description: "Uso máximo del cupón" },
+              minPurchaseAmount: { type: "number", description: "Compra mínima requerida" },
+              duration: { type: "string", description: "Vigencia del cupón" }
+            },
+            required: ["discountType", "discountValue"]
           }
         }
       }

@@ -18,7 +18,8 @@ import {
   Truck,
   Ban,
   LineChart,
-  DollarSign
+  DollarSign,
+  Tag
 } from "lucide-react";
 import { logoutAction } from "@/actions/auth";
 
@@ -33,6 +34,7 @@ const sidebarLinks = [
   { name: "Envíos", href: "/dashboard/shipments", icon: Truck },
   { name: "Cancelaciones", href: "/dashboard/cancellations", icon: Ban },
   { name: "Productos", href: "/dashboard/products", icon: Package },
+  { name: "Promociones", href: "/dashboard/promotions", icon: Tag },
   { name: "Analíticas", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Integraciones", href: "/dashboard/integrations", icon: Plug },
   { name: "Mensajes", href: "/dashboard/messages", icon: MessageSquare },

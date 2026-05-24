@@ -13,8 +13,11 @@ export function SearchInput({ placeholder = "Buscar..." }: { placeholder?: strin
   const [term, setTerm] = useState(searchParams.get("q") || "");
 
   useEffect(() => {
+    const currentQ = searchParams.get("q") || "";
+    if (term === currentQ) return; // Avoid infinite loop
+
     const handler = setTimeout(() => {
-      const params = new URLSearchParams(searchParams);
+      const params = new URLSearchParams(searchParams.toString());
       if (term) {
         params.set("q", term);
       } else {

@@ -1,5 +1,13 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
+/**
+ * Obtiene un resumen financiero completo calculando facturación, costos, comisiones,
+ * envíos, cancelaciones y margen neto para un período de tiempo determinado.
+ * 
+ * @param tenantId Identificador del comercio
+ * @param daysStr Cantidad de días hacia atrás a analizar (por defecto 30)
+ * @returns Promesa que resuelve en un string formateado con el resumen financiero
+ */
 export async function getFinancialSummary(tenantId: string, daysStr: string = "30") {
   const supabase = createAdminClient();
   const days = parseInt(daysStr) || 30;

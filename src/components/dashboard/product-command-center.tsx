@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ExternalLink, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, ShieldCheck, PauseCircle, PlayCircle, Copy, BarChart2, History } from "lucide-react";
+import { ExternalLink, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, ShieldCheck, PauseCircle, PlayCircle, Copy, BarChart2, History, Tag, Zap } from "lucide-react";
 import { ProductHistoryTab } from "./product-history-tab";
 import { ProductChat } from "./product-chat";
 import { 
@@ -201,6 +201,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                 <TabsTrigger value="price" className="data-[state=active]:bg-muted">Precio</TabsTrigger>
                 <TabsTrigger value="stock" className="data-[state=active]:bg-muted">Stock</TabsTrigger>
                 <TabsTrigger value="profit" className="data-[state=active]:bg-muted">Rentabilidad</TabsTrigger>
+                <TabsTrigger value="promotions" className="data-[state=active]:bg-muted">Promos</TabsTrigger>
                 <TabsTrigger value="insights" className="data-[state=active]:bg-muted">Insights</TabsTrigger>
                 <TabsTrigger value="history" className="data-[state=active]:bg-muted">Historial</TabsTrigger>
                 <TabsTrigger value="ai" className="data-[state=active]:bg-muted">IA</TabsTrigger>
@@ -424,6 +425,33 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                       </div>
                     </div>
                   </div>
+              </TabsContent>
+
+              <TabsContent value="promotions" className="mt-0 space-y-6">
+                <div className="space-y-4">
+                  <h4 className="font-medium flex items-center gap-2"><Tag className="w-4 h-4" /> Promociones Activas</h4>
+                  <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-lg text-center border border-dashed">
+                    <p className="text-sm text-muted-foreground">No hay promociones activas para este producto.</p>
+                  </div>
+                  
+                  <Separator />
+
+                  <h4 className="font-medium flex items-center gap-2 mt-4"><Zap className="w-4 h-4 text-amber-500" /> Crear Oferta Rápida</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button variant="outline" className="justify-start" onClick={() => alert('ProntoStockly preparará la oferta al integrarlo al agente.')}>
+                      Oferta 5% OFF
+                    </Button>
+                    <Button variant="outline" className="justify-start" onClick={() => alert('ProntoStockly preparará la oferta al integrarlo al agente.')}>
+                      Oferta 10% OFF
+                    </Button>
+                    <Button variant="outline" className="justify-start" onClick={() => alert('ProntoStockly preparará la oferta al integrarlo al agente.')}>
+                      Oferta Relámpago (24h)
+                    </Button>
+                    <Button variant="outline" className="justify-start" onClick={() => setActiveTab("ai")}>
+                      Personalizada (IA)
+                    </Button>
+                  </div>
+                </div>
               </TabsContent>
 
               <TabsContent value="insights" className="mt-0 space-y-6">

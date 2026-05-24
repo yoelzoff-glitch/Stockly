@@ -1,5 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
+/**
+ * Obtiene el recuento y detalle de todos los envíos actualmente demorados.
+ * 
+ * @param tenantId Identificador del comercio
+ * @returns Promesa con detalle de los envíos demorados o un mensaje de estado
+ */
 export async function getDelayedShipments(tenantId: string) {
   const supabase = createAdminClient();
   const { data: shipments, error } = await supabase
@@ -25,6 +31,13 @@ export async function getDelayedShipments(tenantId: string) {
   };
 }
 
+/**
+ * Calcula las estadísticas globales de cancelaciones, incluyendo dinero perdido 
+ * y desglose por motivo.
+ * 
+ * @param tenantId Identificador del comercio
+ * @returns Promesa con el total de cancelaciones, ingresos perdidos y motivos
+ */
 export async function getCancellationStats(tenantId: string) {
   const supabase = createAdminClient();
   const { data: cancellations, error } = await supabase
@@ -53,6 +66,13 @@ export async function getCancellationStats(tenantId: string) {
   };
 }
 
+/**
+ * Analiza el historial de cancelaciones para identificar cuáles son los productos 
+ * más frecuentemente cancelados.
+ * 
+ * @param tenantId Identificador del comercio
+ * @returns Promesa con los productos más cancelados
+ */
 export async function getTopCancelledProducts(tenantId: string) {
   // We'll need to join order_cancellations with orders and order_items
   const supabase = createAdminClient();

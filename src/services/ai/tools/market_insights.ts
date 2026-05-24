@@ -1,5 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
+/**
+ * Identifica los productos con mayor volumen de ventas en el comercio.
+ * 
+ * @param tenantId Identificador del comercio
+ * @returns Promesa con los productos con más ventas o un mensaje de estado
+ */
 export async function getGrowingProducts(tenantId: string) {
   const supabase = createAdminClient();
   const { data: products, error } = await supabase
@@ -22,6 +28,12 @@ export async function getGrowingProducts(tenantId: string) {
   };
 }
 
+/**
+ * Identifica productos activos y con stock que históricamente no registran ventas (estancados).
+ * 
+ * @param tenantId Identificador del comercio
+ * @returns Promesa con los productos estancados o un mensaje de estado
+ */
 export async function getFallingProducts(tenantId: string) {
   const supabase = createAdminClient();
   const { data: products, error } = await supabase
@@ -47,6 +59,13 @@ export async function getFallingProducts(tenantId: string) {
   };
 }
 
+/**
+ * Identifica productos que requieren atención urgente, combinando aquellos con 
+ * márgenes de rentabilidad críticos o con riesgo de quiebre de stock.
+ * 
+ * @param tenantId Identificador del comercio
+ * @returns Promesa con productos de bajo margen y productos con stock crítico
+ */
 export async function getProductsToReview(tenantId: string) {
   const supabase = createAdminClient();
   // We look for worst margins or critical stock

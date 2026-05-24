@@ -80,7 +80,9 @@ export default async function IntelligenceCenter() {
   const suggestedWorkflows = [
     { id: 1, title: "Pausar todos los productos sin ventas", risk: "Bajo", type: "dead_products" },
     { id: 2, title: "Aumentar 5% precio de productos con margen crítico", risk: "Medio", type: "low_margin" },
-    { id: 3, title: "¿Cuáles son los motivos de mis últimas cancelaciones?", risk: "Bajo", type: "ai_chat" }
+    { id: 3, title: "¿Cuáles son los motivos de mis últimas cancelaciones?", risk: "Bajo", type: "ai_chat" },
+    { id: 4, title: "Crear promo 10% para productos con sobrestock", risk: "Medio", type: "promo" },
+    { id: 5, title: "Oferta relámpago para productos muertos", risk: "Bajo", type: "promo" }
   ];
 
   return (
