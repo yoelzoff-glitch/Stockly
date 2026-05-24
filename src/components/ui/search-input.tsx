@@ -14,25 +14,24 @@ export function SearchInput({ placeholder = "Buscar..." }: { placeholder?: strin
 
   useEffect(() => {
     const currentQ = searchParams.get("q") || "";
-    if (term === currentQ) return; // Avoid infinite loop
+    if (term === currentQ) return;
 
     const handler = setTimeout(() => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(window.location.search);
       if (term) {
         params.set("q", term);
       } else {
         params.delete("q");
       }
-      // Always reset page to 1 when searching
       params.delete("page");
       
       startTransition(() => {
         router.replace(`${pathname}?${params.toString()}`);
       });
-    }, 300); // debounce 300ms
+    }, 1200);
 
     return () => clearTimeout(handler);
-  }, [term, pathname, router, searchParams]);
+  }, [term, pathname, router]);
 
   return (
     <div className="relative">

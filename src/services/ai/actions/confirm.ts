@@ -59,11 +59,16 @@ export async function confirmPendingAction(tenantId: string, actionId: string) {
         await activateProduct(tenantId, item.product_id);
       } else if (action.action_type === 'create_promotion') {
         const promoId = "PROMO-" + Math.floor(Math.random() * 100000);
-        await createItemPromotion(tenantId, promoId, item.product_id, {
-          deal_price: item.simulation.discounted_price,
-          original_price: item.simulation.current_price,
-          promotion_type: item.type
-        });
+        try {
+          await createItemPromotion(tenantId, promoId, item.product_id, {
+            deal_price: item.simulation.discounted_price,
+            original_price: item.simulation.current_price,
+            promotion_type: item.type
+          });
+        } catch (promoError) {
+          logger.warn(`Falló la creación de promo vía API, aplicando descuento en el precio base para ${item.product_id}`, "PROMOTIONS");
+          await updatePrice(tenantId, item.product_id, item.simulation.discounted_price);
+        }
         const { data: promo } = await supabase.from("promotions").insert({
           tenant_id: tenantId,
           type: item.type,
