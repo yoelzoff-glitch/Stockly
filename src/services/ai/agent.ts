@@ -687,16 +687,18 @@ ${chatHistory}
 
         // Catch Session State changes from tools
         if (session) {
+          if (parsed.action_id) {
+            await updateSessionState(session.id, { current_action_id: parsed.action_id });
+          }
+          if (parsed.workflow_id) {
+            await updateSessionState(session.id, { current_workflow_id: parsed.workflow_id });
+          }
           if (parsed._session_state) {
             await updateSessionState(session.id, {
               current_action_type: parsed._session_state.action_type,
               missing_fields: parsed._session_state.missing_fields,
               context: parsed._session_state.context
             });
-          } else if (parsed.action_id) {
-            await updateSessionState(session.id, { current_action_id: parsed.action_id });
-          } else if (parsed.workflow_id) {
-            await updateSessionState(session.id, { current_workflow_id: parsed.workflow_id });
           }
         }
       } catch (e) {}
