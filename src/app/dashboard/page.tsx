@@ -325,24 +325,15 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Ventas últimos 7 días</CardTitle>
-            <CardDescription>Resumen de ingresos de la última semana.</CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <OverviewChart data={recentOrders || []} />
-          </CardContent>
-        </Card>
-        
-        <div className="col-span-3 space-y-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 items-start">
+        <div className="col-span-4 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Productos más vendidos</CardTitle>
+              <CardTitle>Ventas últimos 7 días</CardTitle>
+              <CardDescription>Resumen de ingresos de la última semana.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <TopProductsChart data={chartData} />
+            <CardContent className="pl-2">
+              <OverviewChart data={recentOrders || []} />
             </CardContent>
           </Card>
           
@@ -390,7 +381,7 @@ export default async function DashboardPage() {
               )}
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -421,6 +412,18 @@ export default async function DashboardPage() {
               )}
             </CardContent>
           </Card>
+        </div>
+        <div className="col-span-3 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Productos más vendidos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TopProductsChart data={chartData} />
+            </CardContent>
+          </Card>
+          
+          {/* Rentabilidad y Agente IA fueron movidos a la columna izquierda */}
 
           <SystemMonitor />
         </div>

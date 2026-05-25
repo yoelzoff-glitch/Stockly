@@ -44,11 +44,8 @@ export function Sidebar() {
 
   return (
     <div className="flex h-screen w-64 flex-col border-r border-slate-200 bg-white px-3 py-4">
-      <div className="mb-8 px-4 flex items-center gap-2">
-        <div className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-          <Package className="h-5 w-5 text-white" />
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Stockly</h1>
+      <div className="mb-8 px-4 flex items-center justify-center w-full">
+        <img src="/logo.png" alt="Stockly Logo" className="w-full max-w-[180px] h-auto" />
       </div>
       <nav className="flex-1 space-y-1">
         {sidebarLinks.map((item) => {

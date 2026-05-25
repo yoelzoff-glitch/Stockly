@@ -14,8 +14,10 @@ export default function LoginPage() {
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-muted/30">
       <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl">Stockly</CardTitle>
+        <CardHeader className="text-center pb-2">
+          <div className="flex justify-center mb-4">
+            <img src="/logo.png" alt="Stockly Logo" className="w-full max-w-[200px] h-auto" />
+          </div>
           <CardDescription>
             Ingresa a tu cuenta para administrar tu negocio.
           </CardDescription>

@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/sidebar/sidebar";
 import { Navbar } from "@/components/dashboard/navbar";
+import { Footer } from "@/components/layout/footer";
 
 export default function DashboardLayout({
   children,
@@ -13,8 +14,11 @@ export default function DashboardLayout({
       </div>
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <Navbar />
-        <main className="flex-1 overflow-y-auto">
-          {children}
+        <main className="flex-1 overflow-y-auto flex flex-col">
+          <div className="flex-1">
+            {children}
+          </div>
+          <Footer />
         </main>
       </div>
     </div>

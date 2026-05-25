@@ -14,8 +14,11 @@ export default function RegisterPage() {
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-muted/30">
       <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl">Crear Cuenta</CardTitle>
+        <CardHeader className="text-center pb-2">
+          <div className="flex justify-center mb-4">
+            <img src="/logo.png" alt="Stockly Logo" className="w-full max-w-[200px] h-auto" />
+          </div>
+          <CardTitle className="text-2xl mt-2">Crear Cuenta</CardTitle>
           <CardDescription>
             Ingresa tus datos para registrarte en Stockly.
           </CardDescription>
