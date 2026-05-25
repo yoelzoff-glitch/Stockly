@@ -18,7 +18,9 @@ import {
   Truck,
   Ban,
   DollarSign,
-  Tag
+  Tag,
+  ShoppingBag,
+  Layers
 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
@@ -28,6 +30,8 @@ const sidebarLinks = [
   { name: "Intelligence Center", href: "/dashboard/intelligence", icon: BrainCircuit },
   { name: "Analíticas e Insights", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Productos", href: "/dashboard/products", icon: Package },
+  { name: "Stock Interno", href: "/dashboard/internal-stock", icon: Layers, indent: true },
+  { name: "Compras Internas", href: "/dashboard/purchases", icon: ShoppingBag, indent: true },
   { name: "Promociones", href: "/dashboard/promotions", icon: Tag },
   { name: "Ventas", href: "/dashboard/sales", icon: ShoppingCart },
   { name: "Envíos", href: "/dashboard/shipments", icon: Truck, indent: true },

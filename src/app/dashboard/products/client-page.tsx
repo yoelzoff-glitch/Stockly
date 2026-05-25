@@ -43,6 +43,18 @@ export function ProductsClient({
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
 
+  const getInternalStock = (prod: any) => {
+    if (!prod.product_components || prod.product_components.length === 0) return null;
+    let minComboStock = Infinity;
+    for (const comp of prod.product_components) {
+      const currentStock = comp.inventory_items?.current_stock ?? 0;
+      const reqQty = comp.quantity ?? 1;
+      const potential = Math.floor(currentStock / reqQty);
+      if (potential < minComboStock) minComboStock = potential;
+    }
+    return minComboStock === Infinity ? 0 : minComboStock;
+  };
+
   const handleSuccess = () => {
     window.location.reload();
   };
@@ -136,7 +148,26 @@ export function ProductsClient({
                               <div className="flex flex-col">
                                 <span className="line-clamp-2">{product.title}</span>
                                 <div className="flex flex-col gap-1 mt-1">
-                                  <span className="text-xs text-muted-foreground">SKU: {product.sku || 'N/A'} | Stock: {product.available_quantity}</span>
+                                  <div className="flex flex-col gap-0.5 mt-0.5 text-[11px] text-muted-foreground">
+                                    <span>SKU: {product.sku || 'N/A'}</span>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span>ML: <strong className="text-slate-700 dark:text-slate-300">{product.available_quantity}</strong></span>
+                                      {(() => {
+                                        const intStock = getInternalStock(product);
+                                        if (intStock === null) return null;
+                                        const isLow = intStock < product.available_quantity;
+                                        return (
+                                          <>
+                                            <span>|</span>
+                                            <span className={isLow ? "text-red-500 font-semibold flex items-center gap-0.5" : "text-slate-500"}>
+                                              Depósito: <strong className={isLow ? "text-red-600 dark:text-red-400 font-bold" : "text-slate-700 dark:text-slate-350"}>{intStock}</strong>
+                                              {isLow && " ⚠️"}
+                                            </span>
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
                                   {product.product_sku_components && product.product_sku_components.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-1">
                                       {product.product_sku_components.map((c: any, i: number) => (
@@ -223,9 +254,21 @@ export function ProductsClient({
                       )}
                       <div>
                         <h4 className="font-medium text-sm line-clamp-2 text-slate-900">{product.title}</h4>
-                        <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                        <div className="text-xs text-muted-foreground mt-1 flex flex-col gap-1">
                           <span>SKU: {product.sku || 'N/A'}</span>
-                          <span>Stock: {product.available_quantity}</span>
+                          <div className="flex items-center gap-2 flex-wrap font-medium">
+                            <span>ML: <strong className="text-slate-700">{product.available_quantity}</strong></span>
+                            {(() => {
+                              const intStock = getInternalStock(product);
+                              if (intStock === null) return null;
+                              const isLow = intStock < product.available_quantity;
+                              return (
+                                <span className={isLow ? "text-red-500 flex items-center gap-0.5" : "text-slate-500"}>
+                                  Depósito: <strong>{intStock}</strong> {isLow && "⚠️"}
+                                </span>
+                              );
+                            })()}
+                          </div>
                         </div>
                       </div>
                     </div>

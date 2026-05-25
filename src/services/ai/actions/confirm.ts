@@ -17,7 +17,7 @@ import { logger } from '@/lib/errors/logger';
  * @param actionId Identificador de la acción individual a ejecutar
  * @returns Promesa con estado de éxito y los resultados individuales por producto
  */
-export async function confirmPendingAction(tenantId: string, actionId: string) {
+export async function confirmPendingAction(tenantId: string, actionId: string): Promise<{ success: boolean; error?: string; results?: any[] }> {
   const supabase = createAdminClient();
 
   const { data: action, error } = await supabase
@@ -33,7 +33,9 @@ export async function confirmPendingAction(tenantId: string, actionId: string) {
   }
 
   let payloadItems: any[] = [];
-  if (Array.isArray(action.payload)) {
+  if (action.action_type === 'register_purchase') {
+    payloadItems = [action.payload];
+  } else if (Array.isArray(action.payload)) {
     payloadItems = action.payload;
   } else if (action.payload && typeof action.payload === 'object' && Array.isArray((action.payload as any).items)) {
     payloadItems = (action.payload as any).items;
@@ -57,6 +59,11 @@ export async function confirmPendingAction(tenantId: string, actionId: string) {
         await pauseProduct(tenantId, item.product_id);
       } else if (action.action_type === 'activate_product') {
         await activateProduct(tenantId, item.product_id);
+      } else if (action.action_type === 'register_purchase') {
+        const { executeRegisterPurchase } = await import('./registerPurchaseAction');
+        const res = await executeRegisterPurchase(tenantId, item);
+        results.push(res);
+        continue;
       } else if (action.action_type === 'create_promotion') {
         const promoId = "PROMO-" + Math.floor(Math.random() * 100000);
         try {

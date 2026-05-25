@@ -31,6 +31,24 @@ interface ProductCommandCenterProps {
 
 export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: ProductCommandCenterProps) {
   const [activeTab, setActiveTab] = useState("general");
+  const [internalStockData, setInternalStockData] = useState<any | null>(null);
+  const [isLoadingInternalStock, setIsLoadingInternalStock] = useState(false);
+  
+  useEffect(() => {
+    if (product && isOpen && activeTab === "internalStock") {
+      setIsLoadingInternalStock(true);
+      fetch(`/api/products/${product.id}/components`)
+        .then(res => res.json())
+        .then(data => {
+          setInternalStockData(data);
+          setIsLoadingInternalStock(false);
+        })
+        .catch(err => {
+          console.error("Error fetching internal stock data:", err);
+          setIsLoadingInternalStock(false);
+        });
+    }
+  }, [product, isOpen, activeTab]);
   
   // States for actions
   const [isProcessing, setIsProcessing] = useState(false);
@@ -201,6 +219,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                 <TabsTrigger value="price" className="data-[state=active]:bg-muted text-xs md:text-sm">Precio</TabsTrigger>
                 <TabsTrigger value="stock" className="data-[state=active]:bg-muted text-xs md:text-sm">Stock</TabsTrigger>
                 <TabsTrigger value="profit" className="data-[state=active]:bg-muted text-xs md:text-sm">Rentabilidad</TabsTrigger>
+                <TabsTrigger value="internalStock" className="data-[state=active]:bg-muted text-xs md:text-sm">Stock interno</TabsTrigger>
                 <TabsTrigger value="promotions" className="data-[state=active]:bg-muted text-xs md:text-sm">Promos</TabsTrigger>
                 <TabsTrigger value="insights" className="data-[state=active]:bg-muted text-xs md:text-sm">Insights</TabsTrigger>
                 <TabsTrigger value="history" className="data-[state=active]:bg-muted text-xs md:text-sm">Historial</TabsTrigger>
@@ -514,6 +533,131 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                     setActiveTab("general");
                   }} 
                 />
+              </TabsContent>
+
+              <TabsContent value="internalStock" className="mt-0 space-y-6">
+                {isLoadingInternalStock ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <RefreshCw className="w-8 h-8 animate-spin mb-4" />
+                    <p className="text-sm">Cargando componentes y stock real...</p>
+                  </div>
+                ) : !internalStockData || !internalStockData.components || internalStockData.components.length === 0 ? (
+                  <div className="bg-slate-50/50 rounded-xl border border-dashed border-slate-200 p-8 text-center">
+                    <AlertTriangle className="w-8 h-8 mx-auto text-amber-500 mb-3" />
+                    <h5 className="font-semibold text-slate-800 mb-1">Sin componentes configurados</h5>
+                    <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                      Esta publicación de Mercado Libre no tiene componentes enlazados en depósito.
+                      Para vincular componentes automáticamente, asigna un SKU compuesto (ej: "C 144 D 163") y sincroniza el catálogo.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Stock Summary Card */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-muted/50 p-4 rounded-lg">
+                        <Label className="text-muted-foreground text-xs">Stock Depósito (Combo Real)</Label>
+                        <p className="text-xl md:text-2xl font-bold mt-1 text-blue-600 dark:text-blue-400">
+                          {internalStockData.internal_combo_stock} combos
+                        </p>
+                      </div>
+                      <div className="bg-muted/50 p-4 rounded-lg">
+                        <Label className="text-muted-foreground text-xs">Stock Mercado Libre (Publicado)</Label>
+                        <p className="text-xl md:text-2xl font-bold mt-1">
+                          {internalStockData.product.meli_stock} unidades
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Stock Alert Warning */}
+                    {internalStockData.has_stock_alert && (
+                      <Card className="border-red-200 bg-red-50/50 dark:bg-red-950/20 dark:border-red-900">
+                        <CardContent className="pt-4 pb-4">
+                          <div className="flex gap-2 items-start text-sm text-red-700 dark:text-red-400">
+                            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-semibold">Alerta de Quiebre Real de Stock</p>
+                              <p className="text-xs mt-1">{internalStockData.alert_message}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Components Breakdown */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold text-sm">Componentes del Combo Físico</h4>
+                      <div className="rounded-xl border overflow-x-auto">
+                        <table className="w-full text-xs text-left">
+                          <thead className="border-b bg-slate-50 dark:bg-slate-900/30 font-medium text-slate-600 dark:text-slate-400">
+                            <tr>
+                              <th className="px-3 py-2">Componente SKU</th>
+                              <th className="px-3 py-2 text-right">Requeridos</th>
+                              <th className="px-3 py-2 text-right">Stock Depósito</th>
+                              <th className="px-3 py-2 text-right">Combos Max</th>
+                              <th className="px-3 py-2 text-right">Costo Promedio</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {internalStockData.components.map((c: any, index: number) => {
+                              const combosMax = Math.floor(c.current_stock / c.quantity);
+                              return (
+                                <tr key={c.id || index} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-900/20">
+                                  <td className="px-3 py-2 font-medium">{c.component_normalized}</td>
+                                  <td className="px-3 py-2 text-right">{c.quantity}</td>
+                                  <td className="px-3 py-2 text-right font-semibold text-blue-600 dark:text-blue-400">{c.current_stock}</td>
+                                  <td className={`px-3 py-2 text-right font-medium ${combosMax < internalStockData.product.meli_stock ? 'text-red-500' : 'text-slate-700 dark:text-slate-300'}`}>
+                                    {combosMax} combos
+                                  </td>
+                                  <td className="px-3 py-2 text-right">${Number(c.average_cost || 0).toLocaleString()}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Extra costs breakdown */}
+                    {internalStockData.extra_costs && internalStockData.extra_costs.length > 0 && (
+                      <div className="space-y-3">
+                        <h4 className="font-semibold text-sm">Costos Extra Aplicados (Gastos directos)</h4>
+                        <div className="rounded-xl border overflow-hidden">
+                          <div className="bg-slate-50 dark:bg-slate-900/30 p-3 text-xs border-b font-medium text-slate-600 dark:text-slate-400 grid grid-cols-2">
+                            <span>Concepto / Nombre</span>
+                            <span className="text-right">Monto</span>
+                          </div>
+                          {internalStockData.extra_costs.map((ec: any, idx: number) => (
+                            <div key={ec.id || idx} className="p-3 text-xs grid grid-cols-2 border-b last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-900/20">
+                              <span className="text-muted-foreground">{ec.name}</span>
+                              <span className="text-right font-medium">${ec.amount?.toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Cost Breakdown Total */}
+                    <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 dark:bg-slate-900/40 space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Suma Costo Componentes:</span>
+                        <span className="font-semibold">
+                          ${(internalStockData.product.cost - internalStockData.extra_costs.reduce((acc: number, c: any) => acc + c.amount, 0)).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Suma Costos Extra:</span>
+                        <span className="font-semibold">
+                          ${internalStockData.extra_costs.reduce((acc: number, c: any) => acc + c.amount, 0).toLocaleString()}
+                        </span>
+                      </div>
+                      <Separator className="my-1" />
+                      <div className="flex justify-between text-sm font-bold text-slate-800 dark:text-slate-200">
+                        <span>Costo Total Calculado:</span>
+                        <span>${internalStockData.product.cost?.toLocaleString() || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </TabsContent>
 
             </ScrollArea>

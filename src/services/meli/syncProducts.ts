@@ -152,7 +152,7 @@ export async function syncProducts(tenantId: string) {
     throw new Error(`Failed to save synced products to database: ${upsertError.message}`);
   }
 
-  // 4.1. Process and save SKU components
+  // 4.1. Process and save SKU components and bind to inventory items (Sprint 34)
   if (upsertedData && upsertedData.length > 0) {
     const { parseCompositeSku } = await import("../products/sku/parseCompositeSku");
     const componentsToInsert: any[] = [];
@@ -175,15 +175,113 @@ export async function syncProducts(tenantId: string) {
     }
 
     if (productIdsToClear.length > 0) {
-      const chunkSize = 100;
-      for (let i = 0; i < productIdsToClear.length; i += chunkSize) {
-        const chunk = productIdsToClear.slice(i, i + chunkSize);
-        await supabase.from("product_sku_components").delete().in("product_id", chunk);
-      }
-      for (let i = 0; i < componentsToInsert.length; i += chunkSize) {
-        const chunk = componentsToInsert.slice(i, i + chunkSize);
-        const { error: compError } = await supabase.from("product_sku_components").insert(chunk);
-        if (compError) console.error("Error inserting SKU components:", compError);
+      const uniqueCompNames = Array.from(new Set(componentsToInsert.map(c => c.component_normalized)));
+
+      if (uniqueCompNames.length > 0) {
+        // 1. Fetch existing inventory items
+        const { data: existingItems, error: itemsError } = await supabase
+          .from("inventory_items")
+          .select("id, sku_normalized")
+          .eq("tenant_id", tenantId)
+          .in("sku_normalized", uniqueCompNames);
+
+        if (itemsError) {
+          console.error("Error fetching inventory items during sync:", itemsError);
+        }
+
+        const itemMap = new Map<string, string>();
+        if (existingItems) {
+          for (const item of existingItems) {
+            itemMap.set(item.sku_normalized, item.id);
+          }
+        }
+
+        // 2. Create missing inventory items
+        const missingComps = uniqueCompNames.filter(name => !itemMap.has(name));
+        if (missingComps.length > 0) {
+          const itemsToInsert = missingComps.map(name => ({
+            tenant_id: tenantId,
+            sku: name,
+            sku_normalized: name,
+            current_stock: 0,
+            unit_cost: null,
+            average_cost: null,
+            last_purchase_cost: null
+          }));
+
+          const { data: newInsertedItems, error: insertItemsError } = await supabase
+            .from("inventory_items")
+            .insert(itemsToInsert)
+            .select("id, sku_normalized");
+
+          if (insertItemsError) {
+            console.error("Error creating missing inventory items:", insertItemsError);
+          } else if (newInsertedItems) {
+            for (const item of newInsertedItems) {
+              itemMap.set(item.sku_normalized, item.id);
+            }
+          }
+        }
+
+        // 3. Build product_components payloads
+        const prodComponentsToInsert: any[] = [];
+        for (const p of upsertedData) {
+          if (!p.sku) continue;
+          const parsed = parseCompositeSku(p.sku);
+          if (parsed.components.length > 0) {
+            const compCounts: Record<string, number> = {};
+            for (const comp of parsed.components) {
+              compCounts[comp] = (compCounts[comp] || 0) + 1;
+            }
+
+            for (const [comp, qty] of Object.entries(compCounts)) {
+              const itemId = itemMap.get(comp);
+              if (itemId) {
+                prodComponentsToInsert.push({
+                  tenant_id: tenantId,
+                  product_id: p.id,
+                  inventory_item_id: itemId,
+                  component_sku: comp,
+                  component_normalized: comp,
+                  quantity: qty,
+                  unit_cost: null,
+                  total_component_cost: null
+                });
+              }
+            }
+          }
+        }
+
+        // 4. Perform clear and insert in chunks
+        const chunkSize = 100;
+        for (let i = 0; i < productIdsToClear.length; i += chunkSize) {
+          const chunk = productIdsToClear.slice(i, i + chunkSize);
+          await supabase.from("product_sku_components").delete().in("product_id", chunk);
+          await supabase.from("product_components").delete().in("product_id", chunk);
+        }
+
+        // Insert into legacy product_sku_components table
+        for (let i = 0; i < componentsToInsert.length; i += chunkSize) {
+          const chunk = componentsToInsert.slice(i, i + chunkSize);
+          await supabase.from("product_sku_components").insert(chunk);
+        }
+
+        // Insert into new product_components table
+        for (let i = 0; i < prodComponentsToInsert.length; i += chunkSize) {
+          const chunk = prodComponentsToInsert.slice(i, i + chunkSize);
+          const { error: pCompError } = await supabase.from("product_components").insert(chunk);
+          if (pCompError) console.error("Error inserting product components:", pCompError);
+        }
+
+        // 5. Recalculate automatic costing for each modified product
+        const { recalculateProductCostFromComponents } = await import("../inventory/recalculateProductCostFromComponents");
+        for (const pId of productIdsToClear) {
+          try {
+            await recalculateProductCostFromComponents(tenantId, pId);
+          } catch (costErr: any) {
+            console.error(`Failed to recalculate cost for product ${pId} during sync:`, costErr.message);
+          }
+        }
       }
     }
   }

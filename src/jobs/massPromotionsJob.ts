@@ -31,6 +31,9 @@ export const massPromotionsJob = inngest.createFunction(
           is_read: false
         });
         
+        const { incrementUsage } = await import("@/services/billing/checkLimits");
+        await incrementUsage(tenantId, "automation_actions_used");
+        
         return { success: true };
       } catch (error) {
         Sentry.captureException(error, { extra: { context: "MASS_PROMOTIONS_JOB" } });

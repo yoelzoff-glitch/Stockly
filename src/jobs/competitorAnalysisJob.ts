@@ -31,6 +31,10 @@ export const competitorAnalysisJob = inngest.createFunction(
           is_read: false
         });
         
+        // Import dynamic or use standard import if added at top
+        const { incrementUsage } = await import("@/services/billing/checkLimits");
+        await incrementUsage(tenantId, "automation_actions_used");
+        
         return { success: true };
       } catch (error) {
         Sentry.captureException(error, { extra: { context: "COMPETITOR_ANALYSIS_JOB" } });

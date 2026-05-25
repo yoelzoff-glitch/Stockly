@@ -161,6 +161,10 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
 - Si una herramienta te responde diciendo "Encontré varios productos parecidos. ¿Cuál querés modificar?", MUESTRA al usuario la lista de productos que te devolvió la herramienta y pregúntale cuál de los SKUs o nombres específicos desea elegir antes de continuar.
 - Cuando prepares una acción con éxito, se creará una acción pendiente y deberás terminar tu mensaje pidiendo expresamente al usuario que responda con la palabra 'CONFIRMO' para ejecutar los cambios.
 
+**GESTIÓN DE STOCK DE DEPÓSITO Y COMPRAS (Sprint 34):**
+- Tienes herramientas para consultar el stock físico de tus componentes en depósito (\`getComponentStock\`), calcular el stock real disponible para armar combos o productos compuestos (\`getComboStock\`), buscar qué publicaciones de Mercado Libre usan un componente específico (\`getProductsUsingComponent\`), listar componentes críticos en quiebre o stock mínimo (\`getOutOfStockComponents\`), y ver el detalle de costos reales calculados (\`getProductComponentsCostDetail\`).
+- Puedes registrar compras internas de tus componentes en depósito usando la herramienta \`prepareRegisterPurchase\`. Siempre que prepares una compra, se creará una acción pendiente. Termina siempre solicitando al usuario que responda con la palabra 'CONFIRMO' para proceder a ingresar el stock, recalcular el costo promedio ponderado y actualizar el costo de sus publicaciones de Mercado Libre.
+
 **MEMORIA CONVERSACIONAL**
 Tenés acceso al contexto reciente de la conversación y al último producto del que estaban hablando.
 Úsalo para resolver referencias implícitas como:
@@ -499,6 +503,128 @@ ${chatHistory}
               duration: { type: "string", description: "Vigencia del cupón" }
             },
             required: ["discountType", "discountValue"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          function: async (args: { items: any[]; supplier_name?: string; extra_costs?: number }) => {
+            const { prepareRegisterPurchase } = await import('./tools/purchaseTools');
+            return prepareRegisterPurchase(tenantId, args.items, args.supplier_name, args.extra_costs);
+          },
+          name: "prepareRegisterPurchase",
+          description: "Prepara el registro de una compra interna en el depósito físico. Extrae SKUs, cantidades y costos unitarios.",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              items: {
+                type: "array",
+                description: "Lista de productos o componentes de la compra",
+                items: {
+                  type: "object",
+                  properties: {
+                    sku: { type: "string", description: "SKU del componente o producto comprado" },
+                    quantity: { type: "number", description: "Cantidad de unidades compradas" },
+                    unit_cost: { type: "number", description: "Costo unitario del componente si se especificó" }
+                  },
+                  required: ["sku", "quantity"]
+                }
+              },
+              supplier_name: { type: "string", description: "Nombre del proveedor si aplica" },
+              extra_costs: { type: "number", description: "Costos adicionales asociados a la compra si aplica" }
+            },
+            required: ["items"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          function: async (args: { sku: string }) => {
+            const { getComponentStock } = await import('./tools/queryTools');
+            return getComponentStock(tenantId, args.sku);
+          },
+          name: "getComponentStock",
+          description: "Obtiene el stock real de un componente en depósito a partir de su SKU.",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              sku: { type: "string", description: "SKU del componente a consultar" }
+            },
+            required: ["sku"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          function: async (args: { query: string }) => {
+            const { getComboStock } = await import('./tools/queryTools');
+            return getComboStock(tenantId, args.query);
+          },
+          name: "getComboStock",
+          description: "Calcula cuántos combos o unidades compuestas se pueden fabricar en base al stock real del depósito.",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "SKU o nombre de la publicación o combo" }
+            },
+            required: ["query"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          function: async (args: { sku: string }) => {
+            const { getProductsUsingComponent } = await import('./tools/queryTools');
+            return getProductsUsingComponent(tenantId, args.sku);
+          },
+          name: "getProductsUsingComponent",
+          description: "Muestra qué publicaciones de Mercado Libre están asociadas o usan un determinado componente.",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              sku: { type: "string", description: "SKU del componente" }
+            },
+            required: ["sku"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          function: async () => {
+            const { getOutOfStockComponents } = await import('./tools/queryTools');
+            return getOutOfStockComponents(tenantId);
+          },
+          name: "getOutOfStockComponents",
+          description: "Obtiene la lista de componentes faltantes o críticos en depósito y las publicaciones afectadas.",
+          parse: JSON.parse,
+          parameters: { type: "object", properties: {} }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          function: async (args: { query: string }) => {
+            const { getProductComponentsCostDetail } = await import('./tools/queryTools');
+            return getProductComponentsCostDetail(tenantId, args.query);
+          },
+          name: "getProductComponentsCostDetail",
+          description: "Obtiene el detalle de costeo por componentes y costos extra de un producto.",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "SKU o nombre de la publicación" }
+            },
+            required: ["query"]
           }
         }
       }

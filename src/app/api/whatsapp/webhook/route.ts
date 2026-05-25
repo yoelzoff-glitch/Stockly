@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getMediaUrl, downloadMedia, sendText } from "@/integrations/whatsapp/client";
 import { transcribeAudio } from "@/services/audio/transcribe";
 import { runBusinessAgent } from "@/services/ai/agent";
+import { incrementUsage } from "@/services/billing/checkLimits";
 import { logger } from "@/lib/errors/logger";
 import * as Sentry from "@sentry/nextjs";
 
@@ -101,10 +102,12 @@ export async function POST(req: Request) {
         } catch (error) {
           logger.error(error, "WHATSAPP_AUDIO_PROCESS");
           await sendText(from, "Lo siento, no pude procesar tu audio. ¿Podrías escribirlo?", phoneNumberId, accessToken);
+          await incrementUsage(tenantId, "whatsapp_messages_used");
           continue;
         }
       } else {
         await sendText(from, "Stockly solo entiende texto y audios por el momento.", phoneNumberId, accessToken);
+        await incrementUsage(tenantId, "whatsapp_messages_used");
         continue;
       }
 
@@ -147,6 +150,7 @@ export async function POST(req: Request) {
       // 6. Send Response
       try {
         await sendText(sendTo, responseText, phoneNumberId, accessToken);
+        await incrementUsage(tenantId, "whatsapp_messages_used");
       } catch (error: any) {
         logger.error(`Error sending WA message to ${sendTo}: ${error.message}`, "WHATSAPP_WEBHOOK");
         // Save the error in the database to debug it easily
