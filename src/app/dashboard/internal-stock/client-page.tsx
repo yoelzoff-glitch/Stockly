@@ -436,7 +436,10 @@ export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
                             <span className="font-semibold capitalize text-slate-800">{
                               mov.movement_type === "purchase" ? "Compra" :
                               mov.movement_type === "adjustment" ? "Ajuste manual" :
-                              mov.movement_type === "void_purchase" ? "Anulación compra" : mov.movement_type
+                              mov.movement_type === "void_purchase" ? "Anulación compra" : 
+                              mov.movement_type === "sale_confirmed" ? "Venta Mercado Libre" :
+                              mov.movement_type === "return" ? "Cancelación / Devolución" :
+                              mov.movement_type
                             }</span>
                             <Badge variant="outline" className="text-[9px] px-1 py-0 border-slate-300">
                               {mov.source}

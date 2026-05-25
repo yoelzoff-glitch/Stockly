@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { updatePrice } from '@/services/meli/actions/updatePrice';
 import { updateStock } from '@/services/meli/actions/updateStock';
+import { updateInternalStock } from '@/services/inventory/updateInternalStock';
 import { pauseProduct, activateProduct } from '@/services/meli/actions/statusProduct';
 import { createItemPromotion } from '@/services/meli/promotions/createItemPromotion';
 import { createCoupon } from '@/services/meli/promotions/createCoupon';
@@ -53,8 +54,10 @@ export async function confirmPendingAction(tenantId: string, actionId: string): 
     try {
       if (action.action_type === 'update_price') {
         await updatePrice(tenantId, item.product_id, item.new_value);
-      } else if (action.action_type === 'update_stock') {
+      } else if (action.action_type === 'update_meli_stock') {
         await updateStock(tenantId, item.product_id, item.new_value);
+      } else if (action.action_type === 'update_internal_stock') {
+        await updateInternalStock(tenantId, item.inventory_item_id, item.new_value);
       } else if (action.action_type === 'pause_product') {
         await pauseProduct(tenantId, item.product_id);
       } else if (action.action_type === 'activate_product') {

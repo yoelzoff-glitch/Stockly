@@ -329,3 +329,65 @@ export async function getProductComponentsCostDetail(tenantId: string, query: st
     message: `Aquí tienes el detalle del costo real calculado para **"${product.title}"** (SKU: ${product.sku || 'N/A'}):\n\n${compsText}${extrasText}${summary}`
   };
 }
+
+/**
+ * Muestra las publicaciones donde Mercado Libre tiene más stock publicado que el stock interno disponible en depósito.
+ */
+export async function getStockInconsistencies(tenantId: string) {
+  const supabase = createAdminClient();
+
+  const { data: products, error } = await supabase
+    .from("products")
+    .select("id, title, sku, available_quantity")
+    .eq("tenant_id", tenantId)
+    .gt("available_quantity", 0);
+
+  if (error || !products || products.length === 0) {
+    return { message: "No hay productos con stock en Mercado Libre para analizar." };
+  }
+
+  const inconsistencies = [];
+
+  for (const product of products) {
+    // Buscar componentes
+    const { data: components } = await supabase
+      .from("product_components")
+      .select(`quantity, component_normalized, inventory_items ( current_stock )`)
+      .eq("tenant_id", tenantId)
+      .eq("product_id", product.id);
+
+    if (!components || components.length === 0) continue;
+
+    let maxComboStock = Infinity;
+    for (const comp of components) {
+      const itemStock = (comp as any).inventory_items?.current_stock || 0;
+      const reqQty = comp.quantity || 1;
+      const potential = Math.floor(itemStock / reqQty);
+      if (potential < maxComboStock) maxComboStock = potential;
+    }
+
+    const finalComboStock = maxComboStock === Infinity ? 0 : maxComboStock;
+
+    if (product.available_quantity > finalComboStock) {
+      inconsistencies.push({
+        title: product.title,
+        sku: product.sku,
+        meli_stock: product.available_quantity,
+        internal_stock: finalComboStock
+      });
+    }
+  }
+
+  if (inconsistencies.length === 0) {
+    return { message: "✅ ¡Excelente! Tu stock publicado en Mercado Libre no excede la capacidad de tu depósito físico." };
+  }
+
+  const list = inconsistencies.map(i => 
+    `- **${i.title}** (SKU: ${i.sku || 'N/A'})\n  Stock ML: **${i.meli_stock}** vs Stock Interno Posible: **${i.internal_stock}**`
+  ).join("\n\n");
+
+  return {
+    inconsistencies,
+    message: `⚠️ Encontré **${inconsistencies.length}** publicación(es) donde estás ofreciendo más stock en Mercado Libre del que realmente tienes en el depósito:\n\n${list}\n\nTe sugiero ajustar el stock en Mercado Libre para evitar quiebres.`
+  };
+}

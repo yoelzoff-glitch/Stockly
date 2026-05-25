@@ -161,9 +161,15 @@ Usa las herramientas proporcionadas para obtener datos reales de la base de dato
 - Si una herramienta te responde diciendo "Encontré varios productos parecidos. ¿Cuál querés modificar?", MUESTRA al usuario la lista de productos que te devolvió la herramienta y pregúntale cuál de los SKUs o nombres específicos desea elegir antes de continuar.
 - Cuando prepares una acción con éxito, se creará una acción pendiente y deberás terminar tu mensaje pidiendo expresamente al usuario que responda con la palabra 'CONFIRMO' para ejecutar los cambios.
 
-**GESTIÓN DE STOCK DE DEPÓSITO Y COMPRAS (Sprint 34):**
-- Tienes herramientas para consultar el stock físico de tus componentes en depósito (\`getComponentStock\`), calcular el stock real disponible para armar combos o productos compuestos (\`getComboStock\`), buscar qué publicaciones de Mercado Libre usan un componente específico (\`getProductsUsingComponent\`), listar componentes críticos en quiebre o stock mínimo (\`getOutOfStockComponents\`), y ver el detalle de costos reales calculados (\`getProductComponentsCostDetail\`).
-- Puedes registrar compras internas de tus componentes en depósito usando la herramienta \`prepareRegisterPurchase\`. Siempre que prepares una compra, se creará una acción pendiente. Termina siempre solicitando al usuario que responda con la palabra 'CONFIRMO' para proceder a ingresar el stock, recalcular el costo promedio ponderado y actualizar el costo de sus publicaciones de Mercado Libre.
+**GESTIÓN DE STOCK (SPRINT 35 - MUY IMPORTANTE):**
+- Existen DOS tipos de stock: Stock Interno (depósito/local) y Stock de Mercado Libre (publicaciones).
+- Si el usuario dice "aumentá stock", "poné stock a 15", "sumá stock", "dejá el stock en X" SIN especificar el alcance, ES OBLIGATORIO PREGUNTAR: "¿Querés actualizar el stock interno del depósito o el stock publicado en Mercado Libre?". NO EJECUTES NINGUNA HERRAMIENTA.
+- Frases para stock interno: "stock interno", "depósito", "local", "inventario real", "stock real". Usa la herramienta \`prepareInternalStockUpdate\`.
+- Frases para stock ML: "stock de Mercado Libre", "stock publicado", "publicación", "disponible en ML". Usa la herramienta \`prepareMeliStockUpdate\`.
+- Nunca asumas el tipo de stock si el usuario no lo especifica.
+- Puedes consultar discrepancias de stock con la herramienta \`getStockInconsistencies\`.
+- Puedes registrar compras internas con \`prepareRegisterPurchase\`.
+- Tienes herramientas para consultar stock (\`getComponentStock\`, \`getComboStock\`, \`getProductsUsingComponent\`, \`getOutOfStockComponents\`).
 
 **MEMORIA CONVERSACIONAL**
 Tenés acceso al contexto reciente de la conversación y al último producto del que estaban hablando.
@@ -337,17 +343,36 @@ ${chatHistory}
       {
         type: "function",
         function: {
-          function: async (args: { query: string; newQuantity: number; operation?: 'set' | 'add' | 'subtract'; allowMultiple?: boolean }) => tools.prepareStockUpdate(tenantId, args.query, args.newQuantity, args.operation, args.allowMultiple),
-          name: "prepareStockUpdate",
-          description: "Prepara un cambio de stock para uno o más productos. Puede establecer un valor, sumar o restar.",
+          function: async (args: { query: string; newQuantity: number; operation?: 'set' | 'add' | 'subtract'; allowMultiple?: boolean }) => tools.prepareInternalStockUpdate(tenantId, args.query, args.newQuantity, args.operation, args.allowMultiple),
+          name: "prepareInternalStockUpdate",
+          description: "Prepara un cambio de stock INTERNO (físico/depósito) para uno o más componentes. No toca Mercado Libre.",
           parse: JSON.parse,
           parameters: {
             type: "object",
             properties: {
-              query: { type: "string", description: "Búsqueda del producto (puede ser componente de SKU exacto, SKU exacto, ID de Mercado Libre o Nombre parcial)" },
+              query: { type: "string", description: "Búsqueda del producto interno (SKU exacto, nombre)" },
               newQuantity: { type: "number", description: "Cantidad de stock" },
               operation: { type: "string", enum: ["set", "add", "subtract"], description: "Operación a realizar" },
-              allowMultiple: { type: "boolean", description: "Debe ser true si el usuario pide explícitamente aplicar el cambio a TODOS los productos que coincidan." }
+              allowMultiple: { type: "boolean", description: "Debe ser true si el usuario pide aplicar el cambio a TODOS los que coincidan." }
+            },
+            required: ["query", "newQuantity"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          function: async (args: { query: string; newQuantity: number; operation?: 'set' | 'add' | 'subtract'; allowMultiple?: boolean }) => tools.prepareMeliStockUpdate(tenantId, args.query, args.newQuantity, args.operation, args.allowMultiple),
+          name: "prepareMeliStockUpdate",
+          description: "Prepara un cambio de stock EN MERCADO LIBRE (publicación) para uno o más productos. No toca stock interno.",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Búsqueda del producto en ML (SKU, ID ML o Nombre parcial)" },
+              newQuantity: { type: "number", description: "Cantidad de stock" },
+              operation: { type: "string", enum: ["set", "add", "subtract"], description: "Operación a realizar" },
+              allowMultiple: { type: "boolean", description: "Debe ser true si el usuario pide aplicar el cambio a TODOS los que coincidan." }
             },
             required: ["query", "newQuantity"],
           },
@@ -626,6 +651,19 @@ ${chatHistory}
             },
             required: ["query"]
           }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          function: async () => {
+            const { getStockInconsistencies } = await import('./tools/queryTools');
+            return getStockInconsistencies(tenantId);
+          },
+          name: "getStockInconsistencies",
+          description: "Muestra las publicaciones donde Mercado Libre tiene más stock publicado que el stock interno disponible en depósito.",
+          parse: JSON.parse,
+          parameters: { type: "object", properties: {} }
         }
       }
     ],

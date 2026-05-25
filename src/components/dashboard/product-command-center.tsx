@@ -35,7 +35,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
   const [isLoadingInternalStock, setIsLoadingInternalStock] = useState(false);
   
   useEffect(() => {
-    if (product && isOpen && activeTab === "internalStock") {
+    if (product && isOpen) {
       setIsLoadingInternalStock(true);
       fetch(`/api/products/${product.id}/components`)
         .then(res => res.json())
@@ -209,6 +209,13 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
               <img src={product.thumbnail_url} alt="" className="w-12 h-12 md:w-16 md:h-16 rounded-md object-cover border shrink-0" />
             )}
           </div>
+          
+          {internalStockData?.has_stock_alert && (
+            <div className="mt-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-md p-2 flex items-start gap-2 text-sm text-red-700 dark:text-red-400">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{internalStockData.alert_message}</span>
+            </div>
+          )}
         </SheetHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col">

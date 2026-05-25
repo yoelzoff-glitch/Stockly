@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { refreshMeliToken } from "./refreshToken";
+import { revertInternalStockFromCancelledOrder } from "../inventory/revertInternalStockFromCancelledOrder";
 
 export async function syncCancellations(tenantId: string) {
   const supabase = createAdminClient();
@@ -61,6 +62,12 @@ export async function syncCancellations(tenantId: string) {
     if (insertError) {
       console.error("Error inserting order cancellations:", insertError);
     } else {
+      // --- SPRINT 35: Revertir stock interno ---
+      for (const cancellation of cancellationsToUpsert) {
+        await revertInternalStockFromCancelledOrder(tenantId, cancellation.order_id).catch(err => {
+          console.error(`Error revirtiendo stock para orden cancelada ${cancellation.order_id}:`, err);
+        });
+      }
       return cancellationsToUpsert.length;
     }
   }

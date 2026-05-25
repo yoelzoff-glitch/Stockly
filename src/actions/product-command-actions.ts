@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { preparePriceUpdate, prepareStockUpdate, prepareStatusChange } from "@/services/ai/tools";
+import { preparePriceUpdate, prepareMeliStockUpdate, prepareStatusChange } from "@/services/ai/tools";
 import { confirmPendingAction, cancelPendingAction } from "@/services/ai/actions/confirm";
 
 export async function preparePriceChangeAction(productId: string, sku: string | null, productTitle: string, newPrice: number) {
@@ -41,7 +41,7 @@ export async function prepareStockChangeAction(productId: string, sku: string | 
 
   const query = sku || productTitle;
 
-  return await prepareStockUpdate(profile.tenant_id, query, newQuantity, operation);
+  return await prepareMeliStockUpdate(profile.tenant_id, query, newQuantity, operation);
 }
 
 export async function prepareStatusChangeAction(productId: string, sku: string | null, productTitle: string, status: 'paused' | 'active') {

@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrders } from "./getOrders";
+import { decrementInternalStockFromOrder } from "../inventory/decrementInternalStockFromOrder";
 
 export async function syncOrders(tenantId: string) {
   const supabase = createAdminClient();
@@ -127,6 +128,17 @@ export async function syncOrders(tenantId: string) {
       
       if (itemsError) {
         console.error("Error inserting order items:", itemsError);
+      } else {
+        // --- SPRINT 35: Descuento automático de stock interno ---
+        const paidOrders = ordersToUpsert.filter(o => o.status === 'paid');
+        for (const order of paidOrders) {
+           const localOrderId = orderMap[order.meli_order_id];
+           if (localOrderId) {
+             await decrementInternalStockFromOrder(tenantId, localOrderId).catch(err => {
+               console.error(`Error decrementando stock interno para orden ${localOrderId}:`, err);
+             });
+           }
+        }
       }
   }
 
