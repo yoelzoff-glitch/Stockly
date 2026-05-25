@@ -173,46 +173,46 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full sm:max-w-2xl overflow-hidden flex flex-col p-0">
-        <SheetHeader className="p-6 pb-2">
-          <div className="flex justify-between items-start">
-            <div>
-              <SheetTitle className="text-2xl flex items-center gap-2">
+      <SheetContent className="w-full sm:w-[600px] sm:max-w-2xl overflow-hidden flex flex-col p-0">
+        <SheetHeader className="p-4 md:p-6 pb-2">
+          <div className="flex justify-between items-start gap-4">
+            <div className="min-w-0">
+              <SheetTitle className="text-xl md:text-2xl flex items-center gap-2 flex-wrap">
                 Gestión de Producto
-                <Badge variant={product.status === 'active' ? 'default' : 'secondary'}>
+                <Badge variant={product.status === 'active' ? 'default' : 'secondary'} className="shrink-0">
                   {product.status === 'active' ? 'Activo' : 'Pausado'}
                 </Badge>
               </SheetTitle>
-              <SheetDescription className="line-clamp-1 mt-1">
+              <SheetDescription className="line-clamp-2 mt-1 text-xs md:text-sm">
                 {product.title}
               </SheetDescription>
             </div>
             {product.thumbnail_url && (
-              <img src={product.thumbnail_url} alt="" className="w-12 h-12 rounded-md object-cover border" />
+              <img src={product.thumbnail_url} alt="" className="w-12 h-12 md:w-16 md:h-16 rounded-md object-cover border shrink-0" />
             )}
           </div>
         </SheetHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <div className="px-6 border-b">
-              <TabsList className="bg-transparent h-12 w-full justify-start space-x-2">
-                <TabsTrigger value="general" className="data-[state=active]:bg-muted">General</TabsTrigger>
-                <TabsTrigger value="price" className="data-[state=active]:bg-muted">Precio</TabsTrigger>
-                <TabsTrigger value="stock" className="data-[state=active]:bg-muted">Stock</TabsTrigger>
-                <TabsTrigger value="profit" className="data-[state=active]:bg-muted">Rentabilidad</TabsTrigger>
-                <TabsTrigger value="promotions" className="data-[state=active]:bg-muted">Promos</TabsTrigger>
-                <TabsTrigger value="insights" className="data-[state=active]:bg-muted">Insights</TabsTrigger>
-                <TabsTrigger value="history" className="data-[state=active]:bg-muted">Historial</TabsTrigger>
-                <TabsTrigger value="ai" className="data-[state=active]:bg-muted">IA</TabsTrigger>
+            <div className="px-2 md:px-6 border-b overflow-x-auto no-scrollbar">
+              <TabsList className="bg-transparent h-12 w-max justify-start space-x-2 px-2 md:px-0">
+                <TabsTrigger value="general" className="data-[state=active]:bg-muted text-xs md:text-sm">General</TabsTrigger>
+                <TabsTrigger value="price" className="data-[state=active]:bg-muted text-xs md:text-sm">Precio</TabsTrigger>
+                <TabsTrigger value="stock" className="data-[state=active]:bg-muted text-xs md:text-sm">Stock</TabsTrigger>
+                <TabsTrigger value="profit" className="data-[state=active]:bg-muted text-xs md:text-sm">Rentabilidad</TabsTrigger>
+                <TabsTrigger value="promotions" className="data-[state=active]:bg-muted text-xs md:text-sm">Promos</TabsTrigger>
+                <TabsTrigger value="insights" className="data-[state=active]:bg-muted text-xs md:text-sm">Insights</TabsTrigger>
+                <TabsTrigger value="history" className="data-[state=active]:bg-muted text-xs md:text-sm">Historial</TabsTrigger>
+                <TabsTrigger value="ai" className="data-[state=active]:bg-muted text-xs md:text-sm">IA</TabsTrigger>
               </TabsList>
             </div>
 
-            <ScrollArea className="flex-1 p-6">
+            <ScrollArea className="flex-1 p-4 md:p-6 pb-20 md:pb-6">
               
               <TabsContent value="general" className="mt-0 space-y-6">
                 {renderSecurityPreview()}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label className="text-muted-foreground">SKU</Label>
                     <p className="font-medium mt-1">{product.sku || 'N/A'}</p>

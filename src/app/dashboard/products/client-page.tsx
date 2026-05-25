@@ -108,108 +108,167 @@ export function ProductsClient({
               </Link>
             </div>
           ) : (
-            <div className="rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
-              <table className="w-full text-sm text-left">
-                <thead className="border-b bg-slate-50 font-medium text-slate-600">
-                  <tr>
-                    <th className="h-10 px-4 align-middle">Producto</th>
-                    <th className="h-10 px-4 align-middle text-right">Precio</th>
-                    <th className="h-10 px-4 align-middle text-right">Costo</th>
-                    <th className="h-10 px-4 align-middle text-right">Comisión</th>
-                    <th className="h-10 px-4 align-middle text-right">Envío</th>
-                    <th className="h-10 px-4 align-middle text-right">Margen Neto</th>
-                    <th className="h-10 px-4 align-middle text-center">Estado Rentab.</th>
-                    <th className="h-10 px-4 align-middle text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {initialProducts.map((product) => {
-                    return (
-                      <tr key={product.id} className="border-b border-slate-100 transition-colors hover:bg-slate-50 data-[state=selected]:bg-slate-50">
-                        <td className="p-4 align-middle font-medium min-w-[250px]">
-                          <div className="flex items-center gap-3">
-                            {product.thumbnail_url && (
-                              <img src={product.thumbnail_url} alt="" className="w-10 h-10 rounded-md object-cover" />
-                            )}
-                            <div className="flex flex-col">
-                              <span className="line-clamp-2">{product.title}</span>
-                              <div className="flex flex-col gap-1 mt-1">
-                                <span className="text-xs text-muted-foreground">SKU: {product.sku || 'N/A'} | Stock: {product.available_quantity}</span>
-                                {product.product_sku_components && product.product_sku_components.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {product.product_sku_components.map((c: any, i: number) => (
-                                      <Badge key={i} variant="secondary" className="text-[10px] px-1 py-0 h-4 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
-                                        {c.component_normalized}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                )}
+            <>
+              {/* Desktop Table */}
+              <div className="hidden md:block rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
+                <table className="w-full text-sm text-left">
+                  <thead className="border-b bg-slate-50 font-medium text-slate-600">
+                    <tr>
+                      <th className="h-10 px-4 align-middle">Producto</th>
+                      <th className="h-10 px-4 align-middle text-right">Precio</th>
+                      <th className="h-10 px-4 align-middle text-right">Costo</th>
+                      <th className="h-10 px-4 align-middle text-right">Comisión</th>
+                      <th className="h-10 px-4 align-middle text-right">Envío</th>
+                      <th className="h-10 px-4 align-middle text-right">Margen Neto</th>
+                      <th className="h-10 px-4 align-middle text-center">Estado Rentab.</th>
+                      <th className="h-10 px-4 align-middle text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {initialProducts.map((product) => {
+                      return (
+                        <tr key={product.id} className="border-b border-slate-100 transition-colors hover:bg-slate-50 data-[state=selected]:bg-slate-50">
+                          <td className="p-4 align-middle font-medium min-w-[250px]">
+                            <div className="flex items-center gap-3">
+                              {product.thumbnail_url && (
+                                <img src={product.thumbnail_url} alt="" className="w-10 h-10 rounded-md object-cover" />
+                              )}
+                              <div className="flex flex-col">
+                                <span className="line-clamp-2">{product.title}</span>
+                                <div className="flex flex-col gap-1 mt-1">
+                                  <span className="text-xs text-muted-foreground">SKU: {product.sku || 'N/A'} | Stock: {product.available_quantity}</span>
+                                  {product.product_sku_components && product.product_sku_components.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {product.product_sku_components.map((c: any, i: number) => (
+                                        <Badge key={i} variant="secondary" className="text-[10px] px-1 py-0 h-4 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                                          {c.component_normalized}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="p-4 align-middle text-right whitespace-nowrap">
-                          ${product.price?.toLocaleString()}
-                        </td>
-                        <td className="p-4 align-middle text-right whitespace-nowrap">
-                          {product.cost ? (
-                            `$${product.cost.toLocaleString()}`
-                          ) : (
-                            <StatusBadge variant="neutral">Sin costo</StatusBadge>
-                          )}
-                        </td>
-                        <td className="p-4 align-middle text-right whitespace-nowrap text-muted-foreground">
-                          {product.estimated_fee ? (
-                            <div className="flex flex-col items-end">
-                              <span>${((product.estimated_fee || 0) + (product.extra_fee_amount || 0)).toLocaleString()}</span>
-                              {product.extra_fee_amount > 0 && (
-                                <span className="text-[10px] text-amber-600 font-medium">Incl. cuotas</span>
-                              )}
-                            </div>
-                          ) : '-'}
-                        </td>
-                        <td className="p-4 align-middle text-right whitespace-nowrap text-muted-foreground">
-                          {product.estimated_shipping_cost !== null && product.estimated_shipping_cost !== undefined ? `$${product.estimated_shipping_cost.toLocaleString()}` : '-'}
-                        </td>
-                        <td className="p-4 align-middle text-right whitespace-nowrap">
+                          </td>
+                          <td className="p-4 align-middle text-right whitespace-nowrap">
+                            ${product.price?.toLocaleString()}
+                          </td>
+                          <td className="p-4 align-middle text-right whitespace-nowrap">
+                            {product.cost ? (
+                              `$${product.cost.toLocaleString()}`
+                            ) : (
+                              <StatusBadge variant="neutral">Sin costo</StatusBadge>
+                            )}
+                          </td>
+                          <td className="p-4 align-middle text-right whitespace-nowrap text-muted-foreground">
+                            {product.estimated_fee ? (
+                              <div className="flex flex-col items-end">
+                                <span>${((product.estimated_fee || 0) + (product.extra_fee_amount || 0)).toLocaleString()}</span>
+                                {product.extra_fee_amount > 0 && (
+                                  <span className="text-[10px] text-amber-600 font-medium">Incl. cuotas</span>
+                                )}
+                              </div>
+                            ) : '-'}
+                          </td>
+                          <td className="p-4 align-middle text-right whitespace-nowrap text-muted-foreground">
+                            {product.estimated_shipping_cost !== null && product.estimated_shipping_cost !== undefined ? `$${product.estimated_shipping_cost.toLocaleString()}` : '-'}
+                          </td>
+                          <td className="p-4 align-middle text-right whitespace-nowrap">
+                            {product.profit_real_margin !== null && product.profit_real_margin !== undefined ? (
+                              <div className="flex flex-col items-end">
+                                <span className={product.profit_real_margin <= 10 ? 'text-red-500 font-medium' : 'text-green-600 font-medium'}>
+                                  {product.profit_real_margin.toFixed(1)}%
+                                </span>
+                                <span className="text-xs text-muted-foreground">${product.profit_real_estimated?.toLocaleString()}</span>
+                              </div>
+                            ) : product.margin_percent !== null && product.margin_percent !== undefined ? (
+                              <div className="flex flex-col items-end">
+                                <span className={product.margin_percent <= 10 ? 'text-red-500 font-medium' : 'text-green-600 font-medium'}>
+                                  {product.margin_percent.toFixed(1)}%
+                                </span>
+                                <span className="text-xs text-muted-foreground">${product.margin_amount?.toLocaleString()}</span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">N/A</span>
+                            )}
+                          </td>
+                          <td className="p-4 align-middle text-center">
+                            <StatusBadge variant={
+                              product.profitability_status === 'complete' ? 'success' :
+                              product.profitability_status === 'missing_cost' ? 'danger' : 'warning'
+                            }>
+                              {product.profitability_status || 'unknown'}
+                            </StatusBadge>
+                          </td>
+                          <td className="p-4 align-middle text-right">
+                            <Button variant="ghost" size="sm" onClick={() => setEditingProduct(product)}>
+                              <Edit2 className="w-4 h-4 mr-2" />
+                              Editar
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Cards */}
+              <div className="grid grid-cols-1 gap-4 md:hidden">
+                {initialProducts.map((product) => (
+                  <div key={product.id} className="rounded-xl border border-slate-200 bg-white p-4 space-y-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      {product.thumbnail_url && (
+                        <img src={product.thumbnail_url} alt="" className="w-14 h-14 rounded-md object-cover border border-slate-100 shrink-0" />
+                      )}
+                      <div>
+                        <h4 className="font-medium text-sm line-clamp-2 text-slate-900">{product.title}</h4>
+                        <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                          <span>SKU: {product.sku || 'N/A'}</span>
+                          <span>Stock: {product.available_quantity}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm border-t border-slate-100 pt-3">
+                      <div className="flex flex-col">
+                        <span className="text-xs text-muted-foreground uppercase">Precio</span>
+                        <span className="font-medium">${product.price?.toLocaleString()}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-muted-foreground uppercase">Costo</span>
+                        <span>{product.cost ? `$${product.cost.toLocaleString()}` : 'N/A'}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-muted-foreground uppercase">Margen</span>
+                        <span>
                           {product.profit_real_margin !== null && product.profit_real_margin !== undefined ? (
-                            <div className="flex flex-col items-end">
-                              <span className={product.profit_real_margin <= 10 ? 'text-red-500 font-medium' : 'text-green-600 font-medium'}>
-                                {product.profit_real_margin.toFixed(1)}%
-                              </span>
-                              <span className="text-xs text-muted-foreground">${product.profit_real_estimated?.toLocaleString()}</span>
-                            </div>
-                          ) : product.margin_percent !== null && product.margin_percent !== undefined ? (
-                            <div className="flex flex-col items-end">
-                              <span className={product.margin_percent <= 10 ? 'text-red-500 font-medium' : 'text-green-600 font-medium'}>
-                                {product.margin_percent.toFixed(1)}%
-                              </span>
-                              <span className="text-xs text-muted-foreground">${product.margin_amount?.toLocaleString()}</span>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">N/A</span>
-                          )}
-                        </td>
-                        <td className="p-4 align-middle text-center">
-                          <StatusBadge variant={
-                            product.profitability_status === 'complete' ? 'success' :
-                            product.profitability_status === 'missing_cost' ? 'danger' : 'warning'
-                          }>
-                            {product.profitability_status || 'unknown'}
-                          </StatusBadge>
-                        </td>
-                        <td className="p-4 align-middle text-right">
-                          <Button variant="ghost" size="sm" onClick={() => setEditingProduct(product)}>
-                            <Edit2 className="w-4 h-4 mr-2" />
-                            Editar
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                            <span className={product.profit_real_margin <= 10 ? 'text-red-500 font-medium' : 'text-green-600 font-medium'}>
+                              {product.profit_real_margin.toFixed(1)}%
+                            </span>
+                          ) : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-start justify-center">
+                        <StatusBadge variant={
+                          product.profitability_status === 'complete' ? 'success' :
+                          product.profitability_status === 'missing_cost' ? 'danger' : 'warning'
+                        }>
+                          {product.profitability_status || 'unknown'}
+                        </StatusBadge>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <Button variant="outline" className="w-full" onClick={() => setEditingProduct(product)}>
+                        <Edit2 className="w-4 h-4 mr-2" />
+                        Ver Detalles / Editar
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
           
           {totalCount > 50 && (

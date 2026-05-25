@@ -169,7 +169,7 @@ export default async function DashboardPage() {
   const formattedName = userName.charAt(0).toUpperCase() + userName.slice(1);
 
   return (
-    <div className="flex-1 space-y-8 p-8 pt-6">
+    <div className="flex-1 space-y-6 md:space-y-8 p-4 md:p-8 pt-4 md:pt-6">
       
       {activation.percentage < 100 && (
         <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl flex items-center justify-between shadow-[0_8px_24px_rgba(15,23,42,0.06)]">

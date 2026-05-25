@@ -16,7 +16,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={jakarta.className}>
+      <body className={`${jakarta.className} overflow-x-hidden`}>
         {children}
       </body>
     </html>

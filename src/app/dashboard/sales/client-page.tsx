@@ -8,6 +8,7 @@ import { Download, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Package, A
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Pie, PieChart, Cell, Legend } from "recharts";
 import { SearchInput } from "@/components/ui/search-input";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { MobileFilterDrawer } from "@/components/ui/mobile-filter-drawer";
 
 export default function SalesClientPage({ 
   initialOrders, 
@@ -248,25 +249,66 @@ export default function SalesClientPage({
                 <SearchInput placeholder="Buscar orden, comprador, producto..." />
               </div>
 
-              <select 
-                value={currentStatus} 
-                onChange={(e) => handleFilterChange("status", e.target.value)}
-                className="flex h-9 w-full sm:w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-              >
-                <option value="all">Todos</option>
-                <option value="paid">Pagado</option>
-                <option value="cancelled">Cancelado</option>
-              </select>
+              {/* Desktop Filters */}
+              <div className="hidden sm:flex items-center gap-3">
+                <select 
+                  value={currentStatus} 
+                  onChange={(e) => handleFilterChange("status", e.target.value)}
+                  className="flex h-9 w-full sm:w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                >
+                  <option value="all">Todos</option>
+                  <option value="paid">Pagado</option>
+                  <option value="cancelled">Cancelado</option>
+                </select>
 
-              <select 
-                value={currentDays} 
-                onChange={(e) => handleFilterChange("days", e.target.value)}
-                className="flex h-9 w-full sm:w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-              >
-                <option value="7">Últimos 7 días</option>
-                <option value="30">Últimos 30 días</option>
-                <option value="90">Últimos 3 meses</option>
-              </select>
+                <select 
+                  value={currentDays} 
+                  onChange={(e) => handleFilterChange("days", e.target.value)}
+                  className="flex h-9 w-full sm:w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                >
+                  <option value="7">Últimos 7 días</option>
+                  <option value="30">Últimos 30 días</option>
+                  <option value="90">Últimos 3 meses</option>
+                </select>
+              </div>
+
+              {/* Mobile Filters */}
+              <div className="w-full sm:hidden">
+                <MobileFilterDrawer
+                  onClear={() => {
+                    handleFilterChange("status", "all");
+                    handleFilterChange("days", "7");
+                  }}
+                >
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Estado</label>
+                      <select 
+                        value={currentStatus} 
+                        onChange={(e) => handleFilterChange("status", e.target.value)}
+                        className="flex h-12 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm"
+                      >
+                        <option value="all">Todos</option>
+                        <option value="paid">Pagado</option>
+                        <option value="cancelled">Cancelado</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Período</label>
+                      <select 
+                        value={currentDays} 
+                        onChange={(e) => handleFilterChange("days", e.target.value)}
+                        className="flex h-12 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm"
+                      >
+                        <option value="7">Últimos 7 días</option>
+                        <option value="30">Últimos 30 días</option>
+                        <option value="90">Últimos 3 meses</option>
+                      </select>
+                    </div>
+                  </div>
+                </MobileFilterDrawer>
+              </div>
             </div>
           </div>
         </CardHeader>

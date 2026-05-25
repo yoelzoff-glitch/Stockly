@@ -107,8 +107,8 @@ export function DataTable<T>({
         </div>
       </div>
 
-      {/* Table */}
-      <div className="rounded-md border">
+      {/* Table Desktop */}
+      <div className="hidden md:block rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -150,6 +150,28 @@ export function DataTable<T>({
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Cards Mobile */}
+      <div className="grid grid-cols-1 gap-4 md:hidden">
+        {sortedData.length > 0 ? (
+          sortedData.map((row, rowIndex) => (
+            <div key={rowIndex} className="rounded-xl border bg-card text-card-foreground shadow-sm p-4 space-y-3">
+              {columns.map((col, colIndex) => (
+                <div key={colIndex} className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-4 border-b last:border-0 pb-2 last:pb-0 border-slate-100">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{col.header}</span>
+                  <div className="text-sm">
+                    {col.render ? col.render(row) : String(row[col.accessorKey as keyof T] || "")}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))
+        ) : (
+          <div className="text-center p-8 border rounded-xl text-muted-foreground bg-slate-50">
+            No se encontraron resultados.
+          </div>
+        )}
       </div>
 
       {/* Pagination */}
