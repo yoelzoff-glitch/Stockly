@@ -47,11 +47,11 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-screen w-64 flex-col border-r border-slate-200 bg-white px-3 py-4">
-      <div className="mb-8 px-4 flex items-center justify-center w-full">
-        <img src="/logo.png" alt="Stockly Logo" className="w-full max-w-[180px] h-auto" />
+    <div className="flex h-screen w-64 flex-col border-r border-slate-200 bg-white py-4">
+      <div className="mb-4 px-4 flex items-center justify-center w-full shrink-0">
+        <img src="/logo.png" alt="Stockly Logo" className="w-full max-w-[150px] h-auto" />
       </div>
-      <nav className="flex-1 space-y-1">
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-6">
         {sidebarLinks.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -59,8 +59,8 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                "group flex items-center rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                item.indent ? "ml-6 text-slate-500 border-l border-slate-200 pl-4 py-2" : "",
+                "group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
+                item.indent ? "ml-6 text-slate-500 border-l border-slate-200 pl-4 py-1.5" : "",
                 isActive 
                   ? (item.indent ? "bg-indigo-50/50 text-indigo-700 border-indigo-400" : "bg-indigo-50 text-indigo-700 relative")
                   : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
@@ -69,7 +69,7 @@ export function Sidebar() {
               {!item.indent && isActive && (
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-indigo-600 rounded-r-full" />
               )}
-              <item.icon className={cn("mr-3 h-5 w-5", isActive ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600")} />
+              <item.icon className={cn("mr-3 h-4 w-4", isActive ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600")} />
               {item.name}
             </Link>
           );
