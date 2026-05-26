@@ -8,44 +8,41 @@ import { Button } from "@/components/ui/button";
 const plans = [
   {
     name: "Starter",
-    limit: "Hasta 500 publicaciones",
+    limit: "Hasta 100 publicaciones",
     price: "$25 USD",
     features: [
+      "7 días de prueba gratis",
       "Dashboard completo",
-      "IA Básica",
-      "Cálculo de rentabilidad",
-      "Gestión de productos",
-      "7 días de prueba gratis"
+      "500 mensajes de IA",
+      "250 procesos automáticos"
     ],
     buttonText: "Empezar gratis",
     popular: false
   },
   {
-    name: "Growth",
-    limit: "Hasta 2000 publicaciones",
+    name: "Pro",
+    limit: "Hasta 500 publicaciones",
     price: "$49 USD",
     features: [
       "Todo lo de Starter",
-      "Asistente por WhatsApp",
-      "Control de Stock interno",
-      "Promociones automáticas",
-      "Analytics avanzados"
+      "1.500 mensajes de IA",
+      "800 procesos automáticos",
+      "Soporte prioritario"
     ],
     buttonText: "Empezar",
     popular: true
   },
   {
-    name: "Scale",
-    limit: "5000+ publicaciones",
+    name: "Ultra",
+    limit: "Hasta 2.500 publicaciones",
     price: "$89 USD",
     features: [
-      "Todo lo de Growth",
-      "IA avanzada sin límites",
-      "Automatizaciones custom",
-      "Acceso API",
-      "Soporte prioritario 24/7"
+      "Todo lo de Pro",
+      "10.000 mensajes de IA",
+      "5.000 procesos automáticos",
+      "Soporte 24/7 por WhatsApp"
     ],
-    buttonText: "Contactar ventas",
+    buttonText: "Empezar",
     popular: false
   }
 ];
