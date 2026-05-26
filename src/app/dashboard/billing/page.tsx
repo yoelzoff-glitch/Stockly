@@ -25,11 +25,12 @@ export default function BillingPage() {
 
       const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single()
       if (profile?.tenant_id) {
-        const { data: usage } = await supabase.from("subscription_usage").select("*").eq("tenant_id", profile.tenant_id).single()
+        const currentMonth = new Date().toISOString().slice(0, 7) + "-01"
+        const { data: usage } = await supabase.from("subscription_usage").select("*").eq("tenant_id", profile.tenant_id).eq("month", currentMonth).maybeSingle()
         const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_id", profile.tenant_id).single()
         
         setStats({
-          usage: usage || { ai_requests_used: 0, ai_requests_limit: 500 },
+          usage: usage || { ai_credits_used: 0, ai_requests_limit: 500 },
           subscription: sub || { plan: 'starter', status: 'active' }
         })
       }
@@ -67,7 +68,7 @@ export default function BillingPage() {
   if (subscription.plan === 'pro') limit = 1500;
   if (subscription.plan === 'ultra') limit = 5000;
   
-  const progress = Math.min(100, Math.round(((usage.ai_requests_used || 0) / limit) * 100))
+  const progress = Math.min(100, Math.round(((usage.ai_credits_used || 0) / limit) * 100))
   const isUnlimited = false;
 
   return (
@@ -97,7 +98,7 @@ export default function BillingPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between text-sm font-medium">
-              <span>{usage.ai_requests_used || 0} consultas usadas</span>
+              <span>{usage.ai_credits_used || 0} consultas usadas</span>
               <span>{isUnlimited ? '∞' : limit} límite</span>
             </div>
             <Progress value={isUnlimited ? 0 : progress} className="h-2" />
