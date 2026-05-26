@@ -40,7 +40,6 @@ export async function createSubscriptionPreference(tenantId: string, plan: 'pro'
         back_url: `${process.env.NEXTAUTH_URL}/dashboard/billing?success=true`,
         payer_email: userEmail,
         external_reference: tenantId, // To identify the tenant when webhook arrives
-        status: "pending",
       }
     });
 
