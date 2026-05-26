@@ -116,7 +116,7 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Starter</CardTitle>
             <CardDescription>Para pequeños vendedores.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">Gratis</div>
+            <div className="mt-4 text-3xl font-bold">$25.000 <span className="text-sm font-normal text-muted-foreground">ARS/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>500 consultas IA/mes</span></div>

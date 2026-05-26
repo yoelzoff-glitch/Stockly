@@ -91,7 +91,7 @@ export default function RegisterPage() {
                   defaultValue="starter"
                   className="flex h-11 w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <option value="starter">Starter (Gratis)</option>
+                  <option value="starter">Starter ($25 USD)</option>
                   <option value="pro">Pro ($49 USD)</option>
                   <option value="ultra">Ultra ($89 USD)</option>
                 </select>
