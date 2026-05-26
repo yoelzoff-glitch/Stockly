@@ -15,7 +15,9 @@ const plans = [
       "Dashboard completo",
       "500 mensajes de IA",
       "250 procesos automáticos",
-      "Gestión de Títulos con IA"
+      "1 número de WhatsApp",
+      "Gestión de Títulos con IA",
+      "Stock en Mercado Libre y Deposito"
     ],
     buttonText: "Empezar gratis",
     popular: false
@@ -43,7 +45,7 @@ const plans = [
       "Todo lo de Pro",
       "5.000 mensajes de IA",
       "1.500 procesos automáticos",
-      "Hasta 2 números de WhatsApp",
+      "Hasta 3 números de WhatsApp",
       "Soporte 24/7 por WhatsApp",
       "Optimización y Cambio Masivo de Títulos"
     ],
@@ -73,24 +75,23 @@ export function Pricing() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: idx * 0.1 }}
-              className={`relative bg-white rounded-3xl p-8 border ${
-                plan.popular ? "border-indigo-500 shadow-xl shadow-indigo-100 scale-105 z-10" : "border-slate-200 shadow-sm"
-              }`}
+              className={`relative bg-white rounded-3xl p-8 border ${plan.popular ? "border-indigo-500 shadow-xl shadow-indigo-100 scale-105 z-10" : "border-slate-200 shadow-sm"
+                }`}
             >
               {plan.popular && (
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-indigo-500 text-white text-xs font-bold uppercase tracking-wider py-1 px-3 rounded-full">
                   Más popular
                 </div>
               )}
-              
+
               <h3 className="text-xl font-bold text-slate-900">{plan.name}</h3>
               <p className="text-sm text-slate-500 mt-2 h-5">{plan.limit}</p>
-              
+
               <div className="my-6">
                 <span className="text-4xl font-extrabold text-slate-900">{plan.price}</span>
                 {plan.price !== "Consultar" && <span className="text-slate-500">/mes</span>}
               </div>
-              
+
               <ul className="space-y-4 mb-8">
                 {plan.features.map((feature, fIdx) => (
                   <li key={fIdx} className="flex items-start">
@@ -99,13 +100,12 @@ export function Pricing() {
                   </li>
                 ))}
               </ul>
-              
+
               <Link href="/register" className="block w-full">
-                <Button className={`w-full h-12 rounded-xl text-base font-bold transition-all ${
-                  plan.popular 
-                    ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg" 
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-900"
-                }`}>
+                <Button className={`w-full h-12 rounded-xl text-base font-bold transition-all ${plan.popular
+                  ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-900"
+                  }`}>
                   {plan.buttonText}
                 </Button>
               </Link>

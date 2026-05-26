@@ -129,7 +129,7 @@ export async function prepareTitleChangeAction(
 
   const { data: product, error } = await supabase
     .from("products")
-    .select("id, meli_item_id, title")
+    .select("id, meli_item_id, title, listing_type_id, sku")
     .eq("id", productId)
     .eq("tenant_id", profile.tenant_id)
     .single();
