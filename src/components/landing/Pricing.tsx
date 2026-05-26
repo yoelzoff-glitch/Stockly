@@ -10,6 +10,7 @@ const plans = [
     name: "Starter",
     limit: "Hasta 100 publicaciones",
     price: "$44 USD",
+    priceArs: "equiv. $65.560 ARS",
     features: [
       "Tarifa de Lanzamiento (2 meses)",
       "7 días de prueba gratis",
@@ -27,6 +28,7 @@ const plans = [
     name: "Pro",
     limit: "Hasta 500 publicaciones",
     price: "$79 USD",
+    priceArs: "equiv. $117.710 ARS",
     features: [
       "Todo lo de Starter",
       "Tarifa de Lanzamiento (2 meses)",
@@ -43,6 +45,7 @@ const plans = [
     name: "Ultra",
     limit: "Hasta 2.500 publicaciones",
     price: "$129 USD",
+    priceArs: "equiv. $192.210 ARS",
     features: [
       "Todo lo de Pro",
       "Tarifa de Lanzamiento (2 meses)",
@@ -94,8 +97,15 @@ export function Pricing() {
               <p className="text-sm text-slate-500 mt-2 h-5">{plan.limit}</p>
 
               <div className="my-6">
-                <span className="text-4xl font-extrabold text-slate-900">{plan.price}</span>
-                {plan.price !== "Consultar" && <span className="text-slate-500">/mes</span>}
+                <div className="flex items-baseline">
+                  <span className="text-4xl font-extrabold text-slate-900">{plan.price}</span>
+                  {plan.price !== "Consultar" && <span className="text-slate-500 ml-1">/mes</span>}
+                </div>
+                {plan.priceArs && (
+                  <div className="text-xs text-slate-500 font-medium mt-1">
+                    {plan.priceArs} / mes (Mercado Pago)
+                  </div>
+                )}
               </div>
 
               <ul className="space-y-4 mb-8">

@@ -194,7 +194,8 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Starter</CardTitle>
             <CardDescription>Para pequeños vendedores.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$44 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
+            <div className="mt-4 text-3xl font-bold">$44 <span className="text-xs font-normal text-muted-foreground">USD/mes</span></div>
+            <div className="text-xs text-slate-400 font-medium mt-1">equiv. $65.560 ARS / mes (Mercado Pago)</div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>7 días de prueba gratis</span></div>
@@ -227,7 +228,8 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Pro</CardTitle>
             <CardDescription>Para tiendas en crecimiento.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$79 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
+            <div className="mt-4 text-3xl font-bold">$79 <span className="text-xs font-normal text-muted-foreground">USD/mes</span></div>
+            <div className="text-xs text-slate-400 font-medium mt-1">equiv. $117.710 ARS / mes (Mercado Pago)</div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 500 publicaciones de ML</span></div>
@@ -254,7 +256,8 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Ultra</CardTitle>
             <CardDescription>Para negocios a gran escala.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$129 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
+            <div className="mt-4 text-3xl font-bold">$129 <span className="text-xs font-normal text-muted-foreground">USD/mes</span></div>
+            <div className="text-xs text-slate-400 font-medium mt-1">equiv. $192.210 ARS / mes (Mercado Pago)</div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 2.500 publicaciones de ML</span></div>
