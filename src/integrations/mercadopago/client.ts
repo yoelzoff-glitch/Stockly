@@ -14,12 +14,12 @@ const preApproval = new PreApproval(client);
 
 const PLANS = {
   pro: {
-    title: 'Stockly Pro',
-    price: 49000, // Referencia ARS
+    title: 'Stockly Pro ($49 USD)',
+    price: 73000, // Equiv ARS a $1490
   },
   ultra: {
-    title: 'Stockly Ultra',
-    price: 89000, // Referencia ARS
+    title: 'Stockly Ultra ($89 USD)',
+    price: 132600, // Equiv ARS a $1490
   }
 };
 

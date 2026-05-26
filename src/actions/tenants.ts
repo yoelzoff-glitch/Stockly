@@ -27,6 +27,9 @@ export async function submitOnboardingAction(prevState: any, formData: FormData)
 
   const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
 
+  // Read requested plan from user metadata
+  const selectedPlan = user.user_metadata?.plan || "starter";
+
   // Crear Tenant
   const { data: tenantData, error: tenantError } = await supabaseAdmin
     .from("tenants")
@@ -34,7 +37,7 @@ export async function submitOnboardingAction(prevState: any, formData: FormData)
       {
         name: companyName,
         slug: slug,
-        plan: "free",
+        plan: "starter", // Always default to starter until MP says authorized
         status: "active",
         currency: currency,
         metadata: {
@@ -78,6 +81,25 @@ export async function submitOnboardingAction(prevState: any, formData: FormData)
           role: "owner",
         },
       ]);
+  }
+
+  // If selectedPlan is pro or ultra, generate preference and redirect
+  if (selectedPlan === 'pro' || selectedPlan === 'ultra') {
+    try {
+      const { createSubscriptionPreference } = await import("@/integrations/mercadopago/client");
+      const initPoint = await createSubscriptionPreference(
+        tenantData.id, 
+        selectedPlan as 'pro' | 'ultra', 
+        user.email || "user@stockly.com"
+      );
+      if (initPoint) {
+        // Redirigir a Mercado Pago
+        redirect(initPoint);
+      }
+    } catch (error) {
+      console.error("Error creating MP preference during onboarding:", error);
+      // Fallback to dashboard if MP fails
+    }
   }
 
   revalidatePath("/", "layout");
