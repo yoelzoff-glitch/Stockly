@@ -9,7 +9,7 @@ const plans = [
   {
     name: "Starter",
     limit: "Hasta 500 publicaciones",
-    price: "$25.000",
+    price: "$25 USD",
     features: [
       "Dashboard completo",
       "IA Básica",
@@ -23,7 +23,7 @@ const plans = [
   {
     name: "Growth",
     limit: "Hasta 2000 publicaciones",
-    price: "$59.900",
+    price: "$49 USD",
     features: [
       "Todo lo de Starter",
       "Asistente por WhatsApp",
@@ -31,13 +31,13 @@ const plans = [
       "Promociones automáticas",
       "Analytics avanzados"
     ],
-    buttonText: "Empezar gratis",
+    buttonText: "Empezar",
     popular: true
   },
   {
     name: "Scale",
     limit: "5000+ publicaciones",
-    price: "Consultar",
+    price: "$89 USD",
     features: [
       "Todo lo de Growth",
       "IA avanzada sin límites",

@@ -116,7 +116,7 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Starter</CardTitle>
             <CardDescription>Para pequeños vendedores.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$25.000 <span className="text-sm font-normal text-muted-foreground">ARS/mes</span></div>
+            <div className="mt-4 text-3xl font-bold">$25 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>7 días de prueba gratis</span></div>
@@ -136,7 +136,7 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Pro</CardTitle>
             <CardDescription>Para tiendas en crecimiento.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$49.000 <span className="text-sm font-normal text-muted-foreground">ARS/mes</span></div>
+            <div className="mt-4 text-3xl font-bold">$49 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>5.000 consultas IA/mes</span></div>
@@ -161,7 +161,7 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Ultra</CardTitle>
             <CardDescription>Para negocios a gran escala.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$89.000 <span className="text-sm font-normal text-muted-foreground">ARS/mes</span></div>
+            <div className="mt-4 text-3xl font-bold">$89 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Consultas IA Ilimitadas</span></div>
