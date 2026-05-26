@@ -9,15 +9,16 @@ const plans = [
   {
     name: "Starter",
     limit: "Hasta 100 publicaciones",
-    price: "$30 USD",
+    price: "$44 USD",
     features: [
+      "Tarifa de Lanzamiento (2 meses)",
       "7 días de prueba gratis",
       "Dashboard completo",
       "500 mensajes de IA",
       "250 procesos automáticos",
       "1 número de WhatsApp",
       "Gestión de Títulos con IA",
-      "Stock en Mercado Libre y Deposito"
+      "Stock en Mercado Libre y Depósito"
     ],
     buttonText: "Empezar gratis",
     popular: false
@@ -25,9 +26,10 @@ const plans = [
   {
     name: "Pro",
     limit: "Hasta 500 publicaciones",
-    price: "$55 USD",
+    price: "$79 USD",
     features: [
       "Todo lo de Starter",
+      "Tarifa de Lanzamiento (2 meses)",
       "1.500 mensajes de IA",
       "800 procesos automáticos",
       "Hasta 2 números de WhatsApp",
@@ -40,9 +42,10 @@ const plans = [
   {
     name: "Ultra",
     limit: "Hasta 2.500 publicaciones",
-    price: "$90 USD",
+    price: "$129 USD",
     features: [
       "Todo lo de Pro",
+      "Tarifa de Lanzamiento (2 meses)",
       "5.000 mensajes de IA",
       "1.500 procesos automáticos",
       "Hasta 3 números de WhatsApp",
@@ -58,12 +61,15 @@ export function Pricing() {
   return (
     <section id="precios" className="py-24 bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto mb-16">
+        <div className="text-center max-w-3xl mx-auto mb-16 flex flex-col items-center">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 border border-indigo-100 text-indigo-700 mb-4 animate-pulse">
+            🔥 Oferta de Lanzamiento: Cupos limitados a 15 clientes
+          </div>
           <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
             Planes simples y transparentes
           </h2>
           <p className="text-lg text-slate-600">
-            Diseñados para escalar con tus ventas en Mercado Libre.
+            Aprovechá la tarifa promocional por tus primeros 2 meses. ¡Asegurá tu lugar antes de que se agoten!
           </p>
         </div>
 

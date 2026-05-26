@@ -194,7 +194,7 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Starter</CardTitle>
             <CardDescription>Para pequeños vendedores.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$30 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
+            <div className="mt-4 text-3xl font-bold">$44 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>7 días de prueba gratis</span></div>
@@ -227,7 +227,7 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Pro</CardTitle>
             <CardDescription>Para tiendas en crecimiento.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$55 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
+            <div className="mt-4 text-3xl font-bold">$79 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 500 publicaciones de ML</span></div>
@@ -254,7 +254,7 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Ultra</CardTitle>
             <CardDescription>Para negocios a gran escala.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$90 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
+            <div className="mt-4 text-3xl font-bold">$129 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 2.500 publicaciones de ML</span></div>

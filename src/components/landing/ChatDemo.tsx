@@ -29,6 +29,10 @@ export function ChatDemo() {
               </li>
               <li className="flex items-center">
                 <div className="w-2 h-2 bg-indigo-500 rounded-full mr-3"></div>
+                Optimizar títulos con IA en lote
+              </li>
+              <li className="flex items-center">
+                <div className="w-2 h-2 bg-indigo-500 rounded-full mr-3"></div>
                 Consultar rentabilidad de un producto
               </li>
             </ul>

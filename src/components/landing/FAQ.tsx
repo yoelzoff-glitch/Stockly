@@ -28,6 +28,10 @@ const faqs = [
   {
     q: "¿Mis datos financieros son privados?",
     a: "Tu privacidad y seguridad son nuestra máxima prioridad. Usamos encriptación de nivel bancario y nunca compartimos tus datos de ventas o proveedores con terceros."
+  },
+  {
+    q: "¿Cómo ayuda la IA con los títulos y la sincronización de mis publicaciones?",
+    a: "Nuestra IA analiza tu producto (categoría, marca, atributos) para sugerir títulos optimizados para SEO que incrementan la exposición y las ventas. Además, con la sincronización inteligente de publicaciones hermanas, podés replicar y cambiar títulos o stock de publicaciones Clásica y Premium con el mismo SKU en un solo clic, sin hacerlo de a una."
   }
 ];
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Bot, Package, CircleDollarSign, Tag, BarChart3, MessageSquare } from "lucide-react";
+import { Bot, Package, CircleDollarSign, Tag, BarChart3, MessageSquare, Sparkles, RefreshCw } from "lucide-react";
 
 const solutions = [
   {
@@ -21,6 +21,18 @@ const solutions = [
     title: "Rentabilidad real",
     description: "\"Calcula comisiones, impuestos y costos\"",
     color: "bg-blue-50 border-blue-100"
+  },
+  {
+    icon: <Sparkles className="w-6 h-6 text-violet-600" />,
+    title: "Títulos con IA",
+    description: "\"Optimizá títulos SEO en base a tus datos para vender más\"",
+    color: "bg-violet-50 border-violet-100"
+  },
+  {
+    icon: <RefreshCw className="w-6 h-6 text-cyan-600" />,
+    title: "Sincronización de hermanos",
+    description: "\"Editá títulos y stock en Clásica y Premium con el mismo SKU a la vez\"",
+    color: "bg-cyan-50 border-cyan-100"
   },
   {
     icon: <Tag className="w-6 h-6 text-orange-600" />,

@@ -7,6 +7,7 @@ const problems = [
   "No sabés cuánto ganás realmente",
   "Tenés stock desordenado",
   "Perdés tiempo ajustando publicaciones",
+  "Títulos poco optimizados que pierden visitas",
   "No detectás productos muertos",
   "Las promociones te comen margen"
 ];
