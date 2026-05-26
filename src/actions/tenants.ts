@@ -96,9 +96,9 @@ export async function submitOnboardingAction(prevState: any, formData: FormData)
       if (initPoint) {
         redirectUrl = initPoint;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating MP preference during onboarding:", error);
-      // Fallback to dashboard if MP fails
+      return { error: `Error Mercado Pago: ${error.message || "Desconocido"}` };
     }
   }
 
