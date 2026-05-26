@@ -9,7 +9,7 @@ import { registerAction } from "@/actions/auth";
 import { Loader2 } from "lucide-react";
 
 export default function RegisterPage() {
-  const [state, formAction, isPending] = useActionState(registerAction, null);
+  const [state, formAction, isPending] = useActionState(registerAction, { error: null as string | null });
 
   return (
     <div className="flex min-h-screen w-full bg-white">

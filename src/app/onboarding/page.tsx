@@ -8,7 +8,7 @@ import { useActionState } from "react";
 import { submitOnboardingAction } from "@/actions/tenants";
 
 export default function OnboardingPage() {
-  const [state, formAction, isPending] = useActionState(submitOnboardingAction, null);
+  const [state, formAction, isPending] = useActionState(submitOnboardingAction, { error: null as string | null });
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 p-4">

@@ -7,7 +7,7 @@ import { retryPaymentAction } from "@/actions/auth";
 import { Loader2, AlertCircle } from "lucide-react";
 
 export default function PaymentPendingScreen({ plan }: { plan: string }) {
-  const [state, formAction, isPending] = useActionState(retryPaymentAction, null);
+  const [state, formAction, isPending] = useActionState(retryPaymentAction, { error: null as string | null });
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 p-4">
