@@ -57,7 +57,8 @@ export async function registerAction(prevState: any, formData: FormData) {
       data: {
         full_name: name,
         plan: plan,
-        promo_code: promoCode || null
+        promo_code: promoCode || null,
+        payment_status: "pending"
       },
     },
   });
@@ -66,8 +67,34 @@ export async function registerAction(prevState: any, formData: FormData) {
     return { error: authError?.message || "Error al crear el usuario" };
   }
 
+  let redirectUrl = null;
+
+  if (plan === 'pro' || plan === 'ultra') {
+    try {
+      const { createSubscriptionPreference } = await import("@/integrations/mercadopago/client");
+      const initPoint = await createSubscriptionPreference(
+        authData.user.id, // Pasamos el user ID en lugar del tenant ID (el tenant no existe aun)
+        plan as 'pro' | 'ultra', 
+        email,
+        'user'
+      );
+      if (initPoint) {
+        redirectUrl = initPoint;
+      } else {
+        return { error: "Mercado Pago no devolvió un link de pago válido." };
+      }
+    } catch (error: any) {
+      console.error("Error creating MP preference during register:", error);
+      return { error: `Error Mercado Pago: ${error.message || "Desconocido"}` };
+    }
+  }
+
   revalidatePath("/", "layout");
-  redirect("/onboarding");
+  if (redirectUrl) {
+    redirect(redirectUrl);
+  } else {
+    redirect("/onboarding");
+  }
 }
 
 export async function logoutAction() {

@@ -23,7 +23,12 @@ const PLANS = {
   }
 };
 
-export async function createSubscriptionPreference(tenantId: string, plan: 'pro' | 'ultra', userEmail: string) {
+export async function createSubscriptionPreference(
+  referenceId: string, 
+  plan: 'pro' | 'ultra', 
+  userEmail: string,
+  referenceType: 'user' | 'tenant' = 'tenant'
+) {
   try {
     const planDetails = PLANS[plan];
     if (!planDetails) throw new Error("Plan not found");
@@ -38,6 +43,8 @@ export async function createSubscriptionPreference(tenantId: string, plan: 'pro'
       return "http://localhost:3000";
     };
 
+    const backUrlPath = referenceType === 'user' ? '/onboarding' : '/dashboard/billing';
+
     const response = await preApproval.create({
       body: {
         reason: planDetails.title,
@@ -47,9 +54,9 @@ export async function createSubscriptionPreference(tenantId: string, plan: 'pro'
           transaction_amount: planDetails.price,
           currency_id: 'ARS',
         },
-        back_url: `${getBaseUrl()}/dashboard/billing?success=true`,
+        back_url: `${getBaseUrl()}${backUrlPath}?success=true`,
         payer_email: userEmail,
-        external_reference: tenantId, // To identify the tenant when webhook arrives
+        external_reference: `${referenceType}_${referenceId}`, // To identify the tenant or user when webhook arrives
       }
     });
 
