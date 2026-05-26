@@ -46,6 +46,11 @@ export async function POST(req: Request) {
           mercadopago_subscription_id: subscription.id,
         });
 
+        // Actualizar el plan en la tabla tenants
+        await supabase.from("tenants").update({
+          plan: status === 'authorized' ? plan : 'starter',
+        }).eq("id", tenantId);
+
         logger.info(`Updated subscription for tenant ${tenantId} to ${status} (${plan})`, "MERCADOPAGO_WEBHOOK");
       }
     }
