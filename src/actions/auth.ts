@@ -103,3 +103,47 @@ export async function logoutAction() {
   revalidatePath("/", "layout");
   redirect("/login");
 }
+
+
+export async function retryPaymentAction() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "No estás autenticado" };
+  }
+
+  const plan = user.user_metadata?.plan;
+  const paymentStatus = user.user_metadata?.payment_status;
+
+  if (paymentStatus === "paid" || plan === "starter") {
+    redirect("/onboarding");
+  }
+
+  let redirectUrl = null;
+
+  try {
+    const { createSubscriptionPreference } = await import("@/integrations/mercadopago/client");
+    const initPoint = await createSubscriptionPreference(
+      user.id, 
+      plan as "pro" | "ultra", 
+      user.email || "user@stockly.com",
+      "user"
+    );
+    if (initPoint) {
+      redirectUrl = initPoint;
+    } else {
+      return { error: "Mercado Pago no devolvió un link de pago válido." };
+    }
+  } catch (error: any) {
+    console.error("Error creating MP preference during retry:", error);
+    return { error: `Error Mercado Pago: ${error.message || "Desconocido"}` };
+  }
+
+  if (redirectUrl) {
+    redirect(redirectUrl);
+  } else {
+    return { error: "No se pudo generar el enlace de pago." };
+  }
+}
+
