@@ -18,14 +18,18 @@ export function Navbar({ plan, daysRemaining }: { plan?: string, daysRemaining?:
     if (plan === "ultra") planColor = "bg-fuchsia-100 text-fuchsia-700";
     
     return (
-      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${planColor}`}>
+      <Link 
+        href="/dashboard/billing"
+        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium hover:opacity-80 transition-opacity cursor-pointer ${planColor}`}
+        title="Ver detalles de facturación"
+      >
         <span className="capitalize">Stockly {plan}</span>
         {daysRemaining !== null && daysRemaining !== undefined && (
           <span className="opacity-80">
             • {daysRemaining > 0 ? `Renueva en ${daysRemaining} d${daysRemaining === 1 ? 'ía' : 'ías'}` : 'Vencido'}
           </span>
         )}
-      </div>
+      </Link>
     );
   };
 
