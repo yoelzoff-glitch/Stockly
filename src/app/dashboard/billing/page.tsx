@@ -76,6 +76,13 @@ export default function BillingPage() {
   if (subscription.plan === 'ultra') pubLimit = 2500;
   
   const pubProgress = Math.min(100, Math.round(((stats.pubCount || 0) / pubLimit) * 100));
+  
+  let autoLimit = 250;
+  if (subscription.plan === 'pro') autoLimit = 800;
+  if (subscription.plan === 'ultra') autoLimit = 1500;
+  
+  const autoProgress = Math.min(100, Math.round(((usage.automation_actions_used || 0) / autoLimit) * 100));
+  
   const isUnlimited = false;
 
   return (
@@ -135,6 +142,26 @@ export default function BillingPage() {
           </CardContent>
         </Card>
 
+        {/* Automated Processes Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Procesos Automatizados</CardTitle>
+            <CardDescription>
+              Acciones automáticas ejecutadas por Stockly sobre tu catálogo en el mes actual.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between text-sm font-medium">
+              <span>{usage.automation_actions_used || 0} procesos usados</span>
+              <span>{isUnlimited ? '∞' : autoLimit} límite</span>
+            </div>
+            <Progress value={isUnlimited ? 0 : autoProgress} className="h-2" />
+            <p className="text-xs text-muted-foreground">
+              {isUnlimited ? "Tu plan no tiene límite de procesos automáticos." : `Has usado el ${autoProgress}% de tu límite mensual.`}
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Current Plan Card */}
         <Card className="bg-primary/5 border-primary/20">
           <CardHeader>
@@ -151,6 +178,10 @@ export default function BillingPage() {
             <div className="flex items-center space-x-2 text-sm mt-2">
               <Check className="h-4 w-4 text-green-500" />
               <span>{isUnlimited ? 'Consultas IA ilimitadas' : `${limit} consultas IA/mes`}</span>
+            </div>
+            <div className="flex items-center space-x-2 text-sm mt-2">
+              <Check className="h-4 w-4 text-green-500" />
+              <span>{isUnlimited ? 'Procesos automáticos ilimitados' : `${autoLimit} procesos automáticos/mes`}</span>
             </div>
           </CardContent>
         </Card>

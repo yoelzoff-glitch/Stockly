@@ -13,11 +13,13 @@ import { ExternalLink, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, Shiel
 import { ProductHistoryTab } from "./product-history-tab";
 import { ProductChat } from "./product-chat";
 import { 
+  prepareTitleChangeAction,
   preparePriceChangeAction, 
   prepareStockChangeAction, 
   prepareStatusChangeAction,
   confirmCommandCenterAction, 
-  cancelCommandCenterAction 
+  cancelCommandCenterAction,
+  getSiblingProducts
 } from "@/actions/product-command-actions";
 import { updateProductCost } from "@/app/dashboard/products/actions";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,12 +66,45 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
   // Cost states
   const [newCost, setNewCost] = useState<string>(product?.cost?.toString() || "");
 
+  // Title states
+  const [newTitle, setNewTitle] = useState<string>(product?.title || "");
+  const [titleSuggestions, setTitleSuggestions] = useState<Array<{ title: string; reason: string }>>([]);
+  const [isGeneratingTitles, setIsGeneratingTitles] = useState(false);
+  const [isPreparingTitleChange, setIsPreparingTitleChange] = useState(false);
+  const [siblingProducts, setSiblingProducts] = useState<any[]>([]);
+  const [loadingSiblings, setLoadingSiblings] = useState(false);
+  const [applyToSiblings, setApplyToSiblings] = useState(false);
+
+  const loadSiblingProducts = async (prodId: string) => {
+    setLoadingSiblings(true);
+    try {
+      const result = await getSiblingProducts(prodId);
+      if (result.success) {
+        setSiblingProducts(result.siblings || []);
+      } else {
+        setSiblingProducts([]);
+      }
+    } catch (error) {
+      console.error(error);
+      setSiblingProducts([]);
+    } finally {
+      setLoadingSiblings(false);
+    }
+  };
+
   useEffect(() => {
     if (product) {
       setNewPrice(product.price?.toString() || "");
       setNewStock(product.available_quantity?.toString() || "");
       setNewCost(product.cost?.toString() || "");
+      setNewTitle(product.title || "");
+      setTitleSuggestions([]);
       setPendingAction(null);
+      setSiblingProducts([]);
+      setApplyToSiblings(false);
+      if (product.id) {
+        loadSiblingProducts(product.id);
+      }
     }
   }, [product]);
 
@@ -83,6 +118,53 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
       setPendingAction(res);
     }
     setIsProcessing(false);
+  };
+
+  const handlePrepareTitleChange = async () => {
+    if (!product) return;
+    setIsPreparingTitleChange(true);
+    setIsProcessing(true);
+    try {
+      const selectedSiblingIds = applyToSiblings ? siblingProducts.map((p) => p.id) : [];
+      const result = await prepareTitleChangeAction(product.id, newTitle, {
+        applyToSiblings,
+        siblingProductIds: selectedSiblingIds
+      });
+      if (!result.success) {
+        alert(result.error || "No se pudo preparar el cambio de título");
+        return;
+      }
+      setPendingAction({ action_id: result.action_id, message: result.message });
+    } catch (error) {
+      console.error(error);
+      alert("Error inesperado al preparar el cambio de título");
+    } finally {
+      setIsPreparingTitleChange(false);
+      setIsProcessing(false);
+    }
+  };
+
+  const handleGenerateTitleSuggestions = async () => {
+    if (!product) return;
+    setIsGeneratingTitles(true);
+    try {
+      const response = await fetch("/api/ai/product-title-suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_id: product.id })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || "No se pudieron generar sugerencias");
+        return;
+      }
+      setTitleSuggestions(data.suggestions || []);
+    } catch (error) {
+      console.error(error);
+      alert("Error al generar sugerencias de títulos");
+    } finally {
+      setIsGeneratingTitles(false);
+    }
   };
 
   const handlePrepareStock = async (stockVal: number, op: 'set' | 'add' | 'subtract' = 'set') => {
@@ -223,6 +305,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
             <div className="px-2 md:px-6 border-b overflow-x-auto no-scrollbar">
               <TabsList className="bg-transparent h-12 w-max justify-start space-x-2 px-2 md:px-0">
                 <TabsTrigger value="general" className="data-[state=active]:bg-muted text-xs md:text-sm">General</TabsTrigger>
+                <TabsTrigger value="title" className="data-[state=active]:bg-muted text-xs md:text-sm">Título</TabsTrigger>
                 <TabsTrigger value="price" className="data-[state=active]:bg-muted text-xs md:text-sm">Precio</TabsTrigger>
                 <TabsTrigger value="stock" className="data-[state=active]:bg-muted text-xs md:text-sm">Stock</TabsTrigger>
                 <TabsTrigger value="profit" className="data-[state=active]:bg-muted text-xs md:text-sm">Rentabilidad</TabsTrigger>
@@ -245,7 +328,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                   </div>
                   <div>
                     <Label className="text-muted-foreground">ML Item ID</Label>
-                    <p className="font-medium mt-1">{product.id}</p>
+                    <p className="font-medium mt-1">{product.meli_item_id || 'N/A'}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Última Sincronización</Label>
@@ -283,6 +366,173 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                     </Button>
                   </div>
                 </div>
+              </TabsContent>
+
+              <TabsContent value="title" className="mt-0 space-y-6">
+                {renderSecurityPreview()}
+                
+                <Card>
+                  <CardContent className="pt-6 space-y-4">
+                    <div>
+                      <Label className="text-muted-foreground">Título Actual</Label>
+                      <p className="font-medium mt-1 text-slate-500 dark:text-slate-400">{product.title}</p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Nuevo Título</Label>
+                        <span className={`text-xs ${newTitle.length > 60 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>
+                          {newTitle.length} / 60
+                        </span>
+                      </div>
+                      <Input 
+                        value={newTitle} 
+                        onChange={(e) => setNewTitle(e.target.value)}
+                        placeholder="Ingresa el nuevo título..."
+                        className={newTitle.length > 60 ? 'border-red-500 focus-visible:ring-red-500' : ''}
+                        disabled={isProcessing || pendingAction !== null || isGeneratingTitles}
+                      />
+                      {newTitle.length > 60 && (
+                        <p className="text-xs text-red-500">El título no puede superar los 60 caracteres.</p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <Button 
+                        onClick={handlePrepareTitleChange} 
+                        disabled={isProcessing || pendingAction !== null || isPreparingTitleChange || isGeneratingTitles || !newTitle || newTitle.trim() === product.title || newTitle.length > 60 || !product.meli_item_id}
+                      >
+                        {isPreparingTitleChange 
+                          ? "Preparando..." 
+                          : applyToSiblings 
+                            ? "Preparar cambio en actual y hermanas" 
+                            : "Preparar cambio de título"}
+                      </Button>
+                      <Button 
+                        variant="secondary" 
+                        onClick={handleGenerateTitleSuggestions}
+                        disabled={isProcessing || pendingAction !== null || isPreparingTitleChange || isGeneratingTitles}
+                      >
+                        {isGeneratingTitles ? (
+                          <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Generando sugerencias...</>
+                        ) : (
+                          <><Zap className="w-4 h-4 mr-2 text-amber-500" /> Sugerir títulos con IA</>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {titleSuggestions.length > 0 && (
+                  <div className="space-y-4 mt-6">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-amber-500" /> Sugerencias de IA
+                    </h4>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {titleSuggestions.map((suggestion, idx) => (
+                        <Card key={idx} className="bg-slate-50 dark:bg-slate-900/50 hover:border-primary/50 transition-colors">
+                          <CardContent className="p-4 space-y-3">
+                            <div className="flex justify-between items-start gap-2">
+                              <p className="font-medium text-sm leading-tight">{suggestion.title}</p>
+                              <Badge variant="outline" className={`shrink-0 text-xs ${suggestion.title.length > 60 ? 'text-red-500 border-red-200' : ''}`}>
+                                {suggestion.title.length}/60
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground italic">{suggestion.reason}</p>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="w-full mt-2" 
+                              onClick={() => setNewTitle(suggestion.title)}
+                              disabled={isProcessing || pendingAction !== null}
+                            >
+                              Usar este título
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="space-y-4 mt-6">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Copy className="w-4 h-4 text-primary" /> Publicaciones Hermanas
+                  </h4>
+                  <Card className="bg-slate-50 dark:bg-slate-900/50">
+                    <CardContent className="p-4 space-y-4">
+                      <p className="text-sm text-muted-foreground">
+                        Mercado Libre maneja cada publicación como independiente. Si tenés una publicación Clásica y otra Premium del mismo producto, cambiar el título en una no modifica la otra automáticamente. Stockly puede detectar publicaciones hermanas por SKU y aplicar el mismo cambio si lo autorizás.
+                      </p>
+
+                      {!product.sku || product.sku.trim().toUpperCase() === "N/A" ? (
+                        <div className="bg-amber-50 text-amber-700 p-3 rounded-md text-sm flex gap-2">
+                          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                          <p>Este producto no tiene un SKU válido asignado, por lo que no se pueden detectar publicaciones hermanas.</p>
+                        </div>
+                      ) : loadingSiblings ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                          <RefreshCw className="w-4 h-4 animate-spin" /> Buscando publicaciones hermanas...
+                        </div>
+                      ) : siblingProducts.length === 0 ? (
+                        <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md text-sm text-muted-foreground">
+                          No se encontraron publicaciones hermanas con el SKU <strong>{product.sku}</strong>.
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                            {siblingProducts.map(sibling => (
+                              <div key={sibling.id} className="flex items-start gap-3 p-2 rounded-md bg-white dark:bg-slate-950 border text-sm">
+                                {sibling.thumbnail_url ? (
+                                  <img src={sibling.thumbnail_url} alt="" className="w-10 h-10 rounded border object-cover shrink-0" />
+                                ) : (
+                                  <div className="w-10 h-10 rounded border bg-slate-100 dark:bg-slate-800 shrink-0" />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium truncate">{sibling.title}</p>
+                                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+                                    <Badge variant="secondary" className="text-[10px] uppercase">
+                                      {sibling.listing_type_id === 'gold_special' ? 'Clásica' : sibling.listing_type_id === 'gold_pro' ? 'Premium' : sibling.listing_type_id}
+                                    </Badge>
+                                    <span>{sibling.meli_item_id}</span>
+                                    <span>${sibling.price?.toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          <Separator />
+                          
+                          <label className="flex items-start gap-3 cursor-pointer p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                            <input 
+                              type="checkbox" 
+                              className="mt-1 w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                              checked={applyToSiblings}
+                              onChange={(e) => setApplyToSiblings(e.target.checked)}
+                              disabled={isProcessing || pendingAction !== null}
+                            />
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium">Aplicar este título también a estas publicaciones</p>
+                              {applyToSiblings && (
+                                <p className="text-xs text-primary font-medium">
+                                  Se modificarán {siblingProducts.length} publicaciones adicionales además de la actual.
+                                </p>
+                              )}
+                            </div>
+                          </label>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+                
+                {!product.meli_item_id && (
+                  <div className="bg-red-50 text-red-700 p-4 rounded-lg mt-4 text-sm flex gap-2">
+                    <AlertTriangle className="w-5 h-5 shrink-0" />
+                    <p>Este producto no tiene un ID de Mercado Libre asociado. No se puede modificar el título.</p>
+                  </div>
+                )}
               </TabsContent>
 
               <TabsContent value="price" className="mt-0 space-y-6">

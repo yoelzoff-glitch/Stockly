@@ -6,6 +6,7 @@ import { pauseProduct, activateProduct } from '@/services/meli/actions/statusPro
 import { createItemPromotion } from '@/services/meli/promotions/createItemPromotion';
 import { createCoupon } from '@/services/meli/promotions/createCoupon';
 import { logger } from '@/lib/errors/logger';
+import { incrementUsage } from '@/services/billing/checkLimits';
 
 /**
  * Confirma y ejecuta de forma definitiva una acción de actualización de producto pendiente.
@@ -34,7 +35,7 @@ export async function confirmPendingAction(tenantId: string, actionId: string): 
   }
 
   let payloadItems: any[] = [];
-  if (action.action_type === 'register_purchase') {
+  if (action.action_type === 'register_purchase' || action.action_type === 'change_title') {
     payloadItems = [action.payload];
   } else if (Array.isArray(action.payload)) {
     payloadItems = action.payload;
@@ -108,6 +109,75 @@ export async function confirmPendingAction(tenantId: string, actionId: string): 
           status: 'active',
           title: action.title
         });
+      } else if (action.action_type === 'change_title') {
+        const { meliFetch } = await import("@/services/meli/client");
+        
+        const productsToUpdate = item.affected_products && Array.isArray(item.affected_products) && item.affected_products.length > 0 
+          ? item.affected_products 
+          : [{
+              id: item.product_id,
+              meli_item_id: item.meli_item_id,
+              old_title: item.old_title,
+              listing_type_id: "N/A",
+              sku: null
+            }];
+
+        for (const target of productsToUpdate) {
+          try {
+            await meliFetch({
+              tenantId,
+              endpoint: `/items/${target.meli_item_id}`,
+              method: "PUT",
+              body: {
+                title: item.new_title
+              }
+            });
+
+            await supabase
+              .from("products")
+              .update({
+                title: item.new_title,
+                updated_at: new Date().toISOString(),
+                last_synced_at: new Date().toISOString()
+              })
+              .eq("id", target.id)
+              .eq("tenant_id", tenantId);
+
+            await supabase.from("audit_logs").insert({
+              tenant_id: tenantId,
+              actor_id: action.requested_by,
+              action: "product_updated",
+              entity_type: "product",
+              entity_id: target.id,
+              description: "Se cambió el título de la publicación desde Gestión de Producto",
+              old_data: { title: target.old_title },
+              new_data: { title: item.new_title },
+              metadata: {
+                meli_item_id: target.meli_item_id,
+                source: "product_command_center",
+                action_type: "change_title",
+                apply_to_siblings: item.apply_to_siblings || false,
+                listing_type_id: target.listing_type_id,
+                sku: target.sku
+              }
+            });
+
+            // Registrar 1 proceso automatizado por cambiar el título de esta publicación
+            await incrementUsage(tenantId, "automation_actions_used", 1);
+            
+            results.push({ product_id: target.id, success: true });
+          } catch (err: any) {
+            logger.error(`Error executing change_title for product ${target.id}: ${err.message}`, "AI_ACTIONS");
+            let friendlyError = err.message;
+            if (friendlyError.includes("Cannot update item") && friendlyError.includes("status:paused")) {
+               friendlyError = "Mercado Libre no permite cambiar el título de esta publicación (es de catálogo o está pausada con ventas).";
+            }
+            results.push({ product_id: target.id, success: false, error: friendlyError });
+          }
+        }
+        
+        // Skip the bottom `results.push` since we're pushing inside the inner loop
+        continue;
       }
       results.push({ product_id: item.product_id, success: true });
     } catch (err: any) {

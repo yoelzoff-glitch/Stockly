@@ -42,7 +42,8 @@ export async function checkPublicationsLimit(tenantId: string): Promise<boolean>
 
 export async function incrementUsage(
   tenantId: string, 
-  type: "ai_credits_used" | "whatsapp_messages_used" | "automation_actions_used"
+  type: "ai_credits_used" | "whatsapp_messages_used" | "automation_actions_used",
+  amount: number = 1
 ) {
   const supabase = createAdminClient();
   const currentMonth = new Date().toISOString().slice(0, 7) + "-01"; // YYYY-MM-01
@@ -55,15 +56,15 @@ export async function incrementUsage(
       .eq("month", currentMonth)
       .maybeSingle();
 
-    let newValue = 1;
+    let newValue = amount;
     if (!currentUsage) {
       await supabase.from("subscription_usage").insert({
         tenant_id: tenantId,
         month: currentMonth,
-        [type]: 1
+        [type]: amount
       });
     } else {
-      newValue = currentUsage[type] + 1;
+      newValue = currentUsage[type] + amount;
       await supabase.from("subscription_usage").update({
         [type]: newValue
       }).eq("id", currentUsage.id).eq("tenant_id", tenantId);
@@ -102,8 +103,8 @@ export async function incrementUsage(
 }
 
 // Retro-compatibilidad
-export async function incrementAIUsage(tenantId: string) {
-  return incrementUsage(tenantId, "ai_credits_used");
+export async function incrementAIUsage(tenantId: string, amount: number = 1) {
+  return incrementUsage(tenantId, "ai_credits_used", amount);
 }
 
 export async function getUsageStats(tenantId: string) {

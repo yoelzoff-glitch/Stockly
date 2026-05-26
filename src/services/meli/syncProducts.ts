@@ -82,6 +82,32 @@ export async function syncProducts(tenantId: string) {
   const productsToUpsert = [];
   const syncTimestamp = new Date().toISOString();
 
+  // Pre-process SKUs to resolve mirrored listings (Publicaciones Sincronizadas)
+  const skuMap = new Map<string, string>();
+  for (const item of rawProducts) {
+    const sku = extractSku(item);
+    if (sku) skuMap.set(item.id, sku);
+  }
+
+  for (const item of rawProducts) {
+    if (!skuMap.has(item.id)) {
+      let masterId = null;
+      if (item.item_relations && item.item_relations.length > 0) {
+        masterId = item.item_relations[0].id;
+      } else if (item.variations && item.variations.length > 0) {
+        for (const v of item.variations) {
+          if (v.item_relations && v.item_relations.length > 0) {
+            masterId = v.item_relations[0].id;
+            break;
+          }
+        }
+      }
+      if (masterId && skuMap.has(masterId)) {
+        skuMap.set(item.id, skuMap.get(masterId)!);
+      }
+    }
+  }
+
   for (const item of rawProducts) {
     const siteId = item.site_id || "MLA";
     const existingCost = costMap.get(item.id) || null;
@@ -126,7 +152,7 @@ export async function syncProducts(tenantId: string) {
       tenant_id: tenantId,
       meli_account_id: meli_account_id,
       meli_item_id: item.id,
-      sku: extractSku(item),
+      sku: skuMap.get(item.id) || null,
       title: item.title,
       price: item.price,
       base_price: item.base_price,
