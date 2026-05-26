@@ -119,9 +119,10 @@ export default function BillingPage() {
             <div className="mt-4 text-3xl font-bold">$25.000 <span className="text-sm font-normal text-muted-foreground">ARS/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>500 consultas IA/mes</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>1 Usuario</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>1 Cuenta de Mercado Libre</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>7 días de prueba gratis</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 100 publicaciones de ML</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>500 mensajes de IA (WhatsApp/Web)</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>250 procesos automáticos mensuales</span></div>
           </CardContent>
           <CardFooter>
             <Button className="w-full" disabled variant={subscription.plan === 'starter' ? "secondary" : "outline"}>
