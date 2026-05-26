@@ -14,7 +14,8 @@ const plans = [
       "7 días de prueba gratis",
       "Dashboard completo",
       "500 mensajes de IA",
-      "250 procesos automáticos"
+      "250 procesos automáticos",
+      "Gestión de Títulos con IA"
     ],
     buttonText: "Empezar gratis",
     popular: false
@@ -27,7 +28,8 @@ const plans = [
       "Todo lo de Starter",
       "1.500 mensajes de IA",
       "800 procesos automáticos",
-      "Soporte prioritario"
+      "Soporte prioritario",
+      "Optimización y Cambio Masivo de Títulos"
     ],
     buttonText: "Empezar",
     popular: true
@@ -40,7 +42,8 @@ const plans = [
       "Todo lo de Pro",
       "5.000 mensajes de IA",
       "1.500 procesos automáticos",
-      "Soporte 24/7 por WhatsApp"
+      "Soporte 24/7 por WhatsApp",
+      "Optimización y Cambio Masivo de Títulos"
     ],
     buttonText: "Empezar",
     popular: false
