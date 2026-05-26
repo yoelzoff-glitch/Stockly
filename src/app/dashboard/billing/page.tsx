@@ -34,7 +34,7 @@ export default function BillingPage() {
     loadBilling()
   }, [])
 
-  const handleUpgrade = async (plan: 'pro' | 'business') => {
+  const handleUpgrade = async (plan: 'pro' | 'ultra') => {
     setUpgrading(plan)
     try {
       const initPoint = await upgradePlan(plan)
@@ -59,7 +59,7 @@ export default function BillingPage() {
 
   const { usage, subscription } = stats
   const progress = Math.min(100, Math.round((usage.ai_requests_used / usage.ai_requests_limit) * 100))
-  const isUnlimited = subscription.plan === 'business'
+  const isUnlimited = subscription.plan === 'ultra'
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
@@ -135,7 +135,7 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Pro</CardTitle>
             <CardDescription>Para tiendas en crecimiento.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$9.900 <span className="text-sm font-normal text-muted-foreground">ARS/mes</span></div>
+            <div className="mt-4 text-3xl font-bold">$49.000 <span className="text-sm font-normal text-muted-foreground">ARS/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>5.000 consultas IA/mes</span></div>
@@ -147,7 +147,7 @@ export default function BillingPage() {
             {subscription.plan === 'pro' ? (
               <Button className="w-full" disabled variant="secondary">Plan Actual</Button>
             ) : (
-              <Button className="w-full" onClick={() => handleUpgrade('pro')} disabled={!!upgrading || subscription.plan === 'business'}>
+              <Button className="w-full" onClick={() => handleUpgrade('pro')} disabled={!!upgrading || subscription.plan === 'ultra'}>
                 {upgrading === 'pro' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
                 Actualizar a Pro
               </Button>
@@ -155,12 +155,12 @@ export default function BillingPage() {
           </CardFooter>
         </Card>
 
-        {/* Business Plan */}
-        <Card className={subscription.plan === 'business' ? "border-primary" : "border-primary/50 bg-primary/5"}>
+        {/* Ultra Plan */}
+        <Card className={subscription.plan === 'ultra' ? "border-primary" : "border-primary/50 bg-primary/5"}>
           <CardHeader>
-            <CardTitle>Business</CardTitle>
+            <CardTitle>Ultra</CardTitle>
             <CardDescription>Para negocios a gran escala.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$29.900 <span className="text-sm font-normal text-muted-foreground">ARS/mes</span></div>
+            <div className="mt-4 text-3xl font-bold">$89.000 <span className="text-sm font-normal text-muted-foreground">ARS/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Consultas IA Ilimitadas</span></div>
@@ -169,12 +169,12 @@ export default function BillingPage() {
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Soporte 24/7 por WhatsApp</span></div>
           </CardContent>
           <CardFooter>
-            {subscription.plan === 'business' ? (
+            {subscription.plan === 'ultra' ? (
               <Button className="w-full" disabled variant="secondary">Plan Actual</Button>
             ) : (
-              <Button className="w-full" onClick={() => handleUpgrade('business')} disabled={!!upgrading}>
-                {upgrading === 'business' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                Actualizar a Business
+              <Button className="w-full" onClick={() => handleUpgrade('ultra')} disabled={!!upgrading}>
+                {upgrading === 'ultra' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                Actualizar a Ultra
               </Button>
             )}
           </CardFooter>

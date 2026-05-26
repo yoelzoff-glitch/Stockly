@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       
       // MP Statuses: authorized, paused, cancelled
       const status = subscription.status; 
-      const plan = subscription.reason === 'Stockly Business' ? 'business' : 'pro';
+      const plan = subscription.reason === 'Stockly Ultra' ? 'ultra' : 'pro';
 
       if (tenantId) {
         const supabase = createAdminClient();

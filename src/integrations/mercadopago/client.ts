@@ -15,15 +15,15 @@ const preApproval = new PreApproval(client);
 const PLANS = {
   pro: {
     title: 'Stockly Pro',
-    price: 9900, // ARS
+    price: 49000, // Referencia ARS
   },
-  business: {
-    title: 'Stockly Business',
-    price: 29900, // ARS
+  ultra: {
+    title: 'Stockly Ultra',
+    price: 89000, // Referencia ARS
   }
 };
 
-export async function createSubscriptionPreference(tenantId: string, plan: 'pro' | 'business', userEmail: string) {
+export async function createSubscriptionPreference(tenantId: string, plan: 'pro' | 'ultra', userEmail: string) {
   try {
     const planDetails = PLANS[plan];
     if (!planDetails) throw new Error("Plan not found");

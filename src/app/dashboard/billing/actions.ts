@@ -3,7 +3,7 @@
 import { createSubscriptionPreference } from "@/integrations/mercadopago/client";
 import { createClient } from "@/lib/supabase/server";
 
-export async function upgradePlan(plan: 'pro' | 'business') {
+export async function upgradePlan(plan: 'pro' | 'ultra') {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");

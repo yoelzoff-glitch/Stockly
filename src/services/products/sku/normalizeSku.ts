@@ -14,11 +14,9 @@ export function normalizeSku(sku: string): string {
 
   return sku
     .toUpperCase()
-    // Reemplaza guiones, guiones bajos o barras con espacio
-    .replace(/[-_/]/g, " ")
-    // Elimina caracteres especiales que no sean letras, números o espacios
-    .replace(/[^A-Z0-9\s]/g, "")
-    // Reemplaza múltiples espacios por uno solo
-    .replace(/\s+/g, " ")
+    // Reemplaza guiones, guiones bajos, barras y ESPACIOS por vacio
+    .replace(/[-_/\s]/g, "")
+    // Elimina caracteres especiales que no sean letras o números
+    .replace(/[^A-Z0-9]/g, "")
     .trim();
 }
