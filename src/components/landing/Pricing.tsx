@@ -9,7 +9,7 @@ const plans = [
   {
     name: "Starter",
     limit: "Hasta 100 publicaciones",
-    price: "$25 USD",
+    price: "$30 USD",
     features: [
       "7 días de prueba gratis",
       "Dashboard completo",
@@ -22,7 +22,7 @@ const plans = [
   {
     name: "Pro",
     limit: "Hasta 500 publicaciones",
-    price: "$49 USD",
+    price: "$55 USD",
     features: [
       "Todo lo de Starter",
       "1.500 mensajes de IA",
@@ -35,7 +35,7 @@ const plans = [
   {
     name: "Ultra",
     limit: "Hasta 2.500 publicaciones",
-    price: "$89 USD",
+    price: "$90 USD",
     features: [
       "Todo lo de Pro",
       "10.000 mensajes de IA",

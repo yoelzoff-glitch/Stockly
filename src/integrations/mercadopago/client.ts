@@ -14,16 +14,16 @@ const preApproval = new PreApproval(client);
 
 const PLANS = {
   starter: {
-    title: 'Stockly Starter ($25 USD)',
-    price: 37250, // Equiv ARS a $1490 * 25
+    title: 'Stockly Starter ($30 USD)',
+    price: 44700, // Equiv ARS a $1490 * 30
   },
   pro: {
-    title: 'Stockly Pro ($49 USD)',
-    price: 73000, // Equiv ARS a $1490
+    title: 'Stockly Pro ($55 USD)',
+    price: 81950, // Equiv ARS a $1490 * 55
   },
   ultra: {
-    title: 'Stockly Ultra ($89 USD)',
-    price: 132600, // Equiv ARS a $1490
+    title: 'Stockly Ultra ($90 USD)',
+    price: 134100, // Equiv ARS a $1490 * 90
   }
 };
 
