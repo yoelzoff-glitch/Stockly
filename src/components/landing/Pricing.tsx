@@ -118,6 +118,53 @@ export function Pricing() {
             </motion.div>
           ))}
         </div>
+
+        {/* Enterprise Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="mt-12 max-w-6xl mx-auto bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 rounded-3xl p-8 md:p-10 shadow-xl border border-indigo-900/40 relative overflow-hidden text-white flex flex-col md:flex-row items-center justify-between gap-8"
+        >
+          {/* Background decoration elements */}
+          <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
+          <div className="absolute bottom-0 left-0 w-60 h-60 bg-purple-500/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
+
+          <div className="flex-1 space-y-4 text-center md:text-left">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/20 border border-indigo-500/30 text-indigo-300">
+              💎 EXCLUSIVO CORPORATIVO
+            </div>
+            <h3 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+              ¿Operás a gran escala? Plan Enterprise
+            </h3>
+            <p className="text-slate-300 text-sm md:text-base max-w-2xl leading-relaxed">
+              Diseñado para cuentas con más de 2.500 publicaciones, múltiples cuentas de Mercado Libre y altos volúmenes de facturación que necesitan infraestructura dedicada.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 text-sm text-slate-200">
+              <div className="flex items-center justify-center md:justify-start gap-2">
+                <Check className="w-5 h-5 text-indigo-400 shrink-0" />
+                <span>Todo 100% Ilimitado</span>
+              </div>
+              <div className="flex items-center justify-center md:justify-start gap-2">
+                <Check className="w-5 h-5 text-indigo-400 shrink-0" />
+                <span>Seguimiento y Auditoría de cuenta</span>
+              </div>
+              <div className="flex items-center justify-center md:justify-start gap-2">
+                <Check className="w-5 h-5 text-indigo-400 shrink-0" />
+                <span>Soporte 24/7 y SLA Dedicado</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="shrink-0 w-full md:w-auto">
+            <Link href="https://calendly.com/stockly-demo" target="_blank" rel="noopener noreferrer" className="block w-full">
+              <Button className="w-full md:w-auto bg-white hover:bg-slate-100 text-slate-950 h-14 rounded-2xl text-base font-bold px-8 shadow-lg transition-all border border-slate-200 flex items-center justify-center gap-2">
+                Agendá una reunión
+              </Button>
+            </Link>
+          </div>
+        </motion.div>
       </div>
     </section>
   );
