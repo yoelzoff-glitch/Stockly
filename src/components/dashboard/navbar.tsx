@@ -7,8 +7,27 @@ import { NotificationBell } from "@/components/layout/notification-bell";
 import { useState } from "react";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 
-export function Navbar() {
+export function Navbar({ plan, daysRemaining }: { plan?: string, daysRemaining?: number | null }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const getPlanBadge = () => {
+    if (!plan) return null;
+    
+    let planColor = "bg-slate-100 text-slate-700";
+    if (plan === "pro") planColor = "bg-indigo-100 text-indigo-700";
+    if (plan === "ultra") planColor = "bg-fuchsia-100 text-fuchsia-700";
+    
+    return (
+      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${planColor}`}>
+        <span className="capitalize">Stockly {plan}</span>
+        {daysRemaining !== null && daysRemaining !== undefined && (
+          <span className="opacity-80">
+            • {daysRemaining > 0 ? `Renueva en ${daysRemaining} d${daysRemaining === 1 ? 'ía' : 'ías'}` : 'Vencido'}
+          </span>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -33,6 +52,8 @@ export function Navbar() {
             <Target className="h-4 w-4" />
             <span className="hidden sm:inline">Guía de Inicio</span>
           </Link>
+          <div className="hidden sm:block border-l h-5 border-slate-200 mx-1"></div>
+          {getPlanBadge()}
           <NotificationBell />
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
