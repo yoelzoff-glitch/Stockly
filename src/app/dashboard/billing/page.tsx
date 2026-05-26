@@ -62,8 +62,13 @@ export default function BillingPage() {
   }
 
   const { usage, subscription } = stats
-  const progress = Math.min(100, Math.round((usage.ai_requests_used / usage.ai_requests_limit) * 100))
-  const isUnlimited = subscription.plan === 'ultra'
+  
+  let limit = usage.ai_requests_limit || 500;
+  if (subscription.plan === 'pro') limit = 1500;
+  if (subscription.plan === 'ultra') limit = 10000;
+  
+  const progress = Math.min(100, Math.round(((usage.ai_requests_used || 0) / limit) * 100))
+  const isUnlimited = false;
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
@@ -92,8 +97,8 @@ export default function BillingPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between text-sm font-medium">
-              <span>{usage.ai_requests_used} consultas usadas</span>
-              <span>{isUnlimited ? '∞' : usage.ai_requests_limit} límite</span>
+              <span>{usage.ai_requests_used || 0} consultas usadas</span>
+              <span>{isUnlimited ? '∞' : limit} límite</span>
             </div>
             <Progress value={isUnlimited ? 0 : progress} className="h-2" />
             <p className="text-xs text-muted-foreground">
@@ -117,7 +122,7 @@ export default function BillingPage() {
             </div>
             <div className="flex items-center space-x-2 text-sm mt-2">
               <Check className="h-4 w-4 text-green-500" />
-              <span>{isUnlimited ? 'Consultas IA ilimitadas' : `${usage.ai_requests_limit} consultas IA/mes`}</span>
+              <span>{isUnlimited ? 'Consultas IA ilimitadas' : `${limit} consultas IA/mes`}</span>
             </div>
           </CardContent>
         </Card>
@@ -165,8 +170,8 @@ export default function BillingPage() {
             <div className="mt-4 text-3xl font-bold">$49 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 1.000 publicaciones de ML</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>5.000 mensajes de IA (WhatsApp/Web)</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 500 publicaciones de ML</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>1.500 mensajes de IA (WhatsApp/Web)</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>800 procesos automáticos mensuales</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Soporte prioritario</span></div>
           </CardContent>
@@ -190,9 +195,9 @@ export default function BillingPage() {
             <div className="mt-4 text-3xl font-bold">$89 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Publicaciones de ML Ilimitadas</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Mensajes de IA Ilimitados (WhatsApp/Web)</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Procesos automáticos Ilimitados</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 2.500 publicaciones de ML</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>10.000 mensajes de IA (WhatsApp/Web)</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 5.000 procesos automáticos</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Soporte 24/7 por WhatsApp</span></div>
           </CardContent>
           <CardFooter>
