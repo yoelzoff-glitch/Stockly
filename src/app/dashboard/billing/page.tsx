@@ -165,9 +165,9 @@ export default function BillingPage() {
             <div className="mt-4 text-3xl font-bold">$49 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>5.000 consultas IA/mes</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>5 Usuarios</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Múltiples cuentas Mercado Libre</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 1.000 publicaciones de ML</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>5.000 mensajes de IA (WhatsApp/Web)</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>800 procesos automáticos mensuales</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Soporte prioritario</span></div>
           </CardContent>
           <CardFooter>
@@ -190,9 +190,9 @@ export default function BillingPage() {
             <div className="mt-4 text-3xl font-bold">$89 <span className="text-sm font-normal text-muted-foreground">USD/mes</span></div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Consultas IA Ilimitadas</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Usuarios Ilimitados</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Cuentas Mercado Libre Ilimitadas</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Publicaciones de ML Ilimitadas</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Mensajes de IA Ilimitados (WhatsApp/Web)</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Procesos automáticos Ilimitados</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Soporte 24/7 por WhatsApp</span></div>
           </CardContent>
           <CardFooter>
