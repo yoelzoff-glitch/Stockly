@@ -104,13 +104,12 @@ export async function logoutAction() {
   redirect("/login");
 }
 
-
 export async function retryPaymentAction() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "No est·s autenticado" };
+    return { error: "No est√°s autenticado" };
   }
 
   const plan = user.user_metadata?.plan;
@@ -133,7 +132,7 @@ export async function retryPaymentAction() {
     if (initPoint) {
       redirectUrl = initPoint;
     } else {
-      return { error: "Mercado Pago no devolviÛ un link de pago v·lido." };
+      return { error: "Mercado Pago no devolvi√≥ un link de pago v√°lido." };
     }
   } catch (error: any) {
     console.error("Error creating MP preference during retry:", error);
@@ -146,4 +145,3 @@ export async function retryPaymentAction() {
     return { error: "No se pudo generar el enlace de pago." };
   }
 }
-
