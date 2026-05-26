@@ -3,15 +3,41 @@ import { logger } from "@/lib/errors/logger";
 import * as Sentry from "@sentry/nextjs";
 
 export const PLAN_LIMITS = {
-  starter: { ai: 500, auto: 250, wa: 300 },
-  pro: { ai: 1500, auto: 800, wa: 1500 },
-  ultra: { ai: 5000, auto: 1500, wa: 5000 },
+  starter: { ai: 500, auto: 250, wa: 300, pub: 100 },
+  pro: { ai: 1500, auto: 800, wa: 1500, pub: 500 },
+  ultra: { ai: 5000, auto: 1500, wa: 5000, pub: 2500 },
 };
 
 export async function checkAILimit(tenantId: string): Promise<boolean> {
   const stats = await getUsageStats(tenantId);
   if (!stats) return true;
   return stats.usage.ai_credits_used < stats.limits.ai;
+}
+
+export async function checkWhatsAppLimit(tenantId: string): Promise<boolean> {
+  const stats = await getUsageStats(tenantId);
+  if (!stats) return true;
+  return stats.usage.whatsapp_messages_used < stats.limits.wa;
+}
+
+export async function checkAutomationLimit(tenantId: string): Promise<boolean> {
+  const stats = await getUsageStats(tenantId);
+  if (!stats) return true;
+  return stats.usage.automation_actions_used < stats.limits.auto;
+}
+
+export async function checkPublicationsLimit(tenantId: string): Promise<boolean> {
+  const stats = await getUsageStats(tenantId);
+  if (!stats) return true;
+  
+  const supabase = createAdminClient();
+  const { count } = await supabase
+    .from("products")
+    .select("*", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .neq("status", "deleted_from_meli");
+    
+  return (count || 0) < (stats.limits as any).pub;
 }
 
 export async function incrementUsage(

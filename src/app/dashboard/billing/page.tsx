@@ -28,10 +28,12 @@ export default function BillingPage() {
         const currentMonth = new Date().toISOString().slice(0, 7) + "-01"
         const { data: usage } = await supabase.from("subscription_usage").select("*").eq("tenant_id", profile.tenant_id).eq("month", currentMonth).maybeSingle()
         const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_id", profile.tenant_id).single()
+        const { count: pubCount } = await supabase.from("products").select("*", { count: 'exact', head: true }).eq("tenant_id", profile.tenant_id).neq("status", "deleted_from_meli");
         
         setStats({
           usage: usage || { ai_credits_used: 0, ai_requests_limit: 500 },
-          subscription: sub || { plan: 'starter', status: 'active' }
+          subscription: sub || { plan: 'starter', status: 'active' },
+          pubCount: pubCount || 0
         })
       }
       setLoading(false)
@@ -69,6 +71,11 @@ export default function BillingPage() {
   if (subscription.plan === 'ultra') limit = 5000;
   
   const progress = Math.min(100, Math.round(((usage.ai_credits_used || 0) / limit) * 100))
+  let pubLimit = 100;
+  if (subscription.plan === 'pro') pubLimit = 500;
+  if (subscription.plan === 'ultra') pubLimit = 2500;
+  
+  const pubProgress = Math.min(100, Math.round(((stats.pubCount || 0) / pubLimit) * 100));
   const isUnlimited = false;
 
   return (
@@ -104,6 +111,26 @@ export default function BillingPage() {
             <Progress value={isUnlimited ? 0 : progress} className="h-2" />
             <p className="text-xs text-muted-foreground">
               {isUnlimited ? "Tu plan no tiene límite de consultas." : `Has usado el ${progress}% de tu límite mensual.`}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Publications Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Publicaciones de Mercado Libre</CardTitle>
+            <CardDescription>
+              Publicaciones importadas y sincronizadas activamente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between text-sm font-medium">
+              <span>{stats.pubCount || 0} publicaciones importadas</span>
+              <span>{isUnlimited ? '∞' : pubLimit} límite</span>
+            </div>
+            <Progress value={isUnlimited ? 0 : pubProgress} className="h-2" />
+            <p className="text-xs text-muted-foreground">
+              {isUnlimited ? "Tu plan no tiene límite de publicaciones." : `Has usado el ${pubProgress}% de tu límite de productos.`}
             </p>
           </CardContent>
         </Card>

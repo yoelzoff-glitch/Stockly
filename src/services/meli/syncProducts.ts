@@ -45,6 +45,24 @@ export async function syncProducts(tenantId: string) {
     return 0; // No products to sync
   }
 
+  const { getUsageStats } = await import("./../billing/checkLimits");
+  const stats = await getUsageStats(tenantId);
+  const maxPublications = (stats?.limits as any)?.pub || 100;
+
+  if (rawProducts.length > maxPublications) {
+    // Truncate the array to the limit
+    rawProducts.length = maxPublications;
+    
+    // Warn the user
+    await supabase.from("alerts").insert({
+      tenant_id: tenantId,
+      type: "warning",
+      title: "Límite de Publicaciones Alcanzado",
+      message: `Tienes más publicaciones en Mercado Libre de las permitidas en tu plan. Solo se sincronizaron las primeras ${maxPublications}.`,
+      is_read: false
+    });
+  }
+
   // 3. Fetch existing products to preserve "cost"
   const { data: existingProducts } = await supabase
     .from("products")

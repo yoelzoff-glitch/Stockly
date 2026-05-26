@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getMediaUrl, downloadMedia, sendText } from "@/integrations/whatsapp/client";
 import { transcribeAudio } from "@/services/audio/transcribe";
 import { runBusinessAgent } from "@/services/ai/agent";
-import { incrementUsage } from "@/services/billing/checkLimits";
+import { incrementUsage, checkWhatsAppLimit } from "@/services/billing/checkLimits";
 import { logger } from "@/lib/errors/logger";
 import * as Sentry from "@sentry/nextjs";
 
@@ -85,6 +85,19 @@ export async function POST(req: Request) {
 
       if (!tenantId) {
         logger.error(`Unknown sender number: ${from} writing to ${phoneNumberId}`, "WHATSAPP_WEBHOOK");
+        continue;
+      }
+
+      const hasWaLimit = await checkWhatsAppLimit(tenantId);
+      if (!hasWaLimit) {
+        await supabase.from("alerts").insert({
+          tenant_id: tenantId,
+          type: "warning",
+          title: "Límite de WhatsApp Alcanzado",
+          message: `Mensaje de ${from} ignorado porque has alcanzado el límite de mensajes de WhatsApp de tu plan.`,
+          is_read: false
+        });
+        logger.warn(`WhatsApp limit reached for tenant ${tenantId}. Ignoring message.`, "WHATSAPP_WEBHOOK");
         continue;
       }
 

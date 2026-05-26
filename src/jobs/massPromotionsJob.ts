@@ -15,6 +15,21 @@ export const massPromotionsJob = inngest.createFunction(
     await step.run("create-mass-promotions", async () => {
       try {
         const supabase = createAdminClient();
+        const { checkAutomationLimit, incrementUsage } = await import("@/services/billing/checkLimits");
+        
+        const hasLimit = await checkAutomationLimit(tenantId);
+        if (!hasLimit) {
+          await supabase.from("alerts").insert({
+            tenant_id: tenantId,
+            type: "warning",
+            title: "Límite de Automatizaciones Alcanzado",
+            message: "No se pudieron crear las promociones masivas porque has alcanzado el límite de tu plan.",
+            is_read: false
+          });
+          logger.warn(`Automation limit reached for tenant ${tenantId}. Aborting mass promotions.`, "MASS_PROMOTIONS");
+          return { success: false, reason: "limit_reached" };
+        }
+
         logger.info(`Starting mass promotions for tenant ${tenantId}`, "MASS_PROMOTIONS");
         
         // Placeholder for heavy mass promotions logic
@@ -31,7 +46,6 @@ export const massPromotionsJob = inngest.createFunction(
           is_read: false
         });
         
-        const { incrementUsage } = await import("@/services/billing/checkLimits");
         await incrementUsage(tenantId, "automation_actions_used");
         
         return { success: true };

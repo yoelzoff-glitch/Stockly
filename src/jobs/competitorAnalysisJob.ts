@@ -15,6 +15,21 @@ export const competitorAnalysisJob = inngest.createFunction(
     await step.run("analyze-competitors", async () => {
       try {
         const supabase = createAdminClient();
+        const { checkAutomationLimit, incrementUsage } = await import("@/services/billing/checkLimits");
+        
+        const hasLimit = await checkAutomationLimit(tenantId);
+        if (!hasLimit) {
+          await supabase.from("alerts").insert({
+            tenant_id: tenantId,
+            type: "warning",
+            title: "Límite de Automatizaciones Alcanzado",
+            message: "No se pudo realizar el análisis de competencia masivo porque has alcanzado el límite de tu plan.",
+            is_read: false
+          });
+          logger.warn(`Automation limit reached for tenant ${tenantId}. Aborting competitor analysis.`, "COMPETITOR_ANALYSIS");
+          return { success: false, reason: "limit_reached" };
+        }
+
         logger.info(`Starting competitor analysis for tenant ${tenantId}`, "COMPETITOR_ANALYSIS");
         
         // Placeholder for heavy competitor analysis logic
@@ -31,8 +46,6 @@ export const competitorAnalysisJob = inngest.createFunction(
           is_read: false
         });
         
-        // Import dynamic or use standard import if added at top
-        const { incrementUsage } = await import("@/services/billing/checkLimits");
         await incrementUsage(tenantId, "automation_actions_used");
         
         return { success: true };
