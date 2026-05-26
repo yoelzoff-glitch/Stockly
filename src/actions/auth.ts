@@ -32,9 +32,20 @@ export async function registerAction(prevState: any, formData: FormData) {
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
+  const confirmPassword = formData.get("confirm_password") as string;
+  const plan = formData.get("plan") as string;
+  const promoCode = formData.get("promo_code") as string;
 
-  if (!name || !email || !password) {
-    return { error: "Todos los campos son obligatorios" };
+  if (!name || !email || !password || !confirmPassword || !plan) {
+    return { error: "Todos los campos obligatorios deben estar completos" };
+  }
+
+  if (password !== confirmPassword) {
+    return { error: "Las contraseñas no coinciden" };
+  }
+
+  if (password.length < 6) {
+    return { error: "La contraseña debe tener al menos 6 caracteres" };
   }
 
   const supabase = await createClient();
@@ -45,6 +56,8 @@ export async function registerAction(prevState: any, formData: FormData) {
     options: {
       data: {
         full_name: name,
+        plan: plan,
+        promo_code: promoCode || null
       },
     },
   });
