@@ -233,6 +233,7 @@ export default function BillingPage() {
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 500 publicaciones de ML</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>1.500 mensajes de IA (WhatsApp/Web)</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>800 procesos automáticos mensuales</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 2 números de WhatsApp vinculados</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Soporte prioritario</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Optimización y Cambio Masivo de Títulos</span></div>
           </CardContent>
@@ -259,6 +260,7 @@ export default function BillingPage() {
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 2.500 publicaciones de ML</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>5.000 mensajes de IA (WhatsApp/Web)</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 1.500 procesos automáticos</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 2 números de WhatsApp vinculados</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Soporte 24/7 por WhatsApp</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Optimización y Cambio Masivo de Títulos</span></div>
           </CardContent>

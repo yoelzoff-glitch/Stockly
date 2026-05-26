@@ -28,6 +28,7 @@ const plans = [
       "Todo lo de Starter",
       "1.500 mensajes de IA",
       "800 procesos automáticos",
+      "Hasta 2 números de WhatsApp",
       "Soporte prioritario",
       "Optimización y Cambio Masivo de Títulos"
     ],
@@ -42,6 +43,7 @@ const plans = [
       "Todo lo de Pro",
       "5.000 mensajes de IA",
       "1.500 procesos automáticos",
+      "Hasta 2 números de WhatsApp",
       "Soporte 24/7 por WhatsApp",
       "Optimización y Cambio Masivo de Títulos"
     ],
