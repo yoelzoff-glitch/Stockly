@@ -83,6 +83,7 @@ export async function submitOnboardingAction(prevState: any, formData: FormData)
       ]);
   }
 
+  let redirectUrl = null;
   // If selectedPlan is pro or ultra, generate preference and redirect
   if (selectedPlan === 'pro' || selectedPlan === 'ultra') {
     try {
@@ -93,8 +94,7 @@ export async function submitOnboardingAction(prevState: any, formData: FormData)
         user.email || "user@stockly.com"
       );
       if (initPoint) {
-        // Redirigir a Mercado Pago
-        redirect(initPoint);
+        redirectUrl = initPoint;
       }
     } catch (error) {
       console.error("Error creating MP preference during onboarding:", error);
@@ -103,5 +103,9 @@ export async function submitOnboardingAction(prevState: any, formData: FormData)
   }
 
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  if (redirectUrl) {
+    redirect(redirectUrl);
+  } else {
+    redirect("/dashboard");
+  }
 }
