@@ -25,10 +25,11 @@ export function parseCompositeSku(sku: string): ParsedCompositeSku {
   const tokens = sku.trim().split(/\s+/);
   
   // Regex para encontrar componentes cuando NO hay espacios:
-  // Letras + Numeros + (Opcionalmente Letras)
+  // Letras + Numeros + (Opcionalmente Letras NO seguidas de numeros)
   // Ej: C145D260 -> ["C145", "D260"]
   // BANQUETA100 -> ["BANQUETA100"]
-  const componentRegex = /[A-Z]+\d+[A-Z]*/g;
+  // D160VNC145 -> ["D160VN", "C145"]
+  const componentRegex = /[A-Z]+\d+(?:[A-Z]+(?!\d+))?/g;
   
   const matches = normalized.match(componentRegex);
   
