@@ -38,7 +38,7 @@ export default function BillingPage() {
     loadBilling()
   }, [])
 
-  const handleUpgrade = async (plan: 'pro' | 'ultra') => {
+  const handleUpgrade = async (plan: 'starter' | 'pro' | 'ultra') => {
     setUpgrading(plan)
     try {
       const initPoint = await upgradePlan(plan)
@@ -139,9 +139,21 @@ export default function BillingPage() {
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>250 procesos automáticos mensuales</span></div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" disabled variant={subscription.plan === 'starter' ? "secondary" : "outline"}>
-              {subscription.plan === 'starter' ? 'Plan Actual' : 'No disponible'}
-            </Button>
+            {subscription.plan === 'starter' && !isExpired ? (
+              <Button className="w-full" disabled variant="secondary">
+                Plan Actual
+              </Button>
+            ) : (
+              <Button 
+                className="w-full" 
+                onClick={() => handleUpgrade('starter')} 
+                disabled={!!upgrading || (!isExpired && subscription.plan !== 'starter')}
+                variant={!isExpired && subscription.plan !== 'starter' ? "outline" : "default"}
+              >
+                {upgrading === 'starter' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                {subscription.plan === 'starter' && isExpired ? 'Pagar Starter' : 'Seleccionar Starter'}
+              </Button>
+            )}
           </CardFooter>
         </Card>
 

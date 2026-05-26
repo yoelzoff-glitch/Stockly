@@ -13,6 +13,10 @@ const client = new MercadoPagoConfig({
 const preApproval = new PreApproval(client);
 
 const PLANS = {
+  starter: {
+    title: 'Stockly Starter ($25 USD)',
+    price: 37250, // Equiv ARS a $1490 * 25
+  },
   pro: {
     title: 'Stockly Pro ($49 USD)',
     price: 73000, // Equiv ARS a $1490
@@ -25,7 +29,7 @@ const PLANS = {
 
 export async function createSubscriptionPreference(
   referenceId: string, 
-  plan: 'pro' | 'ultra', 
+  plan: 'starter' | 'pro' | 'ultra', 
   userEmail: string,
   referenceType: 'user' | 'tenant' = 'tenant'
 ) {
