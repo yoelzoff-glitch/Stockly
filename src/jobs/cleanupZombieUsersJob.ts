@@ -4,8 +4,11 @@ import { logger } from "@/lib/errors/logger";
 import * as Sentry from "@sentry/nextjs";
 
 export const cleanupZombieUsersJob = inngest.createFunction(
-  { id: "cleanup-zombie-users", name: "Cleanup Zombie Users" },
-  { cron: "0 * * * *" }, // Run every hour
+  { 
+    id: "cleanup-zombie-users", 
+    name: "Cleanup Zombie Users",
+    triggers: [{ cron: "0 * * * *" }] // Run every hour
+  },
   async ({ step }) => {
     await step.run("delete-zombie-users", async () => {
       try {
