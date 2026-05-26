@@ -28,6 +28,16 @@ export async function createSubscriptionPreference(tenantId: string, plan: 'pro'
     const planDetails = PLANS[plan];
     if (!planDetails) throw new Error("Plan not found");
 
+    const getBaseUrl = () => {
+      if (process.env.NEXTAUTH_URL) {
+        return process.env.NEXTAUTH_URL.replace(/["']/g, "").replace(/\/$/, "");
+      }
+      if (process.env.VERCEL_URL) {
+        return `https://${process.env.VERCEL_URL}`;
+      }
+      return "http://localhost:3000";
+    };
+
     const response = await preApproval.create({
       body: {
         reason: planDetails.title,
@@ -37,7 +47,7 @@ export async function createSubscriptionPreference(tenantId: string, plan: 'pro'
           transaction_amount: planDetails.price,
           currency_id: 'ARS',
         },
-        back_url: `${process.env.NEXTAUTH_URL}/dashboard/billing?success=true`,
+        back_url: `${getBaseUrl()}/dashboard/billing?success=true`,
         payer_email: userEmail,
         external_reference: tenantId, // To identify the tenant when webhook arrives
       }
