@@ -95,6 +95,8 @@ export async function submitOnboardingAction(prevState: any, formData: FormData)
       );
       if (initPoint) {
         redirectUrl = initPoint;
+      } else {
+        throw new Error("Mercado Pago no devolvió un link de pago válido. Respuesta vacía.");
       }
     } catch (error: any) {
       console.error("Error creating MP preference during onboarding:", error);
