@@ -65,7 +65,7 @@ export default function BillingPage() {
   
   let limit = usage.ai_requests_limit || 500;
   if (subscription.plan === 'pro') limit = 1500;
-  if (subscription.plan === 'ultra') limit = 10000;
+  if (subscription.plan === 'ultra') limit = 5000;
   
   const progress = Math.min(100, Math.round(((usage.ai_requests_used || 0) / limit) * 100))
   const isUnlimited = false;
@@ -196,8 +196,8 @@ export default function BillingPage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 2.500 publicaciones de ML</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>10.000 mensajes de IA (WhatsApp/Web)</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 5.000 procesos automáticos</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>5.000 mensajes de IA (WhatsApp/Web)</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 1.500 procesos automáticos</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Soporte 24/7 por WhatsApp</span></div>
           </CardContent>
           <CardFooter>

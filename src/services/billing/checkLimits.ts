@@ -4,8 +4,8 @@ import * as Sentry from "@sentry/nextjs";
 
 export const PLAN_LIMITS = {
   starter: { ai: 500, auto: 250, wa: 300 },
-  pro: { ai: 1500, auto: 500, wa: 1500 },
-  ultra: { ai: 5000, auto: 2000, wa: 5000 },
+  pro: { ai: 1500, auto: 800, wa: 1500 },
+  ultra: { ai: 5000, auto: 1500, wa: 5000 },
 };
 
 export async function checkAILimit(tenantId: string): Promise<boolean> {

@@ -38,8 +38,8 @@ const plans = [
     price: "$90 USD",
     features: [
       "Todo lo de Pro",
-      "10.000 mensajes de IA",
-      "5.000 procesos automáticos",
+      "5.000 mensajes de IA",
+      "1.500 procesos automáticos",
       "Soporte 24/7 por WhatsApp"
     ],
     buttonText: "Empezar",
