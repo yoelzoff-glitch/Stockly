@@ -1,17 +1,21 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Check, Loader2, CreditCard } from "lucide-react"
+import { Check, Loader2, CreditCard, AlertCircle } from "lucide-react"
 import { upgradePlan } from "./actions"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function BillingPage() {
   const [loading, setLoading] = useState(true)
   const [upgrading, setUpgrading] = useState<string | null>(null)
   const [stats, setStats] = useState<any>(null)
+  const searchParams = useSearchParams()
+  const isExpired = searchParams.get("expired") === "true"
   const supabase = createClient()
 
   useEffect(() => {
@@ -63,6 +67,16 @@ export default function BillingPage() {
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
+      {isExpired && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Suscripción Vencida</AlertTitle>
+          <AlertDescription>
+            Tu plan actual ha expirado. Por favor, renueva tu suscripción para seguir utilizando Stockly.
+            Tus datos están a salvo, pero el acceso está restringido hasta que regularices el pago.
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Facturación y Planes</h2>
       </div>

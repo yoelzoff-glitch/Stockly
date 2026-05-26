@@ -59,6 +59,26 @@ export async function middleware(request: NextRequest) {
         url.pathname = "/onboarding";
         return NextResponse.redirect(url);
       }
+
+      if (profile?.tenant_id) {
+        const { data: sub } = await supabase
+          .from("subscriptions")
+          .select("expires_at")
+          .eq("tenant_id", profile.tenant_id)
+          .single();
+
+        if (sub?.expires_at) {
+          const expiresAt = new Date(sub.expires_at);
+          const now = new Date();
+          
+          if (expiresAt < now && !request.nextUrl.pathname.startsWith("/dashboard/billing") && request.nextUrl.pathname !== "/onboarding") {
+            const url = request.nextUrl.clone();
+            url.pathname = "/dashboard/billing";
+            url.searchParams.set("expired", "true");
+            return NextResponse.redirect(url);
+          }
+        }
+      }
     }
   }
 
