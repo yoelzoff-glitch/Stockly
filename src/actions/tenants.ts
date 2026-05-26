@@ -87,12 +87,21 @@ export async function submitOnboardingAction(prevState: any, formData: FormData)
       ]);
   }
 
+  // Calculate expiration date
+  let expiresAt = null;
+  if (selectedPlan === "starter") {
+    const expirationDate = new Date();
+    expirationDate.setDate(expirationDate.getDate() + 7);
+    expiresAt = expirationDate.toISOString();
+  }
+
   // Create subscription record
   await supabaseAdmin.from("subscriptions").insert({
     tenant_id: tenantData.id,
     plan: selectedPlan,
     status: "active",
     mercadopago_subscription_id: user.user_metadata?.mp_sub_id || null,
+    expires_at: expiresAt,
   });
 
   revalidatePath("/", "layout");

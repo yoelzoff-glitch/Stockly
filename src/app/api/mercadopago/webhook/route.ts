@@ -53,12 +53,21 @@ export async function POST(req: Request) {
           // 2. Check if they already have a tenant (for renewals/re-subscriptions later)
           const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', refId).single();
           
+          // Calculate expires_at for paid plans
+          let expiresAt = null;
+          if (status === 'authorized') {
+            const expirationDate = new Date();
+            expirationDate.setDate(expirationDate.getDate() + 30);
+            expiresAt = expirationDate.toISOString();
+          }
+
           if (profile?.tenant_id) {
             await supabase.from("subscriptions").upsert({
               tenant_id: profile.tenant_id,
               plan: status === 'authorized' ? plan : 'starter',
               status: status === 'authorized' ? 'active' : 'canceled',
               mercadopago_subscription_id: subscription.id,
+              expires_at: expiresAt,
             });
 
             await supabase.from("tenants").update({
@@ -68,12 +77,21 @@ export async function POST(req: Request) {
 
           logger.info(`Updated payment status for user ${refId} to ${status} (${plan})`, "MERCADOPAGO_WEBHOOK");
         } else if (refType === 'tenant') {
+          // Calculate expires_at for paid plans
+          let expiresAt = null;
+          if (status === 'authorized') {
+            const expirationDate = new Date();
+            expirationDate.setDate(expirationDate.getDate() + 30);
+            expiresAt = expirationDate.toISOString();
+          }
+
           // Direct tenant upgrade (from dashboard)
           await supabase.from("subscriptions").upsert({
             tenant_id: refId,
             plan: status === 'authorized' ? plan : 'starter',
             status: status === 'authorized' ? 'active' : 'canceled',
             mercadopago_subscription_id: subscription.id,
+            expires_at: expiresAt,
           });
 
           await supabase.from("tenants").update({
