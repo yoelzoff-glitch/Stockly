@@ -225,7 +225,7 @@ export async function prepareTitleChangeAction(
 }
 
 
-export async function confirmCommandCenterAction(actionId: string) {
+export async function confirmCommandCenterAction(actionId: string): Promise<{ success: boolean; error?: string; results?: any[]; partial?: boolean; message?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: "No autenticado" };
