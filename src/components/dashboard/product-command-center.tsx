@@ -37,6 +37,8 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
   const [activeTab, setActiveTab] = useState("stats");
   const [internalStockData, setInternalStockData] = useState<any | null>(null);
   const [isLoadingInternalStock, setIsLoadingInternalStock] = useState(false);
+  const [realStats, setRealStats] = useState<any | null>(null);
+  const [isFetchingStats, setIsFetchingStats] = useState(false);
   
   useEffect(() => {
     if (product && isOpen) {
@@ -50,6 +52,24 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
         .catch(err => {
           console.error("Error fetching internal stock data:", err);
           setIsLoadingInternalStock(false);
+        });
+    }
+  }, [product, isOpen, activeTab]);
+
+  useEffect(() => {
+    if (product && isOpen && activeTab === "stats") {
+      setIsFetchingStats(true);
+      fetch(`/api/products/${product.id}/stats`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setRealStats(data);
+          }
+          setIsFetchingStats(false)
+        })
+        .catch(err => {
+          console.error("Error fetching real product stats:", err);
+          setIsFetchingStats(false);
         });
     }
   }, [product, isOpen, activeTab]);
@@ -78,6 +98,10 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
   const [applyToSiblings, setApplyToSiblings] = useState(false);
 
   const chartData = React.useMemo(() => {
+    if (realStats && realStats.chartData) {
+      return realStats.chartData;
+    }
+
     if (!product) return [];
     
     // Seeded random number generator based on product ID to keep data consistent
@@ -115,15 +139,26 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
       });
     }
     return data;
-  }, [product]);
+  }, [product, realStats]);
 
   const summaryStats = React.useMemo(() => {
+    const margin = product?.profit_real_margin || product?.margin_percent || 0;
+    const net = product?.profit_real_estimated || product?.margin_amount || 0;
+
+    if (realStats) {
+      return {
+        visits: realStats.totalVisits,
+        sales: realStats.totalSales,
+        conversion: realStats.conversionRate,
+        margin,
+        net
+      };
+    }
+
     if (!product) return { visits: 0, sales: 0, conversion: "0.00", margin: 0, net: 0 };
     
     const sales = product.sold_quantity || 0;
     const visits = sales > 0 ? sales * 35 + 85 : 32;
-    const margin = product.profit_real_margin || product.margin_percent || 0;
-    const net = product.profit_real_estimated || product.margin_amount || 0;
     
     // Generate a beautiful, realistic conversion rate based on price and sales
     const conversion = sales > 0 
@@ -137,7 +172,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
       margin,
       net
     };
-  }, [product]);
+  }, [product, realStats]);
 
   const loadSiblingProducts = async (prodId: string) => {
     setLoadingSiblings(true);
@@ -386,6 +421,12 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
               
               <TabsContent value="stats" className="mt-0 space-y-6">
                 {/* 4 Summary Cards Grid */}
+                {isFetchingStats && (
+                  <div className="flex items-center gap-2 p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100/50 dark:border-indigo-900/50 rounded-2xl text-xs text-indigo-700 dark:text-indigo-300 animate-pulse">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-600 dark:text-indigo-400" />
+                    <span>Conectando con la API de Mercado Libre y base de datos local para traer datos 100% reales...</span>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                   <Card className="border border-slate-100 shadow-sm bg-white dark:bg-slate-950">
                     <CardContent className="p-4 flex items-center justify-between">
