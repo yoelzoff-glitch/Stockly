@@ -143,10 +143,20 @@ export function ProductsClient({
                           <td className="p-4 align-middle font-medium min-w-[250px]">
                             <div className="flex items-center gap-3">
                               {product.thumbnail_url && (
-                                <img src={product.thumbnail_url} alt="" className="w-10 h-10 rounded-md object-cover" />
+                                <img 
+                                  src={product.thumbnail_url} 
+                                  alt="" 
+                                  className="w-10 h-10 rounded-md object-cover cursor-pointer hover:opacity-80 transition-opacity" 
+                                  onClick={() => setEditingProduct(product)}
+                                />
                               )}
                               <div className="flex flex-col">
-                                <span className="line-clamp-2">{product.title}</span>
+                                <span 
+                                  className="line-clamp-2 cursor-pointer hover:text-indigo-600 transition-colors"
+                                  onClick={() => setEditingProduct(product)}
+                                >
+                                  {product.title}
+                                </span>
                                 <div className="flex flex-col gap-1 mt-1">
                                   <div className="flex flex-col gap-0.5 mt-0.5 text-[11px] text-muted-foreground">
                                     <span>SKU: {product.sku || 'N/A'}</span>
@@ -250,10 +260,20 @@ export function ProductsClient({
                   <div key={product.id} className="rounded-xl border border-slate-200 bg-white p-4 space-y-4 shadow-sm">
                     <div className="flex items-start gap-3">
                       {product.thumbnail_url && (
-                        <img src={product.thumbnail_url} alt="" className="w-14 h-14 rounded-md object-cover border border-slate-100 shrink-0" />
+                        <img 
+                          src={product.thumbnail_url} 
+                          alt="" 
+                          className="w-14 h-14 rounded-md object-cover border border-slate-100 shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
+                          onClick={() => setEditingProduct(product)}
+                        />
                       )}
                       <div>
-                        <h4 className="font-medium text-sm line-clamp-2 text-slate-900">{product.title}</h4>
+                        <h4 
+                          className="font-medium text-sm line-clamp-2 text-slate-900 cursor-pointer hover:text-indigo-600 transition-colors"
+                          onClick={() => setEditingProduct(product)}
+                        >
+                          {product.title}
+                        </h4>
                         <div className="text-xs text-muted-foreground mt-1 flex flex-col gap-1">
                           <span>SKU: {product.sku || 'N/A'}</span>
                           <div className="flex items-center gap-2 flex-wrap font-medium">
