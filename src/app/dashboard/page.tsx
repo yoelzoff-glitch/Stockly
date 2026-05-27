@@ -13,8 +13,16 @@ import { getOrCreateDailySummary } from "@/services/ai/dailySummary";
 import { generateBusinessInsights } from "@/services/analytics/insights";
 import { calculateBusinessHealth } from "@/services/health/calculateHealth";
 import { getActivationProgress } from "@/actions/activation";
+import { DashboardPeriodSelector } from "@/components/dashboard/dashboard-period-selector";
 
-export default async function DashboardPage() {
+interface PageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }> | { [key: string]: string | string[] | undefined };
+}
+
+export default async function DashboardPage(props: PageProps) {
+  const resolvedParams = await (props.searchParams instanceof Promise ? props.searchParams : Promise.resolve(props.searchParams));
+  const daysParam = typeof resolvedParams?.days === "string" ? resolvedParams.days : "7";
+  const days = ["7", "15", "30", "90"].includes(daysParam) ? parseInt(daysParam, 10) : 7;
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -59,20 +67,20 @@ export default async function DashboardPage() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  sevenDaysAgo.setHours(0, 0, 0, 0);
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  startDate.setHours(0, 0, 0, 0);
 
-  // Orders last 7 days using Cache
-  const recentOrders = await getCachedOrders(tenantId);
+  // Orders last N days using Cache
+  const recentOrders = await getCachedOrders(tenantId, days);
 
   // Calculate metrics
   let salesToday = 0;
-  let revenueWeek = 0;
+  let revenuePeriod = 0;
 
   recentOrders?.forEach(order => {
     const orderDate = new Date(order.date_created);
-    revenueWeek += Number(order.total_amount) || 0;
+    revenuePeriod += Number(order.total_amount) || 0;
     if (orderDate >= today) {
       salesToday += Number(order.total_amount) || 0;
     }
@@ -188,13 +196,15 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-slate-900">Hola, {formattedName} 👋</h2>
           <p className="text-slate-500 mt-1.5">Aquí está el resumen de tu negocio hoy.</p>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <DashboardPeriodSelector />
+
           <Link href="/dashboard/health">
             <StatusBadge variant={healthData.score >= 90 ? 'success' : healthData.score >= 70 ? 'info' : healthData.score >= 50 ? 'warning' : 'danger'} className="px-3 py-1.5 text-sm">
               <HeartPulse className="w-4 h-4 mr-1.5" /> Salud: {healthData.score}/100
@@ -297,8 +307,8 @@ export default async function DashboardPage() {
           variant="blue" 
         />
         <MetricCard 
-          title="Ingresos (7 días)" 
-          value={`$${revenueWeek.toLocaleString()}`} 
+          title={`Ingresos (${days} días)`} 
+          value={`$${revenuePeriod.toLocaleString()}`} 
           icon={<LineChart className="w-5 h-5" />} 
           variant="green" 
         />
@@ -329,11 +339,11 @@ export default async function DashboardPage() {
         <div className="col-span-4 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Ventas últimos 7 días</CardTitle>
-              <CardDescription>Resumen de ingresos de la última semana.</CardDescription>
+              <CardTitle>Ventas últimos {days} días</CardTitle>
+              <CardDescription>Resumen de ingresos de los últimos {days} días.</CardDescription>
             </CardHeader>
             <CardContent className="pl-2">
-              <OverviewChart data={recentOrders || []} />
+              <OverviewChart data={recentOrders || []} days={days} />
             </CardContent>
           </Card>
           

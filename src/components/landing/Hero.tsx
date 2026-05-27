@@ -18,11 +18,11 @@ export function Hero() {
             transition={{ duration: 0.5 }}
             className="lg:col-span-6 text-center lg:text-left mb-16 lg:mb-0"
           >
-            <h1 className="text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight mb-6 leading-tight">
-              Tu negocio de Mercado Libre, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">operado por IA</span>
+            <h1 className="text-5xl lg:text-7xl font-extrabold text-slate-900 tracking-tight mb-6 leading-tight">
+              Tu cuenta de Mercado Libre en <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Piloto Automático</span>
             </h1>
             <p className="text-xl text-slate-600 mb-8 leading-relaxed max-w-2xl mx-auto lg:mx-0">
-              Stockly analiza ventas, controla inventario, calcula ganancias reales y ejecuta acciones por vos. Todo en piloto automático.
+              Dejá de perder dinero en comisiones invisibles, quiebres de stock y títulos obsoletos. Stockly es el copiloto operativo con IA que audita tus costos, automatiza tus operaciones masivas y optimiza tu rentabilidad 24/7.
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-4 mb-10">
@@ -39,9 +39,9 @@ export function Hero() {
             </div>
 
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start space-y-2 sm:space-y-0 sm:space-x-6 text-sm text-slate-500 font-medium">
-              <div className="flex items-center"><CheckCircle2 className="w-4 h-4 text-emerald-500 mr-2" /> Sin tarjeta</div>
-              <div className="flex items-center"><CheckCircle2 className="w-4 h-4 text-emerald-500 mr-2" /> Configuración en minutos</div>
-              <div className="flex items-center"><CheckCircle2 className="w-4 h-4 text-emerald-500 mr-2" /> Integración Mercado Libre</div>
+              <div className="flex items-center"><CheckCircle2 className="w-4 h-4 text-emerald-500 mr-2" /> Ahorrá +25hs semanales</div>
+              <div className="flex items-center"><CheckCircle2 className="w-4 h-4 text-emerald-500 mr-2" /> Detené fugas impositivas</div>
+              <div className="flex items-center"><CheckCircle2 className="w-4 h-4 text-emerald-500 mr-2" /> Integración oficial en 3 min</div>
             </div>
           </motion.div>
 
@@ -60,7 +60,7 @@ export function Hero() {
                 </div>
               </div>
               <img 
-                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=2000" 
+                src="/dashboard-intelligence-v2.png" 
                 alt="Stockly Dashboard Preview" 
                 className="w-full h-auto object-cover opacity-90"
               />

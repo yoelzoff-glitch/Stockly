@@ -5,32 +5,35 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recha
 
 interface OverviewChartProps {
   data: { total_amount: number; date_created: string }[];
+  days?: number;
 }
 
-export function OverviewChart({ data }: OverviewChartProps) {
+export function OverviewChart({ data, days = 7 }: OverviewChartProps) {
   // Process the raw data into daily aggregates
   const chartData = React.useMemo(() => {
-    if (!data || data.length === 0) {
-      return [
-        { name: "Lun", total: 0 },
-        { name: "Mar", total: 0 },
-        { name: "Mié", total: 0 },
-        { name: "Jue", total: 0 },
-        { name: "Vie", total: 0 },
-        { name: "Sáb", total: 0 },
-        { name: "Dom", total: 0 },
-      ];
-    }
+    const daysOfWeek = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
-    const days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+    if (!data || data.length === 0) {
+      return Array.from({ length: days }).map((_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (days - 1 - i));
+        const name = days <= 7 
+          ? daysOfWeek[d.getDay()] 
+          : `${d.getDate()}/${d.getMonth() + 1}`;
+        return { name, total: 0 };
+      });
+    }
     
-    // Create an array of the last 7 days in order
-    const last7Days = Array.from({ length: 7 }).map((_, i) => {
+    // Create an array of the last N days in order
+    const lastNDays = Array.from({ length: days }).map((_, i) => {
       const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
+      d.setDate(d.getDate() - (days - 1 - i));
+      const name = days <= 7 
+        ? daysOfWeek[d.getDay()] 
+        : `${d.getDate()}/${d.getMonth() + 1}`;
       return {
         date: d.toISOString().split("T")[0],
-        name: days[d.getDay()],
+        name,
         total: 0,
       };
     });
@@ -38,14 +41,14 @@ export function OverviewChart({ data }: OverviewChartProps) {
     // Aggregate totals
     data.forEach(order => {
       const orderDate = new Date(order.date_created).toISOString().split("T")[0];
-      const dayData = last7Days.find(d => d.date === orderDate);
+      const dayData = lastNDays.find(d => d.date === orderDate);
       if (dayData) {
         dayData.total += Number(order.total_amount) || 0;
       }
     });
 
-    return last7Days;
-  }, [data]);
+    return lastNDays;
+  }, [data, days]);
 
   return (
     <ResponsiveContainer width="100%" height={350}>

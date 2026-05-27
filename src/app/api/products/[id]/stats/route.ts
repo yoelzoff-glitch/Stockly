@@ -25,6 +25,10 @@ export async function GET(
       return NextResponse.json({ error: "No se encontró inquilino" }, { status: 403 });
     }
 
+    const url = new URL(request.url);
+    const daysParam = url.searchParams.get("days") || "7";
+    const daysCount = parseInt(daysParam) || 7;
+
     // 1. Fetch the product details
     const { data: product, error: productError } = await supabase
       .from("products")
@@ -43,16 +47,16 @@ export async function GET(
       try {
         meliVisitsData = await meliFetch({
           tenantId: profile.tenant_id,
-          endpoint: `/items/${product.meli_item_id}/visits/time_window?last=7&unit=day`
+          endpoint: `/items/${product.meli_item_id}/visits/time_window?last=${daysCount}&unit=day`
         });
       } catch (err: any) {
         console.error(`Error fetching ML visits for ${product.meli_item_id}:`, err.message);
       }
     }
 
-    // 3. Fetch real daily sales for the last 7 days from Supabase order_items
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // 3. Fetch real daily sales for the specified period from Supabase order_items
+    const filterDate = new Date();
+    filterDate.setDate(filterDate.getDate() - daysCount);
 
     const { data: orderItems, error: itemsError } = await supabase
       .from("order_items")
@@ -71,14 +75,14 @@ export async function GET(
       orderItems.forEach((item: any) => {
         if (!item.orders?.date_created) return;
         const orderDate = new Date(item.orders.date_created);
-        if (orderDate >= sevenDaysAgo) {
+        if (orderDate >= filterDate) {
           const dateStr = orderDate.toISOString().split("T")[0];
           salesByDay[dateStr] = (salesByDay[dateStr] || 0) + (item.quantity || 0);
         }
       });
     }
 
-    // 4. Map visits and sales into the last 7 days structure
+    // 4. Map visits and sales into the specified period structure
     const days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
     const today = new Date();
     const chartData = [];
@@ -94,11 +98,14 @@ export async function GET(
       });
     }
 
-    for (let i = 6; i >= 0; i--) {
+    for (let i = daysCount - 1; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
       const dateStr = d.toISOString().split("T")[0];
-      const dayName = days[d.getDay()];
+      
+      const dayName = daysCount <= 7 
+        ? days[d.getDay()] 
+        : d.toLocaleDateString("es-ES", { day: "numeric", month: "numeric" });
 
       const dayVisits = visitsByDay[dateStr] !== undefined 
         ? visitsByDay[dateStr] 

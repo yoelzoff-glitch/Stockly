@@ -5,16 +5,24 @@ import { useState } from "react";
 
 const screenshots = [
   {
-    name: "Dashboard",
-    url: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=2000"
+    name: "Intelligence Center",
+    url: "/dashboard-intelligence-v2.png"
   },
   {
-    name: "Productos",
-    url: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=2000"
+    name: "Gestión de Productos",
+    url: "/dashboard-product-management-v2.png"
   },
   {
-    name: "Rentabilidad",
-    url: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=2000"
+    name: "Stock Interno",
+    url: "/dashboard-internal-stock-v2.png"
+  },
+  {
+    name: "Asistente Operativo IA",
+    url: "/dashboard-ai-assistant-v2.png"
+  },
+  {
+    name: "Analíticas y Finanzas",
+    url: "/dashboard-analytics-v2.png"
   }
 ];
 
@@ -30,15 +38,15 @@ export function Screenshots() {
           </h2>
         </div>
 
-        <div className="flex justify-center space-x-4 mb-12">
+        <div className="flex flex-wrap justify-center gap-3 mb-12">
           {screenshots.map((screen, idx) => (
             <button
               key={idx}
               onClick={() => setActiveTab(idx)}
-              className={`px-6 py-2 rounded-full text-sm font-medium transition-colors ${
+              className={`px-6 py-2 rounded-full text-sm font-semibold transition-all cursor-pointer ${
                 activeTab === idx 
                   ? "bg-indigo-600 text-white shadow-md" 
-                  : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                  : "bg-white text-slate-600 hover:bg-slate-150 border border-slate-200"
               }`}
             >
               {screen.name}
@@ -64,7 +72,7 @@ export function Screenshots() {
             <img 
               src={screenshots[activeTab].url} 
               alt={screenshots[activeTab].name} 
-              className="w-full h-auto aspect-video object-cover"
+              className="w-full h-auto object-contain"
             />
           </div>
         </motion.div>

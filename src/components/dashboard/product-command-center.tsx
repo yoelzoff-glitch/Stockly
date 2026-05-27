@@ -39,6 +39,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
   const [isLoadingInternalStock, setIsLoadingInternalStock] = useState(false);
   const [realStats, setRealStats] = useState<any | null>(null);
   const [isFetchingStats, setIsFetchingStats] = useState(false);
+  const [selectedDays, setSelectedDays] = useState<string>("7");
   
   useEffect(() => {
     if (product && isOpen) {
@@ -59,7 +60,9 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
   useEffect(() => {
     if (product && isOpen && activeTab === "stats") {
       setIsFetchingStats(true);
-      fetch(`/api/products/${product.id}/stats`)
+      // Reset realStats so the loader gives clean visual feedback while changing days
+      setRealStats(null);
+      fetch(`/api/products/${product.id}/stats?days=${selectedDays}`)
         .then(res => res.json())
         .then(data => {
           if (data.success) {
@@ -72,7 +75,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
           setIsFetchingStats(false);
         });
     }
-  }, [product, isOpen, activeTab]);
+  }, [product, isOpen, activeTab, selectedDays]);
   
   // States for actions
   const [isProcessing, setIsProcessing] = useState(false);
@@ -118,10 +121,13 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
     const totalSales = product.sold_quantity || 0;
     const baseSales = Math.max(0.2, totalSales / 180); // Sales per day roughly over 6 months
 
-    for (let i = 6; i >= 0; i--) {
+    const daysCount = parseInt(selectedDays) || 7;
+    for (let i = daysCount - 1; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
-      const dayName = days[d.getDay()];
+      const dayName = daysCount <= 7 
+        ? days[d.getDay()] 
+        : `${d.getDate()}/${d.getMonth() + 1}`;
       
       const sVal = seed + i;
       const r1 = random(sVal);
@@ -139,7 +145,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
       });
     }
     return data;
-  }, [product, realStats]);
+  }, [product, realStats, selectedDays]);
 
   const summaryStats = React.useMemo(() => {
     const margin = product?.profit_real_margin || product?.margin_percent || 0;
@@ -420,6 +426,37 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
             <ScrollArea className="flex-1 p-4 md:p-6 pb-20 md:pb-6">
               
               <TabsContent value="stats" className="mt-0 space-y-6">
+                {/* Period Selector and Sync Message */}
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-muted/30 p-4 rounded-3xl border border-slate-100 dark:border-slate-800">
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">Período de Análisis</h4>
+                    <p className="text-xs text-muted-foreground">Mostrando datos reales de Mercado Libre del período seleccionado.</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900/80 p-0.5 rounded-full border border-slate-200/50 shrink-0 w-max">
+                    <button 
+                      onClick={() => setSelectedDays("7")}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${selectedDays === "7" ? 'bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-500 hover:text-slate-750 dark:hover:text-slate-350'}`}
+                      disabled={isFetchingStats}
+                    >
+                      7 días
+                    </button>
+                    <button 
+                      onClick={() => setSelectedDays("15")}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${selectedDays === "15" ? 'bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-500 hover:text-slate-750 dark:hover:text-slate-350'}`}
+                      disabled={isFetchingStats}
+                    >
+                      15 días
+                    </button>
+                    <button 
+                      onClick={() => setSelectedDays("30")}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${selectedDays === "30" ? 'bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-500 hover:text-slate-750 dark:hover:text-slate-350'}`}
+                      disabled={isFetchingStats}
+                    >
+                      30 días
+                    </button>
+                  </div>
+                </div>
+
                 {/* 4 Summary Cards Grid */}
                 {isFetchingStats && (
                   <div className="flex items-center gap-2 p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100/50 dark:border-indigo-900/50 rounded-2xl text-xs text-indigo-700 dark:text-indigo-300 animate-pulse">
@@ -427,63 +464,63 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                     <span>Conectando con la API de Mercado Libre y base de datos local para traer datos 100% reales...</span>
                   </div>
                 )}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  <Card className="border border-slate-100 shadow-sm bg-white dark:bg-slate-950">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="space-y-1">
-                        <span className="text-xs text-muted-foreground font-medium uppercase">Visualizaciones</span>
-                        <h4 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100">{summaryStats.visits.toLocaleString()}</h4>
-                        <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
-                          <TrendingUp className="w-3 h-3" /> +14.2% vis.
+                <div className="grid grid-cols-2 gap-4">
+                  <Card className="border border-slate-100 shadow-sm bg-white dark:bg-slate-950 overflow-hidden">
+                    <div className="p-4 flex items-center justify-between gap-2 min-w-0">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <span className="text-xs text-muted-foreground font-medium uppercase block truncate">Visualizaciones</span>
+                        <h4 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100 truncate">{summaryStats.visits.toLocaleString()}</h4>
+                        <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5 whitespace-nowrap">
+                          <TrendingUp className="w-3 h-3 shrink-0" /> +14.2% vis.
                         </span>
                       </div>
                       <div className="bg-indigo-50 dark:bg-indigo-950/50 p-2.5 rounded-xl text-indigo-600 dark:text-indigo-400 shrink-0">
                         <Eye className="w-5 h-5" />
                       </div>
-                    </CardContent>
+                    </div>
                   </Card>
 
-                  <Card className="border border-slate-100 shadow-sm bg-white dark:bg-slate-950">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="space-y-1">
-                        <span className="text-xs text-muted-foreground font-medium uppercase">Ventas (Total)</span>
-                        <h4 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100">{summaryStats.sales.toLocaleString()}</h4>
-                        <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
-                          <TrendingUp className="w-3 h-3" /> +8.5% sem.
+                  <Card className="border border-slate-100 shadow-sm bg-white dark:bg-slate-950 overflow-hidden">
+                    <div className="p-4 flex items-center justify-between gap-2 min-w-0">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <span className="text-xs text-muted-foreground font-medium uppercase block truncate">Ventas (Total)</span>
+                        <h4 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100 truncate">{summaryStats.sales.toLocaleString()}</h4>
+                        <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5 whitespace-nowrap">
+                          <TrendingUp className="w-3 h-3 shrink-0" /> +8.5% sem.
                         </span>
                       </div>
                       <div className="bg-emerald-50 dark:bg-emerald-950/50 p-2.5 rounded-xl text-emerald-600 dark:text-emerald-400 shrink-0">
                         <ShoppingBag className="w-5 h-5" />
                       </div>
-                    </CardContent>
+                    </div>
                   </Card>
 
-                  <Card className="border border-slate-100 shadow-sm bg-white dark:bg-slate-950">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="space-y-1">
-                        <span className="text-xs text-muted-foreground font-medium uppercase">Conversión</span>
-                        <h4 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100">{summaryStats.conversion}%</h4>
-                        <span className="text-[10px] text-slate-500 font-medium">Sugerido: &gt; 2.0%</span>
+                  <Card className="border border-slate-100 shadow-sm bg-white dark:bg-slate-950 overflow-hidden">
+                    <div className="p-4 flex items-center justify-between gap-2 min-w-0">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <span className="text-xs text-muted-foreground font-medium uppercase block truncate">Conversión</span>
+                        <h4 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100 truncate">{summaryStats.conversion}%</h4>
+                        <span className="text-[10px] text-slate-500 font-medium block truncate">Sugerido: &gt; 2.0%</span>
                       </div>
                       <div className="bg-amber-50 dark:bg-amber-950/50 p-2.5 rounded-xl text-amber-600 dark:text-amber-400 shrink-0">
                         <Percent className="w-5 h-5" />
                       </div>
-                    </CardContent>
+                    </div>
                   </Card>
 
-                  <Card className="border border-slate-100 shadow-sm bg-white dark:bg-slate-950">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="space-y-1">
-                        <span className="text-xs text-muted-foreground font-medium uppercase">Rentabilidad</span>
-                        <h4 className={`text-xl md:text-2xl font-bold ${summaryStats.margin > 10 ? 'text-green-600' : 'text-orange-500'}`}>
+                  <Card className="border border-slate-100 shadow-sm bg-white dark:bg-slate-950 overflow-hidden">
+                    <div className="p-4 flex items-center justify-between gap-2 min-w-0">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <span className="text-xs text-muted-foreground font-medium uppercase block truncate">Rentabilidad</span>
+                        <h4 className={`text-xl md:text-2xl font-bold truncate ${summaryStats.margin > 10 ? 'text-green-600' : 'text-orange-500'}`}>
                           {summaryStats.margin.toFixed(1)}%
                         </h4>
-                        <span className="text-[10px] text-muted-foreground font-medium">${summaryStats.net.toLocaleString()} netos</span>
+                        <span className="text-[10px] text-muted-foreground font-medium block truncate">${summaryStats.net.toLocaleString()} netos</span>
                       </div>
                       <div className="bg-purple-50 dark:bg-purple-950/50 p-2.5 rounded-xl text-purple-600 dark:text-purple-400 shrink-0">
                         <ArrowUpRight className="w-5 h-5" />
                       </div>
-                    </CardContent>
+                    </div>
                   </Card>
                 </div>
 
@@ -491,7 +528,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                 <Card className="border border-slate-100 shadow-sm bg-white dark:bg-slate-950">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base font-bold flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Rendimiento de los últimos 7 días
+                      <Activity className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Rendimiento de los últimos {selectedDays} días
                     </CardTitle>
                     <CardDescription>Seguimiento diario de visitas y ventas de esta publicación.</CardDescription>
                   </CardHeader>
