@@ -22,7 +22,7 @@ export function Hero() {
               Tu cuenta de Mercado Libre en <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Piloto Automático</span>
             </h1>
             <p className="text-xl text-slate-600 mb-8 leading-relaxed max-w-2xl mx-auto lg:mx-0">
-              Dejá de perder dinero en comisiones invisibles, quiebres de stock y títulos obsoletos. Stockly es el copiloto operativo con IA que audita tus costos, automatiza tus operaciones masivas y optimiza tu rentabilidad 24/7.
+              Dejá de perder dinero en comisiones invisibles, quiebres de stock y títulos obsoletos. Klyvo es el copiloto operativo con IA que audita tus costos, automatiza tus operaciones masivas y optimiza tu rentabilidad 24/7.
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-4 mb-10">
@@ -61,7 +61,7 @@ export function Hero() {
               </div>
               <img 
                 src="/dashboard-intelligence-v2.png" 
-                alt="Stockly Dashboard Preview" 
+                alt="Klyvo Dashboard Preview" 
                 className="w-full h-auto object-cover opacity-90"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-white/20 to-transparent"></div>

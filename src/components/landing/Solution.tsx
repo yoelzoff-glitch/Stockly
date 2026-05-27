@@ -49,7 +49,7 @@ const solutions = [
   {
     icon: <BarChart3 className="w-6 h-6 text-purple-600" />,
     title: "Radar de Fugas Operativas",
-    description: "Stockly vigila constantemente tus productos de bajo margen, quiebres de stock inminentes o comisiones erróneas y te avisa para actuar.",
+    description: "Klyvo vigila constantemente tus productos de bajo margen, quiebres de stock inminentes o comisiones erróneas y te avisa para actuar.",
     color: "bg-purple-50 border-purple-100"
   }
 ];
@@ -60,7 +60,7 @@ export function Solution() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <h2 className="text-3xl md:text-5xl font-extrabold text-slate-900 mb-4 tracking-tight leading-tight">
-            Stockly hace el trabajo de un equipo de 5 personas
+            Klyvo hace el trabajo de un equipo de 5 personas
           </h2>
           <p className="text-lg text-slate-600">
             La primera suite operativa con Inteligencia Artificial diseñada exclusivamente para automatizar, controlar y escalar tus cuentas de Mercado Libre en piloto automático.

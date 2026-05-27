@@ -35,7 +35,7 @@ export default function PrivacyPage() {
           <section className="space-y-4">
             <h2 className="text-2xl font-bold text-slate-900 border-b border-slate-100 pb-2">1. Nuestro Compromiso con la Privacidad</h2>
             <p className="text-slate-600 leading-relaxed">
-              En Stockly, su privacidad y la seguridad de los datos de su negocio de comercio electrónico son nuestra máxima prioridad. Esta Política de Privacidad describe cómo recopilamos, utilizamos, almacenamos y protegemos la información cuando usted se registra y utiliza nuestra plataforma y asistente virtual de WhatsApp.
+              En Klyvo, su privacidad y la seguridad de los datos de su negocio de comercio electrónico son nuestra máxima prioridad. Esta Política de Privacidad describe cómo recopilamos, utilizamos, almacenamos y protegemos la información cuando usted se registra y utiliza nuestra plataforma y asistente virtual de WhatsApp.
             </p>
           </section>
 
@@ -46,7 +46,7 @@ export default function PrivacyPage() {
             </p>
             <ul className="list-disc pl-6 text-slate-600 space-y-2">
               <li><strong>Datos de la Cuenta de Mercado Libre:</strong> Con su autorización oficial vía OAuth, accedemos a sus publicaciones, títulos, precios, stock, ventas, costos e historial operativo para realizar los análisis de rentabilidad y sincronizaciones necesarias.</li>
-              <li><strong>Información del Asistente (WhatsApp/Web):</strong> Almacenamos de forma temporal los mensajes y audios que usted envía a su número de asistente de Stockly únicamente con el fin de interpretar sus intenciones operativas y procesar las órdenes solicitadas mediante nuestra IA.</li>
+              <li><strong>Información del Asistente (WhatsApp/Web):</strong> Almacenamos de forma temporal los mensajes y audios que usted envía a su número de asistente de Klyvo únicamente con el fin de interpretar sus intenciones operativas y procesar las órdenes solicitadas mediante nuestra IA.</li>
               <li><strong>Datos de Registro y Perfil:</strong> Nombre, correo electrónico, ID de usuario y datos del inquilino (tenant) necesarios para la administración segura de su cuenta.</li>
             </ul>
           </section>
@@ -67,7 +67,7 @@ export default function PrivacyPage() {
           <section className="space-y-4">
             <h2 className="text-2xl font-bold text-slate-900 border-b border-slate-100 pb-2">4. Transferencia Segura e Integraciones de Terceros</h2>
             <p className="text-slate-600 leading-relaxed">
-              Stockly **nunca venderá, alquilará ni comercializará sus datos de ventas, clientes, proveedores o información comercial con terceros**.
+              Klyvo **nunca venderá, alquilará ni comercializará sus datos de ventas, clientes, proveedores o información comercial con terceros**.
             </p>
             <p className="text-slate-600 leading-relaxed">
               Para el funcionamiento de la plataforma, nos integramos de forma segura y encriptada con:
@@ -89,14 +89,14 @@ export default function PrivacyPage() {
           <section className="space-y-4">
             <h2 className="text-2xl font-bold text-slate-900 border-b border-slate-100 pb-2">6. Sus Derechos y Retención de Datos</h2>
             <p className="text-slate-600 leading-relaxed">
-              Usted tiene derecho a solicitar el acceso, rectificación, portabilidad o eliminación total de sus datos almacenados en Stockly en cualquier momento. Si decide cancelar su cuenta, todos los tokens de acceso OAuth y registros relacionados con su negocio serán eliminados permanentemente de nuestros servidores activos en un periodo no mayor a 30 días hábiles.
+              Usted tiene derecho a solicitar el acceso, rectificación, portabilidad o eliminación total de sus datos almacenados en Klyvo en cualquier momento. Si decide cancelar su cuenta, todos los tokens de acceso OAuth y registros relacionados con su negocio serán eliminados permanentemente de nuestros servidores activos en un periodo no mayor a 30 días hábiles.
             </p>
           </section>
 
           <section className="space-y-4">
             <h2 className="text-2xl font-bold text-slate-900 border-b border-slate-100 pb-2">7. Contacto</h2>
             <p className="text-slate-600 leading-relaxed">
-              Si tiene alguna pregunta, inquietud o reclamación relacionada con esta Política de Privacidad, puede ponerse en contacto con nuestro Oficial de Protección de Datos en <span className="font-semibold text-indigo-600">privacidad@stockly.com</span>.
+              Si tiene alguna pregunta, inquietud o reclamación relacionada con esta Política de Privacidad, puede ponerse en contacto con nuestro Oficial de Protección de Datos en <span className="font-semibold text-indigo-600">privacidad@klyvo.com</span>.
             </p>
           </section>
         </div>

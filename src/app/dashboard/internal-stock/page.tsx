@@ -5,7 +5,7 @@ import { InternalStockClient } from "./client-page";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Inventario de Depósito - Stockly",
+  title: "Inventario de Depósito - Klyvo",
   description: "Administra el stock físico de depósito, ajusta inventarios y monitorea costos promedio."
 };
 

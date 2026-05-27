@@ -14,16 +14,16 @@ import { CTA } from "@/components/landing/CTA";
 import { Footer } from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "Stockly | IA para vendedores de Mercado Libre",
+  title: "Klyvo | IA para vendedores de Mercado Libre",
   description: "Controlá inventario, ganancias, promociones y automatizaciones con IA.",
   openGraph: {
     type: "website",
-    title: "Stockly | IA para vendedores de Mercado Libre",
+    title: "Klyvo | IA para vendedores de Mercado Libre",
     description: "Controlá inventario, ganancias, promociones y automatizaciones con IA.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Stockly | IA para vendedores de Mercado Libre",
+    title: "Klyvo | IA para vendedores de Mercado Libre",
     description: "Controlá inventario, ganancias, promociones y automatizaciones con IA.",
   }
 };

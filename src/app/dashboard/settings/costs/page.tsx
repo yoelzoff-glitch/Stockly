@@ -5,7 +5,7 @@ import { ExtraCostsClient } from "./client-page";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Configuración de Costos Extra - Stockly",
+  title: "Configuración de Costos Extra - Klyvo",
   description: "Administra los costos adicionales que impactan de forma global, por categoría o por producto."
 };
 

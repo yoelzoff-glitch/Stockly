@@ -127,7 +127,7 @@ export async function getComboStock(tenantId: string, query: string) {
       sku: product.sku,
       meli_stock: product.available_quantity,
       available_combo_stock: 0,
-      message: `El producto "${product.title}" no está configurado con componentes en Stockly. Su stock publicado en Mercado Libre es de ${product.available_quantity} unidades.`
+      message: `El producto "${product.title}" no está configurado con componentes en Klyvo. Su stock publicado en Mercado Libre es de ${product.available_quantity} unidades.`
     };
   }
 

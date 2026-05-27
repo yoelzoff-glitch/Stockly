@@ -7,7 +7,7 @@
 ---
 
 ## 1. Contexto y Objetivos
-- **Problema:** Stockly tiene múltiples entidades (productos, órdenes, Mercado Libre, preferencias) y actualmente la tabla de Ventas es muy básica. Tampoco existe un lugar unificado donde el "Owner" del tenant pueda controlar la configuración integral del negocio.
+- **Problema:** Klyvo tiene múltiples entidades (productos, órdenes, Mercado Libre, preferencias) y actualmente la tabla de Ventas es muy básica. Tampoco existe un lugar unificado donde el "Owner" del tenant pueda controlar la configuración integral del negocio.
 - **Objetivo:** 
   1. Transformar la página actual de ventas en un dashboard comercial completo con gráficos y filtros avanzados.
   2. Implementar una página de Configuración robusta dividida por categorías (Cuenta, Negocio, ML, WhatsApp, IA, Notificaciones, Seguridad).

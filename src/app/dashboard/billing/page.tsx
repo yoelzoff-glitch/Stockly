@@ -92,7 +92,7 @@ export default function BillingPage() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Suscripción Vencida</AlertTitle>
           <AlertDescription>
-            Tu plan actual ha expirado. Por favor, renueva tu suscripción para seguir utilizando Stockly.
+            Tu plan actual ha expirado. Por favor, renueva tu suscripción para seguir utilizando Klyvo.
             Tus datos están a salvo, pero el acceso está restringido hasta que regularices el pago.
           </AlertDescription>
         </Alert>
@@ -147,7 +147,7 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Procesos Automatizados</CardTitle>
             <CardDescription>
-              Acciones automáticas ejecutadas por Stockly sobre tu catálogo en el mes actual.
+              Acciones automáticas ejecutadas por Klyvo sobre tu catálogo en el mes actual.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -173,7 +173,7 @@ export default function BillingPage() {
           <CardContent>
             <div className="flex items-center space-x-2 text-sm">
               <Check className="h-4 w-4 text-green-500" />
-              <span>Funcionalidades base de Stockly</span>
+              <span>Funcionalidades base de Klyvo</span>
             </div>
             <div className="flex items-center space-x-2 text-sm mt-2">
               <Check className="h-4 w-4 text-green-500" />

@@ -69,7 +69,7 @@ export default function HealthClientPage({ healthData }: { healthData: { score: 
               <Link href="/dashboard/competition"><Target className="w-4 h-4 mr-2" /> Analizar competencia</Link>
             </Button>
             <Button className="w-full justify-start" asChild>
-              <Link href="/dashboard/intelligence"><Bot className="w-4 h-4 mr-2" /> Preguntar a Stockly</Link>
+              <Link href="/dashboard/intelligence"><Bot className="w-4 h-4 mr-2" /> Preguntar a Klyvo</Link>
             </Button>
           </CardContent>
         </Card>

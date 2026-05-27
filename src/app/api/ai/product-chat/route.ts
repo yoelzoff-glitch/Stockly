@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       console.error("Error inserting product-chat inbound message:", inboundError);
     }
 
-    const systemPrompt = `Sos Stockly, un asistente IA experto en Mercado Libre.
+    const systemPrompt = `Sos Klyvo, un asistente IA experto en Mercado Libre.
 Estás conversando con el vendedor sobre un producto en particular.
 No inventes datos. Usa el contexto proporcionado.
 Si falta el costo, aclarale que no podés calcular márgenes reales hasta que lo cargue.

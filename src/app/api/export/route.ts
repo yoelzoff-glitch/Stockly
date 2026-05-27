@@ -50,7 +50,7 @@ export async function GET(req: Request) {
     return new NextResponse(buf, {
       status: 200,
       headers: {
-        "Content-Disposition": 'attachment; filename="stockly_backup.xlsx"',
+        "Content-Disposition": 'attachment; filename="klyvo_backup.xlsx"',
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       },
     });

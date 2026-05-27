@@ -21,7 +21,7 @@ export default function LoginPage() {
         
         <div className="relative z-10">
           <div className="flex items-center space-x-3 mb-16">
-            <img src="/logo.png" alt="Stockly Logo" className="w-40 brightness-0 invert" />
+            <img src="/logo.png" alt="Klyvo Logo" className="w-40 brightness-0 invert" />
           </div>
           
           <div className="mt-20 max-w-lg">
@@ -29,14 +29,14 @@ export default function LoginPage() {
               Toma el control absoluto de tu negocio en Mercado Libre.
             </h1>
             <p className="text-lg text-slate-300 leading-relaxed">
-              "Stockly se ha convertido en el socio ideal para escalar nuestras ventas. Su inteligencia artificial y sincronización automática nos ahorran horas de trabajo manual todos los días."
+              "Klyvo se ha convertido en el socio ideal para escalar nuestras ventas. Su inteligencia artificial y sincronización automática nos ahorran horas de trabajo manual todos los días."
             </p>
             <div className="mt-8 flex items-center space-x-4">
               <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center font-bold text-lg shadow-lg">
                 S
               </div>
               <div>
-                <p className="font-medium">El equipo de Stockly</p>
+                <p className="font-medium">El equipo de Klyvo</p>
                 <p className="text-sm text-slate-400">Automatizando el E-Commerce</p>
               </div>
             </div>
@@ -44,7 +44,7 @@ export default function LoginPage() {
         </div>
 
         <div className="relative z-10 text-sm text-slate-500">
-          © {new Date().getFullYear()} Stockly. Todos los derechos reservados.
+          © {new Date().getFullYear()} Klyvo. Todos los derechos reservados.
         </div>
       </div>
 
@@ -54,7 +54,7 @@ export default function LoginPage() {
           <div className="text-center lg:text-left">
             {/* Mobile Logo */}
             <div className="flex lg:hidden justify-center mb-8">
-              <img src="/logo.png" alt="Stockly Logo" className="w-48" />
+              <img src="/logo.png" alt="Klyvo Logo" className="w-48" />
             </div>
             
             <h2 className="text-3xl font-bold tracking-tight text-slate-900 mb-2">

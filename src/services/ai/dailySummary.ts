@@ -61,7 +61,7 @@ export async function getOrCreateDailySummary(tenantId: string): Promise<string 
     const topProduct = topProducts?.[0]?.title || "Ninguno";
 
     // Call OpenAI to write the summary
-    const prompt = `Eres el asistente inteligente de Stockly.
+    const prompt = `Eres el asistente inteligente de Klyvo.
 Escribe un breve resumen diario (máximo 4 líneas) para el dueño de la tienda.
 Usa emojis. Sé directo y alentador.
 Datos de hoy:

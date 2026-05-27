@@ -3,7 +3,7 @@ import { SuggestedAction } from "./recommendations";
 import { confirmPendingAction } from "./actions/confirm";
 
 /**
- * Crea e inicializa un plan de acción integrado (Workflow) en la base de datos de Stockly.
+ * Crea e inicializa un plan de acción integrado (Workflow) en la base de datos de Klyvo.
  * A partir de una lista de recomendaciones de IA, genera un registro padre en
  * `action_workflows` (calculando un puntaje de riesgo global para el plan completo)
  * y da de alta de forma pendiente cada acción individual en la tabla `ai_actions` 

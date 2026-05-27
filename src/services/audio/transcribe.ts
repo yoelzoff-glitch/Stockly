@@ -8,7 +8,7 @@ export async function transcribeAudio(buffer: Buffer, fileName: string = "audio.
     const response = await openai.audio.transcriptions.create({
       file,
       model: "whisper-1",
-      language: "es", // Asumimos español para Stockly
+      language: "es", // Asumimos español para Klyvo
     });
     
     return response.text;

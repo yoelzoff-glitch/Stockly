@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 const steps = [
   { num: "1", title: "Vinculación Instantánea", desc: "Vinculá tu cuenta de Mercado Libre en 2 clics de forma 100% segura mediante la API oficial." },
-  { num: "2", title: "Auditoría en Minutos", desc: "Stockly analiza automáticamente todo tu historial de ventas, comisiones, costos impositivos y reputación." },
+  { num: "2", title: "Auditoría en Minutos", desc: "Klyvo analiza automáticamente todo tu historial de ventas, comisiones, costos impositivos y reputación." },
   { num: "3", title: "Detección de Fugas", desc: "La IA escanea tu catálogo y te revela al centavo dónde estás perdiendo margen y qué publicaciones tienen stock en riesgo." },
   { num: "4", title: "Copiloto Operativo", desc: "Recibís alertas directas por WhatsApp o en tu Dashboard con sugerencias de títulos SEO, precios y stock." },
   { num: "5", title: "Automatización Masiva", desc: "Confirmás con un simple comando y la IA ejecuta los cambios en lote al instante en Mercado Libre. Así de simple." }

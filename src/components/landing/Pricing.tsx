@@ -168,7 +168,7 @@ export function Pricing() {
           </div>
 
           <div className="shrink-0 w-full md:w-auto">
-            <Link href="https://calendly.com/stockly-demo" target="_blank" rel="noopener noreferrer" className="block w-full">
+            <Link href="https://calendly.com/klyvo-demo" target="_blank" rel="noopener noreferrer" className="block w-full">
               <Button className="w-full md:w-auto bg-white hover:bg-slate-100 text-slate-950 h-14 rounded-2xl text-base font-bold px-8 shadow-lg transition-all border border-slate-200 flex items-center justify-center gap-2">
                 Agendá una reunión
               </Button>

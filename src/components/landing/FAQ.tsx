@@ -19,7 +19,7 @@ const faqs = [
   },
   {
     q: "¿Cómo funciona el asistente por WhatsApp?",
-    a: "Vinculamos un número de WhatsApp a tu cuenta de Stockly. Le escribes o envías audios como si fuera un empleado más, y la IA interpreta tus instrucciones y ejecuta cambios en tu cuenta (ej. 'Pausar producto X')."
+    a: "Vinculamos un número de WhatsApp a tu cuenta de Klyvo. Le escribes o envías audios como si fuera un empleado más, y la IA interpreta tus instrucciones y ejecuta cambios en tu cuenta (ej. 'Pausar producto X')."
   },
   {
     q: "¿La IA cambia cosas en mi cuenta por sí sola?",

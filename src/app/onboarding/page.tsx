@@ -14,7 +14,7 @@ export default function OnboardingPage() {
     <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle className="text-2xl">¡Bienvenido a Stockly!</CardTitle>
+          <CardTitle className="text-2xl">¡Bienvenido a Klyvo!</CardTitle>
           <CardDescription>
             Cuéntanos un poco sobre tu negocio para preparar tu entorno.
           </CardDescription>

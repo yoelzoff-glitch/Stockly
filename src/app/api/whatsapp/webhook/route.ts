@@ -119,7 +119,7 @@ export async function POST(req: Request) {
           continue;
         }
       } else {
-        await sendText(from, "Stockly solo entiende texto y audios por el momento.", phoneNumberId, accessToken);
+        await sendText(from, "Klyvo solo entiende texto y audios por el momento.", phoneNumberId, accessToken);
         await incrementUsage(tenantId, "whatsapp_messages_used");
         continue;
       }

@@ -33,7 +33,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: { m
   return (
     <div className="flex-1 flex flex-col h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] p-0 md:p-8 md:pt-6">
       <div className="hidden md:flex items-center justify-between space-y-2 mb-4">
-        <h2 className="text-3xl font-bold tracking-tight">Asistente Stockly</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Asistente Klyvo</h2>
       </div>
       <p className="hidden md:block text-muted-foreground mb-6">Pregúntale a nuestra Inteligencia Artificial sobre tus ventas, stock y productos usando lenguaje natural.</p>
       

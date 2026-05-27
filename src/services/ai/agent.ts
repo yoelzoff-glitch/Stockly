@@ -5,7 +5,7 @@ import { checkAILimit, incrementAIUsage } from "../billing/checkLimits";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * Orquestador principal del Agente de Inteligencia Artificial de Stockly.
+ * Orquestador principal del Agente de Inteligencia Artificial de Klyvo.
  * Esta función procesa las consultas de lenguaje natural del usuario, gestiona el
  * control de consumo mensual (billing), intercepta y ejecuta comandos de confirmación
  * o cancelación segura de acciones críticas en Mercado Libre, carga el contexto de memoria
@@ -146,9 +146,9 @@ Devuelve ÚNICAMENTE un objeto JSON plano con las claves correspondientes a los 
   const entityContext = extractConversationEntities(contextMsgs);
   
   // Format recent chat
-  const chatHistory = contextMsgs.map(m => `${m.direction === 'inbound' ? 'Usuario' : 'Stockly'}: ${m.text}`).join("\n");
+  const chatHistory = contextMsgs.map(m => `${m.direction === 'inbound' ? 'Usuario' : 'Klyvo'}: ${m.text}`).join("\n");
 
-  const systemPrompt = `Eres Stockly, el asistente de inteligencia artificial interno para la gestión del negocio del usuario.
+  const systemPrompt = `Eres Klyvo, el asistente de inteligencia artificial interno para la gestión del negocio del usuario.
 Tu objetivo es responder de forma clara, directa y concisa a las preguntas del usuario sobre sus ventas, productos y stock.
 Usa las herramientas proporcionadas para obtener datos reales de la base de datos.
 - Responde siempre en español.

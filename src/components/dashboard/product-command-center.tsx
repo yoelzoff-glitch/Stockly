@@ -788,7 +788,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                   <Card className="bg-slate-50 dark:bg-slate-900/50">
                     <CardContent className="p-4 space-y-4">
                       <p className="text-sm text-muted-foreground">
-                        Mercado Libre maneja cada publicación como independiente. Si tenés una publicación Clásica y otra Premium del mismo producto, cambiar el título en una no modifica la otra automáticamente. Stockly puede detectar publicaciones hermanas por SKU y aplicar el mismo cambio si lo autorizás.
+                        Mercado Libre maneja cada publicación como independiente. Si tenés una publicación Clásica y otra Premium del mismo producto, cambiar el título en una no modifica la otra automáticamente. Klyvo puede detectar publicaciones hermanas por SKU y aplicar el mismo cambio si lo autorizás.
                       </p>
 
                       {!product.sku || product.sku.trim().toUpperCase() === "N/A" ? (
@@ -1040,13 +1040,13 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
 
                   <h4 className="font-medium flex items-center gap-2 mt-4"><Zap className="w-4 h-4 text-amber-500" /> Crear Oferta Rápida</h4>
                   <div className="grid grid-cols-2 gap-3">
-                    <Button variant="outline" className="justify-start" onClick={() => alert('ProntoStockly preparará la oferta al integrarlo al agente.')}>
+                    <Button variant="outline" className="justify-start" onClick={() => alert('ProntoKlyvo preparará la oferta al integrarlo al agente.')}>
                       Oferta 5% OFF
                     </Button>
-                    <Button variant="outline" className="justify-start" onClick={() => alert('ProntoStockly preparará la oferta al integrarlo al agente.')}>
+                    <Button variant="outline" className="justify-start" onClick={() => alert('ProntoKlyvo preparará la oferta al integrarlo al agente.')}>
                       Oferta 10% OFF
                     </Button>
-                    <Button variant="outline" className="justify-start" onClick={() => alert('ProntoStockly preparará la oferta al integrarlo al agente.')}>
+                    <Button variant="outline" className="justify-start" onClick={() => alert('ProntoKlyvo preparará la oferta al integrarlo al agente.')}>
                       Oferta Relámpago (24h)
                     </Button>
                     <Button variant="outline" className="justify-start" onClick={() => setActiveTab("ai")}>

@@ -11,6 +11,6 @@ export async function upgradePlan(plan: 'starter' | 'pro' | 'ultra') {
   const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
   if (!profile?.tenant_id) throw new Error("No se encontró tenant");
 
-  const initPoint = await createSubscriptionPreference(profile.tenant_id, plan, user.email || "user@stockly.com");
+  const initPoint = await createSubscriptionPreference(profile.tenant_id, plan, user.email || "user@klyvo.com");
   return initPoint;
 }

@@ -14,7 +14,7 @@ export default function PromotionsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Promociones y Cupones</h1>
           <p className="text-slate-500 mt-2">Gestiona las ofertas, descuentos y cupones de tu tienda.</p>
         </div>
-        <Button onClick={() => alert('Para crear promociones, puedes pedirle a Stockly en el chat: "Crear una oferta para..."')}>
+        <Button onClick={() => alert('Para crear promociones, puedes pedirle a Klyvo en el chat: "Crear una oferta para..."')}>
           Nueva Promoción con IA
         </Button>
       </div>
@@ -47,7 +47,7 @@ export default function PromotionsPage() {
           </div>
           <div className="text-center py-12">
             <h3 className="text-lg font-medium text-slate-900">No hay cupones creados</h3>
-            <p className="mt-2 text-slate-500">Pídele a Stockly: "Generame un cupón de $5000 off para nuevos compradores".</p>
+            <p className="mt-2 text-slate-500">Pídele a Klyvo: "Generame un cupón de $5000 off para nuevos compradores".</p>
           </div>
         </TabsContent>
 

@@ -9,7 +9,7 @@ export function Footer() {
 
         {/* Left Side: Logo & Slogan */}
         <div className="flex items-center gap-4 flex-1">
-          <img src="/logo%20blanco.png" alt="Stockly Logo Blanco" className="h-16 w-auto object-contain" />
+          <img src="/logo%20blanco.png" alt="Klyvo Logo Blanco" className="h-16 w-auto object-contain" />
           <div className="flex flex-col border-l border-white/20 pl-4">
             <p className="text-slate-400 text-sm leading-snug">
               Tu negocio, en datos.<br />
@@ -48,7 +48,7 @@ export function Footer() {
           <span className="text-slate-500 font-light text-lg md:text-xl ml-2 mr-2">=</span>
 
           <div className="flex items-center justify-center min-w-max">
-            <img src="/icono.png" alt="Stockly Icon" className="w-12 h-12 md:w-14 md:h-14 object-contain drop-shadow-md" />
+            <img src="/icono.png" alt="Klyvo Icon" className="w-12 h-12 md:w-14 md:h-14 object-contain drop-shadow-md" />
           </div>
         </div>
 

@@ -49,7 +49,7 @@ export function MobileSidebar({ open, onOpenChange }: { open: boolean; onOpenCha
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="w-[300px] sm:w-[400px] p-0 flex flex-col">
         <div className="border-b border-slate-200 bg-white px-6 py-6 flex items-center justify-center w-full">
-          <img src="/logo.png" alt="Stockly Logo" className="w-full max-w-[200px] h-auto" />
+          <img src="/logo.png" alt="Klyvo Logo" className="w-full max-w-[200px] h-auto" />
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-4 bg-white">
           <nav className="flex-1 space-y-1">

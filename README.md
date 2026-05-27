@@ -1,6 +1,6 @@
-# Stockly 📦🤖
+# Klyvo 📦🤖
 
-Stockly es una plataforma SaaS (Software as a Service) de gestión, inteligencia y automatización diseñada específicamente para vendedores de Mercado Libre. Convierte a tu sistema no solo en un asistente operativo, sino en un **operador inteligente del negocio** que puede ser controlado mediante un Dashboard intuitivo o a través de lenguaje natural (Chat AI / WhatsApp).
+Klyvo es una plataforma SaaS (Software as a Service) de gestión, inteligencia y automatización diseñada específicamente para vendedores de Mercado Libre. Convierte a tu sistema no solo en un asistente operativo, sino en un **operador inteligente del negocio** que puede ser controlado mediante un Dashboard intuitivo o a través de lenguaje natural (Chat AI / WhatsApp).
 
 ---
 
@@ -11,7 +11,7 @@ Stockly es una plataforma SaaS (Software as a Service) de gestión, inteligencia
 - **Sincronización de Productos:** Descarga y actualización automática del catálogo completo (precios, stock, estado, categoría, SKU).
 - **Sincronización de Ventas (Órdenes):** Captura de órdenes recientes en tiempo real.
 - **Manejo automático de Tokens:** Renovación automática (Refresh Token) en background para que la conexión nunca expire.
-- **Acciones Directas:** Posibilidad de pausar, reactivar o cambiar el precio de los productos directamente desde Stockly hacia Mercado Libre.
+- **Acciones Directas:** Posibilidad de pausar, reactivar o cambiar el precio de los productos directamente desde Klyvo hacia Mercado Libre.
 
 ### 2. Panel de Control (Dashboard)
 - **Productos:** Tabla detallada con el catálogo, permitiendo búsqueda, filtrado y edición de costos.

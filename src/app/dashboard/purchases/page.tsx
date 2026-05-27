@@ -5,7 +5,7 @@ import { PurchasesClient } from "./client-page";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Compras Internas - Stockly",
+  title: "Compras Internas - Klyvo",
   description: "Registra y gestiona las compras físicas de tus componentes en depósito."
 };
 

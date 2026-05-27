@@ -49,7 +49,7 @@ export function Sidebar() {
   return (
     <div className="flex h-screen w-64 flex-col border-r border-slate-200 bg-white py-4">
       <div className="mb-4 px-4 flex items-center justify-center w-full shrink-0">
-        <img src="/logo.png" alt="Stockly Logo" className="w-full max-w-[150px] h-auto" />
+        <img src="/logo.png" alt="Klyvo Logo" className="w-full max-w-[150px] h-auto" />
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-6">
         {sidebarLinks.map((item) => {

@@ -10,7 +10,7 @@ export function Navbar() {
         <div className="flex justify-between h-16 items-center">
           <div className="flex-shrink-0 flex items-center">
             <Link href="/">
-              <img src="/logo.png" alt="Stockly Logo" className="h-8 w-auto" />
+              <img src="/logo.png" alt="Klyvo Logo" className="h-8 w-auto" />
             </Link>
           </div>
           <div className="hidden md:flex space-x-8">

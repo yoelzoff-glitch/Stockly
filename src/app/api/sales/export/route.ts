@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
   return new NextResponse(csvContent, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="stockly_ventas_${new Date().toISOString().split('T')[0]}.csv"`,
+      "Content-Disposition": `attachment; filename="klyvo_ventas_${new Date().toISOString().split('T')[0]}.csv"`,
     },
   });
 }

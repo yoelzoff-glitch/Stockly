@@ -18,7 +18,7 @@ export default function PaymentPendingScreen({ plan }: { plan: string }) {
           </div>
           <CardTitle className="text-2xl text-orange-800">Pago Pendiente</CardTitle>
           <CardDescription className="text-orange-700/80">
-            Para continuar configurando tu empresa y acceder al plan <strong>Stockly {plan.charAt(0).toUpperCase() + plan.slice(1)}</strong>, necesitas completar tu pago en Mercado Pago.
+            Para continuar configurando tu empresa y acceder al plan <strong>Klyvo {plan.charAt(0).toUpperCase() + plan.slice(1)}</strong>, necesitas completar tu pago en Mercado Pago.
           </CardDescription>
         </CardHeader>
         <CardContent>

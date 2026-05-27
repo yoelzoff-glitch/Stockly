@@ -215,7 +215,7 @@ export async function prepareTitleChangeAction(
   message += `\n**IMPORTANTE:**\n`;
   if (isMultiple) {
     message += `Mercado Libre considera estas publicaciones como independientes.\n`;
-    message += `Stockly aplicará el cambio de título en cada publicación seleccionada.\n`;
+    message += `Klyvo aplicará el cambio de título en cada publicación seleccionada.\n`;
   } else {
     message += `Esta acción modificará el título real de la publicación en Mercado Libre.\n`;
   }

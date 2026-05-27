@@ -10,7 +10,7 @@ export default async function GetStartedPage() {
         <h2 className="text-3xl font-bold tracking-tight">Activación de Cuenta</h2>
       </div>
       <p className="text-muted-foreground">
-        Completa estos pasos para aprovechar al máximo las capacidades de Stockly.
+        Completa estos pasos para aprovechar al máximo las capacidades de Klyvo.
       </p>
 
       <GetStartedClient data={data} />

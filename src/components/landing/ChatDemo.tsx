@@ -16,7 +16,7 @@ export function ChatDemo() {
               Tu asistente de operaciones, siempre disponible
             </h2>
             <p className="text-lg text-slate-400 mb-8">
-              Administrá miles de publicaciones con un simple mensaje de WhatsApp. Stockly entiende tus intenciones, calcula el impacto financiero y ejecuta las acciones instantáneamente.
+              Administrá miles de publicaciones con un simple mensaje de WhatsApp. Klyvo entiende tus intenciones, calcula el impacto financiero y ejecuta las acciones instantáneamente.
             </p>
             <ul className="space-y-4 text-slate-300">
               <li className="flex items-center">
@@ -49,7 +49,7 @@ export function ChatDemo() {
                     <Bot className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm">Stockly AI</h3>
+                    <h3 className="font-bold text-sm">Klyvo AI</h3>
                     <p className="text-xs text-white/80">en línea</p>
                   </div>
                 </div>

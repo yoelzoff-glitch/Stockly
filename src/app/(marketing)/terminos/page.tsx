@@ -35,14 +35,14 @@ export default function TermsPage() {
           <section className="space-y-4">
             <h2 className="text-2xl font-bold text-slate-900 border-b border-slate-100 pb-2">1. Aceptación de los Términos</h2>
             <p className="text-slate-600 leading-relaxed">
-              Al registrarse, acceder o utilizar la plataforma de software Stockly (en adelante, "el Servicio"), usted (en adelante, "el Usuario" o "el Cliente") acepta de forma incondicional y expresa estar sujeto a los presentes Términos de Servicio. Si no está de acuerdo con alguna sección, deberá abstenerse de utilizar el Servicio.
+              Al registrarse, acceder o utilizar la plataforma de software Klyvo (en adelante, "el Servicio"), usted (en adelante, "el Usuario" o "el Cliente") acepta de forma incondicional y expresa estar sujeto a los presentes Términos de Servicio. Si no está de acuerdo con alguna sección, deberá abstenerse de utilizar el Servicio.
             </p>
           </section>
 
           <section className="space-y-4">
             <h2 className="text-2xl font-bold text-slate-900 border-b border-slate-100 pb-2">2. Descripción del Servicio</h2>
             <p className="text-slate-600 leading-relaxed">
-              Stockly es una plataforma SaaS de optimización de operaciones comerciales para Mercado Libre. Proveemos herramientas basadas en inteligencia artificial, incluyendo la sugerencia de títulos optimizados para SEO, sincronización y replicación automática de stock y títulos entre publicaciones asociadas al mismo SKU ("publicaciones hermanas"), y un asistente de gestión operable vía WhatsApp.
+              Klyvo es una plataforma SaaS de optimización de operaciones comerciales para Mercado Libre. Proveemos herramientas basadas en inteligencia artificial, incluyendo la sugerencia de títulos optimizados para SEO, sincronización y replicación automática de stock y títulos entre publicaciones asociadas al mismo SKU ("publicaciones hermanas"), y un asistente de gestión operable vía WhatsApp.
             </p>
             <p className="text-slate-600 leading-relaxed">
               El Servicio se comercializa bajo un modelo de suscripción con diferentes límites mensuales de publicaciones, créditos de IA, procesos automáticos y soporte dedicados según el plan contratado (Starter, Pro, Ultra, Enterprise).
@@ -52,7 +52,7 @@ export default function TermsPage() {
           <section className="space-y-4">
             <h2 className="text-2xl font-bold text-slate-900 border-b border-slate-100 pb-2">3. Cuentas e Integración con Mercado Libre</h2>
             <p className="text-slate-600 leading-relaxed">
-              Para utilizar Stockly, el Usuario debe vincular su cuenta de Mercado Libre de forma oficial a través del protocolo OAuth. El Usuario garantiza que tiene el derecho y las facultades legales para autorizar dicha vinculación. El Usuario es el único responsable de mantener la confidencialidad de sus credenciales de acceso a Stockly.
+              Para utilizar Klyvo, el Usuario debe vincular su cuenta de Mercado Libre de forma oficial a través del protocolo OAuth. El Usuario garantiza que tiene el derecho y las facultades legales para autorizar dicha vinculación. El Usuario es el único responsable de mantener la confidencialidad de sus credenciales de acceso a Klyvo.
             </p>
           </section>
 
@@ -69,10 +69,10 @@ export default function TermsPage() {
           <section className="space-y-4">
             <h2 className="text-2xl font-bold text-slate-900 border-b border-slate-100 pb-2">5. Uso Responsable y Limitación de Responsabilidad</h2>
             <p className="text-slate-600 leading-relaxed">
-              Stockly provee recomendaciones estratégicas mediante inteligencia artificial. Sin embargo, **ninguna acción de modificación crítica (cambios de precios, stock, títulos o estado de publicaciones) se realiza de forma automática sin la aprobación o confirmación explícita del Usuario** (ya sea confirmando mediante el botón correspondiente en el panel web o respondiendo "Confirmo" por WhatsApp).
+              Klyvo provee recomendaciones estratégicas mediante inteligencia artificial. Sin embargo, **ninguna acción de modificación crítica (cambios de precios, stock, títulos o estado de publicaciones) se realiza de forma automática sin la aprobación o confirmación explícita del Usuario** (ya sea confirmando mediante el botón correspondiente en el panel web o respondiendo "Confirmo" por WhatsApp).
             </p>
             <p className="text-slate-600 leading-relaxed">
-              Por consiguiente, Stockly no se responsabiliza por pérdidas económicas, penalizaciones del buscador de Mercado Libre, suspensiones de cuentas o pérdida de reputación que resulten de decisiones u operaciones confirmadas y validadas por el Usuario dentro de la plataforma.
+              Por consiguiente, Klyvo no se responsabiliza por pérdidas económicas, penalizaciones del buscador de Mercado Libre, suspensiones de cuentas o pérdida de reputación que resulten de decisiones u operaciones confirmadas y validadas por el Usuario dentro de la plataforma.
             </p>
           </section>
 
@@ -86,7 +86,7 @@ export default function TermsPage() {
           <section className="space-y-4">
             <h2 className="text-2xl font-bold text-slate-900 border-b border-slate-100 pb-2">7. Contacto</h2>
             <p className="text-slate-600 leading-relaxed">
-              Para cualquier consulta sobre estos Términos de Servicio, puede comunicarse con nuestro equipo de soporte a través de la sección de Ayuda en el panel de control o por correo electrónico a <span className="font-semibold text-indigo-600">soporte@stockly.com</span>.
+              Para cualquier consulta sobre estos Términos de Servicio, puede comunicarse con nuestro equipo de soporte a través de la sección de Ayuda en el panel de control o por correo electrónico a <span className="font-semibold text-indigo-600">soporte@klyvo.com</span>.
             </p>
           </section>
         </div>

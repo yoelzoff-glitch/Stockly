@@ -23,7 +23,7 @@ export function Navbar({ plan, daysRemaining }: { plan?: string, daysRemaining?:
         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium hover:opacity-80 transition-opacity cursor-pointer ${planColor}`}
         title="Ver detalles de facturación"
       >
-        <span className="capitalize">Stockly {plan}</span>
+        <span className="capitalize">Klyvo {plan}</span>
         {daysRemaining !== null && daysRemaining !== undefined && (
           <span className="opacity-80">
             • {daysRemaining > 0 ? `Renueva en ${daysRemaining} d${daysRemaining === 1 ? 'ía' : 'ías'}` : 'Vencido'}
@@ -48,7 +48,7 @@ export function Navbar({ plan, daysRemaining }: { plan?: string, daysRemaining?:
             <div className="h-8 w-8 rounded-md bg-indigo-600 flex items-center justify-center">
               <Package className="h-4 w-4 text-white" />
             </div>
-            <span className="font-bold tracking-tight text-slate-900">Stockly</span>
+            <span className="font-bold tracking-tight text-slate-900">Klyvo</span>
           </div>
         </div>
         <div className="flex items-center gap-3 md:gap-4">

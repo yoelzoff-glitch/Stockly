@@ -89,7 +89,7 @@ export const columns: ColumnDef<NoMovementProduct>[] = [
   },
   {
     accessorKey: "recommendation",
-    header: "Recomendación Stockly",
+    header: "Recomendación Klyvo",
     cell: ({ row }) => {
       const rec = row.getValue("recommendation") as string;
       if (rec.includes("promoción")) return <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">{rec}</Badge>;

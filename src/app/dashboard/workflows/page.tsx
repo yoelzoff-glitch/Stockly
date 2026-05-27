@@ -47,7 +47,7 @@ export default async function WorkflowsPage() {
         <h2 className="text-3xl font-bold tracking-tight">Workflows Autónomos</h2>
       </div>
       <p className="text-muted-foreground">
-        Planes de acción generados por el motor autónomo de Stockly.
+        Planes de acción generados por el motor autónomo de Klyvo.
       </p>
 
       <Card>

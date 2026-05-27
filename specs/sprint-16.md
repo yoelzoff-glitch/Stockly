@@ -24,7 +24,7 @@
   - Desglose de problemas detectados visualmente por severidad (🔴 Crítico, 🟡 Advertencia).
   - Acciones rápidas recomendadas (Reponer, Recalcular rentabilidad, etc.).
 - **Home Dashboard:**
-  - Integrar estas métricas y mostrar "Stockly detectó X problemas".
+  - Integrar estas métricas y mostrar "Klyvo detectó X problemas".
 
 ## 3. Diseño Técnico
 

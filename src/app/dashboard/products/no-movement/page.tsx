@@ -84,7 +84,7 @@ export default async function NoMovementProductsPage(props: {
           <div className="bg-amber-50 border-amber-200 p-5 rounded-xl border shadow-sm flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="flex flex-col">
-              <span className="text-amber-900 text-sm font-semibold">Consejo de Stockly</span>
+              <span className="text-amber-900 text-sm font-semibold">Consejo de Klyvo</span>
               <span className="text-amber-700 text-sm mt-1 leading-relaxed">
                 Prioriza pausar publicaciones con alto costo inmovilizado y sin margen. Si tienen buen margen, prueba con una oferta relámpago.
               </span>
@@ -102,7 +102,7 @@ export default async function NoMovementProductsPage(props: {
             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-600 text-white shadow-sm">
               <MessageSquare className="h-3 w-3" />
             </span>
-            Preguntarle a Stockly
+            Preguntarle a Klyvo
           </h2>
           <p className="text-xs text-indigo-700/80 mt-2 leading-relaxed">
             La IA tiene contexto de los {data.length} productos que estás viendo. Usa estos accesos rápidos:

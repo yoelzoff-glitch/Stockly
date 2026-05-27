@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       
       // MP Statuses: authorized, paused, cancelled
       const status = subscription.status; 
-      const plan = subscription.reason === 'Stockly Ultra' ? 'ultra' : 'pro';
+      const plan = subscription.reason === 'Klyvo Ultra' ? 'ultra' : 'pro';
 
       if (refType && refId) {
         const supabase = createAdminClient();

@@ -54,7 +54,7 @@ export default async function DashboardPage(props: PageProps) {
         </div>
         <h2 className="mt-6 text-2xl font-bold tracking-tight">Todavía no conectaste Mercado Libre</h2>
         <p className="mt-2 mb-6 text-muted-foreground max-w-md">
-          Para ver tus métricas de ventas, stock y productos, primero necesitas vincular tu cuenta de Mercado Libre con Stockly.
+          Para ver tus métricas de ventas, stock y productos, primero necesitas vincular tu cuenta de Mercado Libre con Klyvo.
         </p>
         <Link href="/dashboard/get-started">
           <Button>Ir a Guía de Inicio</Button>
@@ -258,7 +258,7 @@ export default async function DashboardPage(props: PageProps) {
                   Faltan costos de productos
                 </h3>
                 <p className="text-sm text-amber-700/90 mt-1">
-                  Tenés {missingCostsCount} productos sin costo cargado. Stockly no puede calcular rentabilidad real.
+                  Tenés {missingCostsCount} productos sin costo cargado. Klyvo no puede calcular rentabilidad real.
                 </p>
                 <div className="mt-3">
                   <Button variant="outline" size="sm" className="h-8 border-amber-300 text-amber-800 hover:bg-amber-100 rounded-full bg-amber-50" asChild>
@@ -272,12 +272,12 @@ export default async function DashboardPage(props: PageProps) {
         return null;
       })()}
 
-      {/* Stockly Recommends */}
+      {/* Klyvo Recommends */}
       {insights.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold flex items-center gap-2 text-slate-900">
             <Lightbulb className="w-5 h-5 text-amber-500" />
-            Stockly Recomienda
+            Klyvo Recomienda
           </h3>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {insights.map(insight => (
@@ -411,7 +411,7 @@ export default async function DashboardPage(props: PageProps) {
                   {recentMessages.map((msg, idx) => (
                     <div key={idx} className="text-sm">
                       <span className="font-semibold text-xs uppercase text-muted-foreground mr-2">
-                        {msg.direction === 'inbound' ? 'Tú' : 'Stockly'}
+                        {msg.direction === 'inbound' ? 'Tú' : 'Klyvo'}
                       </span>
                       <span className="line-clamp-1">{msg.text}</span>
                     </div>

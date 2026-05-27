@@ -8,7 +8,7 @@
 
 ## 1. Contexto y Objetivos
 - **Problema:** La aplicación tiene funciones principales operativas (Auth, Meli, IA, Billing), pero carece de refinamientos UX de nivel empresarial (paginación, filtros globales, tablas avanzadas) y algunas páginas (`/integrations`, `/intelligence`) tienen datos estáticos o básicos.
-- **Objetivo:** Transformar Stockly en un producto 100% "Client-Ready".
+- **Objetivo:** Transformar Klyvo en un producto 100% "Client-Ready".
   
 ## 2. Alcance por Módulos
 
