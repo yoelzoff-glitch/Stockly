@@ -316,7 +316,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
     setIsProcessing(true);
     const res = await confirmCommandCenterAction(pendingAction.action_id);
     if (res.success) {
-      alert("Acción ejecutada correctamente en Mercado Libre");
+      alert(res.message || "Acción ejecutada correctamente en Mercado Libre");
       setPendingAction(null);
       onSuccess();
     } else {
