@@ -29,6 +29,19 @@ export async function resolveProduct(tenantId: string, query: string): Promise<R
     safeQuery = safeQuery.substring(3).trim();
   }
 
+  // 0. Intentar match exacto por ID (UUID de supabase)
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(safeQuery)) {
+    const { data: idMatches, error: idError } = await supabase
+      .from("products")
+      .select("id, title, sku, price, available_quantity, status, meli_item_id")
+      .eq("tenant_id", tenantId)
+      .eq("id", safeQuery);
+    
+    if (idMatches && idMatches.length === 1) {
+      return { type: 'exact', product: { ...idMatches[0], match_type: 'sku_exact' } as ResolvedProduct };
+    }
+  }
+
   // 1. Intentar match exacto por SKU o meli_item_id
   const { data: exactMatches, error: exactError } = await supabase
     .from("products")

@@ -19,10 +19,8 @@ export async function preparePriceChangeAction(productId: string, sku: string | 
   if (!profile || !profile.tenant_id) return { error: "No tenant" };
 
   // Note: preparePriceUpdate in tools.ts expects an array or query.
-  // Actually, tools.ts `preparePriceUpdate` takes (tenantId, query, newPrice, percentageChange).
-  // If we pass SKU it will resolve the product.
-  // Wait, if SKU is null, we can pass productTitle.
-  const query = sku || productTitle;
+  // We can now pass the exact product ID (UUID) and resolveProduct will match it exactly.
+  const query = productId;
 
   return await preparePriceUpdate(profile.tenant_id, query, newPrice, undefined);
 }
@@ -40,7 +38,7 @@ export async function prepareStockChangeAction(productId: string, sku: string | 
 
   if (!profile || !profile.tenant_id) return { error: "No tenant" };
 
-  const query = sku || productTitle;
+  const query = productId;
 
   return await prepareMeliStockUpdate(profile.tenant_id, query, newQuantity, operation);
 }
@@ -58,7 +56,7 @@ export async function prepareStatusChangeAction(productId: string, sku: string |
 
   if (!profile || !profile.tenant_id) return { error: "No tenant" };
 
-  const query = sku || productTitle;
+  const query = productId;
   return await prepareStatusChange(profile.tenant_id, query, status);
 }
 
