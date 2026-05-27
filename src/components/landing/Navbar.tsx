@@ -27,11 +27,17 @@ export function Navbar() {
               FAQ
             </Link>
           </div>
-          <div className="flex items-center space-x-4">
-            <Link href="/login" className="hidden md:inline-flex text-slate-600 hover:text-slate-900 font-medium text-sm transition-colors">
-              Ingresar
+          <div className="flex items-center space-x-3">
+            {/* On Mobile: Styled Button for Login. On Desktop: Text Link */}
+            <Link href="/login" className="text-slate-600 hover:text-slate-900 font-medium text-sm transition-colors md:mr-2 flex items-center">
+              <span className="hidden md:inline">Ingresar</span>
+              <Button variant="outline" className="md:hidden border-slate-300 text-slate-700 rounded-full px-4 h-9 text-xs font-semibold hover:bg-slate-50">
+                Ingresar
+              </Button>
             </Link>
-            <Link href="/register">
+
+            {/* On Mobile: Hidden. On Desktop: Primary Indigo Button for Register */}
+            <Link href="/register" className="hidden md:inline-block">
               <Button className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-6 shadow-sm">
                 Empezar gratis
               </Button>
