@@ -80,3 +80,13 @@ export async function getSubscription(id: string) {
     throw error;
   }
 }
+
+export async function cancelSubscription(id: string) {
+  try {
+    const response = await preApproval.update({ id, body: { status: "cancelled" } });
+    return response;
+  } catch (error: any) {
+    logger.error(`Error cancelling MP subscription ${id}: ${error.message}`, "MERCADOPAGO");
+    throw error;
+  }
+}

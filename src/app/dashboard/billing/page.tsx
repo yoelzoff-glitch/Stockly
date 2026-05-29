@@ -7,12 +7,16 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Check, Loader2, CreditCard, AlertCircle } from "lucide-react"
-import { upgradePlan } from "./actions"
+import { upgradePlan, scheduleDowngradeAction } from "./actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
 export default function BillingPage() {
   const [loading, setLoading] = useState(true)
   const [upgrading, setUpgrading] = useState<string | null>(null)
+  const [downgrading, setDowngrading] = useState<string | null>(null)
+  const [isDowngradeModalOpen, setIsDowngradeModalOpen] = useState(false)
+  const [targetDowngrade, setTargetDowngrade] = useState<'starter' | 'pro' | null>(null)
   const [stats, setStats] = useState<any>(null)
   const searchParams = useSearchParams()
   const isExpired = searchParams.get("expired") === "true"
@@ -41,7 +45,15 @@ export default function BillingPage() {
     loadBilling()
   }, [])
 
+  const getPlanWeight = (p: string) => p === 'ultra' ? 3 : p === 'pro' ? 2 : 1;
+
   const handleUpgrade = async (plan: 'starter' | 'pro' | 'ultra') => {
+    if (getPlanWeight(plan) < getPlanWeight(stats?.subscription?.plan)) {
+      setTargetDowngrade(plan as 'starter' | 'pro');
+      setIsDowngradeModalOpen(true);
+      return;
+    }
+
     setUpgrading(plan)
     try {
       const initPoint = await upgradePlan(plan)
@@ -53,6 +65,26 @@ export default function BillingPage() {
       alert("Hubo un error al iniciar el pago")
     } finally {
       setUpgrading(null)
+    }
+  }
+
+  const confirmDowngrade = async () => {
+    if (!targetDowngrade) return;
+    setDowngrading(targetDowngrade);
+    try {
+      await scheduleDowngradeAction(targetDowngrade);
+      setStats({
+        ...stats,
+        subscription: {
+          ...stats.subscription,
+          pending_plan: targetDowngrade
+        }
+      });
+      setIsDowngradeModalOpen(false);
+    } catch (error: any) {
+      alert("Error al programar la baja: " + error.message);
+    } finally {
+      setDowngrading(null);
     }
   }
 
@@ -168,6 +200,11 @@ export default function BillingPage() {
             <CardTitle>Plan Actual: {subscription.plan.toUpperCase()}</CardTitle>
             <CardDescription>
               Estado: <span className="capitalize font-semibold">{subscription.status}</span>
+              {subscription.pending_plan && (
+                <span className="ml-2 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  Baja programada a {subscription.pending_plan.toUpperCase()}
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -213,11 +250,11 @@ export default function BillingPage() {
               <Button 
                 className="w-full" 
                 onClick={() => handleUpgrade('starter')} 
-                disabled={!!upgrading || (!isExpired && subscription.plan !== 'starter')}
-                variant={!isExpired && subscription.plan !== 'starter' ? "outline" : "default"}
+                disabled={!!upgrading || !!downgrading || (!isExpired && subscription.plan === 'starter') || subscription.pending_plan === 'starter'}
+                variant={subscription.plan === 'pro' || subscription.plan === 'ultra' ? "outline" : "default"}
               >
-                {upgrading === 'starter' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                {subscription.plan === 'starter' && isExpired ? 'Pagar Starter' : 'Seleccionar Starter'}
+                {upgrading === 'starter' || downgrading === 'starter' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                {subscription.plan === 'starter' && isExpired ? 'Pagar Starter' : (subscription.plan === 'pro' || subscription.plan === 'ultra' ? 'Bajar a Starter' : 'Seleccionar Starter')}
               </Button>
             )}
           </CardFooter>
@@ -243,9 +280,9 @@ export default function BillingPage() {
             {subscription.plan === 'pro' ? (
               <Button className="w-full" disabled variant="secondary">Plan Actual</Button>
             ) : (
-              <Button className="w-full" onClick={() => handleUpgrade('pro')} disabled={!!upgrading || subscription.plan === 'ultra'}>
-                {upgrading === 'pro' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                Actualizar a Pro
+              <Button className="w-full" onClick={() => handleUpgrade('pro')} disabled={!!upgrading || !!downgrading || subscription.pending_plan === 'pro'} variant={subscription.plan === 'ultra' ? "outline" : "default"}>
+                {upgrading === 'pro' || downgrading === 'pro' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                {subscription.plan === 'ultra' ? 'Bajar a Pro' : 'Actualizar a Pro'}
               </Button>
             )}
           </CardFooter>
@@ -279,6 +316,26 @@ export default function BillingPage() {
           </CardFooter>
         </Card>
       </div>
+
+      <Dialog open={isDowngradeModalOpen} onOpenChange={setIsDowngradeModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Baja de Plan</DialogTitle>
+            <DialogDescription>
+              Tu plan {subscription?.plan?.toUpperCase()} se mantendrá activo hasta el final de tu ciclo de facturación actual. A partir de ese momento, tu suscripción se cancelará para que no se te vuelva a cobrar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 text-sm text-slate-600">
+            <p>Al inicio del próximo mes, tu cuenta pasará a ser {targetDowngrade?.toUpperCase()}, y se te pedirá que ingreses tu tarjeta nuevamente para suscribirte a la nueva tarifa.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDowngradeModalOpen(false)} disabled={!!downgrading}>Cancelar</Button>
+            <Button variant="destructive" onClick={confirmDowngrade} disabled={!!downgrading}>
+              {downgrading ? "Procesando..." : "Sí, programar baja"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -41,6 +41,36 @@ export async function POST(req: Request) {
       if (refType && refId) {
         const supabase = createAdminClient();
         
+        let targetPlan = plan;
+        let isExpired = false;
+
+        // Check current subscription in DB to see if expires_at is valid
+        const dbTable = refType === 'user' ? 'profiles' : 'tenants';
+        let tenantId = refType === 'user' ? null : refId;
+        
+        if (refType === 'user') {
+          const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', refId).single();
+          tenantId = profile?.tenant_id;
+        }
+
+        let currentSub = null;
+        if (tenantId) {
+          const { data } = await supabase.from('subscriptions').select('*').eq('tenant_id', tenantId).single();
+          currentSub = data;
+        }
+
+        if (status === 'authorized') {
+          targetPlan = plan;
+        } else if (status === 'cancelled' || status === 'canceled') {
+          // Si está cancelado, revisamos si tiene un periodo pagado que todavía no expiró
+          if (currentSub?.expires_at && new Date(currentSub.expires_at) > new Date()) {
+            targetPlan = currentSub.plan; // Mantenemos el plan actual hasta que expire
+          } else {
+            targetPlan = 'starter';
+            isExpired = true;
+          }
+        }
+
         if (refType === 'user') {
           // 1. Update User Metadata
           await supabase.auth.admin.updateUserById(refId, {
@@ -50,55 +80,56 @@ export async function POST(req: Request) {
             }
           });
 
-          // 2. Check if they already have a tenant (for renewals/re-subscriptions later)
-          const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', refId).single();
-          
           // Calculate expires_at for paid plans
-          let expiresAt = null;
+          let expiresAt = currentSub?.expires_at || null;
           if (status === 'authorized') {
             const expirationDate = new Date();
             expirationDate.setDate(expirationDate.getDate() + 30);
             expiresAt = expirationDate.toISOString();
+          } else if (isExpired) {
+            expiresAt = null;
           }
 
-          if (profile?.tenant_id) {
+          if (tenantId) {
             await supabase.from("subscriptions").upsert({
-              tenant_id: profile.tenant_id,
-              plan: status === 'authorized' ? plan : 'starter',
+              tenant_id: tenantId,
+              plan: targetPlan,
               status: status === 'authorized' ? 'active' : 'canceled',
               mercadopago_subscription_id: subscription.id,
               expires_at: expiresAt,
             });
 
             await supabase.from("tenants").update({
-              plan: status === 'authorized' ? plan : 'starter',
-            }).eq("id", profile.tenant_id);
+              plan: targetPlan,
+            }).eq("id", tenantId);
           }
 
-          logger.info(`Updated payment status for user ${refId} to ${status} (${plan})`, "MERCADOPAGO_WEBHOOK");
+          logger.info(`Updated payment status for user ${refId} to ${status} (${targetPlan})`, "MERCADOPAGO_WEBHOOK");
         } else if (refType === 'tenant') {
           // Calculate expires_at for paid plans
-          let expiresAt = null;
+          let expiresAt = currentSub?.expires_at || null;
           if (status === 'authorized') {
             const expirationDate = new Date();
             expirationDate.setDate(expirationDate.getDate() + 30);
             expiresAt = expirationDate.toISOString();
+          } else if (isExpired) {
+            expiresAt = null;
           }
 
           // Direct tenant upgrade (from dashboard)
           await supabase.from("subscriptions").upsert({
             tenant_id: refId,
-            plan: status === 'authorized' ? plan : 'starter',
+            plan: targetPlan,
             status: status === 'authorized' ? 'active' : 'canceled',
             mercadopago_subscription_id: subscription.id,
             expires_at: expiresAt,
           });
 
           await supabase.from("tenants").update({
-            plan: status === 'authorized' ? plan : 'starter',
+            plan: targetPlan,
           }).eq("id", refId);
 
-          logger.info(`Updated subscription for tenant ${refId} to ${status} (${plan})`, "MERCADOPAGO_WEBHOOK");
+          logger.info(`Updated subscription for tenant ${refId} to ${status} (${targetPlan})`, "MERCADOPAGO_WEBHOOK");
         }
       }
     }
