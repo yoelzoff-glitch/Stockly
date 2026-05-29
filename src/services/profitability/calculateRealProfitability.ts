@@ -6,6 +6,8 @@ export interface RealProfitabilityInput {
   estimated_shipping_cost: number | null;
   promotion_discount_amount: number | null;
   estimated_tax: number | null;
+  packaging_cost?: number;
+  flex_cost?: number;
 }
 
 export interface RealProfitabilityResult {
@@ -58,8 +60,10 @@ export function calculateRealProfitability(input: RealProfitabilityInput): RealP
   // Calculate Real Profit (Advanced Logic)
   const extraFees = input.extra_fee_amount || 0;
   const promoDiscount = input.promotion_discount_amount || 0;
+  const packagingCost = input.packaging_cost || 0;
+  const flexCost = input.flex_cost || 0;
 
-  const realNetProfit = baseNetProfit - extraFees - promoDiscount;
+  const realNetProfit = baseNetProfit - extraFees - promoDiscount - packagingCost - flexCost;
   const realMarginPercent = grossRevenue > 0 ? (realNetProfit / grossRevenue) * 100 : 0;
 
   return {

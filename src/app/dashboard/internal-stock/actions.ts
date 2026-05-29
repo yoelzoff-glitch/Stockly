@@ -29,7 +29,61 @@ export async function getInventoryItems() {
     .order("sku_normalized", { ascending: true });
 
   if (error) throw new Error(`Failed to fetch inventory: ${error.message}`);
-  return items || [];
+  if (!items || items.length === 0) return [];
+
+  // Calculate aggregated sales velocity and restock recommendations
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: recentOrders } = await supabase
+    .from("orders")
+    .select("id")
+    .eq("tenant_id", profile.tenant_id)
+    .gt("date_created", thirtyDaysAgo);
+
+  const orderIds = recentOrders?.map(o => o.id) || [];
+  let salesPerComponent: Record<string, number> = {};
+
+  if (orderIds.length > 0) {
+    const { data: orderItems } = await supabase
+      .from("order_items")
+      .select("product_id, quantity")
+      .in("order_id", orderIds);
+
+    const productIds = Array.from(new Set(orderItems?.map(item => item.product_id).filter(Boolean))) as string[];
+
+    if (productIds.length > 0) {
+      const { data: productComponents } = await supabase
+        .from("product_components")
+        .select("product_id, inventory_item_id, quantity")
+        .in("product_id", productIds);
+
+      orderItems?.forEach(item => {
+        if (!item.product_id) return;
+        const components = productComponents?.filter(c => c.product_id === item.product_id) || [];
+        components.forEach(comp => {
+          if (comp.inventory_item_id) {
+            const qtyUsed = (item.quantity || 1) * (comp.quantity || 1);
+            salesPerComponent[comp.inventory_item_id] = (salesPerComponent[comp.inventory_item_id] || 0) + qtyUsed;
+          }
+        });
+      });
+    }
+  }
+
+  // Enhance items with calculations
+  const enhancedItems = items.map(item => {
+    const salesLast30 = salesPerComponent[item.id] || 0;
+    const targetStock = Math.ceil(salesLast30 * 1.2); // 30 days + 20% safety
+    const currentStock = item.current_stock || 0;
+    const recommended_restock = Math.max(0, targetStock - currentStock);
+    
+    return {
+      ...item,
+      sales_last_30_days: salesLast30,
+      recommended_restock: salesLast30 > 0 ? recommended_restock : 0
+    };
+  });
+
+  return enhancedItems;
 }
 
 /**

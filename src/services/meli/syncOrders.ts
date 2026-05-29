@@ -18,6 +18,17 @@ export async function syncOrders(tenantId: string) {
 
   const { meli_user_id, id: meli_account_id } = meliAccount;
 
+  // 1.5 Get tenant metadata for operational costs
+  const { data: tenantData } = await supabase
+    .from("tenants")
+    .select("metadata")
+    .eq("id", tenantId)
+    .single();
+  
+  const tenantMetadata = (tenantData?.metadata as any) || {};
+  const packagingCost = tenantMetadata.packaging_cost || 0;
+  const flexZones = tenantMetadata.flex_zones || [];
+
   // 2. Fetch orders from Meli API (incremental sync: last 48 hours only, passing tenantId)
   const twoDaysAgo = new Date();
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
@@ -41,25 +52,88 @@ export async function syncOrders(tenantId: string) {
     });
   }
 
+  // 2.5 Fetch shipment details using multiget to resolve flex zones
+  const shipmentIds = rawOrders
+    .map((o: any) => o.shipping?.id)
+    .filter((id: any) => id); // get all non-null shipment ids
+
+  const shipmentsMap: Record<string, any> = {};
+  if (shipmentIds.length > 0) {
+    const { meliFetch } = await import("./client");
+    // ML allows up to 50 ids per multiget request
+    for (let i = 0; i < shipmentIds.length; i += 50) {
+      const chunk = shipmentIds.slice(i, i + 50);
+      const endpoint = `/shipments?ids=${chunk.join(",")}`;
+      try {
+        const shipmentsData = await meliFetch({
+          tenantId,
+          endpoint,
+          method: "GET"
+        });
+        
+        if (Array.isArray(shipmentsData)) {
+          for (const s of shipmentsData) {
+            if (s.code === 200 && s.body) {
+              shipmentsMap[s.body.id.toString()] = s.body;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch shipments for flex zones:", err);
+      }
+    }
+  }
+
   // 4. Map Orders to DB Schema (including last_seen_at)
   const syncTimestamp = new Date().toISOString();
-  const ordersToUpsert = rawOrders.map((order: any) => ({
-    tenant_id: tenantId,
-    meli_account_id: meli_account_id,
-    meli_order_id: order.id.toString(),
-    status: order.status,
-    buyer_nickname: order.buyer?.nickname,
-    buyer_id: order.buyer?.id?.toString(),
-    total_amount: order.total_amount,
-    paid_amount: order.paid_amount,
-    currency_id: order.currency_id,
-    date_created: order.date_created,
-    date_closed: order.date_closed,
-    raw_data: order,
-    meli_shipment_id: order.shipping?.id?.toString(),
-    last_seen_at: syncTimestamp,
-    updated_at: syncTimestamp
-  }));
+  const ordersToUpsert = rawOrders.map((order: any) => {
+    let orderFlexCost = 0;
+    
+    const shipmentId = order.shipping?.id?.toString();
+    const shipmentData = shipmentId ? shipmentsMap[shipmentId] : null;
+
+    if (shipmentData && shipmentData.logistic_type === 'self_service') {
+      const mlSubsidy = shipmentData.base_cost || 0;
+      
+      // Match with configured zones
+      const matchedZone = flexZones.find((z: any) => z.ml_pays === mlSubsidy);
+      
+      if (matchedZone) {
+        orderFlexCost = matchedZone.moto_costs;
+      } else {
+        // Fallback
+        orderFlexCost = flexZones.length > 0 ? flexZones[0].moto_costs : 0;
+      }
+    }
+    
+    // Inject calculated costs into raw_data
+    const enrichedRawData = {
+      ...order,
+      klyvo_operational_costs: {
+        packaging_cost: packagingCost,
+        flex_cost: orderFlexCost,
+        total_operational_cost: packagingCost + orderFlexCost
+      }
+    };
+
+    return {
+      tenant_id: tenantId,
+      meli_account_id: meli_account_id,
+      meli_order_id: order.id.toString(),
+      status: order.status,
+      buyer_nickname: order.buyer?.nickname,
+      buyer_id: order.buyer?.id?.toString(),
+      total_amount: order.total_amount,
+      paid_amount: order.paid_amount,
+      currency_id: order.currency_id,
+      date_created: order.date_created,
+      date_closed: order.date_closed,
+      raw_data: enrichedRawData,
+      meli_shipment_id: order.shipping?.id?.toString(),
+      last_seen_at: syncTimestamp,
+      updated_at: syncTimestamp
+    };
+  });
 
   // 5. Upsert Orders
   const { data: upsertedOrders, error: upsertError } = await supabase

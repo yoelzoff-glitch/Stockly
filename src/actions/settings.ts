@@ -83,3 +83,44 @@ export async function updatePreferencesAction(prevState: any, formData: FormData
   revalidatePath("/dashboard/settings");
   return { success: "Preferencias de IA actualizadas correctamente" };
 }
+
+export async function updateOperationalCostsAction(prevState: any, formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return { error: "No autenticado" };
+
+  const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
+  if (!profile?.tenant_id) return { error: "Tenant no encontrado" };
+
+  const { data: tenant } = await supabase.from("tenants").select("metadata").eq("id", profile.tenant_id).single();
+  
+  const packagingCost = formData.get("packagingCost") as string;
+  
+  const flexZones = [];
+  for (let i = 1; i <= 4; i++) {
+    const mlPays = formData.get(`flex_ml_${i}`) as string;
+    const motoCosts = formData.get(`flex_moto_${i}`) as string;
+    flexZones.push({
+      zone: i,
+      ml_pays: Number(mlPays) || 0,
+      moto_costs: Number(motoCosts) || 0
+    });
+  }
+
+  const newMetadata = {
+    ...(tenant?.metadata as Record<string, any> || {}),
+    packaging_cost: Number(packagingCost) || 0,
+    flex_zones: flexZones,
+  };
+
+  const { error } = await supabase
+    .from("tenants")
+    .update({ metadata: newMetadata })
+    .eq("id", profile.tenant_id);
+
+  if (error) return { error: "Error al actualizar costos operativos" };
+
+  revalidatePath("/dashboard/settings");
+  return { success: "Costos operativos actualizados correctamente" };
+}

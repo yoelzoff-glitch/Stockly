@@ -7,18 +7,18 @@ export function CTA() {
   return (
     <section className="relative py-24 bg-slate-900 overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-indigo-600/40 via-slate-900 to-slate-900"></div>
-      
+
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
         <h2 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight tracking-tight">
-          Dejá de ser un esclavo operativo.<br/>
+          Dejá de ser un esclavo operativo.<br />
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
             Empezá a liderar un negocio real con IA.
           </span>
         </h2>
         <p className="text-xl text-slate-300 mb-10 max-w-3xl mx-auto leading-relaxed">
-          Conectá tu cuenta en menos de 3 minutos. Sin ingresar tarjetas de crédito, gratis por 14 días con acceso ilimitado y soporte personalizado. Tu competencia ya está optimizando sus márgenes con inteligencia artificial... ¿Te vas a quedar atrás?
+          Conectá tu cuenta en menos de 3 minutos. Sin ingresar tarjetas de crédito, gratis por 7 días con acceso ilimitado y soporte personalizado. Tu competencia ya está optimizando sus márgenes con inteligencia artificial... ¿Te vas a quedar atrás?
         </p>
-        
+
         <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
           <Link href="/register" className="w-full sm:w-auto">
             <Button className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-8 py-6 text-lg shadow-lg hover:shadow-xl transition-all">

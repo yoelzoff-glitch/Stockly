@@ -48,12 +48,18 @@ export async function predictStockOut(tenantId: string) {
       daysToStockOut = Math.round(product.available_quantity / dailySales);
     }
 
+    // Recommend 30 days of sales + 20% safety stock, minus current stock
+    // If current stock is already high, we might not need to restock, but this is only filtered for critical ones below anyway.
+    const targetStock = Math.ceil(salesLast30 * 1.2);
+    const recommended_restock = Math.max(0, targetStock - product.available_quantity);
+
     return {
       product_id: product.id,
       title: product.title,
       current_stock: product.available_quantity,
       sales_last_30_days: salesLast30,
       estimated_days_remaining: daysToStockOut,
+      recommended_restock: recommended_restock,
       critical: daysToStockOut >= 0 && daysToStockOut <= 7 // Less than a week
     };
   });

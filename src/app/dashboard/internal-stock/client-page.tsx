@@ -244,6 +244,7 @@ export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
                     <th className="p-3 text-right">Costo Promedio</th>
                     <th className="p-3 text-right">Último Costo Compra</th>
                     <th className="p-3 text-right">Stock Mínimo</th>
+                    <th className="p-3 text-right">Ventas / 30d</th>
                     <th className="p-3 text-center">Estado</th>
                     <th className="p-3 text-right">Acciones</th>
                   </tr>
@@ -252,6 +253,7 @@ export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
                   {filteredItems.map((item) => {
                     const isOutOfStock = (item.current_stock || 0) === 0;
                     const isLowStock = item.minimum_stock && (item.current_stock || 0) < item.minimum_stock;
+                    const needsRestock = item.recommended_restock > 0;
                     return (
                       <tr key={item.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
                         <td className="p-3 font-semibold text-blue-600">{item.sku_normalized}</td>
@@ -261,8 +263,16 @@ export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
                         <td className="p-3 text-right font-medium text-slate-700">${Number(item.average_cost || 0).toLocaleString()}</td>
                         <td className="p-3 text-right text-muted-foreground">${Number(item.last_purchase_cost || 0).toLocaleString()}</td>
                         <td className="p-3 text-right text-muted-foreground">{item.minimum_stock || "-"}</td>
+                        <td className="p-3 text-right font-semibold text-slate-700">{item.sales_last_30_days || 0}</td>
                         <td className="p-3 text-center">
-                          {isOutOfStock ? (
+                          {needsRestock ? (
+                             <div className="flex flex-col items-center gap-1">
+                               {isOutOfStock && <Badge variant="destructive">Sin Stock</Badge>}
+                               <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                                 🛒 Comprar {item.recommended_restock} un.
+                               </Badge>
+                             </div>
+                          ) : isOutOfStock ? (
                             <Badge variant="destructive">Sin Stock</Badge>
                           ) : isLowStock ? (
                              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Bajo Mínimo</Badge>

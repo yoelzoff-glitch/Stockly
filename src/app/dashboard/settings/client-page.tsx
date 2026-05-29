@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useActionState, useEffect } from "react";
-import { updateAccountAction, updateBusinessAction, updatePreferencesAction } from "@/actions/settings";
+import { updateAccountAction, updateBusinessAction, updatePreferencesAction, updateOperationalCostsAction } from "@/actions/settings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { User, Building2, Store, MessageCircle, BrainCircuit, Bell, Shield, CheckCircle2, AlertCircle } from "lucide-react";
+import { User, Building2, Store, MessageCircle, BrainCircuit, Bell, Shield, CheckCircle2, AlertCircle, Calculator } from "lucide-react";
 
 export default function SettingsClientPage({ profile, tenant, meliAccount }: { profile: any, tenant: any, meliAccount: any }) {
   const [activeTab, setActiveTab] = useState("account");
@@ -16,10 +16,12 @@ export default function SettingsClientPage({ profile, tenant, meliAccount }: { p
   const [accState, accAction, isAccPending] = useActionState(updateAccountAction, null);
   const [busState, busAction, isBusPending] = useActionState(updateBusinessAction, null);
   const [prefState, prefAction, isPrefPending] = useActionState(updatePreferencesAction, null);
+  const [opState, opAction, isOpPending] = useActionState(updateOperationalCostsAction, null);
 
   const tabs = [
     { id: "account", label: "Cuenta", icon: User },
     { id: "business", label: "Negocio", icon: Building2 },
+    { id: "operational", label: "Costos Operativos", icon: Calculator },
     { id: "meli", label: "Mercado Libre", icon: Store },
     { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
     { id: "ai", label: "IA", icon: BrainCircuit },
@@ -108,6 +110,85 @@ export default function SettingsClientPage({ profile, tenant, meliAccount }: { p
                 {busState?.success && <p className="text-sm text-green-500">{busState.success}</p>}
                 <Button type="submit" disabled={isBusPending}>
                   {isBusPending ? "Guardando..." : "Guardar negocio"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Tab: Costos Operativos */}
+        {activeTab === "operational" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Costos Operativos (Fijos por Orden)</CardTitle>
+              <CardDescription>
+                Define los costos que aplican a cada venta para tener una rentabilidad 100% exacta. 
+                Estos costos se restan a nivel de la orden completa, y no del SKU, por lo que son perfectos para calcular el empaque de carritos o logística Flex.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form action={opAction} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="packagingCost">Costo Fijo de Empaque por Orden ($)</Label>
+                  <Input 
+                    id="packagingCost" 
+                    name="packagingCost" 
+                    type="number" 
+                    min="0"
+                    defaultValue={tenant?.metadata?.packaging_cost || 0} 
+                    disabled={isOpPending} 
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Costo promedio de caja, cinta, etiquetas y mano de obra para armar un paquete. Se descontará 1 vez por orden despachada.
+                  </p>
+                </div>
+                
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="space-y-1">
+                    <Label className="text-base">Logística Flex (4 Cordones)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Mercado Libre te paga una bonificación fija según el cordón. Define cuánto te paga ML y cuánto te cobra tu moto en cada zona para que Klyvo deduzca automáticamente la rentabilidad exacta de cada venta Flex.
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-2 text-xs font-medium text-muted-foreground border-b pb-2">
+                    <div>Zona</div>
+                    <div>ML te bonifica ($)</div>
+                    <div>Tu Moto te cobra ($)</div>
+                  </div>
+
+                  {[1, 2, 3, 4].map((zoneIndex) => (
+                    <div key={zoneIndex} className="grid grid-cols-3 gap-2 items-center">
+                      <div className="font-medium text-sm">
+                        {zoneIndex === 1 ? "CABA" : `Cordón ${zoneIndex - 1}`}
+                      </div>
+                      <div>
+                        <Input 
+                          name={`flex_ml_${zoneIndex}`} 
+                          type="number" 
+                          placeholder="Ej. 3200" 
+                          defaultValue={tenant?.metadata?.flex_zones?.[zoneIndex - 1]?.ml_pays || ""}
+                          disabled={isOpPending}
+                        />
+                      </div>
+                      <div>
+                        <Input 
+                          name={`flex_moto_${zoneIndex}`} 
+                          type="number" 
+                          placeholder="Ej. 4500" 
+                          defaultValue={tenant?.metadata?.flex_zones?.[zoneIndex - 1]?.moto_costs || ""}
+                          disabled={isOpPending}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {opState?.error && <p className="text-sm text-red-500">{opState.error}</p>}
+                {opState?.success && <p className="text-sm text-green-500">{opState.success}</p>}
+                
+                <Button type="submit" disabled={isOpPending}>
+                  {isOpPending ? "Guardando..." : "Guardar Costos Operativos"}
                 </Button>
               </form>
             </CardContent>

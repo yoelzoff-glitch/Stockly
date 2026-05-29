@@ -38,6 +38,17 @@ export async function syncProducts(tenantId: string) {
 
   const { meli_user_id, id: meli_account_id } = meliAccount;
 
+  // 1.5 Get tenant metadata for operational costs
+  const { data: tenantData } = await supabase
+    .from("tenants")
+    .select("metadata")
+    .eq("id", tenantId)
+    .single();
+  
+  const tenantMetadata = (tenantData?.metadata as any) || {};
+  const packagingCost = tenantMetadata.packaging_cost || 0;
+  // const flexBaseCost = tenantMetadata.flex_base_cost || 0; // Not used at product level
+
   // 2. Fetch products from Meli API (passing tenantId)
   const rawProducts = await getProducts(tenantId, meli_user_id);
 
@@ -141,7 +152,8 @@ export async function syncProducts(tenantId: string) {
       extra_fee_amount: extraFeeAmount,
       estimated_shipping_cost: estimatedShipping,
       promotion_discount_amount: promoDiscountAmount,
-      estimated_tax: 0 // Simplification for now
+      estimated_tax: 0, // Simplification for now
+      packaging_cost: packagingCost
     });
 
     const rawData = item;

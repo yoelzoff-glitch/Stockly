@@ -112,7 +112,7 @@ export default async function IntelligenceCenter() {
                 {stockOuts.map(so => (
                   <div key={so.product_id} className="flex flex-col gap-2 border-b pb-3 last:border-0 last:pb-0">
                     <span className="font-semibold text-sm leading-tight">{so.title}</span>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="grid grid-cols-2 gap-2 text-xs mb-2">
                       <div className="flex flex-col">
                         <span className="text-muted-foreground">Stock actual</span>
                         <span className="font-medium text-base">{so.current_stock}</span>
@@ -121,11 +121,16 @@ export default async function IntelligenceCenter() {
                         <span className="text-muted-foreground">Ventas / 30d</span>
                         <span className="font-medium text-base">{so.sales_last_30_days}</span>
                       </div>
-                      <div className="flex flex-col items-end justify-center">
-                        <StatusBadge variant={so.estimated_days_remaining <= 3 ? "danger" : "warning"}>
+                    </div>
+                    <div className="flex items-center justify-between mt-1 pt-2 border-t border-dashed">
+                       <StatusBadge variant={so.estimated_days_remaining <= 3 ? "danger" : "warning"}>
                           Quedan {so.estimated_days_remaining} días
-                        </StatusBadge>
-                      </div>
+                       </StatusBadge>
+                       {so.recommended_restock > 0 && (
+                         <div className="flex items-center text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-1 rounded">
+                           Sugerencia: Comprar {so.recommended_restock} un.
+                         </div>
+                       )}
                     </div>
                   </div>
                 ))}
