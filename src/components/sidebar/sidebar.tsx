@@ -49,7 +49,7 @@ export function Sidebar() {
   return (
     <div className="flex h-screen w-64 flex-col border-r border-slate-200 bg-white py-4">
       <div className="mb-4 px-4 flex items-center justify-center w-full shrink-0">
-        <img src="/logo.png" alt="Klyvo Logo" className="w-full max-w-[150px] h-auto" />
+        <img src="/logo.png" alt="Klyvo Logo" className="w-full max-w-[200px] h-auto" />
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-6">
         {sidebarLinks.map((item) => {
@@ -61,7 +61,7 @@ export function Sidebar() {
               className={cn(
                 "group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
                 item.indent ? "ml-6 text-slate-500 border-l border-slate-200 pl-4 py-1.5" : "",
-                isActive 
+                isActive
                   ? (item.indent ? "bg-indigo-50/50 text-indigo-700 border-indigo-400" : "bg-indigo-50 text-indigo-700 relative")
                   : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
               )}

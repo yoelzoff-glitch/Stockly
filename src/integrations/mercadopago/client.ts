@@ -38,13 +38,13 @@ export async function createSubscriptionPreference(
     if (!planDetails) throw new Error("Plan not found");
 
     const getBaseUrl = () => {
-      if (process.env.NEXTAUTH_URL) {
-        return process.env.NEXTAUTH_URL.replace(/["']/g, "").replace(/\/$/, "");
+      let url = "https://klyvo.com"; // Fallback para dev porque MP exige HTTPS válido
+      if (process.env.NEXTAUTH_URL && !process.env.NEXTAUTH_URL.includes("localhost")) {
+        url = process.env.NEXTAUTH_URL.replace(/["']/g, "").replace(/\/$/, "");
+      } else if (process.env.VERCEL_URL) {
+        url = `https://${process.env.VERCEL_URL}`;
       }
-      if (process.env.VERCEL_URL) {
-        return `https://${process.env.VERCEL_URL}`;
-      }
-      return "http://localhost:3000";
+      return url;
     };
 
     const backUrlPath = referenceType === 'user' ? '/onboarding' : '/dashboard/billing';
