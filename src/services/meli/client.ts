@@ -93,7 +93,7 @@ export async function meliFetch({
     }
   }
 
-  // 5. If it still fails, update status to error and throw controlled error
+  // 5. If it still fails, update status to error (only for 401 authentication errors) and throw controlled error
   if (!response.ok) {
     const errorText = await response.text();
     let errorData: any = null;
@@ -103,21 +103,23 @@ export async function meliFetch({
 
     const errorMessage = errorData?.message || `Mercado Libre API failed with status ${response.status}: ${errorText}`;
     
-    // Update meli_accounts status to error
-    await supabase
-      .from("meli_accounts")
-      .update({
-        status: "error",
-        sync_error: errorMessage,
-      })
-      .eq("id", account.id);
+    if (response.status === 401) {
+      // Update meli_accounts status to error since the credentials are dead
+      await supabase
+        .from("meli_accounts")
+        .update({
+          status: "error",
+          sync_error: errorMessage,
+        })
+        .eq("id", account.id);
 
-    await createAlert({
-      tenantId: finalTenantId,
-      title: "Fallo de comunicación con Mercado Libre",
-      body: `La sincronización ha fallado: ${errorMessage.substring(0, 100)}`,
-      severity: "error"
-    });
+      await createAlert({
+        tenantId: finalTenantId,
+        title: "Fallo de comunicación con Mercado Libre",
+        body: `La sincronización ha fallado: ${errorMessage.substring(0, 100)}`,
+        severity: "error"
+      });
+    }
 
     // Create Audit Log
     await supabase.from("audit_logs").insert({
