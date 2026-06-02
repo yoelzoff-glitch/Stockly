@@ -94,7 +94,7 @@ export async function GET(
     if (meliVisitsData && meliVisitsData.results) {
       meliVisitsData.results.forEach((v: any) => {
         const dateStr = new Date(v.date).toISOString().split("T")[0];
-        visitsByDay[dateStr] = v.quantity || 0;
+        visitsByDay[dateStr] = v.total || v.quantity || 0;
       });
     }
 
