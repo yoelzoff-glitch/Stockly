@@ -29,6 +29,19 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
   const dateFrom = new Date();
   dateFrom.setDate(dateFrom.getDate() - days);
 
+  // If search query is provided, find matching order_ids by title first
+  let orderIdsMatched: string[] = [];
+  if (q) {
+    const { data: matchedItems } = await supabase
+      .from("order_items")
+      .select("order_id")
+      .eq("tenant_id", profile.tenant_id)
+      .ilike("title", `%${q}%`);
+    if (matchedItems && matchedItems.length > 0) {
+      orderIdsMatched = Array.from(new Set(matchedItems.map(item => item.order_id)));
+    }
+  }
+
   let query = supabase
     .from("orders")
     .select("*", { count: "exact" })
@@ -42,7 +55,12 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
   }
 
   if (q) {
-    query = query.or(`buyer_nickname.ilike.%${q}%,meli_order_id.ilike.%${q}%,product_title.ilike.%${q}%`);
+    if (orderIdsMatched.length > 0) {
+      const idsStr = orderIdsMatched.map(id => `id.eq.${id}`).join(",");
+      query = query.or(`buyer_nickname.ilike.%${q}%,meli_order_id.ilike.%${q}%,${idsStr}`);
+    } else {
+      query = query.or(`buyer_nickname.ilike.%${q}%,meli_order_id.ilike.%${q}%`);
+    }
   }
 
   const { data: orders, count, error } = await query;
@@ -51,21 +69,30 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
     console.error("Error fetching orders:", error);
   }
 
-  // Also fetch ALL orders for the period for the KPIs to be accurate across pages?
-  // Actually, KPIs should probably be calculated Server-Side too, but for MVP let's calculate them with a separate query or just use the current page data.
-  // Wait, if we paginate, the Chart and KPIs will only reflect the current page (50 orders)!
-  // We need a separate query for KPIs or calculate them server-side.
-  const { data: allPeriodOrders } = await supabase
+  // Also fetch ALL orders for the period for the KPIs to be accurate across pages
+  const { data: rawPeriodOrders } = await supabase
     .from("orders")
-    .select("total_amount, date_created, product_title, status")
+    .select("total_amount, date_created, status, raw_data")
     .eq("tenant_id", profile.tenant_id)
     .gte("date_created", dateFrom.toISOString());
+
+  const allPeriodOrders = (rawPeriodOrders || []).map(o => ({
+    total_amount: o.total_amount,
+    date_created: o.date_created,
+    status: o.status,
+    product_title: (o.raw_data as any)?.order_items?.[0]?.item?.title || "Varios / Otros"
+  }));
+
+  const mappedOrders = (orders || []).map(o => ({
+    ...o,
+    product_title: (o.raw_data as any)?.order_items?.[0]?.item?.title || "Varios productos"
+  }));
 
   return (
     <div className="flex-1 p-8 pt-6">
       <SalesClientPage 
-        initialOrders={orders || []} 
-        allPeriodOrders={allPeriodOrders || []}
+        initialOrders={mappedOrders} 
+        allPeriodOrders={allPeriodOrders}
         totalCount={count || 0}
         currentPage={page}
         searchQuery={q}

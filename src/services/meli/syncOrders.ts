@@ -176,7 +176,6 @@ export async function syncOrders(tenantId: string) {
         sku: item.item?.seller_sku,
         quantity: item.quantity,
         unit_price: item.unit_price,
-        total_price: item.quantity * item.unit_price,
         estimated_fee: item.sale_fee,
       });
     });
