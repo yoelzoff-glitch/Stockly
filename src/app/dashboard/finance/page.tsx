@@ -57,10 +57,21 @@ export default async function FinancePage(props: { searchParams: Promise<{ perio
     .select("id, meli_item_id, title, sku, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount, profit_real_margin")
     .eq("tenant_id", tenantId);
 
+  const mappedOrders = (orders || []).map(o => {
+    const raw = o.raw_data as any;
+    const firstItem = raw?.order_items?.[0];
+    return {
+      ...o,
+      product_title: firstItem?.item?.title || "Varios",
+      meli_product_id: firstItem?.item?.id || null,
+      total_quantity: firstItem?.quantity || 1
+    };
+  });
+
   return (
     <div className="flex-1 p-8 pt-6">
       <FinanceClientPage 
-        orders={orders || []} 
+        orders={mappedOrders} 
         cancellations={cancellations || []} 
         products={products || []}
         currentPeriod={period}
