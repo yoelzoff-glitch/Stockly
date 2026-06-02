@@ -54,7 +54,7 @@ export async function POST() {
         product.price, 
         product.category_id, 
         product.listing_type_id, 
-        meliAccount.access_token
+        tenantId
       );
       
       const shippingData = await getShippingCostEstimate(product.meli_item_id, meliAccount.access_token);

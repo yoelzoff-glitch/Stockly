@@ -35,22 +35,43 @@ export async function connectWhatsAppNumberAction(prevState: any, formData: Form
     }
 
     // Guardar o actualizar en whatsapp_numbers
-    const { error } = await supabase
+    // Primero verificamos si ya existe una vinculación para este tenant para evitar el error de ON CONFLICT sin constraint único
+    const { data: existingNumber } = await supabase
       .from("whatsapp_numbers")
-      .upsert({
-        tenant_id: profile.tenant_id,
-        phone_number: sanitizedPhoneNumber,
-        provider: "meta",
-        status: "connected",
-        access_token: process.env.WHATSAPP_ACCESS_TOKEN || "",
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: "tenant_id"
-      });
+      .select("id")
+      .eq("tenant_id", profile.tenant_id)
+      .maybeSingle();
 
-    if (error) {
-      console.error("Error connecting WhatsApp number:", error);
-      return { error: `Error al guardar en base de datos: ${error.message}` };
+    let dbError;
+    if (existingNumber) {
+      const { error } = await supabase
+        .from("whatsapp_numbers")
+        .update({
+          phone_number: sanitizedPhoneNumber,
+          provider: "meta",
+          status: "connected",
+          access_token: process.env.WHATSAPP_ACCESS_TOKEN || "",
+          updated_at: new Date().toISOString()
+        })
+        .eq("tenant_id", profile.tenant_id);
+      dbError = error;
+    } else {
+      const { error } = await supabase
+        .from("whatsapp_numbers")
+        .insert({
+          tenant_id: profile.tenant_id,
+          phone_number: sanitizedPhoneNumber,
+          provider: "meta",
+          status: "connected",
+          access_token: process.env.WHATSAPP_ACCESS_TOKEN || "",
+          updated_at: new Date().toISOString()
+        });
+      dbError = error;
+    }
+
+    if (dbError) {
+      console.error("Error connecting WhatsApp number:", dbError);
+      return { error: `Error al guardar en base de datos: ${dbError.message}` };
     }
 
     revalidatePath("/dashboard/integrations");
