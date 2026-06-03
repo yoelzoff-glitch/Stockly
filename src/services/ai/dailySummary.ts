@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { openai } from "@/lib/ai/openai";
 import { logger } from "@/lib/errors/logger";
+import { getMidnightInTimezone } from "./tools/finance";
 
 /**
  * Obtiene o genera el resumen diario del negocio utilizando Inteligencia Artificial.
@@ -15,8 +16,11 @@ import { logger } from "@/lib/errors/logger";
  */
 export async function getOrCreateDailySummary(tenantId: string): Promise<string | null> {
   const supabase = createAdminClient();
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  
+  // Obtener la zona horaria del tenant
+  const { data: tenant } = await supabase.from("tenants").select("timezone").eq("id", tenantId).single();
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+  const todayStart = getMidnightInTimezone(new Date(), timezone);
 
   // 1. Check if we already have a summary today
   const { data: existing } = await supabase

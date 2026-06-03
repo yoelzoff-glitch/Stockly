@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 import ParetoChart from "./pareto-chart";
 import { getParetoAnalysis } from "@/services/analytics/pareto";
+import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 
 export default async function AnalyticsAndInsightsPage(props: { searchParams: Promise<{ days?: string }> }) {
   const searchParams = await props.searchParams;
@@ -27,9 +28,16 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   const tenantId = profile?.tenant_id;
 
   // Dates
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - days);
-  sevenDaysAgo.setHours(0, 0, 0, 0);
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("timezone")
+    .eq("id", tenantId)
+    .single();
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+
+  const sevenDaysAgoRaw = new Date();
+  sevenDaysAgoRaw.setDate(sevenDaysAgoRaw.getDate() - days);
+  const sevenDaysAgo = getMidnightInTimezone(sevenDaysAgoRaw, timezone);
 
   // Queries
   const [

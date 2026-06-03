@@ -14,6 +14,7 @@ import { generateBusinessInsights } from "@/services/analytics/insights";
 import { calculateBusinessHealth } from "@/services/health/calculateHealth";
 import { getActivationProgress } from "@/actions/activation";
 import { DashboardPeriodSelector } from "@/components/dashboard/dashboard-period-selector";
+import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 
 interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }> | { [key: string]: string | string[] | undefined };
@@ -64,23 +65,31 @@ export default async function DashboardPage(props: PageProps) {
   }
 
   // Fetch real data
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("timezone")
+    .eq("id", tenantId)
+    .single();
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
 
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-  startDate.setHours(0, 0, 0, 0);
+  const today = getMidnightInTimezone(new Date(), timezone);
 
-  // Orders last N days using Cache
-  const recentOrders = await getCachedOrders(tenantId, days);
+  // To be safe, fetch days + 1 in the cache so we don't miss boundaries
+  const recentOrders = await getCachedOrders(tenantId, days + 1);
 
   // Calculate metrics
   let salesToday = 0;
   let revenuePeriod = 0;
 
+  const pastDate = new Date();
+  pastDate.setDate(pastDate.getDate() - days);
+  const periodStart = getMidnightInTimezone(pastDate, timezone);
+
   recentOrders?.forEach(order => {
     const orderDate = new Date(order.date_created);
-    revenuePeriod += Number(order.total_amount) || 0;
+    if (orderDate >= periodStart) {
+      revenuePeriod += Number(order.total_amount) || 0;
+    }
     if (orderDate >= today) {
       salesToday += Number(order.total_amount) || 0;
     }

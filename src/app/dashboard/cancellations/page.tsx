@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Ban, DollarSign, TrendingDown, Users } from "lucide-react";
+import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 
 export default async function CancellationsPage() {
   const supabase = await createClient();
@@ -39,10 +40,18 @@ export default async function CancellationsPage() {
   let mes = 0;
   let montoPerdido = 0;
 
-  const todayDate = new Date();
-  todayDate.setHours(0, 0, 0, 0);
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("timezone")
+    .eq("id", tenantId)
+    .single();
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
 
-  const firstDayOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+  const todayDate = getMidnightInTimezone(new Date(), timezone);
+  
+  const firstDayOfMonthRaw = new Date(todayDate);
+  firstDayOfMonthRaw.setDate(1);
+  const firstDayOfMonth = getMidnightInTimezone(firstDayOfMonthRaw, timezone);
 
   cancellations?.forEach(c => {
     const d = new Date(c.date_cancelled);
