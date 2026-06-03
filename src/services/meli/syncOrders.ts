@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrders } from "./getOrders";
 import { decrementInternalStockFromOrder } from "../inventory/decrementInternalStockFromOrder";
+import { syncShipments } from "./syncShipments";
 
 export async function syncOrders(tenantId: string) {
   const supabase = createAdminClient();
@@ -214,6 +215,11 @@ export async function syncOrders(tenantId: string) {
         }
       }
   }
+
+  // --- SPRINT 36: Sincronización automática de envíos ---
+  await syncShipments(tenantId).catch((err) => {
+    console.error(`Failed to sync shipments during syncOrders for tenant ${tenantId}:`, err);
+  });
 
   return ordersToUpsert.length;
 }
