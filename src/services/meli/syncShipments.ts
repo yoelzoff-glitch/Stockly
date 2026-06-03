@@ -15,6 +15,16 @@ export async function syncShipments(tenantId: string) {
     return 0;
   }
 
+  // 1.5 Fetch tenant metadata for flex zones
+  const { data: tenantData } = await supabase
+    .from("tenants")
+    .select("metadata")
+    .eq("id", tenantId)
+    .single();
+
+  const tenantMetadata = (tenantData?.metadata as any) || {};
+  const flexZones = tenantMetadata.flex_zones || [];
+
   let syncedCount = 0;
   const shipmentsToUpsert: any[] = [];
 
@@ -25,6 +35,18 @@ export async function syncShipments(tenantId: string) {
       const shipment = await getShipment(tenantId, order.meli_shipment_id);
       
       if (shipment) {
+        let shippingCost = shipment.shipping_option?.list_cost ?? shipment.base_cost ?? 0;
+
+        if (shipment.logistic_type === "self_service") {
+          const mlSubsidy = shipment.base_cost || 0;
+          const matchedZone = flexZones.find((z: any) => z.ml_pays === mlSubsidy);
+          if (matchedZone) {
+            shippingCost = matchedZone.moto_costs;
+          } else if (flexZones.length > 0) {
+            shippingCost = flexZones[0].moto_costs;
+          }
+        }
+
         shipmentsToUpsert.push({
           tenant_id: tenantId,
           order_id: order.id,
@@ -35,7 +57,7 @@ export async function syncShipments(tenantId: string) {
           mode: shipment.mode,
           tracking_number: shipment.tracking_number,
           tracking_method: shipment.tracking_method,
-          shipping_cost: shipment.base_cost || 0,
+          shipping_cost: shippingCost,
           receiver_city: shipment.receiver_address?.city?.name,
           receiver_state: shipment.receiver_address?.state?.name,
           date_created: shipment.date_created,
