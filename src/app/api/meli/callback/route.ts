@@ -1,7 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { cookies } from "next/headers";
+import { POST as webhookPOST } from "../webhook/route";
+
+export async function POST(request: NextRequest) {
+  return webhookPOST(request);
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);

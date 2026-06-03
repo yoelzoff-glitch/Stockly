@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { inngest } from "@/inngest/client";
 import { syncOrders } from "@/services/meli/syncOrders";
 import { syncProducts } from "@/services/meli/syncProducts";
+import { logger } from "@/lib/errors/logger";
 
 import * as Sentry from "@sentry/nextjs";
 
@@ -12,9 +13,7 @@ export async function POST(req: NextRequest) {
     const userAgent = req.headers.get("user-agent") || "";
     const signature = req.headers.get("x-signature") || req.headers.get("x-meli-signature");
 
-    if (process.env.NODE_ENV === "production" && !userAgent.toLowerCase().includes("mercadolibre")) {
-      return new NextResponse("Unauthorized Origin", { status: 401 });
-    }
+    logger.info("Mercado Libre webhook request received", { userAgent, hasSignature: !!signature });
 
     const payload = await req.json();
 
@@ -37,7 +36,7 @@ export async function POST(req: NextRequest) {
     const { data: account } = await supabase
       .from("meli_accounts")
       .select("tenant_id")
-      .eq("meli_user_id", userId)
+      .eq("meli_user_id", userId.toString())
       .single();
 
     if (!account) {
