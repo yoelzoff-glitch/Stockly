@@ -168,84 +168,101 @@ export async function syncProducts(tenantId: string) {
   const { getPromotions } = await import("./getPromotions");
   const { calculateRealProfitability } = await import("../profitability/calculateRealProfitability");
 
-  const productsToUpsert = [];
+  const productsToUpsert: any[] = [];
   const syncTimestamp = new Date().toISOString();
 
-  for (const item of rawProducts) {
-    const siteId = item.site_id || "MLA";
-    const existingCost = costMap.get(item.id) || null;
+  const batchSize = 10;
+  for (let i = 0; i < rawProducts.length; i += batchSize) {
+    const batch = rawProducts.slice(i, i + batchSize);
+    await Promise.all(
+      batch.map(async (item) => {
+        const siteId = item.site_id || "MLA";
+        const existingCost = costMap.get(item.id) || null;
 
-    // Fetch Fees (passing tenantId)
-    const feeData = await getListingFees(siteId, item.price, item.category_id, item.listing_type_id, tenantId);
-    const estimatedFee = feeData?.sale_fee_amount ?? null;
+        // Fetch all 4 APIs in parallel for this item
+        const [feeData, shippingData, campaigns, promotions] = await Promise.all([
+          getListingFees(siteId, item.price, item.category_id, item.listing_type_id, tenantId).catch(err => {
+            console.error(`Error fetching listing fees for ${item.id}:`, err);
+            return null;
+          }),
+          getShippingCostEstimate(item.id, meliAccount.access_token, item.shipping, item.seller_id, item.currency_id).catch(err => {
+            console.error(`Error fetching shipping estimate for ${item.id}:`, err);
+            return { estimated_shipping_cost: 0, raw_response: null };
+          }),
+          getCampaigns(item.id, meli_user_id, tenantId).catch(err => {
+            console.error(`Error fetching campaigns for ${item.id}:`, err);
+            return [];
+          }),
+          getPromotions(item.id, meli_user_id, tenantId).catch(err => {
+            console.error(`Error fetching promotions for ${item.id}:`, err);
+            return [];
+          })
+        ]);
 
-    // Fetch Shipping (optimized: pass pre-fetched item details to avoid redundant API call)
-    const shippingData = await getShippingCostEstimate(item.id, meliAccount.access_token, item.shipping, item.seller_id, item.currency_id);
-    const estimatedShipping = shippingData.estimated_shipping_cost;
+        const estimatedFee = feeData?.sale_fee_amount ?? null;
+        const estimatedShipping = shippingData?.estimated_shipping_cost ?? 0;
 
-    // Fetch Campaigns and Promotions (passing tenantId)
-    const campaigns = await getCampaigns(item.id, meli_user_id, tenantId);
-    const promotions = await getPromotions(item.id, meli_user_id, tenantId);
+        let extraFeeAmount = campaigns ? campaigns.reduce((acc: number, c: any) => acc + (c.fee_extra || 0), 0) : 0;
+        
+        // Fallback: Si el API de campañas devolvió 403 o no detectó nada, pero el item tiene Cuota Simple (pcj-co-funded)
+        if (extraFeeAmount === 0 && item.tags && item.tags.includes("pcj-co-funded")) {
+          extraFeeAmount = item.price * 0.05; // Cuota simple cobra exactamente 5%
+        }
 
-    let extraFeeAmount = campaigns.reduce((acc: number, c: any) => acc + (c.fee_extra || 0), 0);
-    
-    // Fallback: Si el API de campañas devolvió 403 o no detectó nada, pero el item tiene Cuota Simple (pcj-co-funded)
-    if (extraFeeAmount === 0 && item.tags && item.tags.includes("pcj-co-funded")) {
-      extraFeeAmount = item.price * 0.05; // Cuota simple cobra exactamente 5%
-    }
+        const promoDiscountAmount = promotions ? promotions.reduce((acc: number, p: any) => acc + (p.discount_amount || 0), 0) : 0;
 
-    const promoDiscountAmount = promotions.reduce((acc: number, p: any) => acc + (p.discount_amount || 0), 0);
+        // Calculate profitability
+        const profitResult = calculateRealProfitability({
+          price: item.price,
+          cost: existingCost,
+          estimated_fee: estimatedFee,
+          extra_fee_amount: extraFeeAmount,
+          estimated_shipping_cost: estimatedShipping,
+          promotion_discount_amount: promoDiscountAmount,
+          estimated_tax: 0, // Simplification for now
+          packaging_cost: packagingCost
+        });
 
-    // Calculate profitability
-    const profitResult = calculateRealProfitability({
-      price: item.price,
-      cost: existingCost,
-      estimated_fee: estimatedFee,
-      extra_fee_amount: extraFeeAmount,
-      estimated_shipping_cost: estimatedShipping,
-      promotion_discount_amount: promoDiscountAmount,
-      estimated_tax: 0, // Simplification for now
-      packaging_cost: packagingCost
-    });
+        const rawData = { ...item };
+        rawData.fees = feeData?.raw_response;
+        rawData.shipping_estimate = shippingData?.raw_response;
 
-    const rawData = item;
-    rawData.fees = feeData?.raw_response;
-    rawData.shipping_estimate = shippingData.raw_response;
-
-    productsToUpsert.push({
-      tenant_id: tenantId,
-      meli_account_id: meli_account_id,
-      meli_item_id: item.id,
-      sku: skuMap.get(item.id) || null,
-      title: item.title,
-      price: item.price,
-      base_price: item.base_price,
-      original_price: item.original_price,
-      available_quantity: item.available_quantity,
-      sold_quantity: item.sold_quantity,
-      status: item.status,
-      listing_type_id: item.listing_type_id,
-      category_id: item.category_id,
-      permalink: item.permalink,
-      thumbnail_url: item.thumbnail,
-      raw_data: rawData,
-      estimated_fee: estimatedFee,
-      estimated_shipping_cost: estimatedShipping,
-      estimated_tax: 0,
-      margin_amount: profitResult.margin_amount,
-      margin_percent: profitResult.margin_percent,
-      profit_real_estimated: profitResult.real_margin_amount,
-      profit_real_margin: profitResult.real_margin_percent,
-      profitability_status: profitResult.profitability_status,
-      campaign_data: campaigns,
-      promotion_data: promotions,
-      extra_fee_amount: extraFeeAmount,
-      promotion_discount_amount: promoDiscountAmount,
-      profit_last_calculated_at: new Date().toISOString(),
-      last_synced_at: syncTimestamp,
-      last_seen_at: syncTimestamp,
-      updated_at: new Date().toISOString(),
-    });
+        productsToUpsert.push({
+          tenant_id: tenantId,
+          meli_account_id: meli_account_id,
+          meli_item_id: item.id,
+          sku: skuMap.get(item.id) || null,
+          title: item.title,
+          price: item.price,
+          base_price: item.base_price,
+          original_price: item.original_price,
+          available_quantity: item.available_quantity,
+          sold_quantity: item.sold_quantity,
+          status: item.status,
+          listing_type_id: item.listing_type_id,
+          category_id: item.category_id,
+          permalink: item.permalink,
+          thumbnail_url: item.thumbnail,
+          raw_data: rawData,
+          estimated_fee: estimatedFee,
+          estimated_shipping_cost: estimatedShipping,
+          estimated_tax: 0,
+          margin_amount: profitResult.margin_amount,
+          margin_percent: profitResult.margin_percent,
+          profit_real_estimated: profitResult.real_margin_amount,
+          profit_real_margin: profitResult.real_margin_percent,
+          profitability_status: profitResult.profitability_status,
+          campaign_data: campaigns || [],
+          promotion_data: promotions || [],
+          extra_fee_amount: extraFeeAmount,
+          promotion_discount_amount: promoDiscountAmount,
+          profit_last_calculated_at: new Date().toISOString(),
+          last_synced_at: syncTimestamp,
+          last_seen_at: syncTimestamp,
+          updated_at: new Date().toISOString(),
+        });
+      })
+    );
   }
 
   // 4. Upsert into Supabase `products` table
