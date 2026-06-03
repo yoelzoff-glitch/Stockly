@@ -203,6 +203,21 @@ ${chatHistory}
           parameters: { type: "object", properties: {} },
         },
       },
+      {
+        type: "function",
+        function: {
+          function: async (args: { days?: number }) => tools.getSalesDetail(tenantId, args.days),
+          name: "getSalesDetail",
+          description: "Obtiene el detalle de qué productos específicos se vendieron (títulos, SKU y cantidades) en los últimos N días (por ejemplo, days=1 para hoy, days=2 para hoy y ayer). Usar esta herramienta siempre que pregunten qué productos se vendieron hoy, ayer o en un período.",
+          parse: JSON.parse,
+          parameters: {
+            type: "object",
+            properties: {
+              days: { type: "number", description: "Cantidad de días hacia atrás a analizar (por defecto 2 para hoy y ayer)." }
+            }
+          },
+        },
+      },
 
       {
         type: "function",

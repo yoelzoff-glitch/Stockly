@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveProduct } from "@/services/products/resolveProduct";
+import { getMidnightInTimezone } from "./tools/finance";
+
 
 /**
  * Obtiene el total facturado y la cantidad de órdenes del día de hoy.
@@ -9,8 +11,13 @@ import { resolveProduct } from "@/services/products/resolveProduct";
  */
 export async function getTodaySales(tenantId: string) {
   const supabase = createAdminClient();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("timezone")
+    .eq("id", tenantId)
+    .single();
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+  const today = getMidnightInTimezone(new Date(), timezone);
 
   const { data, error } = await supabase
     .from("orders")
@@ -32,15 +39,22 @@ export async function getTodaySales(tenantId: string) {
  */
 export async function getWeeklySales(tenantId: string) {
   const supabase = createAdminClient();
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
-  weekAgo.setHours(0, 0, 0, 0);
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("timezone")
+    .eq("id", tenantId)
+    .single();
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const startDate = getMidnightInTimezone(weekAgo, timezone);
 
   const { data, error } = await supabase
     .from("orders")
     .select("total_amount")
     .eq("tenant_id", tenantId)
-    .gte("date_created", weekAgo.toISOString());
+    .gte("date_created", startDate.toISOString());
 
   if (error) throw error;
 
@@ -57,9 +71,16 @@ export async function getWeeklySales(tenantId: string) {
  */
 export async function getSalesByDays(tenantId: string, days: number) {
   const supabase = createAdminClient();
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-  startDate.setHours(0, 0, 0, 0);
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("timezone")
+    .eq("id", tenantId)
+    .single();
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+
+  const now = new Date();
+  const pastDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const startDate = getMidnightInTimezone(pastDate, timezone);
 
   const { data, error } = await supabase
     .from("orders")
@@ -72,6 +93,7 @@ export async function getSalesByDays(tenantId: string, days: number) {
   const total = data.reduce((acc, order) => acc + (Number(order.total_amount) || 0), 0);
   return { sales: total, count: data.length, days };
 }
+
 
 /**
  * Recupera la lista de productos cuyo stock disponible es crítico (5 unidades o menos).
@@ -149,13 +171,20 @@ export async function getTopProducts(tenantId: string, limit: number = 5) {
  */
 export async function compareSalesPeriods(tenantId: string, currentDays: number, previousDays: number) {
   const supabase = createAdminClient();
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("timezone")
+    .eq("id", tenantId)
+    .single();
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+
   const now = new Date();
   
-  const currentStart = new Date(now);
-  currentStart.setDate(currentStart.getDate() - currentDays);
+  const currentStartRaw = new Date(now.getTime() - currentDays * 24 * 60 * 60 * 1000);
+  const currentStart = getMidnightInTimezone(currentStartRaw, timezone);
   
-  const previousStart = new Date(currentStart);
-  previousStart.setDate(previousStart.getDate() - previousDays);
+  const previousStartRaw = new Date(currentStartRaw.getTime() - previousDays * 24 * 60 * 60 * 1000);
+  const previousStart = getMidnightInTimezone(previousStartRaw, timezone);
 
   const { data: currentData } = await supabase
     .from("orders")
@@ -522,6 +551,80 @@ export async function prepareStatusChange(tenantId: string, query: string, statu
     action_id: action.id,
     product_id: products[0].id,
     message: `Encontré ${payload.length} producto(s). Riesgo: ${risk}\n\n**PREVISUALIZACIÓN DE CAMBIOS:**\n${previewList}\nImpacto esperado: Cambio de estado a ${status} en Mercado Libre.\n\n**IMPORTANTE:** Para ejecutar esto, por favor responde únicamente con la palabra: **CONFIRMO**`
+  };
+}
+
+/**
+ * Obtiene el detalle de los productos vendidos (título, SKU, cantidad y monto) en los últimos N días.
+ * Útil para responder qué productos se vendieron hoy, ayer o en un período específico.
+ * 
+ * @param tenantId Identificador del comercio
+ * @param days Cantidad de días hacia atrás a analizar (por defecto 1, ej: 1 para hoy, 2 para hoy y ayer)
+ * @returns Promesa con la lista de productos vendidos y sus cantidades
+ */
+export async function getSalesDetail(tenantId: string, days: number = 2) {
+  const supabase = createAdminClient();
+  
+  // Obtener la zona horaria del tenant
+  const { data: tenant } = await supabase.from("tenants").select("timezone").eq("id", tenantId).single();
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+  
+  // Calcular la fecha de inicio ajustada por timezone
+  const now = new Date();
+  const pastDate = new Date(now.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+  const startDate = getMidnightInTimezone(pastDate, timezone);
+
+  // Obtener las órdenes del período
+  const { data: orders, error: ordersErr } = await supabase
+    .from("orders")
+    .select("id, date_created")
+    .eq("tenant_id", tenantId)
+    .eq("status", "paid")
+    .gte("date_created", startDate.toISOString());
+
+  if (ordersErr) throw ordersErr;
+  if (!orders || orders.length === 0) {
+    return { message: `No se registraron ventas en los últimos ${days} días.` };
+  }
+
+  const orderIds = orders.map(o => o.id);
+
+  // Obtener los detalles de los productos vendidos en esas órdenes
+  const { data: items, error: itemsErr } = await supabase
+    .from("order_items")
+    .select("title, sku, quantity, total_price")
+    .in("order_id", orderIds);
+
+  if (itemsErr) throw itemsErr;
+  if (!items || items.length === 0) {
+    return { message: "No se encontraron detalles de productos para las órdenes del período." };
+  }
+
+  // Agrupar por producto (SKU o título)
+  const summary: Record<string, { title: string, sku: string, quantity: number, total: number }> = {};
+  items.forEach(item => {
+    const key = item.sku || item.title || "Varios";
+    if (!summary[key]) {
+      summary[key] = {
+        title: item.title || "Varios",
+        sku: item.sku || "",
+        quantity: 0,
+        total: 0
+      };
+    }
+    summary[key].quantity += Number(item.quantity) || 1;
+    summary[key].total += Number(item.total_price) || 0;
+  });
+
+  const list = Object.values(summary).map(s => 
+    `- **${s.quantity}** unidad(es) de "${s.title}"${s.sku ? ` (SKU: ${s.sku})` : ''} - Total: $${s.total.toLocaleString("es-AR")}`
+  ).join("\n");
+
+  return {
+    period_days: days,
+    orders_count: orders.length,
+    list,
+    message: `En los últimos ${days} días se vendieron los siguientes productos en ${orders.length} órdenes:\n\n${list}`
   };
 }
 
