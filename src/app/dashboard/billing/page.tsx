@@ -32,12 +32,19 @@ export default function BillingPage() {
         const currentMonth = new Date().toISOString().slice(0, 7) + "-01"
         const { data: usage } = await supabase.from("subscription_usage").select("*").eq("tenant_id", profile.tenant_id).eq("month", currentMonth).maybeSingle()
         const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_id", profile.tenant_id).single()
-        const { count: pubCount } = await supabase.from("products").select("*", { count: 'exact', head: true }).eq("tenant_id", profile.tenant_id).neq("status", "deleted_from_meli");
+        const { data: products } = await supabase
+          .from("products")
+          .select("id, sku")
+          .eq("tenant_id", profile.tenant_id)
+          .neq("status", "deleted_from_meli");
+        
+        const skus = products?.map((p, idx) => p.sku || `no-sku-${idx}`) || [];
+        const uniqueSkuCount = new Set(skus).size;
         
         setStats({
           usage: usage || { ai_credits_used: 0, ai_requests_limit: 500 },
           subscription: sub || { plan: 'starter', status: 'active' },
-          pubCount: pubCount || 0
+          pubCount: uniqueSkuCount
         })
       }
       setLoading(false)
@@ -104,8 +111,8 @@ export default function BillingPage() {
   
   const progress = Math.min(100, Math.round(((usage.ai_credits_used || 0) / limit) * 100))
   let pubLimit = 100;
-  if (subscription.plan === 'pro') pubLimit = 500;
-  if (subscription.plan === 'ultra') pubLimit = 2500;
+  if (subscription.plan === 'pro') pubLimit = 400;
+  if (subscription.plan === 'ultra') pubLimit = 1000;
   
   const pubProgress = Math.min(100, Math.round(((stats.pubCount || 0) / pubLimit) * 100));
   
@@ -154,22 +161,22 @@ export default function BillingPage() {
           </CardContent>
         </Card>
 
-        {/* Publications Card */}
+        {/* SKUs Card */}
         <Card>
           <CardHeader>
-            <CardTitle>Publicaciones de Mercado Libre</CardTitle>
+            <CardTitle>SKUs de Catálogo</CardTitle>
             <CardDescription>
-              Publicaciones importadas y sincronizadas activamente.
+              SKUs únicos importados y sincronizados activamente.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between text-sm font-medium">
-              <span>{stats.pubCount || 0} publicaciones importadas</span>
+              <span>{stats.pubCount || 0} SKUs únicos importados</span>
               <span>{isUnlimited ? '∞' : pubLimit} límite</span>
             </div>
             <Progress value={isUnlimited ? 0 : pubProgress} className="h-2" />
             <p className="text-xs text-muted-foreground">
-              {isUnlimited ? "Tu plan no tiene límite de publicaciones." : `Has usado el ${pubProgress}% de tu límite de productos.`}
+              {isUnlimited ? "Tu plan no tiene límite de SKUs." : `Has usado el ${pubProgress}% de tu límite de SKUs.`}
             </p>
           </CardContent>
         </Card>
@@ -236,7 +243,7 @@ export default function BillingPage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>7 días de prueba gratis</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 100 publicaciones de ML</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 100 SKUs de catálogo (sin límite de publicaciones)</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>500 mensajes de IA (WhatsApp/Web)</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>250 procesos automáticos mensuales</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Gestión de Títulos con IA</span></div>
@@ -269,7 +276,7 @@ export default function BillingPage() {
             <div className="text-xs text-slate-400 font-medium mt-1">equiv. $117.710 ARS / mes (Mercado Pago)</div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 500 publicaciones de ML</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 400 SKUs de catálogo (sin límite de publicaciones)</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>1.500 mensajes de IA (WhatsApp/Web)</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>800 procesos automáticos mensuales</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 2 números de WhatsApp vinculados</span></div>
@@ -297,7 +304,7 @@ export default function BillingPage() {
             <div className="text-xs text-slate-400 font-medium mt-1">equiv. $192.210 ARS / mes (Mercado Pago)</div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 2.500 publicaciones de ML</span></div>
+            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 1.000 SKUs de catálogo (sin límite de publicaciones)</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>5.000 mensajes de IA (WhatsApp/Web)</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 1.500 procesos automáticos</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 2 números de WhatsApp vinculados</span></div>

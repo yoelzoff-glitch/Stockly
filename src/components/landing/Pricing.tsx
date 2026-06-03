@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 const plans = [
   {
     name: "Starter",
-    limit: "Hasta 100 publicaciones",
+    limit: "Hasta 100 SKUs de catálogo",
     price: "$44 USD",
     priceArs: "equiv. $65.560 ARS",
     features: [
@@ -26,7 +26,7 @@ const plans = [
   },
   {
     name: "Pro",
-    limit: "Hasta 500 publicaciones",
+    limit: "Hasta 400 SKUs de catálogo",
     price: "$79 USD",
     priceArs: "equiv. $117.710 ARS",
     features: [
@@ -43,7 +43,7 @@ const plans = [
   },
   {
     name: "Ultra",
-    limit: "Hasta 2.500 publicaciones",
+    limit: "Hasta 1.000 SKUs de catálogo",
     price: "$129 USD",
     priceArs: "equiv. $192.210 ARS",
     features: [
@@ -149,7 +149,7 @@ export function Pricing() {
               ¿Operás a gran escala? Plan Enterprise
             </h3>
             <p className="text-slate-300 text-sm md:text-base max-w-2xl leading-relaxed">
-              Diseñado para cuentas con más de 2.500 publicaciones, múltiples cuentas de Mercado Libre y altos volúmenes de facturación que necesitan infraestructura dedicada.
+              Diseñado para cuentas con más de 1.000 SKUs, múltiples cuentas de Mercado Libre y altos volúmenes de facturación que necesitan infraestructura dedicada.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 text-sm text-slate-200">
               <div className="flex items-center justify-center md:justify-start gap-2">

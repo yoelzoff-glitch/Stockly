@@ -50,48 +50,11 @@ export async function syncProducts(tenantId: string) {
   // const flexBaseCost = tenantMetadata.flex_base_cost || 0; // Not used at product level
 
   // 2. Fetch products from Meli API (passing tenantId)
-  const rawProducts = await getProducts(tenantId, meli_user_id);
+  let rawProducts = await getProducts(tenantId, meli_user_id);
 
   if (rawProducts.length === 0) {
     return 0; // No products to sync
   }
-
-  const { getUsageStats } = await import("./../billing/checkLimits");
-  const stats = await getUsageStats(tenantId);
-  const maxPublications = (stats?.limits as any)?.pub || 100;
-
-  if (rawProducts.length > maxPublications) {
-    // Truncate the array to the limit
-    rawProducts.length = maxPublications;
-    
-    // Warn the user
-    await supabase.from("alerts").insert({
-      tenant_id: tenantId,
-      type: "warning",
-      title: "Límite de Publicaciones Alcanzado",
-      message: `Tienes más publicaciones en Mercado Libre de las permitidas en tu plan. Solo se sincronizaron las primeras ${maxPublications}.`,
-      is_read: false
-    });
-  }
-
-  // 3. Fetch existing products to preserve "cost"
-  const { data: existingProducts } = await supabase
-    .from("products")
-    .select("meli_item_id, cost")
-    .eq("tenant_id", tenantId);
-
-  const costMap = new Map<string, number | null>();
-  existingProducts?.forEach(p => costMap.set(p.meli_item_id, p.cost));
-
-  // 4. Map products and fetch fees/shipping
-  const { getListingFees } = await import("./getListingFees");
-  const { getShippingCostEstimate } = await import("./getShippingCostEstimate");
-  const { getCampaigns } = await import("./getCampaigns");
-  const { getPromotions } = await import("./getPromotions");
-  const { calculateRealProfitability } = await import("../profitability/calculateRealProfitability");
-
-  const productsToUpsert = [];
-  const syncTimestamp = new Date().toISOString();
 
   // Pre-process SKUs to resolve mirrored listings (Publicaciones Sincronizadas)
   const skuMap = new Map<string, string>();
@@ -118,6 +81,95 @@ export async function syncProducts(tenantId: string) {
       }
     }
   }
+
+  // 3. Fetch existing products to preserve "cost" and check existing active SKUs
+  const { data: existingProducts } = await supabase
+    .from("products")
+    .select("meli_item_id, sku, cost, status")
+    .eq("tenant_id", tenantId);
+
+  const costMap = new Map<string, number | null>();
+  const existingMeliIds = new Set<string>();
+  const existingSkus = new Set<string>();
+
+  existingProducts?.forEach(p => {
+    costMap.set(p.meli_item_id, p.cost);
+    if (p.status !== "deleted_from_meli") {
+      existingMeliIds.add(p.meli_item_id);
+      if (p.sku) {
+        existingSkus.add(p.sku);
+      } else {
+        existingSkus.add(`no-sku-${p.meli_item_id}`);
+      }
+    }
+  });
+
+  const { getUsageStats } = await import("./../billing/checkLimits");
+  const stats = await getUsageStats(tenantId);
+  const maxSkus = (stats?.limits as any)?.pub || 100;
+
+  // Filter rawProducts dynamically based on SKU limit
+  const selectedSkus = new Set<string>();
+  const productsToSync: typeof rawProducts = [];
+  const excludedProducts: typeof rawProducts = [];
+
+  // Group rawProducts into existing and new
+  const existingRawProducts = rawProducts.filter(p => existingMeliIds.has(p.id));
+  const newRawProducts = rawProducts.filter(p => !existingMeliIds.has(p.id));
+
+  // Process existing products first (prioritize already-synced SKUs)
+  for (const item of existingRawProducts) {
+    const sku = skuMap.get(item.id) || null;
+    const skuKey = sku ? sku : `no-sku-${item.id}`;
+
+    if (selectedSkus.has(skuKey)) {
+      productsToSync.push(item);
+    } else if (selectedSkus.size < maxSkus) {
+      selectedSkus.add(skuKey);
+      productsToSync.push(item);
+    } else {
+      excludedProducts.push(item);
+    }
+  }
+
+  // Process new products
+  for (const item of newRawProducts) {
+    const sku = skuMap.get(item.id) || null;
+    const skuKey = sku ? sku : `no-sku-${item.id}`;
+
+    if (selectedSkus.has(skuKey)) {
+      productsToSync.push(item);
+    } else if (selectedSkus.size < maxSkus) {
+      selectedSkus.add(skuKey);
+      productsToSync.push(item);
+    } else {
+      excludedProducts.push(item);
+    }
+  }
+
+  if (excludedProducts.length > 0) {
+    // Warn the user
+    await supabase.from("alerts").insert({
+      tenant_id: tenantId,
+      type: "warning",
+      title: "Límite de SKUs Alcanzado",
+      message: `Tienes más SKUs únicos en Mercado Libre de los permitidos en tu plan. Solo se sincronizaron las publicaciones asociadas a los primeros ${maxSkus} SKUs.`,
+      is_read: false
+    });
+  }
+
+  // Reassign to rawProducts so the rest of the function operates on the filtered list
+  rawProducts = productsToSync;
+
+  // 4. Map products and fetch fees/shipping
+  const { getListingFees } = await import("./getListingFees");
+  const { getShippingCostEstimate } = await import("./getShippingCostEstimate");
+  const { getCampaigns } = await import("./getCampaigns");
+  const { getPromotions } = await import("./getPromotions");
+  const { calculateRealProfitability } = await import("../profitability/calculateRealProfitability");
+
+  const productsToUpsert = [];
+  const syncTimestamp = new Date().toISOString();
 
   for (const item of rawProducts) {
     const siteId = item.site_id || "MLA";

@@ -4,8 +4,8 @@ import * as Sentry from "@sentry/nextjs";
 
 export const PLAN_LIMITS = {
   starter: { ai: 500, auto: 250, wa: 300, pub: 100 },
-  pro: { ai: 1500, auto: 800, wa: 1500, pub: 500 },
-  ultra: { ai: 5000, auto: 1500, wa: 5000, pub: 2500 },
+  pro: { ai: 1500, auto: 800, wa: 1500, pub: 400 },
+  ultra: { ai: 5000, auto: 1500, wa: 5000, pub: 1000 },
 };
 
 export async function checkAILimit(tenantId: string): Promise<boolean> {
@@ -31,13 +31,16 @@ export async function checkPublicationsLimit(tenantId: string): Promise<boolean>
   if (!stats) return true;
   
   const supabase = createAdminClient();
-  const { count } = await supabase
+  const { data } = await supabase
     .from("products")
-    .select("*", { count: "exact", head: true })
+    .select("id, sku")
     .eq("tenant_id", tenantId)
     .neq("status", "deleted_from_meli");
     
-  return (count || 0) < (stats.limits as any).pub;
+  const skus = data?.map((p, idx) => p.sku || `no-sku-${idx}`) || [];
+  const uniqueSkuCount = new Set(skus).size;
+    
+  return uniqueSkuCount < (stats.limits as any).pub;
 }
 
 export async function incrementUsage(
