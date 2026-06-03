@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { inngest } from "@/inngest/client";
+import { syncOrders } from "@/services/meli/syncOrders";
+import { syncProducts } from "@/services/meli/syncProducts";
 
 import * as Sentry from "@sentry/nextjs";
 
@@ -48,24 +50,46 @@ export async function POST(req: NextRequest) {
     switch (topic) {
       case "orders_v2":
       case "orders":
-        await inngest.send({
-          name: "meli/orders.updated",
-          data: { tenantId, resource }
+        // Sync orders directly in the background without blocking the HTTP response
+        syncOrders(tenantId).catch(err => {
+          console.error(`Immediate syncOrders from webhook failed for tenant ${tenantId}:`, err);
         });
+
+        try {
+          await inngest.send({
+            name: "meli/orders.updated",
+            data: { tenantId, resource }
+          });
+        } catch (e: any) {
+          console.warn("Failed to send meli/orders.updated event to Inngest:", e.message || e);
+        }
         break;
 
       case "items":
-        await inngest.send({
-          name: "meli/items.updated",
-          data: { tenantId, resource }
+        // Sync products directly in the background
+        syncProducts(tenantId).catch(err => {
+          console.error(`Immediate syncProducts from webhook failed for tenant ${tenantId}:`, err);
         });
+
+        try {
+          await inngest.send({
+            name: "meli/items.updated",
+            data: { tenantId, resource }
+          });
+        } catch (e: any) {
+          console.warn("Failed to send meli/items.updated event to Inngest:", e.message || e);
+        }
         break;
 
       case "questions":
-        await inngest.send({
-          name: "meli/questions.received",
-          data: { tenantId, resource }
-        });
+        try {
+          await inngest.send({
+            name: "meli/questions.received",
+            data: { tenantId, resource }
+          });
+        } catch (e: any) {
+          console.warn("Failed to send meli/questions.received event to Inngest:", e.message || e);
+        }
         break;
 
       default:

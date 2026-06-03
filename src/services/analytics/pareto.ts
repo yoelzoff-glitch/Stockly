@@ -33,7 +33,7 @@ export async function getParetoAnalysis({
 
   let query = supabase
     .from("orders")
-    .select("*")
+    .select("id")
     .eq("tenant_id", tenantId)
     .neq("status", "cancelled");
 
@@ -58,22 +58,51 @@ export async function getParetoAnalysis({
     };
   }
 
+  const orderIds = orders.map(o => o.id);
+  if (orderIds.length === 0) {
+    return {
+      totalRevenue: 0,
+      totalProductsSold: 0,
+      productsToReach80: 0,
+      percentageOfCatalog: 0,
+      paretoProducts: [],
+      longTailProducts: []
+    };
+  }
+
+  const { data: items, error: itemsError } = await supabase
+    .from("order_items")
+    .select("product_id, title, sku, quantity, unit_price")
+    .in("order_id", orderIds);
+
+  if (itemsError || !items) {
+    console.error("Error fetching order items for pareto:", itemsError);
+    return {
+      totalRevenue: 0,
+      totalProductsSold: 0,
+      productsToReach80: 0,
+      percentageOfCatalog: 0,
+      paretoProducts: [],
+      longTailProducts: []
+    };
+  }
+
   // Aggregate by product
   const productAgg: Record<string, { title: string, revenue: number, units: number, product_id?: string }> = {};
 
   let totalRevenue = 0;
   let totalUnits = 0;
 
-  for (const order of orders) {
-    const title = order.product_title || "Otros";
-    const amount = Number(order.total_amount) || 0;
-    const qty = Number(order.total_quantity) || 1;
+  for (const item of items) {
+    const title = item.title || "Otros";
+    const qty = Number(item.quantity) || 1;
+    const amount = (Number(item.unit_price) || 0) * qty;
 
     totalRevenue += amount;
     totalUnits += qty;
 
     if (!productAgg[title]) {
-      productAgg[title] = { title, revenue: 0, units: 0, product_id: order.meli_product_id };
+      productAgg[title] = { title, revenue: 0, units: 0, product_id: item.product_id || undefined };
     }
     productAgg[title].revenue += amount;
     productAgg[title].units += qty;
