@@ -53,8 +53,8 @@ export default function FinanceClientPage({
     const p = products.find(prod => prod.meli_item_id === o.meli_product_id || prod.title === o.product_title);
     
     let cost = 0;
-    let fee = 0;
-    let shipping = 0;
+    let fee = Number(o.estimated_fee) || 0;
+    let shipping = Number(o.estimated_shipping_cost) || 0;
     let extra = 0;
 
     if (p) {
@@ -62,8 +62,12 @@ export default function FinanceClientPage({
         cost = Number(p.cost) * qty;
         unitsWithCost += qty;
       }
-      fee = Number(p.estimated_fee || 0) * qty;
-      shipping = Number(p.estimated_shipping_cost || 0) * qty;
+      if (fee === 0) {
+        fee = Number(p.estimated_fee || 0) * qty;
+      }
+      if (shipping === 0) {
+        shipping = Number(p.estimated_shipping_cost || 0) * qty;
+      }
       extra = (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * qty;
     }
 
