@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       action_type: `webhook_${topic}`,
       title: `Webhook recibido: ${topic}`,
       description: `Notificación para el recurso ${resource}`,
-      status: "completed",
+      status: "executed",
       payload: payload,
       executed_at: new Date().toISOString()
     });
