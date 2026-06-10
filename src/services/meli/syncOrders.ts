@@ -30,10 +30,10 @@ export async function syncOrders(tenantId: string) {
   const packagingCost = tenantMetadata.packaging_cost || 0;
   const flexZones = tenantMetadata.flex_zones || [];
 
-  // 2. Fetch orders from Meli API (incremental sync: last 48 hours only, passing tenantId)
-  const twoDaysAgo = new Date();
-  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-  const rawOrders = await getOrders(tenantId, meli_user_id, twoDaysAgo.toISOString());
+  // 2. Fetch orders from Meli API (incremental sync: last 7 days only, passing tenantId)
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const rawOrders = await getOrders(tenantId, meli_user_id, sevenDaysAgo.toISOString());
 
   if (rawOrders.length === 0) {
     return 0; // No orders to sync
