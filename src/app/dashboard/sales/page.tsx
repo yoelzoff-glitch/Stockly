@@ -83,10 +83,15 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
     product_title: (o.raw_data as any)?.order_items?.[0]?.item?.title || "Varios / Otros"
   }));
 
-  const mappedOrders = (orders || []).map(o => ({
-    ...o,
-    product_title: (o.raw_data as any)?.order_items?.[0]?.item?.title || "Varios productos"
-  }));
+  const mappedOrders = (orders || []).map(o => {
+    const raw = o.raw_data as any;
+    const rawQty = raw?.order_items?.reduce((sum: number, item: any) => sum + (Number(item.quantity) || 1), 0) || 1;
+    return {
+      ...o,
+      product_title: raw?.order_items?.[0]?.item?.title || "Varios productos",
+      total_quantity: rawQty
+    };
+  });
 
   return (
     <div className="flex-1 p-8 pt-6">

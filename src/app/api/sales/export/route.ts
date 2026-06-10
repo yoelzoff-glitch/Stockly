@@ -77,15 +77,18 @@ export async function GET(request: NextRequest) {
   for (const o of filteredOrders) {
     const date = new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(o.date_created));
     // Escape quotes and commas
-    const title = `"${(o.product_title || "").replace(/"/g, '""')}"`;
+    const raw = o.raw_data as any;
+    const titleVal = raw?.order_items?.[0]?.item?.title || o.product_title || "Varios productos";
+    const title = `"${titleVal.replace(/"/g, '""')}"`;
     const buyer = `"${(o.buyer_nickname || "").replace(/"/g, '""')}"`;
+    const quantity = raw?.order_items?.reduce((sum: number, item: any) => sum + (Number(item.quantity) || 1), 0) || 1;
     
     const row = [
       date,
       o.meli_order_id,
       buyer,
       title,
-      o.total_quantity || 1,
+      quantity,
       o.total_amount,
       o.status
     ];

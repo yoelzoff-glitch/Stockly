@@ -129,12 +129,12 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
             cost = Number(p.cost) * qty;
             unitsWithCost += qty;
           }
-          fee = Number(item.estimated_fee) || Number(p.estimated_fee) || 0;
-          shipping = Number(item.estimated_shipping_cost) || Number(p.estimated_shipping_cost) || 0;
+          fee = (Number(item.estimated_fee) || Number(p.estimated_fee) || 0) * qty;
+          shipping = (Number(item.estimated_shipping_cost) || Number(p.estimated_shipping_cost) || 0) * qty;
           ext = (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * qty;
         } else {
-          fee = Number(item.estimated_fee) || 0;
-          shipping = Number(item.estimated_shipping_cost) || 0;
+          fee = (Number(item.estimated_fee) || 0) * qty;
+          shipping = (Number(item.estimated_shipping_cost) || 0) * qty;
         }
 
         costos += cost;
