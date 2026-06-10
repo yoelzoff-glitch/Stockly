@@ -13,15 +13,17 @@ export const syncOrdersJob = inngest.createFunction(
   async ({ event, step }) => {
     const supabase = createAdminClient();
 
-    // If triggered by a webhook event, sync only for that tenant
+    // If triggered by a webhook event, sync only for that tenant/order
     if (event?.name === "meli/orders.updated") {
       const tenantId = event.data?.tenantId;
+      const resource = event.data?.resource;
       if (!tenantId) {
         return { message: "No tenantId provided in event data" };
       }
+      const specificOrderId = resource ? resource.split("/").pop() : undefined;
       const result = await step.run("sync-orders-single-tenant", async () => {
         try {
-          const syncedCount = await syncOrders(tenantId);
+          const syncedCount = await syncOrders(tenantId, specificOrderId);
           return { tenantId, status: "fulfilled", syncedCount };
         } catch (error: any) {
           return { tenantId, status: "rejected", reason: error.message };

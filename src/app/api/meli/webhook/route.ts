@@ -50,8 +50,9 @@ export async function POST(req: NextRequest) {
       case "orders_v2":
       case "orders":
         // Sync orders directly in the background without blocking the HTTP response
-        syncOrders(tenantId).catch(err => {
-          console.error(`Immediate syncOrders from webhook failed for tenant ${tenantId}:`, err);
+        const specificOrderId = resource ? resource.split("/").pop() : undefined;
+        syncOrders(tenantId, specificOrderId).catch(err => {
+          console.error(`Immediate syncOrders from webhook failed for tenant ${tenantId} (order ${specificOrderId}):`, err);
         });
 
         try {

@@ -3,7 +3,7 @@ import { getOrders } from "./getOrders";
 import { decrementInternalStockFromOrder } from "../inventory/decrementInternalStockFromOrder";
 import { syncShipments } from "./syncShipments";
 
-export async function syncOrders(tenantId: string) {
+export async function syncOrders(tenantId: string, specificMeliOrderId?: string) {
   const supabase = createAdminClient();
 
   // 1. Get the Meli account for this tenant
@@ -30,10 +30,29 @@ export async function syncOrders(tenantId: string) {
   const packagingCost = tenantMetadata.packaging_cost || 0;
   const flexZones = tenantMetadata.flex_zones || [];
 
-  // 2. Fetch orders from Meli API (incremental sync: last 7 days only, passing tenantId)
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const rawOrders = await getOrders(tenantId, meli_user_id, sevenDaysAgo.toISOString());
+  // 2. Fetch orders from Meli API
+  let rawOrders: any[] = [];
+  if (specificMeliOrderId) {
+    const { meliFetch } = await import("./client");
+    try {
+      const orderData = await meliFetch({
+        tenantId,
+        endpoint: `/orders/${specificMeliOrderId}`,
+        method: "GET"
+      });
+      if (orderData) {
+        rawOrders = [orderData];
+      }
+    } catch (err: any) {
+      console.error(`Failed to fetch specific order ${specificMeliOrderId}:`, err.message);
+      return 0;
+    }
+  } else {
+    // Incremental sync: last 7 days only
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    rawOrders = await getOrders(tenantId, meli_user_id, sevenDaysAgo.toISOString());
+  }
 
   if (rawOrders.length === 0) {
     return 0; // No orders to sync
@@ -219,6 +238,12 @@ export async function syncOrders(tenantId: string) {
   // --- SPRINT 36: Sincronización automática de envíos ---
   await syncShipments(tenantId).catch((err) => {
     console.error(`Failed to sync shipments during syncOrders for tenant ${tenantId}:`, err);
+  });
+
+  // --- SPRINT 37: Sincronización automática de cancelaciones ---
+  const { syncCancellations } = await import("./syncCancellations");
+  await syncCancellations(tenantId).catch((err) => {
+    console.error(`Failed to sync cancellations during syncOrders for tenant ${tenantId}:`, err);
   });
 
   return ordersToUpsert.length;
