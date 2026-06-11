@@ -9,8 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "inngest": "inngest-cli dev",
-    "test-sync": "tsx test-sync.ts"
+    "inngest": "inngest-cli dev"
   },
   "keywords": [],
   "author": "",

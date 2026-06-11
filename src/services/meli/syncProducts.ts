@@ -336,11 +336,13 @@ export async function syncProducts(tenantId: string) {
 
           const { data: newInsertedItems, error: insertItemsError } = await supabase
             .from("inventory_items")
-            .insert(itemsToInsert)
+            .upsert(itemsToInsert, {
+              onConflict: "tenant_id, sku_normalized"
+            })
             .select("id, sku_normalized");
 
           if (insertItemsError) {
-            console.error("Error creating missing inventory items:", insertItemsError);
+            console.error("Error creating/upserting missing inventory items:", insertItemsError);
           } else if (newInsertedItems) {
             for (const item of newInsertedItems) {
               itemMap.set(item.sku_normalized, item.id);

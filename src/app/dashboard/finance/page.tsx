@@ -57,6 +57,15 @@ export default async function FinancePage(props: { searchParams: Promise<{ perio
     .select("id, meli_item_id, title, sku, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount, profit_real_margin")
     .eq("tenant_id", tenantId);
 
+  // Fetch Tenant for packaging cost config
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("metadata")
+    .eq("id", tenantId)
+    .single();
+
+  const packagingCost = tenant?.metadata?.packaging_cost ? Number(tenant.metadata.packaging_cost) : 0;
+
   const orderIds = (orders || []).map(o => o.id);
   const { data: orderItems } = orderIds.length > 0
     ? await supabase
@@ -103,6 +112,7 @@ export default async function FinancePage(props: { searchParams: Promise<{ perio
         cancellations={cancellations || []} 
         products={products || []}
         currentPeriod={period}
+        packagingCost={packagingCost}
       />
     </div>
   );

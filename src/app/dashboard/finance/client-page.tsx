@@ -11,12 +11,14 @@ export default function FinanceClientPage({
   orders, 
   cancellations,
   products,
-  currentPeriod 
+  currentPeriod,
+  packagingCost = 0
 }: { 
   orders: any[],
   cancellations: any[],
   products: any[],
-  currentPeriod: string
+  currentPeriod: string,
+  packagingCost?: number
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -48,6 +50,9 @@ export default function FinanceClientPage({
     facturacionBruta += amount;
     totalUnitsSold += qty;
 
+    const raw = o.raw_data as any;
+    const orderPackagingCost = Number(raw?.klyvo_operational_costs?.packaging_cost || packagingCost);
+
     // Match with product
     // Fallback to title if meli_product_id is missing
     const p = products.find(prod => prod.meli_item_id === o.meli_product_id || prod.title === o.product_title);
@@ -55,7 +60,7 @@ export default function FinanceClientPage({
     let cost = 0;
     let fee = Number(o.estimated_fee) || 0;
     let shipping = Number(o.estimated_shipping_cost) || 0;
-    let extra = 0;
+    let extra = orderPackagingCost;
 
     if (p) {
       if (p.cost) {
@@ -68,7 +73,7 @@ export default function FinanceClientPage({
       if (shipping === 0) {
         shipping = Number(p.estimated_shipping_cost || 0) * qty;
       }
-      extra = (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * qty;
+      extra += (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * qty;
     }
 
     costosProductos += cost;
