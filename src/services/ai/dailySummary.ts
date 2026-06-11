@@ -25,16 +25,17 @@ export async function getOrCreateDailySummary(tenantId: string): Promise<string 
   // 1. Check if we already have a summary today
   const { data: existing } = await supabase
     .from("alerts")
-    .select("body")
+    .select("id, body, created_at")
     .eq("tenant_id", tenantId)
     .eq("severity", "info")
     .like("title", "Resumen Diario%")
     .gte("created_at", todayStart.toISOString())
     .order("created_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  if (existing?.body) {
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  if (existing?.body && new Date(existing.created_at) > oneHourAgo) {
     return existing.body;
   }
 
@@ -90,13 +91,23 @@ Atención: Z productos tienen bajo stock."`;
     if (!summaryText) return null;
 
     // 3. Save it as an alert so it doesn't generate again today
-    await supabase.from("alerts").insert({
-      tenant_id: tenantId,
-      title: `Resumen Diario - ${new Date().toLocaleDateString()}`,
-      body: summaryText,
-      severity: "info",
-      is_read: false
-    });
+    if (existing) {
+      await supabase
+        .from("alerts")
+        .update({
+          body: summaryText,
+          created_at: new Date().toISOString()
+        })
+        .eq("id", existing.id);
+    } else {
+      await supabase.from("alerts").insert({
+        tenant_id: tenantId,
+        title: `Resumen Diario - ${new Date().toLocaleDateString()}`,
+        body: summaryText,
+        severity: "info",
+        is_read: false
+      });
+    }
 
     return summaryText;
 
