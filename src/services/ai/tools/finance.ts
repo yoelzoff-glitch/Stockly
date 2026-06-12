@@ -51,18 +51,20 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
   const supabase = createAdminClient();
   const days = parseInt(daysStr) || 30;
 
-  // Obtener la zona horaria del tenant
-  const { data: tenant } = await supabase.from("tenants").select("timezone").eq("id", tenantId).single();
+  // Obtener la zona horaria y metadata del tenant
+  const { data: tenant } = await supabase.from("tenants").select("timezone, metadata").eq("id", tenantId).single();
   const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+  const tenantMetadata = (tenant?.metadata as any) || {};
+  const packagingCostFallback = Number(tenantMetadata.packaging_cost) || 0;
 
   const now = new Date();
   const pastDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   const dateFrom = getMidnightInTimezone(pastDate, timezone);
 
-  // Obtener órdenes (sólo pagadas)
+  // Obtener órdenes (sólo pagadas, incluyendo raw_data para extraer costos operativos)
   const { data: orders } = await supabase
     .from("orders")
-    .select("id, total_amount")
+    .select("id, total_amount, raw_data")
     .eq("tenant_id", tenantId)
     .eq("status", "paid")
     .gte("date_created", dateFrom.toISOString());
@@ -110,10 +112,13 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
   orders.forEach(o => {
     facturacion += Number(o.total_amount) || 0;
     
+    const raw = o.raw_data as any;
+    const orderPackagingCost = Number(raw?.klyvo_operational_costs?.packaging_cost || packagingCostFallback);
+
     // Obtener ítems para esta orden
     const items = orderItems.filter(i => i.order_id === o.id);
     if (items.length > 0) {
-      items.forEach(item => {
+      items.forEach((item, idx) => {
         const qty = Number(item.quantity) || 1;
         unitsSold += qty;
 
@@ -135,6 +140,11 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
         } else {
           fee = (Number(item.estimated_fee) || 0) * qty;
           shipping = (Number(item.estimated_shipping_cost) || 0) * qty;
+        }
+
+        // Add packaging cost ONLY once per order (allocated to the first item)
+        if (idx === 0) {
+          ext += orderPackagingCost;
         }
 
         costos += cost;
@@ -160,7 +170,8 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
       }
       productAgg[title].revenue += Number(o.total_amount) || 0;
       productAgg[title].quantity += 1;
-      productAgg[title].net += Number(o.total_amount) || 0;
+      productAgg[title].net += (Number(o.total_amount) || 0) - orderPackagingCost;
+      extra += orderPackagingCost;
     }
   });
 
