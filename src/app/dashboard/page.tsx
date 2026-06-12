@@ -98,45 +98,72 @@ export default async function DashboardPage(props: PageProps) {
   // Products count & low stock
   const { data: allProducts } = await supabase
     .from("products")
-    .select("available_quantity, cost, estimated_fee")
+    .select("id, title, cost, sku, available_quantity, sold_quantity, margin_percent, margin_amount, estimated_fee")
     .eq("tenant_id", tenantId);
 
-  const totalProductsCount = allProducts?.length || 0;
-  const lowStockCount = allProducts?.filter(p => p.available_quantity <= 5).length || 0;
+  // Group products by SKU to unify standard/premium listings
+  const groupedProductsMap = new Map<string, any>();
+  const nonSkuProducts: any[] = [];
+
+  (allProducts || []).forEach(p => {
+    const sku = p.sku?.trim();
+    if (!sku) {
+      nonSkuProducts.push({ ...p });
+      return;
+    }
+
+    const existing = groupedProductsMap.get(sku);
+    if (existing) {
+      existing.sold_quantity = (existing.sold_quantity || 0) + (p.sold_quantity || 0);
+      existing.available_quantity = Math.max(existing.available_quantity || 0, p.available_quantity || 0);
+      if (p.margin_percent !== null && p.margin_percent !== undefined) {
+        if (existing.margin_percent !== null && existing.margin_percent !== undefined) {
+          existing.margin_percent = (existing.margin_percent + p.margin_percent) / 2;
+        } else {
+          existing.margin_percent = p.margin_percent;
+        }
+      }
+      if ((p.sold_quantity || 0) > (existing._raw_sold_quantity || 0)) {
+        existing.title = p.title;
+        existing._raw_sold_quantity = p.sold_quantity || 0;
+      }
+    } else {
+      groupedProductsMap.set(sku, {
+        ...p,
+        _raw_sold_quantity: p.sold_quantity || 0
+      });
+    }
+  });
+
+  const aggregatedProducts = [
+    ...Array.from(groupedProductsMap.values()),
+    ...nonSkuProducts
+  ];
+
+  const totalProductsCount = aggregatedProducts.length;
+  const lowStockCount = aggregatedProducts.filter(p => p.available_quantity <= 5).length;
 
   // Top products
-  const { data: topProducts } = await supabase
-    .from("products")
-    .select("title, sold_quantity")
-    .eq("tenant_id", tenantId)
-    .order("sold_quantity", { ascending: false })
-    .limit(5);
+  const topProducts = [...aggregatedProducts].sort((a, b) => (b.sold_quantity || 0) - (a.sold_quantity || 0)).slice(0, 5);
+  const topProduct = topProducts[0];
 
-  const topProduct = topProducts?.[0];
-
-  const chartData = topProducts?.filter(p => p.sold_quantity && p.sold_quantity > 0).map(p => ({
-    name: p.title || "Producto",
+  const chartData = topProducts.filter(p => p.sold_quantity && p.sold_quantity > 0).map(p => ({
+    name: p.sku ? `[${p.sku}] ${p.title}` : p.title || "Producto",
     value: p.sold_quantity || 0
-  })) || [];
+  }));
 
   // Top products by margin
-  const { data: topMarginProducts } = await supabase
-    .from("products")
-    .select("title, margin_percent, margin_amount")
-    .eq("tenant_id", tenantId)
-    .not("margin_percent", "is", null)
-    .order("margin_percent", { ascending: false })
-    .limit(3);
+  const topMarginProducts = [...aggregatedProducts]
+    .filter(p => p.margin_percent !== null && p.margin_percent !== undefined)
+    .sort((a, b) => (b.margin_percent || 0) - (a.margin_percent || 0))
+    .slice(0, 3);
 
-  const { data: bottomMarginProducts } = await supabase
-    .from("products")
-    .select("title, margin_percent, margin_amount")
-    .eq("tenant_id", tenantId)
-    .not("margin_percent", "is", null)
-    .order("margin_percent", { ascending: true })
-    .limit(3);
+  const bottomMarginProducts = [...aggregatedProducts]
+    .filter(p => p.margin_percent !== null && p.margin_percent !== undefined)
+    .sort((a, b) => (a.margin_percent || 0) - (b.margin_percent || 0))
+    .slice(0, 3);
 
-  const missingFeesCount = allProducts?.filter(p => p.estimated_fee === null || p.estimated_fee === undefined).length || 0;
+  const missingFeesCount = aggregatedProducts.filter(p => p.estimated_fee === null || p.estimated_fee === undefined).length;
 
 
   // Recent AI Messages
@@ -338,7 +365,7 @@ export default async function DashboardPage(props: PageProps) {
         <MetricCard 
           title="Producto Estrella" 
           value={topProduct?.sold_quantity || 0} 
-          description={topProduct?.title || "Sin datos"} 
+          description={topProduct ? (topProduct.sku ? `[${topProduct.sku}] ${topProduct.title}` : topProduct.title) : "Sin datos"} 
           icon={<Sparkles className="w-5 h-5" />} 
           variant="purple" 
         />
@@ -368,7 +395,9 @@ export default async function DashboardPage(props: PageProps) {
                   <ul className="space-y-2 text-sm">
                     {topMarginProducts.map((p, i) => (
                       <li key={i} className="flex justify-between items-center">
-                        <span className="truncate max-w-[180px]">{p.title}</span>
+                        <span className="truncate max-w-[180px]" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
+                          {p.sku ? `[${p.sku}] ${p.title}` : p.title}
+                        </span>
                         <span className="font-medium text-green-600">{p.margin_percent?.toFixed(1)}%</span>
                       </li>
                     ))}
@@ -383,7 +412,9 @@ export default async function DashboardPage(props: PageProps) {
                   <ul className="space-y-2 text-sm">
                     {bottomMarginProducts.map((p, i) => (
                       <li key={i} className="flex justify-between items-center">
-                        <span className="truncate max-w-[180px]">{p.title}</span>
+                        <span className="truncate max-w-[180px]" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
+                          {p.sku ? `[${p.sku}] ${p.title}` : p.title}
+                        </span>
                         <span className="font-medium text-red-500">{p.margin_percent?.toFixed(1)}%</span>
                       </li>
                     ))}
