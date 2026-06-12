@@ -66,7 +66,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
     supabase.from("orders").select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id").eq("tenant_id", tenantId).neq("status", "cancelled").gte("date_created", sevenDaysAgo.toISOString()).order("date_created", { ascending: false }),
     supabase.from("order_cancellations").select("refund_amount").eq("tenant_id", tenantId).gte("created_at", sevenDaysAgo.toISOString()),
     supabase.from("shipments").select("substatus, shipping_cost, meli_shipment_id").eq("tenant_id", tenantId).gte("date_created", sevenDaysAgo.toISOString()),
-    supabase.from("products").select("id, title, cost, sold_quantity, margin_percent, available_quantity, profit_real_estimated, status, estimated_shipping_cost, meli_item_id").eq("tenant_id", tenantId)
+    supabase.from("products").select("id, title, cost, sku, sold_quantity, margin_percent, available_quantity, profit_real_estimated, status, estimated_shipping_cost, meli_item_id").eq("tenant_id", tenantId)
   ]);
 
   // Filter out ignored orders
@@ -172,7 +172,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   // Chart Data preparation based on the selected period
   const activeProductsFromPeriod = [...pareto.paretoProducts, ...pareto.longTailProducts];
   const chartData = activeProductsFromPeriod.slice(0, 5).map(p => ({
-    name: p.title || "Producto",
+    name: p.sku ? `[${p.sku}] ${p.title}` : p.title || "Producto",
     value: p.units_sold || 0
   }));
 
@@ -186,8 +186,8 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
 
   // IA Recommendations
   const aiRecommendations = [
-    { text: `Revisa ${worstMargin[0]?.title || "tus productos con peor margen"}. El margen actual es demasiado bajo.`, type: "warning" },
-    { text: `¡Buen trabajo con ${bestMargin[0]?.title || "tus productos líderes"}! Es el producto con mayor rentabilidad.`, type: "positive" }
+    { text: `Revisa ${worstMargin[0] ? (worstMargin[0].sku ? `[${worstMargin[0].sku}] ${worstMargin[0].title}` : worstMargin[0].title) : "tus productos con peor margen"}. El margen actual es demasiado bajo.`, type: "warning" },
+    { text: `¡Buen trabajo con ${bestMargin[0] ? (bestMargin[0].sku ? `[${bestMargin[0].sku}] ${bestMargin[0].title}` : bestMargin[0].title) : "tus productos líderes"}! Es el producto con mayor rentabilidad.`, type: "positive" }
   ];
 
   if (pareto.percentageOfCatalog < 20 && pareto.percentageOfCatalog > 0) {
@@ -199,7 +199,8 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   if (pareto.paretoProducts.length > 0) {
     const topProd = pareto.paretoProducts[0];
     const percentage = ((topProd.revenue / pareto.totalRevenue) * 100).toFixed(1);
-    aiRecommendations.push({ text: `El producto '${topProd.title}' representa el ${percentage}% de la facturación. ¡Cuidá su stock!`, type: "critical" });
+    const displayTitle = topProd.sku ? `[${topProd.sku}] ${topProd.title}` : topProd.title;
+    aiRecommendations.push({ text: `El producto '${displayTitle}' representa el ${percentage}% de la facturación. ¡Cuidá su stock!`, type: "critical" });
   }
 
   return (
@@ -352,7 +353,9 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
                     <ul className="space-y-2 text-sm">
                       {topGrowing.map(p => (
                         <li key={p.id} className="flex justify-between border-b pb-1 hover:bg-slate-50/50 px-1 py-0.5 rounded transition-colors">
-                          <span className="truncate pr-2" title={p.title}>{p.title}</span>
+                          <span className="truncate pr-2" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
+                            {p.sku ? `[${p.sku}] ${p.title}` : p.title}
+                          </span>
                           <Badge variant="secondary" className="shrink-0">{p.sold_quantity} vendidos</Badge>
                         </li>
                       ))}
@@ -366,7 +369,9 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
                     <ul className="space-y-2 text-sm">
                       {deadProducts.map(p => (
                         <li key={p.id} className="flex justify-between border-b pb-1 hover:bg-slate-50/50 px-1 py-0.5 rounded transition-colors">
-                          <span className="truncate pr-2" title={p.title}>{p.title}</span>
+                          <span className="truncate pr-2" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
+                            {p.sku ? `[${p.sku}] ${p.title}` : p.title}
+                          </span>
                           <Badge variant="outline" className="text-red-500 border-red-200 shrink-0">Stock: {p.available_quantity}</Badge>
                         </li>
                       ))}
@@ -380,7 +385,9 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
                     <ul className="space-y-2 text-sm">
                       {bestMargin.map(p => (
                         <li key={p.id} className="flex justify-between border-b pb-1 hover:bg-slate-50/50 px-1 py-0.5 rounded transition-colors">
-                          <span className="truncate pr-2" title={p.title}>{p.title}</span>
+                          <span className="truncate pr-2" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
+                            {p.sku ? `[${p.sku}] ${p.title}` : p.title}
+                          </span>
                           <span className="font-semibold text-emerald-600 shrink-0">{p.margin_percent?.toFixed(1)}%</span>
                         </li>
                       ))}
@@ -394,7 +401,9 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
                     <ul className="space-y-2 text-sm">
                       {worstMargin.map(p => (
                         <li key={p.id} className="flex justify-between border-b pb-1 hover:bg-slate-50/50 px-1 py-0.5 rounded transition-colors">
-                          <span className="truncate pr-2" title={p.title}>{p.title}</span>
+                          <span className="truncate pr-2" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
+                            {p.sku ? `[${p.sku}] ${p.title}` : p.title}
+                          </span>
                           <span className="font-semibold text-orange-500 shrink-0">{p.margin_percent?.toFixed(1)}%</span>
                         </li>
                       ))}
@@ -416,7 +425,9 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
                   <CardContent className="pt-6 space-y-4">
                     {lowStockProducts.map((p, i) => (
                       <div key={i} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0 hover:bg-slate-50/50 p-1 rounded transition-colors">
-                        <div className="font-medium text-sm truncate pr-2" title={p.title}>{p.title}</div>
+                        <div className="font-medium text-sm truncate pr-2" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
+                          {p.sku ? `[${p.sku}] ${p.title}` : p.title}
+                        </div>
                         <div className="text-sm text-red-500 font-bold shrink-0">{p.available_quantity} en stock</div>
                       </div>
                     ))}
