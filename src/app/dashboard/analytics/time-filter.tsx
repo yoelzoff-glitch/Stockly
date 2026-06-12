@@ -2,13 +2,13 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 
-export function TimeFilter({ initialDays }: { initialDays: number }) {
+export function TimeFilter({ initialDays }: { initialDays: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const handleDaysChange = (days: string) => {
+  const handleDaysChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("days", days);
+    params.set("days", value);
     router.push(`/dashboard/analytics?${params.toString()}`);
   };
 
@@ -20,6 +20,7 @@ export function TimeFilter({ initialDays }: { initialDays: number }) {
         onChange={(e) => handleDaysChange(e.target.value)}
         className="flex h-10 w-[180px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
       >
+        <option value="current_month">Mes actual</option>
         <option value="7">Últimos 7 días</option>
         <option value="30">Últimos 30 días</option>
         <option value="90">Últimos 90 días</option>

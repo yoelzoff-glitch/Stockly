@@ -14,7 +14,7 @@ import { TimeFilter } from "./time-filter";
 
 export default async function AnalyticsAndInsightsPage(props: { searchParams: Promise<{ days?: string }> }) {
   const searchParams = await props.searchParams;
-  const days = parseInt(searchParams.days || "30");
+  const daysParam = searchParams.days || "current_month";
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -40,9 +40,21 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   const packagingCost = Number(tenantMetadata.packaging_cost) || 0;
   const ignoredOrderIds = tenantMetadata.ignored_order_ids || [];
 
-  const sevenDaysAgoRaw = new Date();
-  sevenDaysAgoRaw.setDate(sevenDaysAgoRaw.getDate() - days);
-  const sevenDaysAgo = getMidnightInTimezone(sevenDaysAgoRaw, timezone);
+  const today = new Date();
+  let sevenDaysAgo: Date;
+  
+  if (daysParam === "current_month") {
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+    sevenDaysAgo = getMidnightInTimezone(startOfMonth, timezone);
+  } else {
+    const daysInt = parseInt(daysParam) || 30;
+    const sevenDaysAgoRaw = new Date();
+    sevenDaysAgoRaw.setDate(sevenDaysAgoRaw.getDate() - daysInt);
+    sevenDaysAgo = getMidnightInTimezone(sevenDaysAgoRaw, timezone);
+  }
+
+  const periodLabel = daysParam === "current_month" ? "En el mes actual" : `En los últimos ${daysParam} días`;
+  const productsLabel = daysParam === "current_month" ? "el mes actual" : `los últimos ${daysParam} días`;
 
   // Queries filtered by the selected period
   const [
@@ -94,7 +106,6 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   });
 
   // Calculate Monthly Projection
-  const today = new Date();
   const daysElapsed = today.getDate(); // 1 to 31
   const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
 
@@ -199,7 +210,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
           <p className="text-muted-foreground mt-1">Métricas en profundidad y análisis inteligente de tu catálogo.</p>
         </div>
         <div className="shrink-0">
-          <TimeFilter initialDays={days} />
+          <TimeFilter initialDays={daysParam} />
         </div>
       </div>
 
@@ -216,7 +227,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
             <MetricCard 
               title="Ingresos Totales" 
               value={`$${totalRevenue.toLocaleString('es-AR')}`} 
-              description={`En los últimos ${days} días`} 
+              description={periodLabel} 
               icon={<TrendingUp className="h-5 w-5" />} 
               variant="blue" 
             />
@@ -230,7 +241,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
             <MetricCard 
               title="Órdenes Totales" 
               value={totalOrders} 
-              description={`En los últimos ${days} días`} 
+              description={periodLabel} 
               icon={<ShoppingBag className="h-5 w-5" />} 
               variant="purple" 
             />
@@ -433,7 +444,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
               <Card className="shadow-sm">
                 <CardHeader>
                   <CardTitle>Top 10 productos por facturación</CardTitle>
-                  <CardDescription>Los productos que más ingresos generaron en los últimos {days} días.</CardDescription>
+                  <CardDescription>Los productos que más ingresos generaron en {productsLabel}.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
