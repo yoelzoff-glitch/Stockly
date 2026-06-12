@@ -4,11 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { Download, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Package, Activity } from "lucide-react";
+import { Download, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Package, Activity, Eye, EyeOff } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Pie, PieChart, Cell, Legend } from "recharts";
 import { SearchInput } from "@/components/ui/search-input";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { MobileFilterDrawer } from "@/components/ui/mobile-filter-drawer";
+import { toggleIgnoreOrderAction } from "@/actions/orders";
+import { useTransition } from "react";
 
 export default function SalesClientPage({ 
   initialOrders, 
@@ -17,7 +19,8 @@ export default function SalesClientPage({
   currentPage,
   searchQuery,
   currentStatus,
-  currentDays
+  currentDays,
+  ignoredOrderIds = []
 }: { 
   initialOrders: any[],
   allPeriodOrders: any[],
@@ -25,11 +28,13 @@ export default function SalesClientPage({
   currentPage: number,
   searchQuery: string,
   currentStatus: string,
-  currentDays: number
+  currentDays: number,
+  ignoredOrderIds?: string[]
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
 
   const handleFilterChange = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams);
@@ -42,14 +47,25 @@ export default function SalesClientPage({
     window.location.href = `/api/sales/export?days=${currentDays}&status=${currentStatus}&search=${encodeURIComponent(searchQuery)}`;
   };
 
+  const handleToggleIgnore = async (orderId: string, isIgnored: boolean) => {
+    startTransition(async () => {
+      const res = await toggleIgnoreOrderAction(orderId, isIgnored);
+      if (res.error) {
+        alert(res.error);
+      }
+    });
+  };
+
   // KPIs use allPeriodOrders to be accurate regardless of pagination
-  const totalSales = allPeriodOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
-  const totalOrdersCount = allPeriodOrders.length;
+  // Exclude ignored orders
+  const activePeriodOrders = allPeriodOrders.filter(o => !ignoredOrderIds.includes(o.meli_order_id));
+  const totalSales = activePeriodOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+  const totalOrdersCount = activePeriodOrders.length;
   const avgTicket = totalOrdersCount > 0 ? totalSales / totalOrdersCount : 0;
 
   const today = new Date();
   today.setHours(0,0,0,0);
-  const salesToday = allPeriodOrders.filter(o => new Date(o.date_created) >= today)
+  const salesToday = activePeriodOrders.filter(o => new Date(o.date_created) >= today)
     .reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
   // Chart Data preparation
@@ -64,7 +80,7 @@ export default function SalesClientPage({
     };
   });
 
-  allPeriodOrders.forEach(o => {
+  activePeriodOrders.forEach(o => {
     const d = new Date(o.date_created);
     d.setHours(0,0,0,0);
     const dayIndex = chartData.findIndex(cd => cd.dateObj.getTime() === d.getTime());
@@ -74,7 +90,7 @@ export default function SalesClientPage({
   });
 
   const productSales: Record<string, number> = {};
-  allPeriodOrders.forEach(o => {
+  activePeriodOrders.forEach(o => {
     const title = o.product_title || "Varios / Otros";
     productSales[title] = (productSales[title] || 0) + (Number(o.total_amount) || 0);
   });
@@ -91,7 +107,7 @@ export default function SalesClientPage({
   // Dynamic AI Insights
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  const salesYesterday = allPeriodOrders.filter(o => {
+  const salesYesterday = activePeriodOrders.filter(o => {
     const d = new Date(o.date_created);
     d.setHours(0,0,0,0);
     return d.getTime() === yesterday.getTime();
@@ -324,12 +340,13 @@ export default function SalesClientPage({
                   <th className="px-4 py-3 font-medium text-right">Cant.</th>
                   <th className="px-4 py-3 font-medium text-right">Total</th>
                   <th className="px-4 py-3 font-medium">Estado</th>
+                  <th className="px-4 py-3 font-medium text-center">Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {initialOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-16 text-center">
+                    <td colSpan={8} className="px-4 py-16 text-center">
                       <div className="flex flex-col items-center justify-center">
                         <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-4">
                           <ShoppingBag className="h-8 w-8 text-slate-400" />
@@ -340,27 +357,50 @@ export default function SalesClientPage({
                     </td>
                   </tr>
                 ) : (
-                  initialOrders.map((o) => (
-                    <tr key={o.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                        {new Date(o.date_created).toLocaleDateString("es-AR")}
-                      </td>
-                      <td className="px-4 py-3 font-medium">#{o.meli_order_id}</td>
-                      <td className="px-4 py-3">{o.buyer_nickname || "Anónimo"}</td>
-                      <td className="px-4 py-3 max-w-[200px] truncate" title={o.product_title || ""}>
-                        {o.product_title || "Varios productos"}
-                      </td>
-                      <td className="px-4 py-3 text-right">{o.total_quantity || 1}</td>
-                      <td className="px-4 py-3 font-medium text-right">
-                        ${Number(o.total_amount).toLocaleString("es-AR")}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge variant={o.status === 'paid' ? 'success' : 'neutral'}>
-                          {o.status === 'paid' ? 'Pagado' : o.status}
-                        </StatusBadge>
-                      </td>
-                    </tr>
-                  ))
+                  initialOrders.map((o) => {
+                    const isIgnored = ignoredOrderIds.includes(o.meli_order_id);
+                    return (
+                      <tr key={o.id} className={`hover:bg-slate-50 transition-colors ${isIgnored ? 'opacity-50 bg-slate-100/50 line-through decoration-slate-400' : ''}`}>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          {new Date(o.date_created).toLocaleDateString("es-AR")}
+                        </td>
+                        <td className="px-4 py-3 font-medium">#{o.meli_order_id}</td>
+                        <td className="px-4 py-3">{o.buyer_nickname || "Anónimo"}</td>
+                        <td className="px-4 py-3 max-w-[200px] truncate" title={o.product_title || ""}>
+                          {o.product_title || "Varios productos"}
+                        </td>
+                        <td className="px-4 py-3 text-right">{o.total_quantity || 1}</td>
+                        <td className="px-4 py-3 font-medium text-right">
+                          ${Number(o.total_amount).toLocaleString("es-AR")}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isIgnored ? (
+                            <StatusBadge variant="neutral">Omitido (Prueba)</StatusBadge>
+                          ) : (
+                            <StatusBadge variant={o.status === 'paid' ? 'success' : 'neutral'}>
+                              {o.status === 'paid' ? 'Pagado' : o.status}
+                            </StatusBadge>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={isPending}
+                            onClick={() => handleToggleIgnore(o.meli_order_id, isIgnored)}
+                            title={isIgnored ? "Incluir en reportes" : "Omitir de reportes"}
+                            className="h-8 w-8 p-0"
+                          >
+                            {isIgnored ? (
+                              <Eye className="h-4 w-4 text-emerald-600" />
+                            ) : (
+                              <EyeOff className="h-4 w-4 text-slate-500" />
+                            )}
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

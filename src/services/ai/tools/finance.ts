@@ -62,12 +62,15 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
   const dateFrom = getMidnightInTimezone(pastDate, timezone);
 
   // Obtener órdenes (sólo pagadas, incluyendo raw_data para extraer costos operativos)
-  const { data: orders } = await supabase
+  const { data: rawOrders } = await supabase
     .from("orders")
-    .select("id, total_amount, raw_data")
+    .select("id, total_amount, raw_data, meli_order_id")
     .eq("tenant_id", tenantId)
     .eq("status", "paid")
     .gte("date_created", dateFrom.toISOString());
+
+  const ignoredOrderIds = tenantMetadata.ignored_order_ids || [];
+  const orders = (rawOrders || []).filter(o => !ignoredOrderIds.includes(o.meli_order_id));
 
   // Obtener productos (para buscar costos y fees)
   const { data: products } = await supabase

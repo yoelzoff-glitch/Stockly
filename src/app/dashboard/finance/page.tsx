@@ -57,7 +57,7 @@ export default async function FinancePage(props: { searchParams: Promise<{ perio
     .select("id, meli_item_id, title, sku, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount, profit_real_margin")
     .eq("tenant_id", tenantId);
 
-  // Fetch Tenant for packaging cost config
+  // Fetch Tenant for packaging cost config and ignored orders
   const { data: tenant } = await supabase
     .from("tenants")
     .select("metadata")
@@ -65,8 +65,12 @@ export default async function FinancePage(props: { searchParams: Promise<{ perio
     .single();
 
   const packagingCost = tenant?.metadata?.packaging_cost ? Number(tenant.metadata.packaging_cost) : 0;
+  const ignoredOrderIds = tenant?.metadata?.ignored_order_ids || [];
 
-  const orderIds = (orders || []).map(o => o.id);
+  // Exclude ignored/test orders
+  const activeOrders = (orders || []).filter(o => !ignoredOrderIds.includes(o.meli_order_id));
+
+  const orderIds = activeOrders.map(o => o.id);
   const { data: orderItems } = orderIds.length > 0
     ? await supabase
         .from("order_items")
@@ -79,7 +83,7 @@ export default async function FinancePage(props: { searchParams: Promise<{ perio
     .select("meli_shipment_id, shipping_cost")
     .eq("tenant_id", tenantId);
 
-  const mappedOrders = (orders || []).map(o => {
+  const mappedOrders = activeOrders.map(o => {
     const raw = o.raw_data as any;
     const firstItem = raw?.order_items?.[0];
     

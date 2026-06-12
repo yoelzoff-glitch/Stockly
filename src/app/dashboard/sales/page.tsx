@@ -63,6 +63,14 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
     }
   }
 
+  // Fetch Tenant metadata to get ignored_order_ids
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("metadata")
+    .eq("id", profile.tenant_id)
+    .single();
+  const ignoredOrderIds = (tenant?.metadata as any)?.ignored_order_ids || [];
+
   const { data: orders, count, error } = await query;
 
   if (error) {
@@ -72,7 +80,7 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
   // Also fetch ALL orders for the period for the KPIs to be accurate across pages
   const { data: rawPeriodOrders } = await supabase
     .from("orders")
-    .select("total_amount, date_created, status, raw_data")
+    .select("total_amount, date_created, status, raw_data, meli_order_id")
     .eq("tenant_id", profile.tenant_id)
     .gte("date_created", dateFrom.toISOString());
 
@@ -80,6 +88,7 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
     total_amount: o.total_amount,
     date_created: o.date_created,
     status: o.status,
+    meli_order_id: o.meli_order_id,
     product_title: (o.raw_data as any)?.order_items?.[0]?.item?.title || "Varios / Otros"
   }));
 
@@ -103,6 +112,7 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
         searchQuery={q}
         currentStatus={status}
         currentDays={days}
+        ignoredOrderIds={ignoredOrderIds}
       />
     </div>
   );
