@@ -54,7 +54,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
     supabase.from("orders").select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id").eq("tenant_id", tenantId).neq("status", "cancelled").gte("date_created", sevenDaysAgo.toISOString()).order("date_created", { ascending: false }),
     supabase.from("order_cancellations").select("refund_amount").eq("tenant_id", tenantId).gte("created_at", sevenDaysAgo.toISOString()),
     supabase.from("shipments").select("substatus, shipping_cost, meli_shipment_id").eq("tenant_id", tenantId).gte("date_created", sevenDaysAgo.toISOString()),
-    supabase.from("products").select("id, title, sold_quantity, margin_percent, available_quantity, profit_real_estimated, status, estimated_shipping_cost, meli_item_id").eq("tenant_id", tenantId)
+    supabase.from("products").select("id, title, cost, sold_quantity, margin_percent, available_quantity, profit_real_estimated, status, estimated_shipping_cost, meli_item_id").eq("tenant_id", tenantId)
   ]);
 
   // Filter out ignored orders
