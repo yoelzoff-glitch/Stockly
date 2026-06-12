@@ -88,7 +88,7 @@ export async function getParetoAnalysis({
   }
 
   // Aggregate by product
-  const productAgg: Record<string, { title: string, revenue: number, units: number, product_id?: string }> = {};
+  const productAgg: Record<string, { title: string, sku?: string, revenue: number, units: number, product_id?: string }> = {};
 
   let totalRevenue = 0;
   let totalUnits = 0;
@@ -102,7 +102,7 @@ export async function getParetoAnalysis({
     totalUnits += qty;
 
     if (!productAgg[title]) {
-      productAgg[title] = { title, revenue: 0, units: 0, product_id: item.product_id || undefined };
+      productAgg[title] = { title, sku: item.sku || undefined, revenue: 0, units: 0, product_id: item.product_id || undefined };
     }
     productAgg[title].revenue += amount;
     productAgg[title].units += qty;
@@ -131,6 +131,7 @@ export async function getParetoAnalysis({
     const product: ParetoProduct = {
       product_id: p.product_id,
       title: p.title,
+      sku: p.sku,
       revenue: p.revenue,
       units_sold: p.units,
       cumulative_revenue: cumulativeRevenue,

@@ -355,6 +355,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
                         <tr>
                           <th className="px-4 py-3 font-medium">Rank</th>
                           <th className="px-4 py-3 font-medium">Producto</th>
+                          <th className="px-4 py-3 font-medium">SKU</th>
                           <th className="px-4 py-3 font-medium text-right">Unidades</th>
                           <th className="px-4 py-3 font-medium text-right">Facturación</th>
                           <th className="px-4 py-3 font-medium text-right">% Total</th>
@@ -367,6 +368,9 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
                             <td className="px-4 py-3 max-w-[300px] truncate font-medium text-slate-900" title={p.title}>
                               {p.title}
                             </td>
+                            <td className="px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">
+                              {p.sku || "—"}
+                            </td>
                             <td className="px-4 py-3 text-right text-slate-600">{p.units_sold}</td>
                             <td className="px-4 py-3 font-semibold text-emerald-600 text-right">${p.revenue.toLocaleString('es-AR')}</td>
                             <td className="px-4 py-3 text-right">
@@ -377,7 +381,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
                           </tr>
                         ))}
                         {pareto.paretoProducts.length === 0 && (
-                          <tr><td colSpan={5} className="px-4 py-16 text-center text-slate-500">No hay datos de ventas en este periodo.</td></tr>
+                          <tr><td colSpan={6} className="px-4 py-16 text-center text-slate-500">No hay datos de ventas en este periodo.</td></tr>
                         )}
                       </tbody>
                     </table>
