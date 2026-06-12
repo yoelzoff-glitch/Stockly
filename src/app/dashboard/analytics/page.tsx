@@ -176,13 +176,48 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
     value: p.units_sold || 0
   }));
 
-  // Tendencias Internas
-  const topProducts = [...(products || [])].sort((a, b) => (b.sold_quantity || 0) - (a.sold_quantity || 0)).slice(0, 5);
+  // Aggregate products list by SKU for internal trends representation (unifies standard/premium listings)
+  const groupedProductsMap = new Map<string, any>();
+  const nonSkuProducts: any[] = [];
+
+  (products || []).forEach(p => {
+    const sku = p.sku?.trim();
+    if (!sku) {
+      nonSkuProducts.push({ ...p });
+      return;
+    }
+
+    const existing = groupedProductsMap.get(sku);
+    if (existing) {
+      existing.sold_quantity = (existing.sold_quantity || 0) + (p.sold_quantity || 0);
+      existing.available_quantity = Math.max(existing.available_quantity || 0, p.available_quantity || 0);
+      if ((p.sold_quantity || 0) > (existing._raw_sold_quantity || 0)) {
+        existing.title = p.title;
+        existing.margin_percent = p.margin_percent;
+        existing.id = p.id;
+        existing.meli_item_id = p.meli_item_id;
+        existing._raw_sold_quantity = p.sold_quantity || 0;
+      }
+    } else {
+      groupedProductsMap.set(sku, {
+        ...p,
+        _raw_sold_quantity: p.sold_quantity || 0
+      });
+    }
+  });
+
+  const aggregatedProducts = [
+    ...Array.from(groupedProductsMap.values()),
+    ...nonSkuProducts
+  ];
+
+  // Tendencias Internas (calculated using SKU-aggregated products)
+  const topProducts = [...aggregatedProducts].sort((a, b) => (b.sold_quantity || 0) - (a.sold_quantity || 0)).slice(0, 5);
   const topGrowing = topProducts.slice(0, 3);
-  const deadProducts = [...(products || [])].filter(p => p.status === 'active' && (p.sold_quantity || 0) === 0 && p.available_quantity > 0).slice(0, 3);
-  const bestMargin = [...(products || [])].filter(p => p.margin_percent).sort((a, b) => (b.margin_percent || 0) - (a.margin_percent || 0)).slice(0, 3);
-  const worstMargin = [...(products || [])].filter(p => p.margin_percent).sort((a, b) => (a.margin_percent || 0) - (b.margin_percent || 0)).slice(0, 3);
-  const lowStockProducts = products?.filter(p => p.available_quantity <= 5 && p.available_quantity > 0).sort((a, b) => a.available_quantity - b.available_quantity).slice(0, 5) || [];
+  const deadProducts = [...aggregatedProducts].filter(p => p.status === 'active' && (p.sold_quantity || 0) === 0 && p.available_quantity > 0).slice(0, 3);
+  const bestMargin = [...aggregatedProducts].filter(p => p.margin_percent).sort((a, b) => (b.margin_percent || 0) - (a.margin_percent || 0)).slice(0, 3);
+  const worstMargin = [...aggregatedProducts].filter(p => p.margin_percent).sort((a, b) => (a.margin_percent || 0) - (b.margin_percent || 0)).slice(0, 3);
+  const lowStockProducts = aggregatedProducts.filter(p => p.available_quantity <= 5 && p.available_quantity > 0).sort((a, b) => a.available_quantity - b.available_quantity).slice(0, 5);
 
   // IA Recommendations
   const aiRecommendations = [

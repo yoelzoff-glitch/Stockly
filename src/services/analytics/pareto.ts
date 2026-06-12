@@ -87,25 +87,40 @@ export async function getParetoAnalysis({
     };
   }
 
-  // Aggregate by product
-  const productAgg: Record<string, { title: string, sku?: string, revenue: number, units: number, product_id?: string }> = {};
+  // Aggregate by SKU when available, otherwise by title
+  const productAgg: Record<string, { title: string, sku?: string, revenue: number, units: number, product_id?: string, _max_item_revenue?: number }> = {};
 
   let totalRevenue = 0;
   let totalUnits = 0;
 
   for (const item of items) {
-    const title = item.title || "Otros";
+    const sku = item.sku?.trim();
+    const key = sku || item.title || "Otros";
     const qty = Number(item.quantity) || 1;
     const amount = (Number(item.unit_price) || 0) * qty;
 
     totalRevenue += amount;
     totalUnits += qty;
 
-    if (!productAgg[title]) {
-      productAgg[title] = { title, sku: item.sku || undefined, revenue: 0, units: 0, product_id: item.product_id || undefined };
+    if (!productAgg[key]) {
+      productAgg[key] = { 
+        title: item.title || "Otros", 
+        sku: sku || undefined, 
+        revenue: amount, 
+        units: qty, 
+        product_id: item.product_id || undefined,
+        _max_item_revenue: amount
+      };
+    } else {
+      productAgg[key].revenue += amount;
+      productAgg[key].units += qty;
+      // Keep the title of the item that generated the most revenue under this SKU
+      if (amount > (productAgg[key]._max_item_revenue || 0)) {
+        productAgg[key].title = item.title || productAgg[key].title;
+        productAgg[key].product_id = item.product_id || productAgg[key].product_id;
+        productAgg[key]._max_item_revenue = amount;
+      }
     }
-    productAgg[title].revenue += amount;
-    productAgg[title].units += qty;
   }
 
   // Convert to array and sort by revenue desc
