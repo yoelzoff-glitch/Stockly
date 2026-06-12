@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ParetoChart from "./pareto-chart";
 import { getParetoAnalysis } from "@/services/analytics/pareto";
 import { getMidnightInTimezone } from "@/services/ai/tools/finance";
+import { TimeFilter } from "./time-filter";
 
 export default async function AnalyticsAndInsightsPage(props: { searchParams: Promise<{ days?: string }> }) {
   const searchParams = await props.searchParams;
@@ -27,43 +28,123 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
 
   const tenantId = profile?.tenant_id;
 
-  // Dates
+  // Fetch Tenant
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("timezone")
+    .select("timezone, metadata")
     .eq("id", tenantId)
     .single();
+  
   const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+  const tenantMetadata = (tenant?.metadata as any) || {};
+  const packagingCost = Number(tenantMetadata.packaging_cost) || 0;
+  const ignoredOrderIds = tenantMetadata.ignored_order_ids || [];
 
   const sevenDaysAgoRaw = new Date();
   sevenDaysAgoRaw.setDate(sevenDaysAgoRaw.getDate() - days);
   const sevenDaysAgo = getMidnightInTimezone(sevenDaysAgoRaw, timezone);
 
-  // Queries
+  // Queries filtered by the selected period
   const [
     { data: orders },
     { data: cancellations },
     { data: shipments },
     { data: products }
   ] = await Promise.all([
-    supabase.from("orders").select("total_amount, date_created").eq("tenant_id", tenantId).order("date_created", { ascending: false }),
-    supabase.from("order_cancellations").select("refund_amount").eq("tenant_id", tenantId),
-    supabase.from("shipments").select("substatus, shipping_cost").eq("tenant_id", tenantId),
-    supabase.from("products").select("id, title, sold_quantity, margin_percent, available_quantity, profit_real_estimated, status, estimated_shipping_cost").eq("tenant_id", tenantId)
+    supabase.from("orders").select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id").eq("tenant_id", tenantId).neq("status", "cancelled").gte("date_created", sevenDaysAgo.toISOString()).order("date_created", { ascending: false }),
+    supabase.from("order_cancellations").select("refund_amount").eq("tenant_id", tenantId).gte("created_at", sevenDaysAgo.toISOString()),
+    supabase.from("shipments").select("substatus, shipping_cost, meli_shipment_id").eq("tenant_id", tenantId).gte("date_created", sevenDaysAgo.toISOString()),
+    supabase.from("products").select("id, title, sold_quantity, margin_percent, available_quantity, profit_real_estimated, status, estimated_shipping_cost, meli_item_id").eq("tenant_id", tenantId)
   ]);
 
-  // Analytics Metrics
-  const totalOrders = orders?.length || 0;
-  const totalRevenue = orders?.reduce((acc, order) => acc + (Number(order.total_amount) || 0), 0) || 0;
+  // Filter out ignored orders
+  const activeOrders = (orders || []).filter(o => !ignoredOrderIds.includes(o.meli_order_id));
+
+  // Analytics Metrics (Filtered by period)
+  const totalOrders = activeOrders.length;
+  const totalRevenue = activeOrders.reduce((acc, order) => acc + (Number(order.total_amount) || 0), 0) || 0;
   const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-  const salesLast7Days = orders?.filter(o => new Date(o.date_created) >= sevenDaysAgo).reduce((acc, order) => acc + (Number(order.total_amount) || 0), 0) || 0;
 
-  const totalEstimatedProfit = products?.reduce((acc, p) => acc + (Number(p.profit_real_estimated) || 0), 0) || 0;
-  const lowStockProducts = products?.filter(p => p.available_quantity <= 5 && p.available_quantity > 0).sort((a, b) => a.available_quantity - b.available_quantity).slice(0, 5) || [];
+  // Net Profit Calculation for the selected period
+  const orderIds = activeOrders.map(o => o.id);
+  const { data: orderItems } = orderIds.length > 0
+    ? await supabase
+        .from("order_items")
+        .select("order_id, meli_item_id, quantity, estimated_fee, estimated_shipping_cost")
+        .in("order_id", orderIds)
+    : { data: [] };
 
+  let periodProfit = 0;
+  activeOrders.forEach(o => {
+    const dbItems = (orderItems || []).filter(item => item.order_id === o.id);
+    const revenue = Number(o.total_amount) || 0;
+    
+    let cost = 0;
+    dbItems.forEach(item => {
+      const prod = (products || []).find(p => p.meli_item_id === item.meli_item_id);
+      const prodCost = prod ? (Number(prod.cost) || 0) : 0;
+      cost += prodCost * (Number(item.quantity) || 1);
+    });
+
+    const fees = dbItems.reduce((sum, item) => sum + (Number(item.estimated_fee) || 0) * (Number(item.quantity) || 1), 0);
+    const shipment = (shipments || []).find(s => s.meli_shipment_id === o.meli_shipment_id);
+    const shipping = dbItems.reduce((sum, item) => sum + (Number(item.estimated_shipping_cost) || 0), 0) || Number(shipment?.shipping_cost) || 0;
+
+    periodProfit += (revenue - cost - fees - shipping - packagingCost);
+  });
+
+  // Calculate Monthly Projection
+  const today = new Date();
+  const daysElapsed = today.getDate(); // 1 to 31
+  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+
+  const { data: monthOrders } = await supabase
+    .from("orders")
+    .select("id, total_amount, status, meli_order_id, meli_shipment_id")
+    .eq("tenant_id", tenantId)
+    .neq("status", "cancelled")
+    .gte("date_created", currentMonthStart.toISOString());
+
+  const activeMonthOrders = (monthOrders || []).filter(o => !ignoredOrderIds.includes(o.meli_order_id));
+  const monthOrderIds = activeMonthOrders.map(o => o.id);
+  const { data: monthOrderItems } = monthOrderIds.length > 0
+    ? await supabase
+        .from("order_items")
+        .select("order_id, meli_item_id, quantity, estimated_fee, estimated_shipping_cost")
+        .in("order_id", monthOrderIds)
+    : { data: [] };
+
+  const { data: monthShipments } = await supabase
+    .from("shipments")
+    .select("meli_shipment_id, shipping_cost")
+    .eq("tenant_id", tenantId)
+    .gte("date_created", currentMonthStart.toISOString());
+
+  let currentMonthProfit = 0;
+  activeMonthOrders.forEach(o => {
+    const dbItems = (monthOrderItems || []).filter(item => item.order_id === o.id);
+    const revenue = Number(o.total_amount) || 0;
+    
+    let cost = 0;
+    dbItems.forEach(item => {
+      const prod = (products || []).find(p => p.meli_item_id === item.meli_item_id);
+      const prodCost = prod ? (Number(prod.cost) || 0) : 0;
+      cost += prodCost * (Number(item.quantity) || 1);
+    });
+
+    const fees = dbItems.reduce((sum, item) => sum + (Number(item.estimated_fee) || 0) * (Number(item.quantity) || 1), 0);
+    const shipment = (monthShipments || []).find(s => s.meli_shipment_id === o.meli_shipment_id);
+    const shipping = dbItems.reduce((sum, item) => sum + (Number(item.estimated_shipping_cost) || 0), 0) || Number(shipment?.shipping_cost) || 0;
+
+    currentMonthProfit += (revenue - cost - fees - shipping - packagingCost);
+  });
+
+  const monthlyProjection = (currentMonthProfit / daysElapsed) * 30;
+
+  // Logistics & cancellations metrics
   const totalCancellations = cancellations?.length || 0;
   const lostRevenue = cancellations?.reduce((acc, c) => acc + (Number(c.refund_amount) || 0), 0) || 0;
-  const cancellationRate = totalOrders > 0 ? ((totalCancellations / totalOrders) * 100).toFixed(1) : "0.0";
+  const cancellationRate = totalOrders > 0 ? ((totalCancellations / (totalOrders + totalCancellations)) * 100).toFixed(1) : "0.0";
 
   const totalShipments = shipments?.length || 0;
   const delayedShipments = shipments?.filter(s => s.substatus === 'delayed').length || 0;
@@ -74,20 +155,23 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   const avgEstimatedShipping = productsWithShipping.length > 0 ? productsWithShipping.reduce((acc, p) => acc + Number(p.estimated_shipping_cost), 0) / productsWithShipping.length : 0;
   const avgShippingCost = totalShipments > 0 ? (totalShippingCost / totalShipments) : avgEstimatedShipping;
 
+  // Pareto Analysis
+  const pareto = await getParetoAnalysis({ tenantId, dateFrom: sevenDaysAgo });
+
+  // Chart Data preparation based on the selected period
+  const activeProductsFromPeriod = [...pareto.paretoProducts, ...pareto.longTailProducts];
+  const chartData = activeProductsFromPeriod.slice(0, 5).map(p => ({
+    name: p.title || "Producto",
+    value: p.units_sold || 0
+  }));
+
   // Tendencias Internas
   const topProducts = [...(products || [])].sort((a, b) => (b.sold_quantity || 0) - (a.sold_quantity || 0)).slice(0, 5);
   const topGrowing = topProducts.slice(0, 3);
   const deadProducts = [...(products || [])].filter(p => p.status === 'active' && (p.sold_quantity || 0) === 0 && p.available_quantity > 0).slice(0, 3);
   const bestMargin = [...(products || [])].filter(p => p.margin_percent).sort((a, b) => (b.margin_percent || 0) - (a.margin_percent || 0)).slice(0, 3);
   const worstMargin = [...(products || [])].filter(p => p.margin_percent).sort((a, b) => (a.margin_percent || 0) - (b.margin_percent || 0)).slice(0, 3);
-
-  // Pareto Analysis
-  const pareto = await getParetoAnalysis({ tenantId, dateFrom: sevenDaysAgo });
-
-  const chartData = topProducts.filter(p => p.sold_quantity && p.sold_quantity > 0).map(p => ({
-    name: p.title || "Producto",
-    value: p.sold_quantity || 0
-  }));
+  const lowStockProducts = products?.filter(p => p.available_quantity <= 5 && p.available_quantity > 0).sort((a, b) => a.available_quantity - b.available_quantity).slice(0, 5) || [];
 
   // IA Recommendations
   const aiRecommendations = [
@@ -109,10 +193,13 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Analíticas e Insights</h2>
           <p className="text-muted-foreground mt-1">Métricas en profundidad y análisis inteligente de tu catálogo.</p>
+        </div>
+        <div className="shrink-0">
+          <TimeFilter initialDays={days} />
         </div>
       </div>
 
@@ -129,21 +216,21 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
             <MetricCard 
               title="Ingresos Totales" 
               value={`$${totalRevenue.toLocaleString('es-AR')}`} 
-              description="Histórico en plataforma" 
+              description={`En los últimos ${days} días`} 
               icon={<TrendingUp className="h-5 w-5" />} 
               variant="blue" 
             />
             <MetricCard 
-              title="Ganancia Neta Estimada" 
-              value={`$${totalEstimatedProfit.toLocaleString('es-AR')}`} 
-              description="Estimada en base a costos" 
+              title="Proyección Ganancia Mensual" 
+              value={`$${monthlyProjection.toLocaleString('es-AR', { maximumFractionDigits: 0 })}`} 
+              description={`A hoy: $${currentMonthProfit.toLocaleString('es-AR', { maximumFractionDigits: 0 })} (${daysElapsed}d transcurridos)`} 
               icon={<DollarSign className="h-5 w-5" />} 
               variant="green" 
             />
             <MetricCard 
               title="Órdenes Totales" 
               value={totalOrders} 
-              description="Ventas completadas" 
+              description={`En los últimos ${days} días`} 
               icon={<ShoppingBag className="h-5 w-5" />} 
               variant="purple" 
             />
@@ -185,17 +272,17 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
                 <Card className="shadow-sm">
                   <CardHeader>
                     <CardTitle className="text-lg">Histórico de Ventas</CardTitle>
-                    <CardDescription>Resumen de ingresos generados en el tiempo.</CardDescription>
+                    <CardDescription>Resumen de ingresos generados en el periodo.</CardDescription>
                   </CardHeader>
                   <CardContent className="pl-2 h-[260px]">
-                    <OverviewChart data={orders || []} />
+                    <OverviewChart data={activeOrders} />
                   </CardContent>
                 </Card>
 
                 <Card className="shadow-sm">
                   <CardHeader>
                     <CardTitle className="text-lg">Productos Destacados</CardTitle>
-                    <CardDescription>Tus artículos más populares y vendidos.</CardDescription>
+                    <CardDescription>Tus artículos más populares y vendidos en este periodo.</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[260px]">
                     <TopProductsChart data={chartData} />
@@ -219,7 +306,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
             <MetricCard 
               title="Pérdida por Cancelaciones" 
               value={`$${lostRevenue.toLocaleString('es-AR')}`} 
-              description="Monto devuelto acumulado" 
+              description="Monto devuelto en el periodo" 
               icon={<TrendingDown className="h-5 w-5" />} 
               variant="red" 
             />
@@ -395,4 +482,3 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
     </div>
   );
 }
-
