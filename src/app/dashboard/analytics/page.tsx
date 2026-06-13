@@ -76,7 +76,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
     supabase.from("orders").select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id").eq("tenant_id", tenantId).neq("status", "cancelled").gte("date_created", sevenDaysAgo.toISOString()).order("date_created", { ascending: false }),
     supabase.from("order_cancellations").select("refund_amount").eq("tenant_id", tenantId).gte("created_at", sevenDaysAgo.toISOString()),
     supabase.from("shipments").select("substatus, shipping_cost, meli_shipment_id").eq("tenant_id", tenantId).gte("date_created", sevenDaysAgo.toISOString()),
-    supabase.from("products").select("id, title, cost, sku, sold_quantity, margin_percent, available_quantity, profit_real_estimated, status, estimated_shipping_cost, meli_item_id").eq("tenant_id", tenantId)
+    supabase.from("products").select("id, title, cost, sku, sold_quantity, margin_percent, available_quantity, profit_real_estimated, status, estimated_shipping_cost, meli_item_id, extra_fee_amount, promotion_discount_amount").eq("tenant_id", tenantId)
   ]);
 
   // Filter out ignored orders
@@ -102,18 +102,25 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
     const revenue = Number(o.total_amount) || 0;
     
     let cost = 0;
+    let extra = packagingCost;
     dbItems.forEach(item => {
       const prod = (products || []).find(p => p.meli_item_id === item.meli_item_id);
       const prodCost = prod ? (Number(prod.cost) || 0) : 0;
       cost += prodCost * (Number(item.quantity) || 1);
+      if (prod) {
+        extra += (Number(prod.extra_fee_amount || 0) + Number(prod.promotion_discount_amount || 0)) * (Number(item.quantity) || 1);
+      }
     });
 
     const fees = dbItems.reduce((sum, item) => sum + (Number(item.estimated_fee) || 0) * (Number(item.quantity) || 1), 0);
     const shipment = (shipments || []).find(s => s.meli_shipment_id === o.meli_shipment_id);
     const shipping = dbItems.reduce((sum, item) => sum + (Number(item.estimated_shipping_cost) || 0), 0) || Number(shipment?.shipping_cost) || 0;
 
-    periodProfit += (revenue - cost - fees - shipping - packagingCost);
+    periodProfit += (revenue - cost - fees - shipping - extra);
   });
+
+  const periodCancellationsAmount = cancellations?.reduce((acc, c) => acc + (Number(c.refund_amount) || 0), 0) || 0;
+  periodProfit -= periodCancellationsAmount;
 
   // Calculate Monthly Projection
   const daysElapsed = tenantDay; // 1 to 31 in tenant's timezone
@@ -147,18 +154,31 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
     const revenue = Number(o.total_amount) || 0;
     
     let cost = 0;
+    let extra = packagingCost;
     dbItems.forEach(item => {
       const prod = (products || []).find(p => p.meli_item_id === item.meli_item_id);
       const prodCost = prod ? (Number(prod.cost) || 0) : 0;
       cost += prodCost * (Number(item.quantity) || 1);
+      if (prod) {
+        extra += (Number(prod.extra_fee_amount || 0) + Number(prod.promotion_discount_amount || 0)) * (Number(item.quantity) || 1);
+      }
     });
 
     const fees = dbItems.reduce((sum, item) => sum + (Number(item.estimated_fee) || 0) * (Number(item.quantity) || 1), 0);
     const shipment = (monthShipments || []).find(s => s.meli_shipment_id === o.meli_shipment_id);
     const shipping = dbItems.reduce((sum, item) => sum + (Number(item.estimated_shipping_cost) || 0), 0) || Number(shipment?.shipping_cost) || 0;
 
-    currentMonthProfit += (revenue - cost - fees - shipping - packagingCost);
+    currentMonthProfit += (revenue - cost - fees - shipping - extra);
   });
+
+  const { data: monthCancellations } = await supabase
+    .from("order_cancellations")
+    .select("refund_amount")
+    .eq("tenant_id", tenantId)
+    .gte("created_at", currentMonthStart.toISOString());
+
+  const currentMonthCancellationsAmount = monthCancellations?.reduce((acc, c) => acc + (Number(c.refund_amount) || 0), 0) || 0;
+  currentMonthProfit -= currentMonthCancellationsAmount;
 
   const monthlyProjection = (currentMonthProfit / daysElapsed) * 30;
 

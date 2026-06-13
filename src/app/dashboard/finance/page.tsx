@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import FinanceClientPage from "./client-page";
+import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 
 export default async function FinancePage(props: { searchParams: Promise<{ period?: string }> }) {
   const searchParams = await props.searchParams;
@@ -20,26 +21,52 @@ export default async function FinancePage(props: { searchParams: Promise<{ perio
   const tenantId = profile.tenant_id;
   const period = searchParams.period || "current_month";
 
-  let dateFrom = new Date();
-  let dateTo = new Date();
+  // Fetch Tenant details first (needed for timezone, packaging cost and ignored orders)
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("timezone, metadata")
+    .eq("id", tenantId)
+    .single();
+
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+  const packagingCost = tenant?.metadata?.packaging_cost ? Number(tenant.metadata.packaging_cost) : 0;
+  const ignoredOrderIds = (tenant?.metadata as any)?.ignored_order_ids || [];
+
+  // Get current date parts in tenant's timezone (prevents UTC rollover issues)
+  const tenantDateFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const tenantDateStr = tenantDateFormatter.format(new Date()); // "YYYY-MM-DD"
+  const [tenantYear, tenantMonth, tenantDay] = tenantDateStr.split('-').map(Number);
+
+  let dateFrom: Date;
+  let dateTo = new Date(); // now
 
   if (period === "current_month") {
-    dateFrom = new Date(dateTo.getFullYear(), dateTo.getMonth(), 1);
+    const startOfMonth = new Date(tenantYear, tenantMonth - 1, 1, 0, 0, 0, 0);
+    dateFrom = getMidnightInTimezone(startOfMonth, timezone);
   } else if (period === "last_month") {
-    dateFrom = new Date(dateTo.getFullYear(), dateTo.getMonth() - 1, 1);
-    dateTo = new Date(dateTo.getFullYear(), dateTo.getMonth(), 0);
+    const startOfLastMonth = new Date(tenantYear, tenantMonth - 2, 1, 0, 0, 0, 0);
+    const endOfLastMonth = new Date(tenantYear, tenantMonth - 1, 0, 23, 59, 59, 999);
+    dateFrom = getMidnightInTimezone(startOfLastMonth, timezone);
+    dateTo = getMidnightInTimezone(endOfLastMonth, timezone);
   } else if (period === "last_30") {
-    dateFrom.setDate(dateFrom.getDate() - 30);
-  } else if (period === "all") {
+    const rawDate = new Date(tenantYear, tenantMonth - 1, tenantDay, 0, 0, 0, 0);
+    rawDate.setDate(rawDate.getDate() - 30);
+    dateFrom = getMidnightInTimezone(rawDate, timezone);
+  } else { // "all"
     dateFrom = new Date(2000, 0, 1);
   }
 
-  // Fetch orders (only paid)
+  // Fetch orders (exclude cancelled, matching analytics page)
   const { data: orders } = await supabase
     .from("orders")
     .select("*")
     .eq("tenant_id", tenantId)
-    .eq("status", "paid")
+    .neq("status", "cancelled")
     .gte("date_created", dateFrom.toISOString())
     .lte("date_created", dateTo.toISOString());
 
@@ -56,16 +83,6 @@ export default async function FinancePage(props: { searchParams: Promise<{ perio
     .from("products")
     .select("id, meli_item_id, title, sku, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount, profit_real_margin")
     .eq("tenant_id", tenantId);
-
-  // Fetch Tenant for packaging cost config and ignored orders
-  const { data: tenant } = await supabase
-    .from("tenants")
-    .select("metadata")
-    .eq("id", tenantId)
-    .single();
-
-  const packagingCost = tenant?.metadata?.packaging_cost ? Number(tenant.metadata.packaging_cost) : 0;
-  const ignoredOrderIds = tenant?.metadata?.ignored_order_ids || [];
 
   // Exclude ignored/test orders
   const activeOrders = (orders || []).filter(o => !ignoredOrderIds.includes(o.meli_order_id));
