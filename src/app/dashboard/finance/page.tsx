@@ -46,17 +46,15 @@ export default async function FinancePage(props: { searchParams: Promise<{ perio
   let dateTo = new Date(); // now
 
   if (period === "current_month") {
-    const startOfMonth = new Date(tenantYear, tenantMonth - 1, 1, 0, 0, 0, 0);
-    dateFrom = getMidnightInTimezone(startOfMonth, timezone);
+    dateFrom = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 1, 1, 12, 0, 0)), timezone);
   } else if (period === "last_month") {
-    const startOfLastMonth = new Date(tenantYear, tenantMonth - 2, 1, 0, 0, 0, 0);
-    const endOfLastMonth = new Date(tenantYear, tenantMonth - 1, 0, 23, 59, 59, 999);
-    dateFrom = getMidnightInTimezone(startOfLastMonth, timezone);
-    dateTo = getMidnightInTimezone(endOfLastMonth, timezone);
+    dateFrom = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 2, 1, 12, 0, 0)), timezone);
+    const startOfCurrentMonth = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 1, 1, 12, 0, 0)), timezone);
+    dateTo = new Date(startOfCurrentMonth.getTime() - 1);
   } else if (period === "last_30") {
-    const rawDate = new Date(tenantYear, tenantMonth - 1, tenantDay, 0, 0, 0, 0);
-    rawDate.setDate(rawDate.getDate() - 30);
-    dateFrom = getMidnightInTimezone(rawDate, timezone);
+    const tempDate = new Date(tenantYear, tenantMonth - 1, tenantDay, 12, 0, 0);
+    tempDate.setDate(tempDate.getDate() - 30);
+    dateFrom = getMidnightInTimezone(new Date(Date.UTC(tempDate.getFullYear(), tempDate.getMonth(), tempDate.getDate(), 12, 0, 0)), timezone);
   } else { // "all"
     dateFrom = new Date(2000, 0, 1);
   }

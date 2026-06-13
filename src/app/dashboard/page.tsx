@@ -72,17 +72,7 @@ export default async function DashboardPage(props: PageProps) {
     .single();
   const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
 
-  // Get current date parts in tenant's timezone (prevents UTC rollover issues)
-  const tenantDateFormatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  const tenantDateStr = tenantDateFormatter.format(new Date()); // "YYYY-MM-DD"
-  const [tenantYear, tenantMonth, tenantDay] = tenantDateStr.split('-').map(Number);
-
-  const today = getMidnightInTimezone(new Date(tenantYear, tenantMonth - 1, tenantDay, 0, 0, 0, 0), timezone);
+  const today = getMidnightInTimezone(new Date(), timezone);
 
   // To be safe, fetch days + 1 in the cache so we don't miss boundaries
   const recentOrders = await getCachedOrders(tenantId, days + 1);
@@ -91,9 +81,9 @@ export default async function DashboardPage(props: PageProps) {
   let salesToday = 0;
   let revenuePeriod = 0;
 
-  const rawPastDate = new Date(tenantYear, tenantMonth - 1, tenantDay, 0, 0, 0, 0);
-  rawPastDate.setDate(rawPastDate.getDate() - days);
-  const periodStart = getMidnightInTimezone(rawPastDate, timezone);
+  const pastDate = new Date();
+  pastDate.setDate(pastDate.getDate() - days);
+  const periodStart = getMidnightInTimezone(pastDate, timezone);
 
   recentOrders?.forEach(order => {
     const orderDate = new Date(order.date_created);

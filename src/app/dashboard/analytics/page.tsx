@@ -40,7 +40,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   const packagingCost = Number(tenantMetadata.packaging_cost) || 0;
   const ignoredOrderIds = tenantMetadata.ignored_order_ids || [];
 
-  // Get current date parts in tenant's timezone (prevents UTC rollover issues)
+  // Get current date parts in tenant's timezone (needed for daysElapsed and currentMonthStart)
   const tenantDateFormatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
     year: 'numeric',
@@ -50,17 +50,16 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   const tenantDateStr = tenantDateFormatter.format(new Date()); // "YYYY-MM-DD"
   const [tenantYear, tenantMonth, tenantDay] = tenantDateStr.split('-').map(Number);
 
-  const today = getMidnightInTimezone(new Date(tenantYear, tenantMonth - 1, tenantDay, 0, 0, 0, 0), timezone);
+  const today = getMidnightInTimezone(new Date(), timezone);
   let sevenDaysAgo: Date;
   
   if (daysParam === "current_month") {
-    const startOfMonth = new Date(tenantYear, tenantMonth - 1, 1, 0, 0, 0, 0);
-    sevenDaysAgo = getMidnightInTimezone(startOfMonth, timezone);
+    sevenDaysAgo = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 1, 1, 12, 0, 0)), timezone);
   } else {
     const daysInt = parseInt(daysParam) || 30;
-    const rawDate = new Date(tenantYear, tenantMonth - 1, tenantDay, 0, 0, 0, 0);
-    rawDate.setDate(rawDate.getDate() - daysInt);
-    sevenDaysAgo = getMidnightInTimezone(rawDate, timezone);
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - daysInt);
+    sevenDaysAgo = getMidnightInTimezone(pastDate, timezone);
   }
 
   const periodLabel = daysParam === "current_month" ? "En el mes actual" : `En los últimos ${daysParam} días`;
@@ -124,7 +123,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
 
   // Calculate Monthly Projection
   const daysElapsed = tenantDay; // 1 to 31 in tenant's timezone
-  const currentMonthStart = new Date(tenantYear, tenantMonth - 1, 1, 0, 0, 0, 0);
+  const currentMonthStart = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 1, 1, 12, 0, 0)), timezone);
 
   const { data: monthOrders } = await supabase
     .from("orders")
