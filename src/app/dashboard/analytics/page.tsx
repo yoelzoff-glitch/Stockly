@@ -40,17 +40,27 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   const packagingCost = Number(tenantMetadata.packaging_cost) || 0;
   const ignoredOrderIds = tenantMetadata.ignored_order_ids || [];
 
-  const today = new Date();
+  // Get current date parts in tenant's timezone (prevents UTC rollover issues)
+  const tenantDateFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const tenantDateStr = tenantDateFormatter.format(new Date()); // "YYYY-MM-DD"
+  const [tenantYear, tenantMonth, tenantDay] = tenantDateStr.split('-').map(Number);
+
+  const today = getMidnightInTimezone(new Date(tenantYear, tenantMonth - 1, tenantDay, 0, 0, 0, 0), timezone);
   let sevenDaysAgo: Date;
   
   if (daysParam === "current_month") {
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+    const startOfMonth = new Date(tenantYear, tenantMonth - 1, 1, 0, 0, 0, 0);
     sevenDaysAgo = getMidnightInTimezone(startOfMonth, timezone);
   } else {
     const daysInt = parseInt(daysParam) || 30;
-    const sevenDaysAgoRaw = new Date();
-    sevenDaysAgoRaw.setDate(sevenDaysAgoRaw.getDate() - daysInt);
-    sevenDaysAgo = getMidnightInTimezone(sevenDaysAgoRaw, timezone);
+    const rawDate = new Date(tenantYear, tenantMonth - 1, tenantDay, 0, 0, 0, 0);
+    rawDate.setDate(rawDate.getDate() - daysInt);
+    sevenDaysAgo = getMidnightInTimezone(rawDate, timezone);
   }
 
   const periodLabel = daysParam === "current_month" ? "En el mes actual" : `En los últimos ${daysParam} días`;
@@ -106,8 +116,8 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   });
 
   // Calculate Monthly Projection
-  const daysElapsed = today.getDate(); // 1 to 31
-  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+  const daysElapsed = tenantDay; // 1 to 31 in tenant's timezone
+  const currentMonthStart = new Date(tenantYear, tenantMonth - 1, 1, 0, 0, 0, 0);
 
   const { data: monthOrders } = await supabase
     .from("orders")
@@ -322,7 +332,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
                     <CardDescription>Resumen de ingresos generados en el periodo.</CardDescription>
                   </CardHeader>
                   <CardContent className="pl-2 h-[260px]">
-                    <OverviewChart data={activeOrders} />
+                    <OverviewChart data={activeOrders} timezone={timezone} />
                   </CardContent>
                 </Card>
 
