@@ -100,8 +100,10 @@ export async function getFinancialData(
     let orderCost = 0;
     let orderFees = 0;
     let orderShipping = 0;
-    let orderExtra = orderPackagingCost;
+    let orderExtra = 0;
     let orderQty = 0;
+
+    const totalOrderQty = dbItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0) || 1;
 
     dbItems.forEach(item => {
       const qty = Number(item.quantity) || 1;
@@ -112,7 +114,7 @@ export async function getFinancialData(
       let itemCost = 0;
       let itemFee = Number(item.estimated_fee) || 0;
       let itemShipping = Number(item.estimated_shipping_cost) || 0;
-      let itemExtra = 0;
+      let itemExtra = orderPackagingCost * (qty / totalOrderQty);
 
       if (p) {
         if (p.cost) {
@@ -125,7 +127,7 @@ export async function getFinancialData(
         if (itemShipping === 0) {
           itemShipping = Number(p.estimated_shipping_cost || 0) * qty;
         }
-        itemExtra = (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * qty;
+        itemExtra += (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * qty;
       }
 
       orderCost += itemCost;
@@ -148,7 +150,7 @@ export async function getFinancialData(
         };
       }
       productAggMap[titleKey].qty += qty;
-      productAggMap[titleKey].revenue += (Number(item.total_price) || (amount * (qty / Math.max(1, orderQty))));
+      productAggMap[titleKey].revenue += (Number(item.total_price) || (amount * (qty / Math.max(1, totalOrderQty))));
       productAggMap[titleKey].cost += itemCost;
       productAggMap[titleKey].fee += itemFee;
       productAggMap[titleKey].shipping += itemShipping;
@@ -172,6 +174,8 @@ export async function getFinancialData(
       
       const p = (products || []).find(prod => prod.meli_item_id === meliProductId || prod.title === productTitle);
       
+      let itemExtra = orderPackagingCost;
+
       if (p) {
         if (p.cost) {
           orderCost = Number(p.cost) * rawQty;
@@ -183,8 +187,10 @@ export async function getFinancialData(
         if (orderShipping === 0) {
           orderShipping = Number(p.estimated_shipping_cost || 0) * rawQty;
         }
-        orderExtra += (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * rawQty;
+        itemExtra += (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * rawQty;
       }
+
+      orderExtra = itemExtra;
 
       const titleKey = p ? p.title : (productTitle || "Varios");
       if (!productAggMap[titleKey]) {

@@ -60,6 +60,30 @@ export async function updateProductCost(productId: string, cost: number) {
 
   if (error) return { success: false, error: error.message };
 
+  // 3.5 Update the corresponding inventory_items average_cost
+  const { data: components } = await supabase
+    .from("product_components")
+    .select("inventory_item_id, quantity")
+    .in("product_id", productIdsToUpdate);
+
+  if (components && components.length > 0) {
+    for (const comp of components) {
+      if (comp.inventory_item_id) {
+        const qty = comp.quantity || 1;
+        const compCost = cost / qty;
+        
+        await supabase
+          .from("inventory_items")
+          .update({ 
+            average_cost: compCost,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", comp.inventory_item_id)
+          .eq("tenant_id", profile.tenant_id);
+      }
+    }
+  }
+
   revalidatePath("/dashboard/products");
   revalidatePath("/dashboard");
   return { success: true };

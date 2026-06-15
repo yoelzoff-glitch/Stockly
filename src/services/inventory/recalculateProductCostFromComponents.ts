@@ -19,7 +19,7 @@ export async function recalculateProductCostFromComponents(tenantId: string, pro
   // 1. Obtener el producto
   const { data: product, error: productError } = await supabase
     .from("products")
-    .select("id, sku, title, price, category_id, raw_data")
+    .select("id, sku, title, price, category_id, raw_data, cost")
     .eq("tenant_id", tenantId)
     .eq("id", productId)
     .single();
@@ -130,7 +130,10 @@ export async function recalculateProductCostFromComponents(tenantId: string, pro
   }
 
   // 6. Costo total
-  const totalCost = Number((componentsTotalCost + extraCostsTotal).toFixed(2));
+  let totalCost = Number((componentsTotalCost + extraCostsTotal).toFixed(2));
+  if (components && components.length > 0 && componentsTotalCost === 0 && product.cost) {
+    totalCost = Number(product.cost);
+  }
 
   // 7. Guardar en raw_data y actualizar el producto
   const rawData = product.raw_data || {};
