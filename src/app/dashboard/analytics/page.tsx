@@ -11,6 +11,7 @@ import ParetoChart from "./pareto-chart";
 import { getParetoAnalysis } from "@/services/analytics/pareto";
 import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 import { TimeFilter } from "./time-filter";
+import { getFinancialData } from "@/services/finance/getFinancialData";
 
 export default async function AnalyticsAndInsightsPage(props: { searchParams: Promise<{ days?: string }> }) {
   const searchParams = await props.searchParams;
@@ -81,104 +82,35 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   // Filter out ignored orders
   const activeOrders = (orders || []).filter(o => !ignoredOrderIds.includes(o.meli_order_id));
 
-  // Analytics Metrics (Filtered by period)
+  // Fetch unified financial data for the selected period
+  const periodFinancials = await getFinancialData(
+    supabase,
+    tenantId,
+    sevenDaysAgo,
+    new Date(), // now
+    packagingCost,
+    ignoredOrderIds
+  );
+
   const totalOrders = activeOrders.length;
-  const totalRevenue = activeOrders.reduce((acc, order) => acc + (Number(order.total_amount) || 0), 0) || 0;
+  const totalRevenue = periodFinancials.facturacionBruta;
   const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+  const periodProfit = periodFinancials.gananciaNeta;
 
-  // Net Profit Calculation for the selected period
-  const orderIds = activeOrders.map(o => o.id);
-  const { data: orderItems } = orderIds.length > 0
-    ? await supabase
-        .from("order_items")
-        .select("order_id, meli_item_id, quantity, estimated_fee, estimated_shipping_cost")
-        .in("order_id", orderIds)
-    : { data: [] };
-
-  let periodProfit = 0;
-  activeOrders.forEach(o => {
-    const dbItems = (orderItems || []).filter(item => item.order_id === o.id);
-    const revenue = Number(o.total_amount) || 0;
-    
-    let cost = 0;
-    let extra = packagingCost;
-    dbItems.forEach(item => {
-      const prod = (products || []).find(p => p.meli_item_id === item.meli_item_id);
-      const prodCost = prod ? (Number(prod.cost) || 0) : 0;
-      cost += prodCost * (Number(item.quantity) || 1);
-      if (prod) {
-        extra += (Number(prod.extra_fee_amount || 0) + Number(prod.promotion_discount_amount || 0)) * (Number(item.quantity) || 1);
-      }
-    });
-
-    const fees = dbItems.reduce((sum, item) => sum + (Number(item.estimated_fee) || 0) * (Number(item.quantity) || 1), 0);
-    const shipment = (shipments || []).find(s => s.meli_shipment_id === o.meli_shipment_id);
-    const shipping = dbItems.reduce((sum, item) => sum + (Number(item.estimated_shipping_cost) || 0), 0) || Number(shipment?.shipping_cost) || 0;
-
-    periodProfit += (revenue - cost - fees - shipping - extra);
-  });
-
-  const periodCancellationsAmount = cancellations?.reduce((acc, c) => acc + (Number(c.refund_amount) || 0), 0) || 0;
-  periodProfit -= periodCancellationsAmount;
-
-  // Calculate Monthly Projection
+  // Calculate Monthly Projection using unified financials
   const daysElapsed = tenantDay; // 1 to 31 in tenant's timezone
   const currentMonthStart = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 1, 1, 12, 0, 0)), timezone);
 
-  const { data: monthOrders } = await supabase
-    .from("orders")
-    .select("id, total_amount, status, meli_order_id, meli_shipment_id")
-    .eq("tenant_id", tenantId)
-    .neq("status", "cancelled")
-    .gte("date_created", currentMonthStart.toISOString());
+  const currentMonthFinancials = await getFinancialData(
+    supabase,
+    tenantId,
+    currentMonthStart,
+    new Date(), // now
+    packagingCost,
+    ignoredOrderIds
+  );
 
-  const activeMonthOrders = (monthOrders || []).filter(o => !ignoredOrderIds.includes(o.meli_order_id));
-  const monthOrderIds = activeMonthOrders.map(o => o.id);
-  const { data: monthOrderItems } = monthOrderIds.length > 0
-    ? await supabase
-        .from("order_items")
-        .select("order_id, meli_item_id, quantity, estimated_fee, estimated_shipping_cost")
-        .in("order_id", monthOrderIds)
-    : { data: [] };
-
-  const { data: monthShipments } = await supabase
-    .from("shipments")
-    .select("meli_shipment_id, shipping_cost")
-    .eq("tenant_id", tenantId)
-    .gte("date_created", currentMonthStart.toISOString());
-
-  let currentMonthProfit = 0;
-  activeMonthOrders.forEach(o => {
-    const dbItems = (monthOrderItems || []).filter(item => item.order_id === o.id);
-    const revenue = Number(o.total_amount) || 0;
-    
-    let cost = 0;
-    let extra = packagingCost;
-    dbItems.forEach(item => {
-      const prod = (products || []).find(p => p.meli_item_id === item.meli_item_id);
-      const prodCost = prod ? (Number(prod.cost) || 0) : 0;
-      cost += prodCost * (Number(item.quantity) || 1);
-      if (prod) {
-        extra += (Number(prod.extra_fee_amount || 0) + Number(prod.promotion_discount_amount || 0)) * (Number(item.quantity) || 1);
-      }
-    });
-
-    const fees = dbItems.reduce((sum, item) => sum + (Number(item.estimated_fee) || 0) * (Number(item.quantity) || 1), 0);
-    const shipment = (monthShipments || []).find(s => s.meli_shipment_id === o.meli_shipment_id);
-    const shipping = dbItems.reduce((sum, item) => sum + (Number(item.estimated_shipping_cost) || 0), 0) || Number(shipment?.shipping_cost) || 0;
-
-    currentMonthProfit += (revenue - cost - fees - shipping - extra);
-  });
-
-  const { data: monthCancellations } = await supabase
-    .from("order_cancellations")
-    .select("refund_amount")
-    .eq("tenant_id", tenantId)
-    .gte("created_at", currentMonthStart.toISOString());
-
-  const currentMonthCancellationsAmount = monthCancellations?.reduce((acc, c) => acc + (Number(c.refund_amount) || 0), 0) || 0;
-  currentMonthProfit -= currentMonthCancellationsAmount;
-
+  const currentMonthProfit = currentMonthFinancials.gananciaNeta;
   const monthlyProjection = (currentMonthProfit / daysElapsed) * 30;
 
   // Logistics & cancellations metrics

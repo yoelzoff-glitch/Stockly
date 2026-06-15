@@ -7,18 +7,14 @@ import { Button } from "@/components/ui/button";
 import { DollarSign, Download, AlertTriangle, CheckCircle2, AlertCircle } from "lucide-react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
+import { FinancialData } from "@/services/finance/getFinancialData";
+
 export default function FinanceClientPage({ 
-  orders, 
-  cancellations,
-  products,
-  currentPeriod,
-  packagingCost = 0
+  financials, 
+  currentPeriod
 }: { 
-  orders: any[],
-  cancellations: any[],
-  products: any[],
-  currentPeriod: string,
-  packagingCost?: number
+  financials: FinancialData;
+  currentPeriod: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -30,86 +26,24 @@ export default function FinanceClientPage({
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  // Cross-reference logic
-  let facturacionBruta = 0;
-  let costosProductos = 0;
-  let comisionesML = 0;
-  let envios = 0;
-  let promosCuotas = 0;
-  let impuestos = 0; // default 0 for MVP
-  
-  let totalUnitsSold = 0;
-  let unitsWithCost = 0;
+  const {
+    facturacionBruta,
+    costosProductos,
+    comisionesML,
+    envios,
+    promosCuotas,
+    cancellationsAmount: cancelacionesAmount,
+    gananciaNeta,
+    margenNeto,
+    totalUnitsSold,
+    unitsWithCost,
+    costAccuracyPercent,
+    tableData
+  } = financials;
 
-  // Aggregate by product for the table
-  const productAgg: Record<string, any> = {};
-
-  orders.forEach(o => {
-    const amount = Number(o.total_amount) || 0;
-    const qty = Number(o.total_quantity) || 1;
-    facturacionBruta += amount;
-    totalUnitsSold += qty;
-
-    const raw = o.raw_data as any;
-    const orderPackagingCost = Number(raw?.klyvo_operational_costs?.packaging_cost || packagingCost);
-
-    // Match with product
-    // Fallback to title if meli_product_id is missing
-    const p = products.find(prod => prod.meli_item_id === o.meli_product_id || prod.title === o.product_title);
-    
-    let cost = 0;
-    let fee = Number(o.estimated_fee) || 0;
-    let shipping = Number(o.estimated_shipping_cost) || 0;
-    let extra = orderPackagingCost;
-
-    if (p) {
-      if (p.cost) {
-        cost = Number(p.cost) * qty;
-        unitsWithCost += qty;
-      }
-      if (fee === 0) {
-        fee = Number(p.estimated_fee || 0) * qty;
-      }
-      if (shipping === 0) {
-        shipping = Number(p.estimated_shipping_cost || 0) * qty;
-      }
-      extra += (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * qty;
-    }
-
-    costosProductos += cost;
-    comisionesML += fee;
-    envios += shipping;
-    promosCuotas += extra;
-
-    const titleKey = p ? p.title : (o.product_title || "Varios");
-    if (!productAgg[titleKey]) {
-      productAgg[titleKey] = {
-        title: titleKey,
-        sku: p?.sku || "-",
-        qty: 0,
-        revenue: 0,
-        cost: 0,
-        fee: 0,
-        shipping: 0,
-        extra: 0
-      };
-    }
-
-    productAgg[titleKey].qty += qty;
-    productAgg[titleKey].revenue += amount;
-    productAgg[titleKey].cost += cost;
-    productAgg[titleKey].fee += fee;
-    productAgg[titleKey].shipping += shipping;
-    productAgg[titleKey].extra += extra;
-  });
-
-  const cancelacionesAmount = cancellations.reduce((sum, c) => sum + (Number(c.refund_amount) || 0), 0);
-
-  const gananciaNeta = facturacionBruta - costosProductos - comisionesML - envios - promosCuotas - impuestos - cancelacionesAmount;
-  const margenNeto = facturacionBruta > 0 ? (gananciaNeta / facturacionBruta) * 100 : 0;
+  const impuestos = 0; // default 0 for MVP
 
   // Accuracy
-  const costAccuracyPercent = totalUnitsSold > 0 ? (unitsWithCost / totalUnitsSold) * 100 : 100;
   let accuracyLabel = "Alta";
   let accuracyColor = "text-emerald-600 bg-emerald-100";
   let AccuracyIcon = CheckCircle2;
@@ -123,13 +57,6 @@ export default function FinanceClientPage({
     accuracyColor = "text-amber-600 bg-amber-100";
     AccuracyIcon = AlertTriangle;
   }
-
-  // Final table array
-  const tableData = Object.values(productAgg).map(row => {
-    const neta = row.revenue - row.cost - row.fee - row.shipping - row.extra;
-    const marg = row.revenue > 0 ? (neta / row.revenue) * 100 : 0;
-    return { ...row, neta, marg };
-  }).sort((a, b) => b.revenue - a.revenue);
 
   // CSV Export logic
   const exportCSV = () => {

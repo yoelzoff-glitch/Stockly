@@ -5,11 +5,30 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const syncProductsJob = inngest.createFunction(
   { 
     id: "sync-products",
-    triggers: [{ cron: "*/15 * * * *" }]
+    triggers: [
+      { cron: "*/15 * * * *" },
+      { event: "meli/items.updated" as any }
+    ]
   },
-  async ({ step }) => {
-    // 1. Get all tenants that have a meli_account
+  async ({ event, step }) => {
     const supabase = createAdminClient();
+
+    // If triggered by a webhook event, sync only for that tenant
+    if (event?.name === "meli/items.updated") {
+      const tenantId = event.data?.tenantId;
+      if (!tenantId) {
+        return { message: "No tenantId provided in event data" };
+      }
+      const result = await step.run("sync-products-single-tenant", async () => {
+        try {
+          const syncedCount = await syncProducts(tenantId);
+          return { tenantId, status: "fulfilled", syncedCount };
+        } catch (error: any) {
+          return { tenantId, status: "rejected", reason: error.message };
+        }
+      });
+      return { message: `Synced products for tenant ${tenantId}`, details: [result] };
+    }
     const { data: accounts } = await supabase.from("meli_accounts").select("tenant_id");
 
     if (!accounts || accounts.length === 0) {
