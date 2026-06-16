@@ -85,14 +85,16 @@ export async function syncProducts(tenantId: string) {
   // 3. Fetch existing products to preserve "cost" and check existing active SKUs
   const { data: existingProducts } = await supabase
     .from("products")
-    .select("meli_item_id, sku, cost, status")
+    .select("meli_item_id, sku, cost, status, price, estimated_fee, estimated_shipping_cost, campaign_data, promotion_data, raw_data")
     .eq("tenant_id", tenantId);
 
+  const existingProductMap = new Map<string, any>();
   const costMap = new Map<string, number | null>();
   const existingMeliIds = new Set<string>();
   const existingSkus = new Set<string>();
 
   existingProducts?.forEach(p => {
+    existingProductMap.set(p.meli_item_id, p);
     costMap.set(p.meli_item_id, p.cost);
     if (p.status !== "deleted_from_meli") {
       existingMeliIds.add(p.meli_item_id);
@@ -178,26 +180,41 @@ export async function syncProducts(tenantId: string) {
       batch.map(async (item) => {
         const siteId = item.site_id || "MLA";
         const existingCost = costMap.get(item.id) || null;
+        const existingProd = existingProductMap.get(item.id);
 
-        // Fetch all 4 APIs in parallel for this item
-        const [feeData, shippingData, campaigns, promotions] = await Promise.all([
-          getListingFees(siteId, item.price, item.category_id, item.listing_type_id, tenantId).catch(err => {
-            console.error(`Error fetching listing fees for ${item.id}:`, err);
-            return null;
-          }),
-          getShippingCostEstimate(item.id, meliAccount.access_token, item.shipping, item.seller_id, item.currency_id).catch(err => {
-            console.error(`Error fetching shipping estimate for ${item.id}:`, err);
-            return { estimated_shipping_cost: 0, raw_response: null };
-          }),
-          getCampaigns(item.id, meli_user_id, tenantId).catch(err => {
-            console.error(`Error fetching campaigns for ${item.id}:`, err);
-            return [];
-          }),
-          getPromotions(item.id, meli_user_id, tenantId).catch(err => {
-            console.error(`Error fetching promotions for ${item.id}:`, err);
-            return [];
-          })
-        ]);
+        // Re-use calculations if price, status are identical and we have estimated fee in DB
+        const hasPriceChanged = !existingProd || 
+          existingProd.price !== item.price || 
+          existingProd.estimated_fee === null ||
+          existingProd.estimated_shipping_cost === null;
+
+        let feeData: any, shippingData: any, campaigns: any, promotions: any;
+        if (!hasPriceChanged && existingProd) {
+          feeData = { sale_fee_amount: existingProd.estimated_fee, raw_response: existingProd.raw_data?.fees };
+          shippingData = { estimated_shipping_cost: existingProd.estimated_shipping_cost, raw_response: existingProd.raw_data?.shipping_estimate };
+          campaigns = existingProd.campaign_data;
+          promotions = existingProd.promotion_data;
+        } else {
+          // Fetch all 4 APIs in parallel for this item
+          [feeData, shippingData, campaigns, promotions] = await Promise.all([
+            getListingFees(siteId, item.price, item.category_id, item.listing_type_id, tenantId).catch(err => {
+              console.error(`Error fetching listing fees for ${item.id}:`, err);
+              return null;
+            }),
+            getShippingCostEstimate(item.id, meliAccount.access_token, item.shipping, item.seller_id, item.currency_id).catch(err => {
+              console.error(`Error fetching shipping estimate for ${item.id}:`, err);
+              return { estimated_shipping_cost: 0, raw_response: null };
+            }),
+            getCampaigns(item.id, meli_user_id, tenantId).catch(err => {
+              console.error(`Error fetching campaigns for ${item.id}:`, err);
+              return [];
+            }),
+            getPromotions(item.id, meli_user_id, tenantId).catch(err => {
+              console.error(`Error fetching promotions for ${item.id}:`, err);
+              return [];
+            })
+          ]);
+        }
 
         const estimatedFee = feeData?.sale_fee_amount ?? null;
         const estimatedShipping = shippingData?.estimated_shipping_cost ?? 0;
@@ -270,7 +287,7 @@ export async function syncProducts(tenantId: string) {
     .from("products")
     .upsert(productsToUpsert, {
       onConflict: "tenant_id, meli_item_id", 
-    }).select("id, sku");
+    }).select("id, meli_item_id, sku");
 
   if (upsertError) {
     console.error("Error upserting products to DB:", upsertError);
@@ -279,12 +296,22 @@ export async function syncProducts(tenantId: string) {
 
   // 4.1. Process and save SKU components and bind to inventory items (Sprint 34)
   if (upsertedData && upsertedData.length > 0) {
+    const changedMeliIds = new Set<string>();
+    rawProducts.forEach(item => {
+      const existingProd = existingProductMap.get(item.id);
+      const sku = skuMap.get(item.id) || null;
+      if (!existingProd || existingProd.sku !== sku) {
+        changedMeliIds.add(item.id);
+      }
+    });
+
     const { parseCompositeSku } = await import("../products/sku/parseCompositeSku");
     const componentsToInsert: any[] = [];
     const productIdsToClear: string[] = [];
 
     for (const p of upsertedData) {
       if (!p.sku) continue;
+      if (!changedMeliIds.has(p.meli_item_id)) continue;
       const parsed = parseCompositeSku(p.sku);
       if (parsed.components.length > 0) {
         productIdsToClear.push(p.id);
