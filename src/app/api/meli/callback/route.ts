@@ -98,6 +98,7 @@ export async function GET(request: Request) {
         token_expires_at: expiresAt.toISOString(),
         status: "connected",
         metadata: tokenData,
+        sync_error: null,
       }, {
         onConflict: "tenant_id, meli_user_id"
       });
