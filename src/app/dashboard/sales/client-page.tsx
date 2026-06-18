@@ -58,7 +58,7 @@ export default function SalesClientPage({
 
   // KPIs use allPeriodOrders to be accurate regardless of pagination
   // Exclude ignored orders
-  const activePeriodOrders = allPeriodOrders.filter(o => !ignoredOrderIds.includes(o.meli_order_id));
+  const activePeriodOrders = allPeriodOrders.filter(o => !ignoredOrderIds.includes(o.meli_order_id) && o.status !== "cancelled");
   const totalSales = activePeriodOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
   const totalOrdersCount = activePeriodOrders.length;
   const avgTicket = totalOrdersCount > 0 ? totalSales / totalOrdersCount : 0;
