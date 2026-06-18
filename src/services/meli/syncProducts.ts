@@ -296,11 +296,21 @@ export async function syncProducts(tenantId: string) {
 
   // 4.1. Process and save SKU components and bind to inventory items (Sprint 34)
   if (upsertedData && upsertedData.length > 0) {
+    // Fetch all existing product component associations for this tenant
+    const { data: existingComps } = await supabase
+      .from("product_components")
+      .select("product_id")
+      .eq("tenant_id", tenantId);
+    
+    const productsWithComps = new Set(existingComps?.map(c => c.product_id) || []);
+
     const changedMeliIds = new Set<string>();
     rawProducts.forEach(item => {
       const existingProd = existingProductMap.get(item.id);
       const sku = skuMap.get(item.id) || null;
-      if (!existingProd || existingProd.sku !== sku) {
+      const hasComps = existingProd ? productsWithComps.has(existingProd.id) : false;
+      
+      if (!existingProd || existingProd.sku !== sku || !hasComps) {
         changedMeliIds.add(item.id);
       }
     });
@@ -381,6 +391,7 @@ export async function syncProducts(tenantId: string) {
         const prodComponentsToInsert: any[] = [];
         for (const p of upsertedData) {
           if (!p.sku) continue;
+          if (!changedMeliIds.has(p.meli_item_id)) continue;
           const parsed = parseCompositeSku(p.sku);
           if (parsed.components.length > 0) {
             const compCounts: Record<string, number> = {};

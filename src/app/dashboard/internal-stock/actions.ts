@@ -231,3 +231,57 @@ export async function getInventoryMovements(itemId: string) {
   if (error) throw new Error(`Fetch movements failed: ${error.message}`);
   return movements || [];
 }
+
+/**
+ * Elimina un item de inventario de depósito si no está vinculado a ninguna publicación.
+ */
+export async function deleteInventoryItem(itemId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.tenant_id) throw new Error("No tenant");
+
+  // 1. Verificar si tiene vinculación activa en product_components
+  const { data: activeComps, error: compErr } = await supabase
+    .from("product_components")
+    .select("product_id, products(title)")
+    .eq("inventory_item_id", itemId)
+    .limit(1);
+
+  if (compErr) throw new Error(`Verification failed: ${compErr.message}`);
+
+  if (activeComps && activeComps.length > 0) {
+    const prodTitle = (activeComps[0] as any)?.products?.title || "desconocido";
+    throw new Error(
+      `No se puede eliminar el componente porque está vinculado a publicaciones activas (ej: "${prodTitle}").`
+    );
+  }
+
+  // 2. Eliminar movimientos históricos
+  const { error: moveErr } = await supabase
+    .from("inventory_movements")
+    .delete()
+    .eq("inventory_item_id", itemId)
+    .eq("tenant_id", profile.tenant_id);
+
+  if (moveErr) throw new Error(`Failed to clear history: ${moveErr.message}`);
+
+  // 3. Eliminar item
+  const { error: deleteErr } = await supabase
+    .from("inventory_items")
+    .delete()
+    .eq("id", itemId)
+    .eq("tenant_id", profile.tenant_id);
+
+  if (deleteErr) throw new Error(`Delete failed: ${deleteErr.message}`);
+
+  revalidatePath("/dashboard/internal-stock");
+  return { success: true };
+}

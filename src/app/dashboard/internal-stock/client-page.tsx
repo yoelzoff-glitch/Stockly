@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertTriangle, Hammer, Edit3, BarChart, History, Download, RefreshCw, Layers, ArrowUpDown, ShieldAlert, BadgeInfo } from "lucide-react";
-import { adjustInventoryStock, updateInventoryItemParams, getInventoryMovements } from "./actions";
+import { AlertTriangle, Hammer, Edit3, BarChart, History, Download, RefreshCw, Layers, ArrowUpDown, ShieldAlert, BadgeInfo, Trash2 } from "lucide-react";
+import { adjustInventoryStock, updateInventoryItemParams, getInventoryMovements, deleteInventoryItem } from "./actions";
 
 export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
   const [items, setItems] = useState<any[]>(initialItems);
@@ -102,6 +102,24 @@ export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
       }
     } catch (err: any) {
       alert("Error actualizando componente: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDeleteItem = async (item: any) => {
+    if (!confirm(`¿Estás seguro de que deseas eliminar el componente ${item.sku_normalized}? Esta acción es permanente y borrará también su historial de movimientos.`)) {
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const res = await deleteInventoryItem(item.id);
+      if (res.success) {
+        setItems(prev => prev.filter(i => i.id !== item.id));
+        alert("Componente eliminado correctamente.");
+      }
+    } catch (err: any) {
+      alert(err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -289,6 +307,9 @@ export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
                           </Button>
                           <Button variant="ghost" size="sm" className="text-[10px] px-2 py-0.5 h-7 text-indigo-600 hover:text-indigo-850 hover:bg-indigo-50" onClick={() => handleOpenHistory(item)}>
                             <History className="w-3.5 h-3.5 mr-1 inline" /> Kardex
+                          </Button>
+                          <Button variant="ghost" size="sm" className="text-[10px] px-2 py-0.5 h-7 text-red-600 hover:text-red-800 hover:bg-red-50" onClick={() => handleDeleteItem(item)} disabled={isProcessing}>
+                             <Trash2 className="w-3.5 h-3.5 mr-1 inline" /> Eliminar
                           </Button>
                         </td>
                       </tr>

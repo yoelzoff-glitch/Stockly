@@ -180,7 +180,7 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
 
   const cancelaciones = cancellations?.reduce((sum, c) => sum + (Number(c.refund_amount) || 0), 0) || 0;
 
-  const gananciaNeta = facturacion - costos - comisiones - envios - extra - cancelaciones;
+  const gananciaNeta = facturacion - costos - comisiones - envios - extra;
   const margenNeto = facturacion > 0 ? (gananciaNeta / facturacion) * 100 : 0;
   const precision = unitsSold > 0 ? (unitsWithCost / unitsSold) * 100 : 100;
 

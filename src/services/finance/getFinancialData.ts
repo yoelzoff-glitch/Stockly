@@ -109,7 +109,10 @@ export async function getFinancialData(
       const qty = Number(item.quantity) || 1;
       orderQty += qty;
 
-      const p = (products || []).find(prod => prod.meli_item_id === item.meli_item_id || prod.title === item.title);
+      let p = item.meli_item_id ? (products || []).find(prod => prod.meli_item_id === item.meli_item_id) : undefined;
+      if (!p && item.title) {
+        p = (products || []).find(prod => prod.title === item.title);
+      }
       
       let itemCost = 0;
       let itemFee = Number(item.estimated_fee) || 0;
@@ -172,7 +175,10 @@ export async function getFinancialData(
       const meliProductId = firstRawItem?.item?.id || null;
       const productTitle = firstRawItem?.item?.title || "Varios";
       
-      const p = (products || []).find(prod => prod.meli_item_id === meliProductId || prod.title === productTitle);
+      let p = meliProductId ? (products || []).find(prod => prod.meli_item_id === meliProductId) : undefined;
+      if (!p && productTitle) {
+        p = (products || []).find(prod => prod.title === productTitle);
+      }
       
       let itemExtra = orderPackagingCost;
 
@@ -227,7 +233,7 @@ export async function getFinancialData(
 
   const cancellationsAmount = (cancellations || []).reduce((sum, c) => sum + (Number(c.refund_amount) || 0), 0);
 
-  const gananciaNeta = facturacionBruta - costosProductos - comisionesML - envios - promosCuotas - cancellationsAmount;
+  const gananciaNeta = facturacionBruta - costosProductos - comisionesML - envios - promosCuotas;
   const margenNeto = facturacionBruta > 0 ? (gananciaNeta / facturacionBruta) * 100 : 0;
   const costAccuracyPercent = totalUnitsSold > 0 ? (unitsWithCost / totalUnitsSold) * 100 : 100;
 

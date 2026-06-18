@@ -7,6 +7,8 @@ export interface ParsedCompositeSku {
   tokens: string[];
 }
 
+const KNOWN_PREFIXES = ['AR', 'BANQUETA', 'C', 'D', 'IMP', 'P', 'R', 'SKUD', 'TO'];
+
 /**
  * Parsea un SKU compuesto y extrae sus componentes lógicos.
  * Regla de componente: [Letras] [Números] [Sufijo Opcional Letras]
@@ -24,17 +26,46 @@ export function parseCompositeSku(sku: string): ParsedCompositeSku {
   // Tokens crudos separados por espacios para uso general
   const tokens = sku.trim().split(/\s+/);
   
-  // Regex para encontrar componentes cuando NO hay espacios:
-  // Letras + Numeros + (Opcionalmente Letras NO seguidas de numeros)
-  // Ej: C145D260 -> ["C145", "D260"]
-  // BANQUETA100 -> ["BANQUETA100"]
-  // D160VNC145 -> ["D160VN", "C145"]
-  const componentRegex = /[A-Z]+\d+(?:[A-Z]+(?!\d+))?/g;
-  
-  const matches = normalized.match(componentRegex);
-  
-  // Si no hace match con el patrón o solo es un token, consideramos al propio string como 1 componente
-  const components = matches && matches.length > 0 ? matches : [normalized];
+  const components: string[] = [];
+  let remaining = normalized;
+
+  while (remaining.length > 0) {
+    const match = remaining.match(/^([A-Z]+)(\d+)/);
+    if (!match) {
+      components.push(remaining);
+      break;
+    }
+
+    const prefix = match[1];
+    const numbers = match[2];
+    remaining = remaining.substring(match[0].length);
+
+    const nextNumbersMatch = remaining.match(/^([A-Z]*)(\d+)/);
+    if (nextNumbersMatch) {
+      const lettersBetween = nextNumbersMatch[1];
+      
+      let nextPrefix = "";
+      for (const p of KNOWN_PREFIXES) {
+        if (lettersBetween.endsWith(p)) {
+          if (p.length > nextPrefix.length) {
+            nextPrefix = p;
+          }
+        }
+      }
+
+      if (nextPrefix) {
+        const suffix = lettersBetween.substring(0, lettersBetween.length - nextPrefix.length);
+        components.push(prefix + numbers + suffix);
+        remaining = nextPrefix + remaining.substring(lettersBetween.length);
+      } else {
+        components.push(prefix + numbers + lettersBetween);
+        remaining = remaining.substring(lettersBetween.length);
+      }
+    } else {
+      components.push(prefix + numbers + remaining);
+      break;
+    }
+  }
 
   return {
     sku_normalized: normalized,

@@ -155,7 +155,8 @@ export default function FinanceClientPage({
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cancelaciones</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-red-500">-${cancelacionesAmount.toLocaleString("es-AR")}</div>
+            <div className="text-2xl font-semibold text-slate-500">${cancelacionesAmount.toLocaleString("es-AR")}</div>
+            <p className="text-[10px] text-muted-foreground mt-1">Ventas anuladas (no resta del total)</p>
           </CardContent>
         </Card>
       </div>
@@ -256,7 +257,7 @@ export default function FinanceClientPage({
                   <td className="px-4 py-4 text-right text-red-500">-${comisionesML.toLocaleString("es-AR")}</td>
                   <td className="px-4 py-4 text-right text-red-500">-${envios.toLocaleString("es-AR")}</td>
                   <td className="px-4 py-4 text-right text-red-500">-${promosCuotas.toLocaleString("es-AR")}</td>
-                  <td className="px-4 py-4 text-right text-emerald-600">${(gananciaNeta + cancelacionesAmount).toLocaleString("es-AR")}</td>
+                  <td className="px-4 py-4 text-right text-emerald-600">${gananciaNeta.toLocaleString("es-AR")}</td>
                   <td className="px-4 py-4 text-right text-emerald-600">-</td>
                 </tr>
               </tfoot>
