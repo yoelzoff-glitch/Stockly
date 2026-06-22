@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { meliFetch } from "@/services/meli/client";
+import { normalizeSku } from "@/lib/sku";
 
 export async function GET(
   request: Request,
@@ -41,62 +42,107 @@ export async function GET(
       return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
     }
 
-    // 2. Fetch real visits from Mercado Libre if meli_item_id is available
-    let meliVisitsData = null;
-    if (product.meli_item_id) {
-      try {
-        meliVisitsData = await meliFetch({
-          tenantId: profile.tenant_id,
-          endpoint: `/items/${product.meli_item_id}/visits/time_window?last=${daysCount}&unit=day`
-        });
-      } catch (err: any) {
-        console.error(`Error fetching ML visits for ${product.meli_item_id}:`, err.message);
+    // Find sibling products (sisters) matching the same normalized SKU
+    const normSku = normalizeSku(product.sku);
+    let familyProducts = [product];
+
+    if (normSku) {
+      let query = supabase
+        .from("products")
+        .select("*")
+        .eq("tenant_id", profile.tenant_id)
+        .not("sku", "is", null);
+
+      if (product.meli_account_id) {
+        query = query.eq("meli_account_id", product.meli_account_id);
+      }
+
+      const { data: products } = await query;
+      if (products) {
+        const siblingCandidates = products.filter(
+          p => normalizeSku(p.sku) === normSku && p.meli_item_id && p.id !== product.id
+        );
+        familyProducts = [product, ...siblingCandidates];
       }
     }
 
-    // 3. Fetch real daily sales for the specified period from Supabase order_items
+    // 2. Fetch real visits from Mercado Libre for all family products in parallel
+    const visitsPromises = familyProducts.map(async (p) => {
+      if (!p.meli_item_id) return { productId: p.id, visitsData: null };
+      try {
+        const visitsData = await meliFetch({
+          tenantId: profile.tenant_id,
+          endpoint: `/items/${p.meli_item_id}/visits/time_window?last=${daysCount}&unit=day`
+        });
+        return { productId: p.id, visitsData };
+      } catch (err: any) {
+        console.error(`Error fetching ML visits for product ${p.meli_item_id}:`, err.message);
+        return { productId: p.id, visitsData: null };
+      }
+    });
+
+    const visitsResults = await Promise.all(visitsPromises);
+    const visitsMap: Record<string, Record<string, number>> = {}; // productId -> dateStr -> visits
+    const totalVisitsMap: Record<string, number> = {};
+
+    visitsResults.forEach(({ productId, visitsData }) => {
+      visitsMap[productId] = {};
+      let total = 0;
+      if (visitsData && visitsData.results) {
+        visitsData.results.forEach((v: any) => {
+          const dateStr = new Date(v.date).toISOString().split("T")[0];
+          const val = v.total || v.quantity || 0;
+          visitsMap[productId][dateStr] = val;
+          total += val;
+        });
+      }
+      totalVisitsMap[productId] = total;
+    });
+
+    // 3. Fetch real daily sales for the specified period from Supabase order_items for all family products
     const filterDate = new Date();
     filterDate.setDate(filterDate.getDate() - daysCount);
 
+    const familyProductIds = familyProducts.map(p => p.id);
     const { data: orderItems, error: itemsError } = await supabase
       .from("order_items")
       .select(`
+        product_id,
         quantity,
         orders (
           date_created
         )
       `)
-      .eq("product_id", id)
+      .in("product_id", familyProductIds)
       .eq("tenant_id", profile.tenant_id);
 
-    // Group real sales by day of week
-    const salesByDay: Record<string, number> = {};
+    const salesMap: Record<string, Record<string, number>> = {}; // productId -> dateStr -> sales
+    const totalSalesMap: Record<string, number> = {};
+
+    familyProductIds.forEach(pid => {
+      salesMap[pid] = {};
+      totalSalesMap[pid] = 0;
+    });
+
     if (!itemsError && orderItems) {
       orderItems.forEach((item: any) => {
-        if (!item.orders?.date_created) return;
+        if (!item.orders?.date_created || !item.product_id) return;
         const orderDate = new Date(item.orders.date_created);
         if (orderDate >= filterDate) {
           const dateStr = orderDate.toISOString().split("T")[0];
-          salesByDay[dateStr] = (salesByDay[dateStr] || 0) + (item.quantity || 0);
+          salesMap[item.product_id][dateStr] = (salesMap[item.product_id][dateStr] || 0) + (item.quantity || 0);
+          totalSalesMap[item.product_id] = (totalSalesMap[item.product_id] || 0) + (item.quantity || 0);
         }
       });
     }
 
-    // 4. Map visits and sales into the specified period structure
+    // 4. Map visits and sales into the specified period structure for the main product chart
     const days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
     const today = new Date();
     const chartData = [];
-    let totalVisits = 0;
-    let totalSales = 0;
 
-    // Process Mercado Libre visits mapping
-    const visitsByDay: Record<string, number> = {};
-    if (meliVisitsData && meliVisitsData.results) {
-      meliVisitsData.results.forEach((v: any) => {
-        const dateStr = new Date(v.date).toISOString().split("T")[0];
-        visitsByDay[dateStr] = v.total || v.quantity || 0;
-      });
-    }
+    const mainProductVisitsMap = visitsMap[id] || {};
+    const mainProductSalesMap = salesMap[id] || {};
 
     for (let i = daysCount - 1; i >= 0; i--) {
       const d = new Date(today);
@@ -107,13 +153,10 @@ export async function GET(
         ? days[d.getDay()] 
         : d.toLocaleDateString("es-ES", { day: "numeric", month: "numeric" });
 
-      const dayVisits = visitsByDay[dateStr] !== undefined 
-        ? visitsByDay[dateStr] 
+      const dayVisits = mainProductVisitsMap[dateStr] !== undefined 
+        ? mainProductVisitsMap[dateStr] 
         : 0; 
-      const daySales = salesByDay[dateStr] || 0;
-
-      totalVisits += dayVisits;
-      totalSales += daySales;
+      const daySales = mainProductSalesMap[dateStr] || 0;
 
       chartData.push({
         name: dayName,
@@ -122,17 +165,44 @@ export async function GET(
       });
     }
 
-    // 5. Calculate real conversion rate
-    const conversionRate = totalVisits > 0 
-      ? ((totalSales / totalVisits) * 100).toFixed(2) 
+    // 5. Calculate stats for each family product
+    const siblingStats = familyProducts.map(p => {
+      const pVisits = totalVisitsMap[p.id] || 0;
+      const pSales = totalSalesMap[p.id] || 0;
+      const pConversion = pVisits > 0 
+        ? ((pSales / pVisits) * 100).toFixed(2) 
+        : "0.00";
+
+      return {
+        id: p.id,
+        title: p.title,
+        sku: p.sku,
+        meli_item_id: p.meli_item_id,
+        listing_type_id: p.listing_type_id,
+        status: p.status,
+        price: p.price,
+        permalink: p.permalink,
+        thumbnail_url: p.thumbnail_url,
+        visits: pVisits,
+        sales: pSales,
+        conversionRate: pConversion,
+        isCurrent: p.id === id
+      };
+    });
+
+    const mainTotalVisits = totalVisitsMap[id] || 0;
+    const mainTotalSales = totalSalesMap[id] || 0;
+    const mainConversionRate = mainTotalVisits > 0 
+      ? ((mainTotalSales / mainTotalVisits) * 100).toFixed(2) 
       : "0.00";
 
     return NextResponse.json({
       success: true,
-      totalVisits,
-      totalSales,
-      conversionRate,
-      chartData
+      totalVisits: mainTotalVisits,
+      totalSales: mainTotalSales,
+      conversionRate: mainConversionRate,
+      chartData,
+      siblingStats
     });
   } catch (error: any) {
     console.error("Error in product stats route:", error);

@@ -40,6 +40,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
   const [realStats, setRealStats] = useState<any | null>(null);
   const [isFetchingStats, setIsFetchingStats] = useState(false);
   const [selectedDays, setSelectedDays] = useState<string>("7");
+  const [refreshStatsTrigger, setRefreshStatsTrigger] = useState(0);
   
   useEffect(() => {
     if (product && isOpen) {
@@ -75,7 +76,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
           setIsFetchingStats(false);
         });
     }
-  }, [product, isOpen, activeTab, selectedDays]);
+  }, [product, isOpen, activeTab, selectedDays, refreshStatsTrigger]);
   
   // States for actions
   const [isProcessing, setIsProcessing] = useState(false);
@@ -283,15 +284,19 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
     setIsProcessing(false);
   };
 
-  const handlePrepareStatus = async (status: 'paused' | 'active') => {
+  const handlePrepareSiblingStatus = async (targetProduct: any, status: 'paused' | 'active') => {
     setIsProcessing(true);
-    const res = await prepareStatusChangeAction(product.id, product.sku, product.title, status);
+    const res = await prepareStatusChangeAction(targetProduct.id, targetProduct.sku, targetProduct.title, status);
     if (res.error) {
       alert(res.error);
     } else {
       setPendingAction(res);
     }
     setIsProcessing(false);
+  };
+
+  const handlePrepareStatus = async (status: 'paused' | 'active') => {
+    await handlePrepareSiblingStatus(product, status);
   };
 
   const handleUpdateCost = async () => {
@@ -319,6 +324,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
       alert(res.message || "Acción ejecutada correctamente en Mercado Libre");
       setPendingAction(null);
       onSuccess();
+      setRefreshStatsTrigger(prev => prev + 1);
     } else {
       alert(res.error || "Error al confirmar");
     }
@@ -557,6 +563,153 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                     </div>
                   </CardContent>
                 </Card>
+
+                {realStats && realStats.siblingStats && realStats.siblingStats.length > 1 && (
+                  <Card className="border border-slate-100 shadow-sm bg-white dark:bg-slate-950 overflow-hidden">
+                    <CardHeader className="pb-2 bg-gradient-to-r from-indigo-50/50 to-purple-50/50 dark:from-indigo-950/20 dark:to-purple-950/20">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <CardTitle className="text-base font-bold flex items-center gap-2">
+                            <Copy className="w-4 h-4 text-indigo-650 dark:text-indigo-400" /> Comparativa de Publicaciones Hermanas
+                          </CardTitle>
+                          <CardDescription>
+                            Compará el rendimiento del mismo SKU (<strong>{product.sku}</strong>) en sus distintas variantes de publicación para optimizar tu catálogo.
+                          </CardDescription>
+                        </div>
+                        <Badge variant="outline" className="bg-indigo-50/50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-semibold shrink-0">
+                          {realStats.siblingStats.length} Publicaciones
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="border-b bg-muted/40 text-muted-foreground text-xs font-semibold">
+                              <th className="px-4 py-3 min-w-[200px]">Publicación</th>
+                              <th className="px-4 py-3 text-right">Precio</th>
+                              <th className="px-4 py-3 text-right">Visitas</th>
+                              <th className="px-4 py-3 text-right">Ventas</th>
+                              <th className="px-4 py-3 text-right">Conversión</th>
+                              <th className="px-4 py-3 text-center">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {realStats.siblingStats.map((sibling: any) => {
+                              const isClasica = sibling.listing_type_id === 'gold_special';
+                              const isPremium = sibling.listing_type_id === 'gold_pro';
+                              const listingLabel = isClasica ? 'Clásica' : isPremium ? 'Premium' : sibling.listing_type_id;
+
+                              return (
+                                <tr 
+                                  key={sibling.id} 
+                                  className={`text-sm hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors ${sibling.isCurrent ? 'bg-indigo-50/10 dark:bg-indigo-950/5 border-l-2 border-l-indigo-650' : ''}`}
+                                >
+                                  <td className="px-4 py-3">
+                                    <div className="flex gap-3 items-center">
+                                      {sibling.thumbnail_url ? (
+                                        <img src={sibling.thumbnail_url} alt="" className="w-9 h-9 rounded object-cover border shrink-0" />
+                                      ) : (
+                                        <div className="w-9 h-9 rounded bg-muted shrink-0" />
+                                      )}
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <p className="font-semibold text-slate-900 dark:text-slate-100 truncate max-w-[180px]" title={sibling.title}>
+                                            {sibling.title}
+                                          </p>
+                                          {sibling.isCurrent && (
+                                            <Badge className="bg-indigo-600 text-white text-[9px] px-1 py-0.5 rounded shadow-none hover:bg-indigo-650 shrink-0">
+                                              Actual
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground flex-wrap">
+                                          <Badge 
+                                            variant="secondary" 
+                                            className={`text-[9px] px-1 py-0 rounded font-bold uppercase ${
+                                              isPremium 
+                                                ? 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900' 
+                                                : 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-350 dark:border-slate-700'
+                                            }`}
+                                          >
+                                            {listingLabel}
+                                          </Badge>
+                                          <span className="font-mono text-[10px]">{sibling.meli_item_id}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-medium text-slate-800 dark:text-slate-200">
+                                    ${sibling.price?.toLocaleString()}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-semibold text-indigo-600 dark:text-indigo-400">
+                                    <span className="flex items-center justify-end gap-1 text-xs">
+                                      <Eye className="w-3.5 h-3.5 text-indigo-400" />
+                                      {sibling.visits.toLocaleString()}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                                    <span className="flex items-center justify-end gap-1 text-xs">
+                                      <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+                                      {sibling.sales.toLocaleString()}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-medium">
+                                    <span className="flex items-center justify-end gap-1 text-xs text-slate-650 dark:text-slate-350">
+                                      <Percent className="w-3.5 h-3.5 text-amber-500" />
+                                      {sibling.conversionRate}%
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <a 
+                                        href={sibling.permalink} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="inline-flex items-center justify-center rounded-md text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-7 w-7 p-0"
+                                        title="Ver publicación en Mercado Libre"
+                                      >
+                                        <ExternalLink className="w-3.5 h-3.5" />
+                                      </a>
+                                      {sibling.status === 'active' ? (
+                                        <Button 
+                                          variant="outline" 
+                                          className="h-7 px-2 text-xs border-red-200 text-red-600 hover:bg-red-50 hover:text-red-750 dark:border-red-950 dark:text-red-400 dark:hover:bg-red-950/30"
+                                          onClick={() => handlePrepareSiblingStatus(sibling, 'paused')} 
+                                          disabled={isProcessing || pendingAction !== null}
+                                          title="Pausar publicación"
+                                        >
+                                          <PauseCircle className="w-3.5 h-3.5 mr-1 shrink-0" /> Pausar
+                                        </Button>
+                                      ) : (
+                                        <Button 
+                                          variant="outline" 
+                                          className="h-7 px-2 text-xs border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-950 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                                          onClick={() => handlePrepareSiblingStatus(sibling, 'active')} 
+                                          disabled={isProcessing || pendingAction !== null}
+                                          title="Reactivar publicación"
+                                        >
+                                          <PlayCircle className="w-3.5 h-3.5 mr-1 shrink-0" /> Reactivar
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      
+                      <div className="bg-slate-50 dark:bg-slate-900/60 p-3 text-xs text-muted-foreground border-t flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                        <p>
+                          <strong>Consejo de optimización:</strong> Si identificás una publicación con alto número de cuotas (Premium) que no tiene ventas ni visitas frente a su hermana Clásica (o viceversa), podés pausarla desde acá para limpiar y enfocar tu catálogo.
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Sub-panels Grid (Rentabilidad & Promociones) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
