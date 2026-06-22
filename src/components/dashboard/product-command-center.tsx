@@ -384,7 +384,7 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full sm:w-[600px] sm:max-w-2xl overflow-hidden flex flex-col p-0">
+      <SheetContent className="w-full sm:max-w-[700px] md:max-w-[850px] lg:max-w-[1000px] xl:max-w-[1150px] overflow-hidden flex flex-col p-0">
         <SheetHeader className="p-4 md:p-6 pb-2">
           <div className="flex justify-between items-start gap-4">
             <div className="min-w-0">
@@ -582,16 +582,16 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                       </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                      <div className="overflow-x-auto w-full">
+                        <table className="w-full text-left border-collapse min-w-[600px] md:min-w-full">
                           <thead>
-                            <tr className="border-b bg-muted/40 text-muted-foreground text-xs font-semibold">
-                              <th className="px-4 py-3 min-w-[200px]">Publicación</th>
-                              <th className="px-4 py-3 text-right">Precio</th>
-                              <th className="px-4 py-3 text-right">Visitas</th>
-                              <th className="px-4 py-3 text-right">Ventas</th>
-                              <th className="px-4 py-3 text-right">Conversión</th>
-                              <th className="px-4 py-3 text-center">Acciones</th>
+                            <tr className="border-b bg-muted/40 text-muted-foreground text-xs font-semibold whitespace-nowrap">
+                              <th className="px-2 md:px-4 py-3 min-w-[150px] md:min-w-[200px]">Publicación</th>
+                              <th className="px-2 md:px-4 py-3 text-right">Precio</th>
+                              <th className="px-2 md:px-4 py-3 text-right">Visitas</th>
+                              <th className="px-2 md:px-4 py-3 text-right">Ventas</th>
+                              <th className="px-2 md:px-4 py-3 text-right">Conversión</th>
+                              <th className="px-2 md:px-4 py-3 text-center">Acciones</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -605,16 +605,16 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                                   key={sibling.id} 
                                   className={`text-sm hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors ${sibling.isCurrent ? 'bg-indigo-50/10 dark:bg-indigo-950/5 border-l-2 border-l-indigo-650' : ''}`}
                                 >
-                                  <td className="px-4 py-3">
-                                    <div className="flex gap-3 items-center">
+                                  <td className="px-2 md:px-4 py-3">
+                                    <div className="flex gap-2 md:gap-3 items-center">
                                       {sibling.thumbnail_url ? (
-                                        <img src={sibling.thumbnail_url} alt="" className="w-9 h-9 rounded object-cover border shrink-0" />
+                                        <img src={sibling.thumbnail_url} alt="" className="w-8 h-8 md:w-9 md:h-9 rounded object-cover border shrink-0" />
                                       ) : (
-                                        <div className="w-9 h-9 rounded bg-muted shrink-0" />
+                                        <div className="w-8 h-8 md:w-9 md:h-9 rounded bg-muted shrink-0" />
                                       )}
                                       <div className="min-w-0">
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                          <p className="font-semibold text-slate-900 dark:text-slate-100 truncate max-w-[180px]" title={sibling.title}>
+                                        <div className="flex items-center gap-1 flex-wrap">
+                                          <p className="font-semibold text-slate-900 dark:text-slate-100 truncate max-w-[120px] sm:max-w-[180px]" title={sibling.title}>
                                             {sibling.title}
                                           </p>
                                           {sibling.isCurrent && (
@@ -623,10 +623,10 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                                             </Badge>
                                           )}
                                         </div>
-                                        <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground flex-wrap">
+                                        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground flex-wrap">
                                           <Badge 
                                             variant="secondary" 
-                                            className={`text-[9px] px-1 py-0 rounded font-bold uppercase ${
+                                            className={`text-[8px] px-1 py-0 rounded font-bold uppercase ${
                                               isPremium 
                                                 ? 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900' 
                                                 : 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-350 dark:border-slate-700'
@@ -634,39 +634,39 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                                           >
                                             {listingLabel}
                                           </Badge>
-                                          <span className="font-mono text-[10px]">{sibling.meli_item_id}</span>
+                                          <span className="font-mono text-[9px]">{sibling.meli_item_id}</span>
                                         </div>
                                       </div>
                                     </div>
                                   </td>
-                                  <td className="px-4 py-3 text-right font-medium text-slate-800 dark:text-slate-200">
+                                  <td className="px-2 md:px-4 py-3 text-right font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">
                                     ${sibling.price?.toLocaleString()}
                                   </td>
-                                  <td className="px-4 py-3 text-right font-semibold text-indigo-600 dark:text-indigo-400">
-                                    <span className="flex items-center justify-end gap-1 text-xs">
+                                  <td className="px-2 md:px-4 py-3 text-right font-semibold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                                    <span className="flex items-center justify-end gap-1 text-xs whitespace-nowrap">
                                       <Eye className="w-3.5 h-3.5 text-indigo-400" />
                                       {sibling.visits.toLocaleString()}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">
-                                    <span className="flex items-center justify-end gap-1 text-xs">
+                                  <td className="px-2 md:px-4 py-3 text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                                    <span className="flex items-center justify-end gap-1 text-xs whitespace-nowrap">
                                       <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
                                       {sibling.sales.toLocaleString()}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3 text-right font-medium">
-                                    <span className="flex items-center justify-end gap-1 text-xs text-slate-650 dark:text-slate-350">
+                                  <td className="px-2 md:px-4 py-3 text-right font-medium whitespace-nowrap">
+                                    <span className="flex items-center justify-end gap-1 text-xs text-slate-650 dark:text-slate-350 whitespace-nowrap">
                                       <Percent className="w-3.5 h-3.5 text-amber-500" />
                                       {sibling.conversionRate}%
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3 text-center">
-                                    <div className="flex items-center justify-center gap-1.5">
+                                  <td className="px-2 md:px-4 py-3 text-center whitespace-nowrap">
+                                    <div className="flex items-center justify-center gap-1 whitespace-nowrap">
                                       <a 
                                         href={sibling.permalink} 
                                         target="_blank" 
                                         rel="noopener noreferrer" 
-                                        className="inline-flex items-center justify-center rounded-md text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-7 w-7 p-0"
+                                        className="inline-flex items-center justify-center rounded-md text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-7 w-7 p-0 shrink-0"
                                         title="Ver publicación en Mercado Libre"
                                       >
                                         <ExternalLink className="w-3.5 h-3.5" />
@@ -674,22 +674,22 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                                       {sibling.status === 'active' ? (
                                         <Button 
                                           variant="outline" 
-                                          className="h-7 px-2 text-xs border-red-200 text-red-600 hover:bg-red-50 hover:text-red-750 dark:border-red-950 dark:text-red-400 dark:hover:bg-red-950/30"
+                                          className="h-7 px-1.5 md:px-2 text-xs border-red-200 text-red-600 hover:bg-red-50 hover:text-red-750 dark:border-red-950 dark:text-red-400 dark:hover:bg-red-950/30 shrink-0"
                                           onClick={() => handlePrepareSiblingStatus(sibling, 'paused')} 
                                           disabled={isProcessing || pendingAction !== null}
                                           title="Pausar publicación"
                                         >
-                                          <PauseCircle className="w-3.5 h-3.5 mr-1 shrink-0" /> Pausar
+                                          <PauseCircle className="w-3.5 h-3.5 mr-0.5 md:mr-1 shrink-0" /> Pausar
                                         </Button>
                                       ) : (
                                         <Button 
                                           variant="outline" 
-                                          className="h-7 px-2 text-xs border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-950 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                                          className="h-7 px-1.5 md:px-2 text-xs border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-950 dark:text-emerald-450 dark:hover:bg-emerald-950/30 shrink-0"
                                           onClick={() => handlePrepareSiblingStatus(sibling, 'active')} 
                                           disabled={isProcessing || pendingAction !== null}
                                           title="Reactivar publicación"
                                         >
-                                          <PlayCircle className="w-3.5 h-3.5 mr-1 shrink-0" /> Reactivar
+                                          <PlayCircle className="w-3.5 h-3.5 mr-0.5 md:mr-1 shrink-0" /> Reactivar
                                         </Button>
                                       )}
                                     </div>
