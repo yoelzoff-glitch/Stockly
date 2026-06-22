@@ -1,0 +1,608 @@
+// src/app/dashboard/accounting/client-page.tsx
+"use client";
+
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { 
+  Calculator, 
+  Plus, 
+  Edit3, 
+  Trash2, 
+  PiggyBank, 
+  Percent, 
+  Calendar, 
+  DollarSign, 
+  HelpCircle, 
+  Power, 
+  BadgeInfo, 
+  TrendingUp,
+  RefreshCw
+} from "lucide-react";
+import { 
+  createMonthlyExpense, 
+  updateMonthlyExpense, 
+  deleteMonthlyExpense, 
+  MonthlyExpense 
+} from "./actions";
+
+export function AccountingClient({ initialExpenses }: { initialExpenses: MonthlyExpense[] }) {
+  const [expenses, setExpenses] = useState<MonthlyExpense[]>(initialExpenses);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Simulation state
+  const [simulatedRevenue, setSimulatedRevenue] = useState("1000000");
+
+  // Create Modal state
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState<"fixed_recurring" | "fixed_one_off" | "percent_variable">("fixed_recurring");
+  const [newAmount, setNewAmount] = useState("");
+  const [newPercentage, setNewPercentage] = useState("");
+  const [newTargetMonth, setNewTargetMonth] = useState(() => {
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}`;
+  });
+
+  // Edit Modal state
+  const [editingExpense, setEditingExpense] = useState<MonthlyExpense | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editType, setEditType] = useState<"fixed_recurring" | "fixed_one_off" | "percent_variable">("fixed_recurring");
+  const [editAmount, setEditAmount] = useState("");
+  const [editPercentage, setEditPercentage] = useState("");
+  const [editTargetMonth, setEditTargetMonth] = useState("");
+
+  const currentYearMonth = (() => {
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}`;
+  })();
+
+  // Calculations
+  const activeExpenses = expenses.filter(e => e.is_active);
+
+  const totalFixedRecurring = activeExpenses
+    .filter(e => e.type === "fixed_recurring")
+    .reduce((sum, e) => sum + Number(e.amount), 0);
+
+  const totalPercentVariable = activeExpenses
+    .filter(e => e.type === "percent_variable")
+    .reduce((sum, e) => sum + Number(e.percentage), 0);
+
+  const totalTemporalThisMonth = activeExpenses
+    .filter(e => {
+      if (e.type !== "fixed_one_off" || !e.target_month) return false;
+      return e.target_month.startsWith(currentYearMonth);
+    })
+    .reduce((sum, e) => sum + Number(e.amount), 0);
+
+  // Simulation math
+  const rev = parseFloat(simulatedRevenue) || 0;
+  const simFixedRecurring = totalFixedRecurring;
+  const simTemporal = totalTemporalThisMonth;
+  const simVariable = (totalPercentVariable * rev) / 100;
+  const totalSimExpenses = simFixedRecurring + simTemporal + simVariable;
+  const cleanPocket = Math.max(0, rev - totalSimExpenses);
+  const pocketPercentage = rev > 0 ? (cleanPocket / rev) * 100 : 0;
+
+  // Handlers
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setIsProcessing(true);
+
+    try {
+      const formattedMonth = newType === "fixed_one_off" ? `${newTargetMonth}-01` : null;
+      const res = await createMonthlyExpense({
+        name: newName.trim(),
+        type: newType,
+        amount: newType === "percent_variable" ? 0 : parseFloat(newAmount) || 0,
+        percentage: newType === "percent_variable" ? parseFloat(newPercentage) || 0 : 0,
+        target_month: formattedMonth
+      });
+
+      if (res.success && res.data) {
+        setExpenses(prev => [res.data as MonthlyExpense, ...prev]);
+        setIsCreateOpen(false);
+        // Reset
+        setNewName("");
+        setNewType("fixed_recurring");
+        setNewAmount("");
+        setNewPercentage("");
+      } else {
+        alert("Error creando gasto: " + res.error);
+      }
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleOpenEdit = (expense: MonthlyExpense) => {
+    setEditingExpense(expense);
+    setEditName(expense.name);
+    setEditType(expense.type);
+    setEditAmount((expense.amount || "").toString());
+    setEditPercentage((expense.percentage || "").toString());
+    
+    if (expense.target_month) {
+      setEditTargetMonth(expense.target_month.substring(0, 7)); // YYYY-MM
+    } else {
+      const d = new Date();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      setEditTargetMonth(`${d.getFullYear()}-${mm}`);
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingExpense || !editName.trim()) return;
+    setIsProcessing(true);
+
+    try {
+      const formattedMonth = editType === "fixed_one_off" ? `${editTargetMonth}-01` : null;
+      const res = await updateMonthlyExpense(editingExpense.id, {
+        name: editName.trim(),
+        type: editType,
+        amount: editType === "percent_variable" ? 0 : parseFloat(editAmount) || 0,
+        percentage: editType === "percent_variable" ? parseFloat(editPercentage) || 0 : 0,
+        target_month: formattedMonth
+      });
+
+      if (res.success && res.data) {
+        setExpenses(prev => prev.map(item => item.id === editingExpense.id ? (res.data as MonthlyExpense) : item));
+        setEditingExpense(null);
+      } else {
+        alert("Error actualizando gasto: " + res.error);
+      }
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleToggleActive = async (expense: MonthlyExpense) => {
+    setIsProcessing(true);
+    try {
+      const nextStatus = !expense.is_active;
+      const res = await updateMonthlyExpense(expense.id, { is_active: nextStatus });
+      if (res.success && res.data) {
+        setExpenses(prev => prev.map(item => item.id === expense.id ? (res.data as MonthlyExpense) : item));
+      } else {
+        alert("Error cambiando estado: " + res.error);
+      }
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDelete = async (expense: MonthlyExpense) => {
+    if (!confirm(`¿Estás seguro de que deseas eliminar el gasto "${expense.name}"?`)) return;
+    setIsProcessing(true);
+    try {
+      const res = await deleteMonthlyExpense(expense.id);
+      if (res.success) {
+        setExpenses(prev => prev.filter(item => item.id !== expense.id));
+      } else {
+        alert("Error eliminando gasto: " + res.error);
+      }
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const formatTargetMonth = (monthStr: string | null) => {
+    if (!monthStr) return "-";
+    try {
+      const parts = monthStr.split("-");
+      const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
+      return date.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+    } catch {
+      return monthStr;
+    }
+  };
+
+  return (
+    <div className="flex-1 space-y-4 p-8 pt-6">
+      {/* Header */}
+      <div className="flex items-center justify-between space-y-2">
+        <div className="space-y-1">
+          <h2 className="text-3xl font-bold tracking-tight">Contabilidad</h2>
+          <p className="text-sm text-muted-foreground">
+            Administra tus costos de estructura mensuales, impuestos locales (IIBB, Monotributo) y presupuestos de marketing.
+          </p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button onClick={() => setIsCreateOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+            <Plus className="mr-2 h-4 w-4" />
+            Agregar Gasto
+          </Button>
+        </div>
+      </div>
+
+      {/* Analytics Summary */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Gastos Fijos Recurrentes</CardTitle>
+            <DollarSign className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${totalFixedRecurring.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <p className="text-xs text-muted-foreground mt-1">Estructura fija mensual constante</p>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Impuestos / Variables</CardTitle>
+            <Percent className="h-4 w-4 text-indigo-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalPercentVariable.toFixed(1)}%</div>
+            <p className="text-xs text-muted-foreground mt-1">Suma de alícuotas (ej: IIBB 3.0%)</p>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Gastos Temporales (Mes)</CardTitle>
+            <Calendar className="h-4 w-4 text-amber-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${totalTemporalThisMonth.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <p className="text-xs text-muted-foreground mt-1">Vencen al finalizar el mes en curso</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Interactive Simulation Dashboard & Expenses List Layout */}
+      <div className="grid gap-6 md:grid-cols-3">
+        {/* Left 2 columns: Expenses List */}
+        <div className="md:col-span-2 space-y-6">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Listado de Gastos Registrados</CardTitle>
+              <CardDescription>Visualiza, edita o desactiva los gastos cargados en el sistema.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {expenses.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground text-sm flex flex-col items-center justify-center space-y-3">
+                  <BadgeInfo className="w-8 h-8 text-slate-350" />
+                  <p>No tienes ningún gasto registrado. Comienza agregando uno arriba.</p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="border-b bg-slate-50 font-medium text-slate-600">
+                      <tr>
+                        <th className="p-3">Nombre</th>
+                        <th className="p-3">Tipo de Gasto</th>
+                        <th className="p-3 text-right">Valor</th>
+                        <th className="p-3">Vigencia / Vence</th>
+                        <th className="p-3 text-center">Estado</th>
+                        <th className="p-3 text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {expenses.map((expense) => {
+                        return (
+                          <tr key={expense.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                            <td className="p-3 font-semibold text-slate-800">{expense.name}</td>
+                            <td className="p-3 font-medium text-slate-650">
+                              {expense.type === "fixed_recurring" && (
+                                <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-50">Fijo Recurrente</Badge>
+                              )}
+                              {expense.type === "fixed_one_off" && (
+                                <Badge variant="secondary" className="bg-amber-50 text-amber-700 hover:bg-amber-50">Fijo Temporal</Badge>
+                              )}
+                              {expense.type === "percent_variable" && (
+                                <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50">Porcentual Variable</Badge>
+                              )}
+                            </td>
+                            <td className="p-3 text-right font-bold text-slate-900">
+                              {expense.type === "percent_variable" 
+                                ? `${expense.percentage}%` 
+                                : `$${Number(expense.amount).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              }
+                            </td>
+                            <td className="p-3 text-muted-foreground capitalize">
+                              {expense.type === "fixed_one_off" 
+                                ? formatTargetMonth(expense.target_month) 
+                                : <span className="text-slate-400">Siempre activo</span>
+                              }
+                            </td>
+                            <td className="p-3 text-center">
+                              <Badge 
+                                onClick={() => handleToggleActive(expense)}
+                                className={`cursor-pointer transition-all ${
+                                  expense.is_active 
+                                    ? "bg-green-100 text-green-800 hover:bg-green-200" 
+                                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                }`}
+                              >
+                                {expense.is_active ? "Activo" : "Inactivo"}
+                              </Badge>
+                            </td>
+                            <td className="p-3 text-right space-x-1 whitespace-nowrap">
+                              <Button variant="outline" size="sm" className="text-[10px] px-2 py-0.5 h-7" onClick={() => handleOpenEdit(expense)}>
+                                <Edit3 className="w-3.5 h-3.5 mr-1 inline" /> Editar
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-[10px] px-2 py-0.5 h-7 text-red-650 hover:text-red-800 hover:bg-red-50" onClick={() => handleDelete(expense)} disabled={isProcessing}>
+                                <Trash2 className="w-3.5 h-3.5 mr-1 inline" /> Eliminar
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right 1 column: Simulation Widget */}
+        <div className="space-y-6">
+          <Card className="shadow-sm border-indigo-100 bg-gradient-to-br from-white to-slate-50/50">
+            <CardHeader className="pb-3 border-b">
+              <CardTitle className="flex items-center gap-1.5 text-indigo-850">
+                <Calculator className="w-5 h-5 text-indigo-600" /> Simulador de Caja Neta
+              </CardTitle>
+              <CardDescription>Estimación rápida de tu ganancia de bolsillo limpia en base a la facturación simulada.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <Label className="text-slate-700 font-semibold">Facturación Mensual Estimada ($)</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">$</span>
+                  <Input
+                    type="number"
+                    value={simulatedRevenue}
+                    onChange={(e) => setSimulatedRevenue(e.target.value)}
+                    className="pl-7 font-bold text-slate-800"
+                    placeholder="Ej: 1500000"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2.5 pt-2 border-t border-slate-100">
+                <h4 className="font-semibold text-slate-650 text-[11px] uppercase tracking-wider">Desglose de Deducciones</h4>
+                
+                <div className="flex justify-between items-center text-slate-700">
+                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Gastos Fijos</span>
+                  <span className="font-medium">-${simFixedRecurring.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
+                </div>
+
+                <div className="flex justify-between items-center text-slate-700">
+                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Gastos Temporales</span>
+                  <span className="font-medium">-${simTemporal.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
+                </div>
+
+                <div className="flex justify-between items-center text-slate-700">
+                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Variables ({totalPercentVariable.toFixed(1)}%)</span>
+                  <span className="font-medium">-${simVariable.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex flex-col space-y-2">
+                <div className="flex justify-between items-end">
+                  <span className="text-slate-500 font-medium">Bolsillo Limpio Estimado</span>
+                  <span className="text-xl font-bold text-emerald-600">
+                    ${cleanPocket.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                {/* Progress bar showing remaining % */}
+                <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden mt-1">
+                  <div 
+                    className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
+                    style={{ width: `${Math.min(100, pocketPercentage)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>Margen de Caja Neto</span>
+                  <span className="font-bold text-slate-700">{pocketPercentage.toFixed(1)}%</span>
+                </div>
+              </div>
+
+              <div className="bg-indigo-50/50 border border-indigo-100 rounded-lg p-3 text-[11px] text-indigo-800 space-y-1">
+                <p className="font-semibold flex items-center gap-1">
+                  <BadgeInfo className="w-3.5 h-3.5" /> ¿Cómo funciona esto?
+                </p>
+                <p className="text-indigo-900/80 leading-relaxed">
+                  Este simulador resta tus gastos fijos recurrentes y de marketing, y calcula en tiempo real los costos variables (ej. IIBB) en base a la facturación ingresada.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Add Modal */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-1.5">
+              <Plus className="w-5 h-5 text-indigo-600" /> Registrar Nuevo Gasto
+            </DialogTitle>
+            <DialogDescription>
+              Carga un costo mensual permanente, de marketing o impositivo.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateSubmit} className="space-y-4 text-xs">
+            <div className="space-y-1">
+              <Label>Concepto / Nombre del Gasto</Label>
+              <Input
+                placeholder="Ej. Alquiler de Depósito, IIBB, Monotributo, Google Ads"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label>Tipo de Gasto</Label>
+              <select
+                value={newType}
+                onChange={(e) => setNewType(e.target.value as any)}
+                className="w-full h-9 rounded-md border border-slate-200 px-3 bg-white text-xs"
+              >
+                <option value="fixed_recurring">Fijo Recurrente (Ej. Sueldos, Alquiler)</option>
+                <option value="fixed_one_off">Fijo Temporal (Ej. Publicidad del mes, Roturas)</option>
+                <option value="percent_variable">Porcentual Variable (Ej. IIBB % facturación)</option>
+              </select>
+            </div>
+
+            {newType !== "percent_variable" ? (
+              <div className="space-y-1">
+                <Label>Monto Mensual ($)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="Ej. 120000"
+                  value={newAmount}
+                  onChange={(e) => setNewAmount(e.target.value)}
+                  required
+                />
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <Label>Porcentaje sobre Facturación Bruta (%)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="Ej. 3.0"
+                  value={newPercentage}
+                  onChange={(e) => setNewPercentage(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
+            {newType === "fixed_one_off" && (
+              <div className="space-y-1">
+                <Label>Mes de Aplicación</Label>
+                <Input
+                  type="month"
+                  value={newTargetMonth}
+                  onChange={(e) => setNewTargetMonth(e.target.value)}
+                  required
+                />
+                <p className="text-[10px] text-muted-foreground">Este gasto vencerá automáticamente al terminar este mes.</p>
+              </div>
+            )}
+
+            <DialogFooter className="pt-2 border-t">
+              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)} disabled={isProcessing}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isProcessing} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                {isProcessing ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : "Guardar Gasto"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Modal */}
+      {editingExpense && (
+        <Dialog open={editingExpense !== null} onOpenChange={(open) => !open && setEditingExpense(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-1.5">
+                <Edit3 className="w-5 h-5 text-indigo-600" /> Editar Gasto
+              </DialogTitle>
+              <DialogDescription>
+                Modifica los atributos del gasto "{editingExpense.name}".
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleEditSubmit} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <Label>Concepto / Nombre del Gasto</Label>
+                <Input
+                  placeholder="Ej. Alquiler de Depósito"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Tipo de Gasto</Label>
+                <select
+                  value={editType}
+                  onChange={(e) => setEditType(e.target.value as any)}
+                  className="w-full h-9 rounded-md border border-slate-200 px-3 bg-white text-xs"
+                >
+                  <option value="fixed_recurring">Fijo Recurrente (Ej. Sueldos, Alquiler)</option>
+                  <option value="fixed_one_off">Fijo Temporal (Ej. Publicidad del mes)</option>
+                  <option value="percent_variable">Porcentual Variable (Ej. IIBB % facturación)</option>
+                </select>
+              </div>
+
+              {editType !== "percent_variable" ? (
+                <div className="space-y-1">
+                  <Label>Monto Mensual ($)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="Ej. 120000"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(e.target.value)}
+                    required
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <Label>Porcentaje sobre Facturación Bruta (%)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="Ej. 3.0"
+                    value={editPercentage}
+                    onChange={(e) => setEditPercentage(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
+              {editType === "fixed_one_off" && (
+                <div className="space-y-1">
+                  <Label>Mes de Aplicación</Label>
+                  <Input
+                    type="month"
+                    value={editTargetMonth}
+                    onChange={(e) => setEditTargetMonth(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
+              <DialogFooter className="pt-2 border-t">
+                <Button type="button" variant="outline" onClick={() => setEditingExpense(null)} disabled={isProcessing}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={isProcessing} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                  {isProcessing ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : "Guardar Cambios"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}

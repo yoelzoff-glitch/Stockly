@@ -27,6 +27,9 @@ export interface FinancialData {
   costAccuracyPercent: number;
   productAgg: Record<string, ProductFinancialRow>;
   tableData: ProductFinancialRow[];
+  monthlyExpensesTotal: number;
+  gananciaBolsilloLimpia: number;
+  appliedExpensesBreakdown: { name: string; amount: number; type: string }[];
 }
 
 export async function getFinancialData(
@@ -237,6 +240,117 @@ export async function getFinancialData(
   const margenNeto = facturacionBruta > 0 ? (gananciaNeta / facturacionBruta) * 100 : 0;
   const costAccuracyPercent = totalUnitsSold > 0 ? (unitsWithCost / totalUnitsSold) * 100 : 100;
 
+  // 6. Calcular Gastos Mensuales del período
+  let monthlyExpensesTotal = 0;
+  const appliedExpensesBreakdown: { name: string; amount: number; type: string }[] = [];
+
+  try {
+    const { data: expenses } = await supabase
+      .from("monthly_expenses")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true);
+
+    if (expenses && expenses.length > 0) {
+      // Agrupar facturación de órdenes por mes (formato YYYY-MM)
+      const monthlyRevenueMap: Record<string, number> = {};
+      activeOrders.forEach(o => {
+        const orderDate = new Date(o.date_created);
+        const mm = String(orderDate.getUTCMonth() + 1).padStart(2, '0');
+        const key = `${orderDate.getUTCFullYear()}-${mm}`;
+        monthlyRevenueMap[key] = (monthlyRevenueMap[key] || 0) + (Number(o.total_amount) || 0);
+      });
+
+      // Encontrar todos los meses tocados por el rango de fechas [dateFrom, dateTo]
+      const startYear = dateFrom.getUTCFullYear();
+      const startMonth = dateFrom.getUTCMonth();
+      const endYear = dateTo.getUTCFullYear();
+      const endMonth = dateTo.getUTCMonth();
+
+      const monthsTouched: { key: string; proration: number }[] = [];
+      let currYear = startYear;
+      let currMonth = startMonth;
+
+      while (currYear < endYear || (currYear === endYear && currMonth <= endMonth)) {
+        const key = `${currYear}-${String(currMonth + 1).padStart(2, '0')}`;
+        
+        // Días totales del mes
+        const daysInMonth = new Date(currYear, currMonth + 1, 0).getDate();
+
+        // Calcular superposición de días
+        const monthStart = new Date(Date.UTC(currYear, currMonth, 1, 0, 0, 0));
+        const monthEnd = new Date(Date.UTC(currYear, currMonth, daysInMonth, 23, 59, 59, 999));
+
+        const overlapStart = new Date(Math.max(monthStart.getTime(), dateFrom.getTime()));
+        const overlapEnd = new Date(Math.min(monthEnd.getTime(), dateTo.getTime()));
+
+        const overlapMs = Math.max(0, overlapEnd.getTime() - overlapStart.getTime());
+        const daysInRange = overlapMs > 0 ? (overlapMs / (1000 * 60 * 60 * 24)) : 0;
+        
+        const proration = Math.min(1, daysInRange / daysInMonth);
+
+        if (proration > 0) {
+          monthsTouched.push({ key, proration });
+        }
+
+        currMonth++;
+        if (currMonth > 11) {
+          currMonth = 0;
+          currYear++;
+        }
+      }
+
+      // Acumulador para agrupar gastos con el mismo nombre y tipo en el breakdown final
+      const expenseAccumulator: Record<string, { name: string; amount: number; type: string }> = {};
+
+      monthsTouched.forEach(m => {
+        const monthRevenue = monthlyRevenueMap[m.key] || 0;
+
+        expenses.forEach(e => {
+          let appliedAmount = 0;
+
+          if (e.type === "fixed_recurring") {
+            appliedAmount = Number(e.amount) * m.proration;
+          } else if (e.type === "fixed_one_off" && e.target_month) {
+            // Verificar si aplica al mes evaluado
+            if (e.target_month.substring(0, 7) === m.key) {
+              appliedAmount = Number(e.amount) * m.proration;
+            }
+          } else if (e.type === "percent_variable") {
+            // Se calcula directo sobre la facturación del mes
+            appliedAmount = (Number(e.percentage) * monthRevenue) / 100;
+          }
+
+          if (appliedAmount > 0) {
+            monthlyExpensesTotal += appliedAmount;
+
+            const aggKey = `${e.name}-${e.type}`;
+            if (!expenseAccumulator[aggKey]) {
+              expenseAccumulator[aggKey] = {
+                name: e.name,
+                amount: 0,
+                type: e.type
+              };
+            }
+            expenseAccumulator[aggKey].amount += appliedAmount;
+          }
+        });
+      });
+
+      Object.values(expenseAccumulator).forEach(agg => {
+        appliedExpensesBreakdown.push({
+          name: agg.name,
+          amount: Number(agg.amount.toFixed(2)),
+          type: agg.type
+        });
+      });
+    }
+  } catch (err: any) {
+    console.error("Error calculating monthly expenses in getFinancialData:", err.message);
+  }
+
+  const gananciaBolsilloLimpia = Math.max(0, gananciaNeta - monthlyExpensesTotal);
+
   // Calculate net profit and margins for each product row, and sort by revenue descending
   const tableData: ProductFinancialRow[] = Object.values(productAggMap).map(row => {
     const neta = row.revenue - row.cost - row.fee - row.shipping - row.extra;
@@ -262,6 +376,9 @@ export async function getFinancialData(
     unitsWithCost,
     costAccuracyPercent,
     productAgg,
-    tableData
+    tableData,
+    monthlyExpensesTotal: Number(monthlyExpensesTotal.toFixed(2)),
+    gananciaBolsilloLimpia: Number(gananciaBolsilloLimpia.toFixed(2)),
+    appliedExpensesBreakdown
   };
 }

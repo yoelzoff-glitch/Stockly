@@ -38,7 +38,10 @@ export default function FinanceClientPage({
     totalUnitsSold,
     unitsWithCost,
     costAccuracyPercent,
-    tableData
+    tableData,
+    monthlyExpensesTotal,
+    gananciaBolsilloLimpia,
+    appliedExpensesBreakdown
   } = financials;
 
   const impuestos = 0; // default 0 for MVP
@@ -162,29 +165,72 @@ export default function FinanceClientPage({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="col-span-1 lg:col-span-2 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md">
+        {/* Card 1: Ganancia Operativa (Neta) */}
+        <Card className="bg-emerald-50 dark:bg-emerald-950/20 border-emerald-150">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-emerald-100 uppercase tracking-wider">Ganancia Neta Estimada</CardTitle>
+            <CardTitle className="text-xs font-semibold text-emerald-850 dark:text-emerald-300 uppercase tracking-wider">
+              Ganancia Operativa (Neta)
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-bold">${gananciaNeta.toLocaleString("es-AR")}</div>
+            <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+              ${gananciaNeta.toLocaleString("es-AR")}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">Margen operativo: {margenNeto.toFixed(1)}%</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50">
+        {/* Card 2: Gastos de Estructura / Mensuales */}
+        <Card className="relative group">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-emerald-800 dark:text-emerald-200 uppercase tracking-wider">Margen Neto</CardTitle>
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Gastos de Estructura
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{margenNeto.toFixed(1)}%</div>
+            <div className="text-2xl font-bold text-red-500">
+              -${monthlyExpensesTotal.toLocaleString("es-AR")}
+            </div>
+            {appliedExpensesBreakdown.length > 0 ? (
+              <div className="mt-1 space-y-0.5 max-h-[40px] overflow-y-auto pr-1 scrollbar-thin">
+                {appliedExpensesBreakdown.map((exp, idx) => (
+                  <div key={idx} className="text-[9px] text-slate-500 flex justify-between">
+                    <span className="truncate max-w-[90px]">{exp.name}</span>
+                    <span>-${exp.amount.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[10px] text-slate-400 mt-1">Sin gastos mensuales aplicados</p>
+            )}
           </CardContent>
         </Card>
 
+        {/* Card 3: Ganancia Limpia de Bolsillo (Caja) */}
+        <Card className="bg-gradient-to-br from-indigo-600 to-purple-650 text-white shadow-md border-0">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-semibold text-indigo-100 uppercase tracking-wider">
+              Ganancia Limpia de Bolsillo
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              ${gananciaBolsilloLimpia.toLocaleString("es-AR")}
+            </div>
+            <p className="text-[10px] text-indigo-100/90 mt-1">
+              Margen de Caja: {(facturacionBruta > 0 ? (gananciaBolsilloLimpia / facturacionBruta) * 100 : 0).toFixed(1)}%
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Card 4: Precisión Datos */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Precisión Datos</CardTitle>
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Precisión de Costos
+            </CardTitle>
           </CardHeader>
-          <CardContent className="flex items-center gap-2">
+          <CardContent className="flex items-center gap-2 pt-1.5">
             <StatusBadge variant={accuracyLabel === "Alta" ? "success" : accuracyLabel === "Media" ? "warning" : "danger"}>
               <AccuracyIcon className="w-4 h-4 mr-1.5" />
               {accuracyLabel} ({costAccuracyPercent.toFixed(0)}%)

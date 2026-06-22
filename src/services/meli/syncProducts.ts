@@ -438,14 +438,12 @@ export async function syncProducts(tenantId: string) {
           if (pCompError) console.error("Error inserting product components:", pCompError);
         }
 
-        // 5. Recalculate automatic costing for each modified product
-        const { recalculateProductCostFromComponents } = await import("../inventory/recalculateProductCostFromComponents");
-        for (const pId of productIdsToClear) {
-          try {
-            await recalculateProductCostFromComponents(tenantId, pId);
-          } catch (costErr: any) {
-            console.error(`Failed to recalculate cost for product ${pId} during sync:`, costErr.message);
-          }
+        // 5. Recalculate automatic costing for each modified product in batch
+        const { recalculateMultipleProductsCost } = await import("../inventory/recalculateProductCostFromComponents");
+        try {
+          await recalculateMultipleProductsCost(tenantId, productIdsToClear);
+        } catch (costErr: any) {
+          console.error(`Failed to recalculate costs in batch during sync:`, costErr.message);
         }
       }
     }

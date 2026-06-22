@@ -20,7 +20,8 @@ import {
   DollarSign,
   Tag,
   ShoppingBag,
-  Layers
+  Layers,
+  Calculator
 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
@@ -37,6 +38,7 @@ const sidebarLinks = [
   { name: "Envíos", href: "/dashboard/shipments", icon: Truck, indent: true },
   { name: "Cancelaciones", href: "/dashboard/cancellations", icon: Ban, indent: true },
   { name: "Finanzas", href: "/dashboard/finance", icon: DollarSign },
+  { name: "Contabilidad", href: "/dashboard/accounting", icon: Calculator, indent: true },
   { name: "Mensajes", href: "/dashboard/messages", icon: MessageSquare },
   { name: "Configuración", href: "/dashboard/settings", icon: Settings },
   { name: "Integraciones", href: "/dashboard/integrations", icon: Plug, indent: true },
