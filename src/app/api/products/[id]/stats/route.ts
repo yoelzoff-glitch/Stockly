@@ -2,6 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { meliFetch } from "@/services/meli/client";
 import { normalizeSku } from "@/lib/sku";
+import { syncOrders } from "@/services/meli/syncOrders";
+
+// Keep track of the last time we performed a historical orders sync for each tenant to avoid hitting rate limits
+const lastSyncedHistory: Record<string, number> = {};
 
 export async function GET(
   request: Request,
@@ -29,6 +33,36 @@ export async function GET(
     const url = new URL(request.url);
     const daysParam = url.searchParams.get("days") || "7";
     const daysCount = parseInt(daysParam) || 7;
+    const filterDate = new Date();
+    filterDate.setDate(filterDate.getDate() - daysCount);
+
+    // Dynamic historical orders sync if we might be missing data
+    const nowMs = Date.now();
+    const lastSync = lastSyncedHistory[profile.tenant_id] || 0;
+    if (nowMs - lastSync > 10 * 60 * 1000) {
+      try {
+        // Find the oldest order we have in the database for this tenant
+        const { data: oldestOrder } = await supabase
+          .from("orders")
+          .select("date_created")
+          .eq("tenant_id", profile.tenant_id)
+          .order("date_created", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        const oldestOrderDate = oldestOrder?.date_created ? new Date(oldestOrder.date_created) : null;
+        
+        // If we have no orders at all, or if our oldest order is more recent than the filterDate, sync older history
+        if (!oldestOrderDate || oldestOrderDate > filterDate) {
+          await syncOrders(profile.tenant_id, undefined, filterDate.toISOString());
+        }
+        
+        // Mark as synced for this session to throttle requests
+        lastSyncedHistory[profile.tenant_id] = nowMs;
+      } catch (err: any) {
+        console.error("Error during dynamic historical order sync:", err.message);
+      }
+    }
 
     // 1. Fetch the product details
     const { data: product, error: productError } = await supabase
@@ -100,9 +134,6 @@ export async function GET(
     });
 
     // 3. Fetch real daily sales for the specified period from Supabase order_items for all family products
-    const filterDate = new Date();
-    filterDate.setDate(filterDate.getDate() - daysCount);
-
     const familyProductIds = familyProducts.map(p => p.id);
     const { data: orderItems, error: itemsError } = await supabase
       .from("order_items")

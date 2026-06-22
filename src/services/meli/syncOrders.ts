@@ -3,7 +3,7 @@ import { getOrders } from "./getOrders";
 import { decrementInternalStockFromOrder } from "../inventory/decrementInternalStockFromOrder";
 import { syncShipments } from "./syncShipments";
 
-export async function syncOrders(tenantId: string, specificMeliOrderId?: string) {
+export async function syncOrders(tenantId: string, specificMeliOrderId?: string, dateFrom?: string) {
   const supabase = createAdminClient();
 
   // 1. Get the Meli account for this tenant
@@ -48,10 +48,16 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string)
       return 0;
     }
   } else {
-    // Incremental sync: last 7 days only
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    rawOrders = await getOrders(tenantId, meli_user_id, sevenDaysAgo.toISOString());
+    // Incremental sync: custom dateFrom or last 7 days only
+    let startIso: string;
+    if (dateFrom) {
+      startIso = dateFrom;
+    } else {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      startIso = sevenDaysAgo.toISOString();
+    }
+    rawOrders = await getOrders(tenantId, meli_user_id, startIso);
   }
 
   if (rawOrders.length === 0) {
