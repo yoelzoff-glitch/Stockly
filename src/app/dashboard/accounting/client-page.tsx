@@ -30,12 +30,17 @@ import {
   MonthlyExpense 
 } from "./actions";
 
-export function AccountingClient({ initialExpenses }: { initialExpenses: MonthlyExpense[] }) {
+export function AccountingClient({ 
+  initialExpenses,
+  actualRevenue,
+  actualOperatingProfit
+}: { 
+  initialExpenses: MonthlyExpense[];
+  actualRevenue: number;
+  actualOperatingProfit: number;
+}) {
   const [expenses, setExpenses] = useState<MonthlyExpense[]>(initialExpenses);
   const [isProcessing, setIsProcessing] = useState(false);
-
-  // Simulation state
-  const [simulatedRevenue, setSimulatedRevenue] = useState("1000000");
 
   // Create Modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -81,14 +86,10 @@ export function AccountingClient({ initialExpenses }: { initialExpenses: Monthly
     })
     .reduce((sum, e) => sum + Number(e.amount), 0);
 
-  // Simulation math
-  const rev = parseFloat(simulatedRevenue) || 0;
-  const simFixedRecurring = totalFixedRecurring;
-  const simTemporal = totalTemporalThisMonth;
-  const simVariable = (totalPercentVariable * rev) / 100;
-  const totalSimExpenses = simFixedRecurring + simTemporal + simVariable;
-  const cleanPocket = Math.max(0, rev - totalSimExpenses);
-  const pocketPercentage = rev > 0 ? (cleanPocket / rev) * 100 : 0;
+  // Actual month calculation logic
+  const actualVariableExpenses = (totalPercentVariable * actualRevenue) / 100;
+  const cleanPocket = Math.max(0, actualOperatingProfit - totalFixedRecurring - totalTemporalThisMonth - actualVariableExpenses);
+  const pocketPercentage = actualRevenue > 0 ? (cleanPocket / actualRevenue) * 100 : 0;
 
   // Handlers
   const handleCreateSubmit = async (e: React.FormEvent) => {
@@ -359,47 +360,44 @@ export function AccountingClient({ initialExpenses }: { initialExpenses: Monthly
           <Card className="shadow-sm border-indigo-100 bg-gradient-to-br from-white to-slate-50/50">
             <CardHeader className="pb-3 border-b">
               <CardTitle className="flex items-center gap-1.5 text-indigo-850">
-                <Calculator className="w-5 h-5 text-indigo-600" /> Simulador de Caja Neta
+                <Calculator className="w-5 h-5 text-indigo-600" /> Rentabilidad del Mes
               </CardTitle>
-              <CardDescription>Estimación rápida de tu ganancia de bolsillo limpia en base a la facturación simulada.</CardDescription>
+              <CardDescription>Resumen de ganancia neta real de bolsillo del mes actual.</CardDescription>
             </CardHeader>
             <CardContent className="pt-4 space-y-4 text-xs">
-              <div className="space-y-1.5">
-                <Label className="text-slate-700 font-semibold">Facturación Mensual Estimada ($)</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">$</span>
-                  <Input
-                    type="number"
-                    value={simulatedRevenue}
-                    onChange={(e) => setSimulatedRevenue(e.target.value)}
-                    className="pl-7 font-bold text-slate-800"
-                    placeholder="Ej: 1500000"
-                  />
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Facturación Real</span>
+                  <span className="font-semibold text-slate-800">${actualRevenue.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between items-center text-emerald-650 font-medium">
+                  <span>Ganancia Operativa</span>
+                  <span className="font-bold">${actualOperatingProfit.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
 
               <div className="space-y-2.5 pt-2 border-t border-slate-100">
-                <h4 className="font-semibold text-slate-650 text-[11px] uppercase tracking-wider">Desglose de Deducciones</h4>
+                <h4 className="font-semibold text-slate-650 text-[11px] uppercase tracking-wider">Deducciones del Mes</h4>
                 
                 <div className="flex justify-between items-center text-slate-700">
                   <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Gastos Fijos</span>
-                  <span className="font-medium">-${simFixedRecurring.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
+                  <span className="font-medium">-${totalFixedRecurring.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
                 </div>
 
                 <div className="flex justify-between items-center text-slate-700">
                   <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Gastos Temporales</span>
-                  <span className="font-medium">-${simTemporal.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
+                  <span className="font-medium">-${totalTemporalThisMonth.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
                 </div>
 
                 <div className="flex justify-between items-center text-slate-700">
-                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Variables ({totalPercentVariable.toFixed(1)}%)</span>
-                  <span className="font-medium">-${simVariable.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
+                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Variables ({totalPercentVariable.toFixed(1)}% fact.)</span>
+                  <span className="font-medium">-${actualVariableExpenses.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
                 </div>
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex flex-col space-y-2">
                 <div className="flex justify-between items-end">
-                  <span className="text-slate-500 font-medium">Bolsillo Limpio Estimado</span>
+                  <span className="text-slate-500 font-medium">Bolsillo Limpio Real</span>
                   <span className="text-xl font-bold text-emerald-600">
                     ${cleanPocket.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
@@ -420,10 +418,10 @@ export function AccountingClient({ initialExpenses }: { initialExpenses: Monthly
 
               <div className="bg-indigo-50/50 border border-indigo-100 rounded-lg p-3 text-[11px] text-indigo-800 space-y-1">
                 <p className="font-semibold flex items-center gap-1">
-                  <BadgeInfo className="w-3.5 h-3.5" /> ¿Cómo funciona esto?
+                  <BadgeInfo className="w-3.5 h-3.5" /> ¿Cómo se calcula?
                 </p>
                 <p className="text-indigo-900/80 leading-relaxed">
-                  Este simulador resta tus gastos fijos recurrentes y de marketing, y calcula en tiempo real los costos variables (ej. IIBB) en base a la facturación ingresada.
+                  Calculamos la Ganancia Operativa de tus ventas, restamos los gastos fijos/temporales y deducimos los gastos porcentuales (como IIBB) calculados sobre la facturación bruta real del mes actual.
                 </p>
               </div>
             </CardContent>
