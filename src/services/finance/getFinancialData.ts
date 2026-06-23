@@ -54,8 +54,8 @@ export async function getFinancialData(
     .from("order_cancellations")
     .select("refund_amount")
     .eq("tenant_id", tenantId)
-    .gte("created_at", dateFrom.toISOString())
-    .lte("created_at", dateTo.toISOString());
+    .gte("date_cancelled", dateFrom.toISOString())
+    .lte("date_cancelled", dateTo.toISOString());
 
   // 3. Fetch products (cost and extra info)
   const { data: products } = await supabase

@@ -83,7 +83,7 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
     .from("order_cancellations")
     .select("refund_amount")
     .eq("tenant_id", tenantId)
-    .gte("created_at", dateFrom.toISOString());
+    .gte("date_cancelled", dateFrom.toISOString());
 
   if (!orders || !products) {
     return "Error al calcular las finanzas. No se pudieron obtener los datos.";
