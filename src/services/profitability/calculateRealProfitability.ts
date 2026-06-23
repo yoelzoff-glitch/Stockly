@@ -20,7 +20,7 @@ export interface RealProfitabilityResult {
 
 export function calculateRealProfitability(input: RealProfitabilityInput): RealProfitabilityResult {
   // Base verifications
-  if (input.cost === null || input.cost === undefined) {
+  if (input.cost === null || input.cost === undefined || input.cost <= 0) {
     return {
       margin_amount: null,
       margin_percent: null,

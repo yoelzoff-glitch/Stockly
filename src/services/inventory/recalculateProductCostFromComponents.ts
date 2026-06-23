@@ -19,7 +19,7 @@ export async function recalculateProductCostFromComponents(tenantId: string, pro
   // 1. Obtener el producto
   const { data: product, error: productError } = await supabase
     .from("products")
-    .select("id, sku, title, price, category_id, raw_data, cost")
+    .select("id, sku, title, price, category_id, raw_data, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount")
     .eq("tenant_id", tenantId)
     .eq("id", productId)
     .single();
@@ -131,7 +131,7 @@ export async function recalculateProductCostFromComponents(tenantId: string, pro
 
   // 6. Costo total
   let totalCost = Number((componentsTotalCost + extraCostsTotal).toFixed(2));
-  if (components && components.length > 0 && componentsTotalCost === 0 && product.cost) {
+  if (totalCost <= 0 && product.cost) {
     totalCost = Number(product.cost);
   }
 
@@ -155,15 +155,28 @@ export async function recalculateProductCostFromComponents(tenantId: string, pro
   let profitReal = undefined;
   let profitRealMargin = undefined;
 
-  const commission = product.raw_data?.fees?.commission_amount || 0;
-  const shipping = product.raw_data?.fees?.shipping_cost || 0;
+  const commission = Number(product.estimated_fee) || 0;
+  const shipping = Number(product.estimated_shipping_cost) || 0;
+  const extraFee = Number(product.extra_fee_amount) || 0;
+  const promoDiscount = Number(product.promotion_discount_amount) || 0;
 
   marginAmount = productPrice - totalCost;
   marginPercent = productPrice > 0 ? (marginAmount / productPrice) * 100 : 0;
 
-  // Rentabilidad real
-  profitReal = productPrice - totalCost - commission - shipping;
+  // Rentabilidad real: obtener costo de embalaje del tenant
+  const { data: tenantData } = await supabase
+    .from("tenants")
+    .select("metadata")
+    .eq("id", tenantId)
+    .single();
+
+  const tenantMetadata = (tenantData?.metadata as any) || {};
+  const packagingCost = tenantMetadata.packaging_cost || 0;
+
+  profitReal = productPrice - totalCost - commission - shipping - extraFee - promoDiscount - packagingCost;
   profitRealMargin = productPrice > 0 ? (profitReal / productPrice) * 100 : 0;
+
+  const profitabilityStatus = (totalCost === null || totalCost === undefined || totalCost <= 0) ? "missing_cost" : "complete";
 
   const { error: updateError } = await supabase
     .from("products")
@@ -171,6 +184,9 @@ export async function recalculateProductCostFromComponents(tenantId: string, pro
       cost: totalCost,
       margin_amount: marginAmount,
       margin_percent: marginPercent,
+      profit_real_estimated: profitReal,
+      profit_real_margin: profitRealMargin,
+      profitability_status: profitabilityStatus,
       raw_data: updatedRawData
     })
     .eq("tenant_id", tenantId)
@@ -219,6 +235,16 @@ export async function recalculateMultipleProductsCost(tenantId: string, productI
   if (!productIds || productIds.length === 0) return [];
 
   const supabase = createAdminClient();
+
+  // Obtener costo de embalaje del tenant
+  const { data: tenantData } = await supabase
+    .from("tenants")
+    .select("metadata")
+    .eq("id", tenantId)
+    .single();
+
+  const tenantMetadata = (tenantData?.metadata as any) || {};
+  const packagingCost = tenantMetadata.packaging_cost || 0;
 
   // 1. Obtener todos los productos solicitados
   const { data: products, error: productsError } = await supabase
@@ -350,7 +376,7 @@ export async function recalculateMultipleProductsCost(tenantId: string, productI
 
     // Costo total
     let totalCost = Number((componentsTotalCost + extraCostsTotal).toFixed(2));
-    if (pComps.length > 0 && componentsTotalCost === 0 && product.cost) {
+    if (totalCost <= 0 && product.cost) {
       totalCost = Number(product.cost);
     }
 
@@ -371,10 +397,15 @@ export async function recalculateMultipleProductsCost(tenantId: string, productI
     const marginAmount = productPrice - totalCost;
     const marginPercent = productPrice > 0 ? (marginAmount / productPrice) * 100 : 0;
 
-    const commission = product.raw_data?.fees?.commission_amount || 0;
-    const shipping = product.raw_data?.fees?.shipping_cost || 0;
-    const profitReal = productPrice - totalCost - commission - shipping;
+    const commission = Number(product.estimated_fee) || 0;
+    const shipping = Number(product.estimated_shipping_cost) || 0;
+    const extraFee = Number(product.extra_fee_amount) || 0;
+    const promoDiscount = Number(product.promotion_discount_amount) || 0;
+
+    const profitReal = productPrice - totalCost - commission - shipping - extraFee - promoDiscount - packagingCost;
     const profitRealMargin = productPrice > 0 ? (profitReal / productPrice) * 100 : 0;
+
+    const profitabilityStatus = (totalCost === null || totalCost === undefined || totalCost <= 0) ? "missing_cost" : "complete";
 
     // Programar actualización del producto
     prodsToUpdate.push({
@@ -384,6 +415,7 @@ export async function recalculateMultipleProductsCost(tenantId: string, productI
       margin_percent: marginPercent,
       profit_real_estimated: profitReal,
       profit_real_margin: profitRealMargin,
+      profitability_status: profitabilityStatus,
       raw_data: updatedRawData,
       updated_at: new Date().toISOString()
     });

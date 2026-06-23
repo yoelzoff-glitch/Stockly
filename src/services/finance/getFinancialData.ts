@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSku } from "@/services/products/sku/normalizeSku";
 
 export interface ProductFinancialRow {
   title: string;
@@ -113,6 +114,12 @@ export async function getFinancialData(
       orderQty += qty;
 
       let p = item.meli_item_id ? (products || []).find(prod => prod.meli_item_id === item.meli_item_id) : undefined;
+      if (!p && item.sku) {
+        const normItemSku = normalizeSku(item.sku);
+        if (normItemSku) {
+          p = (products || []).find(prod => prod.sku && normalizeSku(prod.sku) === normItemSku);
+        }
+      }
       if (!p && item.title) {
         p = (products || []).find(prod => prod.title === item.title);
       }

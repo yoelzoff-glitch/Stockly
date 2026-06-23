@@ -283,16 +283,26 @@ export async function syncProducts(tenantId: string) {
     );
   }
 
-  // 4. Upsert into Supabase `products` table
-  const { data: upsertedData, error: upsertError } = await supabase
-    .from("products")
-    .upsert(productsToUpsert, {
-      onConflict: "tenant_id, meli_item_id", 
-    }).select("id, meli_item_id, sku");
+  // 4. Upsert into Supabase `products` table in chunks to avoid statement timeouts
+  const upsertedData: any[] = [];
+  const upsertChunkSize = 25;
 
-  if (upsertError) {
-    console.error("Error upserting products to DB:", upsertError);
-    throw new Error(`Failed to save synced products to database: ${upsertError.message}`);
+  for (let i = 0; i < productsToUpsert.length; i += upsertChunkSize) {
+    const chunk = productsToUpsert.slice(i, i + upsertChunkSize);
+    const { data: chunkData, error: upsertError } = await supabase
+      .from("products")
+      .upsert(chunk, {
+        onConflict: "tenant_id, meli_item_id", 
+      }).select("id, meli_item_id, sku");
+
+    if (upsertError) {
+      console.error("Error upserting products chunk to DB:", upsertError);
+      throw new Error(`Failed to save synced products to database: ${upsertError.message}`);
+    }
+
+    if (chunkData) {
+      upsertedData.push(...chunkData);
+    }
   }
 
   // 4.1. Process and save SKU components and bind to inventory items (Sprint 34)

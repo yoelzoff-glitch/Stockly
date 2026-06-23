@@ -43,13 +43,31 @@ export async function resolveProduct(tenantId: string, query: string): Promise<R
   }
 
   // 1. Intentar match exacto por SKU o meli_item_id
-  const { data: exactMatches, error: exactError } = await supabase
+  let { data: exactMatches, error: exactError } = await supabase
     .from("products")
     .select("id, title, sku, price, available_quantity, status, meli_item_id")
     .eq("tenant_id", tenantId)
     .or(`sku.eq."${safeQuery}",meli_item_id.ilike."*${safeQuery}*"`);
 
   if (exactError) console.error("resolveProduct exact error:", exactError);
+
+  // Fallback: Si no hay coincidencias exactas por SKU o ID, intentar buscar por SKU normalizado en memoria
+  if ((!exactMatches || exactMatches.length === 0) && safeQuery) {
+    const { data: allProducts, error: allProdsError } = await supabase
+      .from("products")
+      .select("id, title, sku, price, available_quantity, status, meli_item_id")
+      .eq("tenant_id", tenantId);
+
+    if (!allProdsError && allProducts) {
+      const normQuery = normalizeSku(safeQuery);
+      if (normQuery) {
+        const matched = allProducts.filter(p => p.sku && normalizeSku(p.sku) === normQuery);
+        if (matched.length > 0) {
+          exactMatches = matched;
+        }
+      }
+    }
+  }
 
   if (exactMatches && exactMatches.length > 0) {
     const products = exactMatches.map(p => ({

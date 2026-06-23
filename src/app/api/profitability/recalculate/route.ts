@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getListingFees } from "@/services/meli/getListingFees";
 import { getShippingCostEstimate } from "@/services/meli/getShippingCostEstimate";
-import { calculateProductProfitability } from "@/services/profitability/calculateProductProfitability";
+import { calculateRealProfitability } from "@/services/profitability/calculateRealProfitability";
 import * as Sentry from "@sentry/nextjs";
 
 export async function POST() {
@@ -34,6 +34,16 @@ export async function POST() {
       return NextResponse.json({ error: "No Mercado Libre account connected" }, { status: 400 });
     }
 
+    // Obtener costo de embalaje del tenant
+    const { data: tenantData } = await adminSupabase
+      .from("tenants")
+      .select("metadata")
+      .eq("id", tenantId)
+      .single();
+    
+    const tenantMetadata = (tenantData?.metadata as any) || {};
+    const packagingCost = tenantMetadata.packaging_cost || 0;
+
     // Obtener todos los productos del tenant
     const { data: products } = await adminSupabase
       .from("products")
@@ -62,12 +72,15 @@ export async function POST() {
       const estimatedFee = feeData?.sale_fee_amount ?? null;
       const estimatedShipping = shippingData.estimated_shipping_cost;
 
-      const profitResult = calculateProductProfitability({
+      const profitResult = calculateRealProfitability({
         price: product.price,
         cost: product.cost,
         estimated_fee: estimatedFee,
+        extra_fee_amount: product.extra_fee_amount || 0,
         estimated_shipping_cost: estimatedShipping,
-        estimated_tax: product.estimated_tax || 0
+        promotion_discount_amount: product.promotion_discount_amount || 0,
+        estimated_tax: product.estimated_tax || 0,
+        packaging_cost: packagingCost
       });
 
       await adminSupabase.from("products").update({
@@ -75,6 +88,8 @@ export async function POST() {
         estimated_shipping_cost: estimatedShipping,
         margin_amount: profitResult.margin_amount,
         margin_percent: profitResult.margin_percent,
+        profit_real_estimated: profitResult.real_margin_amount,
+        profit_real_margin: profitResult.real_margin_percent,
         profitability_status: profitResult.profitability_status,
         profit_last_calculated_at: new Date().toISOString()
       }).eq("id", product.id).eq("tenant_id", tenantId);

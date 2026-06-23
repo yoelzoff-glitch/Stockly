@@ -1,7 +1,9 @@
+import { normalizeSku as serviceNormalizeSku } from "@/services/products/sku/normalizeSku";
+
 /**
- * Normaliza un SKU para permitir la comparación de publicaciones hermanas.
+ * Normaliza un SKU para permitir la comparación de publicaciones hermanas y componentes de inventario.
  * 
- * @param sku El SKU original desde la base de datos
+ * @param sku El SKU original desde la base de datos o Mercado Libre
  * @returns El SKU normalizado o string vacío si no es válido
  */
 export function normalizeSku(sku: string | null | undefined): string {
@@ -12,7 +14,5 @@ export function normalizeSku(sku: string | null | undefined): string {
     return "";
   }
   
-  // Reemplazar múltiples espacios o guiones con un solo espacio/guión si se desea,
-  // pero para este caso base: remover espacios sobrantes
-  return trimmed.replace(/\s+/g, ' ');
+  return serviceNormalizeSku(sku);
 }

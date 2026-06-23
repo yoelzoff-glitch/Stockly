@@ -53,12 +53,53 @@ export async function updateProductCost(productId: string, cost: number) {
   }
 
   // 3. Update all of them
-  const { error } = await supabase
+  const { data: productsToUpdateData } = await supabase
     .from("products")
-    .update({ cost })
+    .select("id, price, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount, estimated_tax")
     .in("id", productIdsToUpdate);
 
-  if (error) return { success: false, error: error.message };
+  if (productsToUpdateData) {
+    const { data: tenantData } = await supabase
+      .from("tenants")
+      .select("metadata")
+      .eq("id", profile.tenant_id)
+      .single();
+
+    const tenantMetadata = (tenantData?.metadata as any) || {};
+    const packagingCost = tenantMetadata.packaging_cost || 0;
+
+    const { calculateRealProfitability } = await import("@/services/profitability/calculateRealProfitability");
+
+    for (const p of productsToUpdateData) {
+      const profitResult = calculateRealProfitability({
+        price: p.price,
+        cost: cost,
+        estimated_fee: p.estimated_fee,
+        extra_fee_amount: p.extra_fee_amount || 0,
+        estimated_shipping_cost: p.estimated_shipping_cost,
+        promotion_discount_amount: p.promotion_discount_amount || 0,
+        estimated_tax: p.estimated_tax || 0,
+        packaging_cost: packagingCost
+      });
+
+      const { error: updErr } = await supabase
+        .from("products")
+        .update({
+          cost: cost,
+          margin_amount: profitResult.margin_amount,
+          margin_percent: profitResult.margin_percent,
+          profit_real_estimated: profitResult.real_margin_amount,
+          profit_real_margin: profitResult.real_margin_percent,
+          profitability_status: profitResult.profitability_status,
+          profit_last_calculated_at: new Date().toISOString()
+        })
+        .eq("id", p.id);
+
+      if (updErr) {
+        return { success: false, error: updErr.message };
+      }
+    }
+  }
 
   // 3.5 Update the corresponding inventory_items average_cost
   const { data: components } = await supabase
