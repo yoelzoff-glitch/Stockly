@@ -119,16 +119,36 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     const shipmentData = shipmentId ? shipmentsMap[shipmentId] : null;
 
     if (shipmentData && shipmentData.logistic_type === 'self_service') {
-      const mlSubsidy = shipmentData.base_cost || 0;
-      
-      // Match with configured zones
-      const matchedZone = flexZones.find((z: any) => z.ml_pays === mlSubsidy);
-      
+      const mlCost = shipmentData.base_cost || shipmentData.shipping_option?.list_cost || 0;
+      let matchedZone = null;
+      let minDiff = Infinity;
+
+      for (const z of flexZones) {
+        const configuredPays = Number(z.ml_pays) || 0;
+        const candidates = [configuredPays];
+        if (configuredPays < 1000) {
+          candidates.push(configuredPays * 10);
+        }
+        for (const candidate of candidates) {
+          const diff = Math.abs(candidate - mlCost);
+          if (diff < minDiff) {
+            minDiff = diff;
+            matchedZone = z;
+          }
+        }
+      }
+
       if (matchedZone) {
-        orderFlexCost = matchedZone.moto_costs;
+        let motoCost = Number(matchedZone.moto_costs) || 0;
+        if (motoCost > 0 && motoCost < 1000) {
+          motoCost = motoCost * 10;
+        }
+        orderFlexCost = motoCost;
       } else {
-        // Fallback
-        orderFlexCost = flexZones.length > 0 ? flexZones[0].moto_costs : 0;
+        orderFlexCost = flexZones.length > 0 ? (Number(flexZones[0].moto_costs) || 0) : 0;
+        if (orderFlexCost > 0 && orderFlexCost < 1000) {
+          orderFlexCost = orderFlexCost * 10;
+        }
       }
     }
     

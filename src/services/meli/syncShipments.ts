@@ -38,12 +38,36 @@ export async function syncShipments(tenantId: string) {
         let shippingCost = shipment.shipping_option?.list_cost ?? shipment.base_cost ?? 0;
 
         if (shipment.logistic_type === "self_service") {
-          const mlSubsidy = shipment.base_cost || 0;
-          const matchedZone = flexZones.find((z: any) => z.ml_pays === mlSubsidy);
+          const mlCost = shipment.base_cost || shipment.shipping_option?.list_cost || 0;
+          let matchedZone = null;
+          let minDiff = Infinity;
+
+          for (const z of flexZones) {
+            const configuredPays = Number(z.ml_pays) || 0;
+            const candidates = [configuredPays];
+            if (configuredPays < 1000) {
+              candidates.push(configuredPays * 10);
+            }
+            for (const candidate of candidates) {
+              const diff = Math.abs(candidate - mlCost);
+              if (diff < minDiff) {
+                minDiff = diff;
+                matchedZone = z;
+              }
+            }
+          }
+
           if (matchedZone) {
-            shippingCost = matchedZone.moto_costs;
-          } else if (flexZones.length > 0) {
-            shippingCost = flexZones[0].moto_costs;
+            let motoCost = Number(matchedZone.moto_costs) || 0;
+            if (motoCost > 0 && motoCost < 1000) {
+              motoCost = motoCost * 10;
+            }
+            shippingCost = motoCost;
+          } else {
+            shippingCost = flexZones.length > 0 ? (Number(flexZones[0].moto_costs) || 0) : 0;
+            if (shippingCost > 0 && shippingCost < 1000) {
+              shippingCost = shippingCost * 10;
+            }
           }
         }
 
