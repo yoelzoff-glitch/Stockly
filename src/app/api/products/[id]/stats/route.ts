@@ -101,12 +101,14 @@ export async function GET(
     }
 
     // 2. Fetch real visits from Mercado Libre for all family products in parallel
+    // Note: ML visits/time_window API has a limit of maximum 150 days.
+    const visitsDaysCount = Math.min(daysCount, 150);
     const visitsPromises = familyProducts.map(async (p) => {
       if (!p.meli_item_id) return { productId: p.id, visitsData: null };
       try {
         const visitsData = await meliFetch({
           tenantId: profile.tenant_id,
-          endpoint: `/items/${p.meli_item_id}/visits/time_window?last=${daysCount}&unit=day`
+          endpoint: `/items/${p.meli_item_id}/visits/time_window?last=${visitsDaysCount}&unit=day`
         });
         return { productId: p.id, visitsData };
       } catch (err: any) {
