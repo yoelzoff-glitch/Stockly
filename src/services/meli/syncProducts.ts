@@ -261,6 +261,7 @@ export async function syncProducts(tenantId: string) {
           permalink: item.permalink,
           thumbnail_url: item.thumbnail,
           raw_data: rawData,
+          cost: existingCost,
           estimated_fee: estimatedFee,
           estimated_shipping_cost: estimatedShipping,
           estimated_tax: 0,

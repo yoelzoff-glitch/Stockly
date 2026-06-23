@@ -71,7 +71,7 @@ export async function getFinancialData(
   const { data: orderItems } = orderIds.length > 0
     ? await supabase
         .from("order_items")
-        .select("order_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost, sku")
+        .select("order_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost, sku, unit_cost")
         .in("order_id", orderIds)
     : { data: [] };
 
@@ -122,8 +122,13 @@ export async function getFinancialData(
       let itemShipping = Number(item.estimated_shipping_cost) || 0;
       let itemExtra = orderPackagingCost * (qty / totalOrderQty);
 
+      if (item.unit_cost !== null && Number(item.unit_cost) > 0) {
+        itemCost = Number(item.unit_cost) * qty;
+        unitsWithCost += qty;
+      }
+
       if (p) {
-        if (p.cost) {
+        if (itemCost === 0 && p.cost) {
           itemCost = Number(p.cost) * qty;
           unitsWithCost += qty;
         }

@@ -67,14 +67,14 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
   // 3. Get all existing products for this tenant to map order_items properly
   const { data: localProducts, error: productsError } = await supabase
     .from("products")
-    .select("id, meli_item_id")
+    .select("id, meli_item_id, cost")
     .eq("tenant_id", tenantId);
 
-  // Map of meli_item_id -> local product UUID
-  const productMap: Record<string, string> = {};
+  // Map of meli_item_id -> local product info
+  const productMap: Record<string, { id: string; cost: number | null }> = {};
   if (!productsError && localProducts) {
     localProducts.forEach(p => {
-      productMap[p.meli_item_id] = p.id;
+      productMap[p.meli_item_id] = { id: p.id, cost: p.cost };
     });
   }
 
@@ -191,7 +191,9 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
 
     order.order_items.forEach((item: any) => {
       const meliItemId = item.item?.id;
-      const localProductId = meliItemId ? productMap[meliItemId] : undefined;
+      const productInfo = meliItemId ? productMap[meliItemId] : undefined;
+      const localProductId = productInfo?.id;
+      const unitCost = productInfo?.cost ?? null;
 
       orderItemsToUpsert.push({
         tenant_id: tenantId,
@@ -203,6 +205,7 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
         quantity: item.quantity,
         unit_price: item.unit_price,
         estimated_fee: item.sale_fee,
+        unit_cost: unitCost,
       });
     });
   });
