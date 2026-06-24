@@ -20,6 +20,7 @@ export interface FinancialData {
   comisionesML: number;
   envios: number;
   promosCuotas: number;
+  totalCupones: number;
   cancellationsAmount: number;
   gananciaNeta: number;
   margenNeto: number;
@@ -88,6 +89,7 @@ export async function getFinancialData(
   let comisionesML = 0;
   let envios = 0;
   let promosCuotas = 0;
+  let totalCupones = 0;
   let totalUnitsSold = 0;
   let unitsWithCost = 0;
 
@@ -99,6 +101,8 @@ export async function getFinancialData(
     facturacionBruta += amount;
 
     const raw = o.raw_data as any;
+    const couponAmount = Number(raw?.coupon?.amount) || (raw?.payments && raw.payments.length > 0 ? Number(raw.payments[0].coupon_amount) : 0) || 0;
+    totalCupones += couponAmount;
     const orderPackagingCost = Number(raw?.klyvo_operational_costs?.packaging_cost || packagingCost);
 
     let orderCost = 0;
@@ -129,7 +133,6 @@ export async function getFinancialData(
       let itemShipping = Number(item.estimated_shipping_cost) || 0;
       let itemExtra = orderPackagingCost * (qty / totalOrderQty);
 
-      const couponAmount = Number(raw?.coupon?.amount) || (raw?.payments && raw.payments.length > 0 ? Number(raw.payments[0].coupon_amount) : 0) || 0;
       if (couponAmount > 0 && amount > 0) {
         const itemTotalOriginal = Number(item.total_price) || 0;
         const itemShare = itemTotalOriginal / amount;
@@ -395,6 +398,7 @@ export async function getFinancialData(
     totalUnitsSold,
     unitsWithCost,
     costAccuracyPercent,
+    totalCupones,
     productAgg,
     tableData,
     monthlyExpensesTotal: Number(monthlyExpensesTotal.toFixed(2)),

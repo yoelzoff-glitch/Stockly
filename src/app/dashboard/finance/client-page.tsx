@@ -32,6 +32,7 @@ export default function FinanceClientPage({
     comisionesML,
     envios,
     promosCuotas,
+    totalCupones,
     cancellationsAmount: cancelacionesAmount,
     gananciaNeta,
     margenNeto,
@@ -83,7 +84,13 @@ export default function FinanceClientPage({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Finanzas</h2>
-          <p className="text-muted-foreground mt-1">Resumen financiero y ganancia neta real del negocio.</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1">
+            <p className="text-muted-foreground">Resumen financiero y ganancia neta real del negocio.</p>
+            <StatusBadge variant={accuracyLabel === "Alta" ? "success" : accuracyLabel === "Media" ? "warning" : "danger"} className="py-0 px-2 text-xs">
+              <AccuracyIcon className="w-3.5 h-3.5 mr-1 shrink-0" />
+              Precisión de Costos: {accuracyLabel} ({costAccuracyPercent.toFixed(0)}%)
+            </StatusBadge>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <select 
@@ -223,18 +230,20 @@ export default function FinanceClientPage({
           </CardContent>
         </Card>
 
-        {/* Card 4: Precisión Datos */}
+        {/* Card 4: Cupones */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Precisión de Costos
+              Descuentos por Cupones
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex items-center gap-2 pt-1.5">
-            <StatusBadge variant={accuracyLabel === "Alta" ? "success" : accuracyLabel === "Media" ? "warning" : "danger"}>
-              <AccuracyIcon className="w-4 h-4 mr-1.5" />
-              {accuracyLabel} ({costAccuracyPercent.toFixed(0)}%)
-            </StatusBadge>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-500">
+              -${totalCupones.toLocaleString("es-AR")}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Descuentos financiados en campañas de Mercado Libre
+            </p>
           </CardContent>
         </Card>
       </div>
