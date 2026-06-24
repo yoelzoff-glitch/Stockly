@@ -3,8 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Ban, DollarSign, TrendingDown, Users } from "lucide-react";
 import { getMidnightInTimezone } from "@/services/ai/tools/finance";
+import PeriodSelector from "./period-selector";
 
-export default async function CancellationsPage() {
+export default async function CancellationsPage(props: { searchParams: Promise<{ period?: string }> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -17,19 +19,62 @@ export default async function CancellationsPage() {
     .single();
 
   const tenantId = profile?.tenant_id;
+  if (!tenantId) return null;
 
-  // Fetch cancellations
+  const period = searchParams.period || "current_month";
+
+  // Fetch Tenant details first (needed for timezone)
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("timezone")
+    .eq("id", tenantId)
+    .single();
+
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+
+  // Get current date parts in tenant's timezone (prevents UTC rollover issues)
+  const tenantDateFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const tenantDateStr = tenantDateFormatter.format(new Date()); // "YYYY-MM-DD"
+  const [tenantYear, tenantMonth, tenantDay] = tenantDateStr.split('-').map(Number);
+
+  let dateFrom: Date;
+  let dateTo = new Date(); // now
+
+  if (period === "current_month") {
+    dateFrom = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 1, 1, 12, 0, 0)), timezone);
+  } else if (period === "last_month") {
+    dateFrom = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 2, 1, 12, 0, 0)), timezone);
+    const startOfCurrentMonth = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 1, 1, 12, 0, 0)), timezone);
+    dateTo = new Date(startOfCurrentMonth.getTime() - 1);
+  } else if (period === "last_30") {
+    const tempDate = new Date(tenantYear, tenantMonth - 1, tenantDay, 12, 0, 0);
+    tempDate.setDate(tempDate.getDate() - 30);
+    dateFrom = getMidnightInTimezone(new Date(Date.UTC(tempDate.getFullYear(), tempDate.getMonth(), tempDate.getDate(), 12, 0, 0)), timezone);
+  } else { // "all"
+    dateFrom = new Date(2000, 0, 1);
+  }
+
+  // Fetch cancellations in date range
   const { data: cancellations } = await supabase
     .from("order_cancellations")
-    .select("*, orders(meli_order_id, buyer_nickname)")
+    .select("*, orders(meli_order_id, buyer_nickname, date_created)")
     .eq("tenant_id", tenantId)
+    .gte("date_cancelled", dateFrom.toISOString())
+    .lte("date_cancelled", dateTo.toISOString())
     .order("date_cancelled", { ascending: false });
 
-  // Fetch all orders to calculate rates
+  // Fetch orders in date range to calculate rates
   const { data: allOrders } = await supabase
     .from("orders")
     .select("id, date_created")
-    .eq("tenant_id", tenantId);
+    .eq("tenant_id", tenantId)
+    .gte("date_created", dateFrom.toISOString())
+    .lte("date_created", dateTo.toISOString());
 
   const totalOrders = allOrders?.length || 1; // avoid division by zero
   const totalCancellations = cancellations?.length || 0;
@@ -37,39 +82,39 @@ export default async function CancellationsPage() {
 
   // KPIs
   let hoy = 0;
-  let mes = 0;
   let montoPerdido = 0;
 
-  const { data: tenant } = await supabase
-    .from("tenants")
-    .select("timezone")
-    .eq("id", tenantId)
-    .single();
-  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
-
   const todayDate = getMidnightInTimezone(new Date(), timezone);
-  
-  const firstDayOfMonthRaw = new Date(todayDate);
-  firstDayOfMonthRaw.setDate(1);
-  const firstDayOfMonth = getMidnightInTimezone(firstDayOfMonthRaw, timezone);
 
   cancellations?.forEach(c => {
     const d = new Date(c.date_cancelled);
     if (d >= todayDate) hoy++;
-    if (d >= firstDayOfMonth) mes++;
     montoPerdido += Number(c.refund_amount) || 0;
   });
 
+  const periodLabel = period === "current_month" 
+    ? "Este Mes" 
+    : period === "last_month" 
+    ? "Mes Anterior" 
+    : period === "last_30" 
+    ? "Últimos 30 días" 
+    : "Total Período";
+
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Ventas Canceladas</h2>
-        <p className="text-muted-foreground mt-1">Analiza los motivos y el impacto de las cancelaciones.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Ventas Canceladas</h2>
+          <p className="text-muted-foreground mt-1">Analiza los motivos y el impacto de las cancelaciones.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <PeriodSelector currentPeriod={period} />
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard title="Canceladas Hoy" value={hoy} icon={<Ban className="w-5 h-5" />} variant="red" />
-        <MetricCard title="Este Mes" value={mes} icon={<Users className="w-5 h-5" />} variant="slate" />
+        <MetricCard title={periodLabel} value={totalCancellations} icon={<Users className="w-5 h-5" />} variant="slate" />
         <MetricCard title="Monto Devuelto" value={`$${montoPerdido.toLocaleString('es-AR')}`} icon={<DollarSign className="w-5 h-5" />} variant="amber" />
         <MetricCard title="Tasa de Cancelación" value={`${rate}%`} icon={<TrendingDown className="w-5 h-5" />} variant="purple" />
       </div>
@@ -112,7 +157,7 @@ export default async function CancellationsPage() {
                 <Ban className="h-8 w-8 text-slate-400" />
               </div>
               <h3 className="text-lg font-medium text-slate-900">No hay cancelaciones registradas</h3>
-              <p className="text-sm text-slate-500 mt-1">Aún no se ha detectado ninguna cancelación de orden.</p>
+              <p className="text-sm text-slate-500 mt-1">Aún no se ha detectado ninguna cancelación de orden para este período.</p>
             </div>
           )}
         </CardContent>
