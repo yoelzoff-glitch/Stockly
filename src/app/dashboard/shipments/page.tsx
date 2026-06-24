@@ -3,8 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Truck, AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { getMidnightInTimezone } from "@/services/ai/tools/finance";
+import PeriodSelector from "./period-selector";
 
-export default async function ShipmentsPage() {
+export default async function ShipmentsPage(props: { searchParams: Promise<{ period?: string }> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -17,12 +20,53 @@ export default async function ShipmentsPage() {
     .single();
 
   const tenantId = profile?.tenant_id;
+  if (!tenantId) return null;
 
-  // Fetch shipments
+  const period = searchParams.period || "current_month";
+
+  // Fetch Tenant details first (needed for timezone)
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("timezone")
+    .eq("id", tenantId)
+    .single();
+
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+
+  // Get current date parts in tenant's timezone (prevents UTC rollover issues)
+  const tenantDateFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const tenantDateStr = tenantDateFormatter.format(new Date()); // "YYYY-MM-DD"
+  const [tenantYear, tenantMonth, tenantDay] = tenantDateStr.split('-').map(Number);
+
+  let dateFrom: Date;
+  let dateTo = new Date(); // now
+
+  if (period === "current_month") {
+    dateFrom = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 1, 1, 12, 0, 0)), timezone);
+  } else if (period === "last_month") {
+    dateFrom = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 2, 1, 12, 0, 0)), timezone);
+    const startOfCurrentMonth = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 1, 1, 12, 0, 0)), timezone);
+    dateTo = new Date(startOfCurrentMonth.getTime() - 1);
+  } else if (period === "last_30") {
+    const tempDate = new Date(tenantYear, tenantMonth - 1, tenantDay, 12, 0, 0);
+    tempDate.setDate(tempDate.getDate() - 30);
+    dateFrom = getMidnightInTimezone(new Date(Date.UTC(tempDate.getFullYear(), tempDate.getMonth(), tempDate.getDate(), 12, 0, 0)), timezone);
+  } else { // "all"
+    dateFrom = new Date(2000, 0, 1);
+  }
+
+  // Fetch shipments within date range
   const { data: shipments } = await supabase
     .from("shipments")
     .select("*, orders(meli_order_id, buyer_nickname)")
     .eq("tenant_id", tenantId)
+    .gte("date_created", dateFrom.toISOString())
+    .lte("date_created", dateTo.toISOString())
     .order("date_created", { ascending: false });
 
   // KPIs
@@ -44,9 +88,14 @@ export default async function ShipmentsPage() {
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Envíos</h2>
-        <p className="text-muted-foreground mt-1">Controla el estado de tu logística y despachos.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Envíos</h2>
+          <p className="text-muted-foreground mt-1">Controla el estado de tu logística y despachos.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <PeriodSelector currentPeriod={period} />
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -108,7 +157,7 @@ export default async function ShipmentsPage() {
                 <Truck className="h-8 w-8 text-slate-400" />
               </div>
               <h3 className="text-lg font-medium text-slate-900">No hay envíos registrados</h3>
-              <p className="text-sm text-slate-500 mt-1">Aún no procesamos información de logística.</p>
+              <p className="text-sm text-slate-500 mt-1">Aún no procesamos información de logística para este período.</p>
             </div>
           )}
         </CardContent>
