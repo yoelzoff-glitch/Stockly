@@ -150,6 +150,14 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
           ext += orderPackagingCost;
         }
 
+        // Distribute coupon amount proportionally
+        const couponAmount = Number(raw?.coupon?.amount) || (raw?.payments && raw.payments.length > 0 ? Number(raw.payments[0].coupon_amount) : 0) || 0;
+        if (couponAmount > 0 && Number(o.total_amount) > 0) {
+          const itemTotalOriginal = Number(item.total_price) || (Number(o.total_amount) / Math.max(1, items.length));
+          const itemShare = itemTotalOriginal / Number(o.total_amount);
+          ext += couponAmount * itemShare;
+        }
+
         costos += cost;
         comisiones += fee;
         envios += shipping;
@@ -173,8 +181,9 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
       }
       productAgg[title].revenue += Number(o.total_amount) || 0;
       productAgg[title].quantity += 1;
-      productAgg[title].net += (Number(o.total_amount) || 0) - orderPackagingCost;
-      extra += orderPackagingCost;
+      const couponAmount = Number(raw?.coupon?.amount) || (raw?.payments && raw.payments.length > 0 ? Number(raw.payments[0].coupon_amount) : 0) || 0;
+      productAgg[title].net += (Number(o.total_amount) || 0) - orderPackagingCost - couponAmount;
+      extra += orderPackagingCost + couponAmount;
     }
   });
 

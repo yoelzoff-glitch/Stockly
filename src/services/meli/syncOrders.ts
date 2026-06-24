@@ -162,10 +162,6 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
       }
     };
 
-    const couponAmount = Number(order.coupon?.amount) || (order.payments && order.payments.length > 0 ? Number(order.payments[0].coupon_amount) : 0) || 0;
-    const netTotalAmount = Math.max(0, (Number(order.total_amount) || 0) - couponAmount);
-    const netPaidAmount = Math.max(0, (Number(order.paid_amount) || 0) - couponAmount);
-
     return {
       tenant_id: tenantId,
       meli_account_id: meli_account_id,
@@ -173,8 +169,8 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
       status: order.status,
       buyer_nickname: order.buyer?.nickname,
       buyer_id: order.buyer?.id?.toString(),
-      total_amount: netTotalAmount,
-      paid_amount: netPaidAmount,
+      total_amount: order.total_amount,
+      paid_amount: order.paid_amount,
       currency_id: order.currency_id,
       date_created: order.date_created,
       date_closed: order.date_closed,
@@ -213,24 +209,11 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     const localOrderId = orderMap[order.id.toString()];
     if (!localOrderId || !order.order_items) return;
 
-    const couponAmount = Number(order.coupon?.amount) || (order.payments && order.payments.length > 0 ? Number(order.payments[0].coupon_amount) : 0) || 0;
-    const orderTotalAmount = Number(order.total_amount) || 0;
-
     order.order_items.forEach((item: any) => {
       const meliItemId = item.item?.id;
       const productInfo = meliItemId ? productMap[meliItemId] : undefined;
       const localProductId = productInfo?.id;
       const unitCost = productInfo?.cost ?? null;
-
-      // Distribute coupon amount proportionally
-      let netUnitPrice = Number(item.unit_price) || 0;
-      if (couponAmount > 0 && orderTotalAmount > 0) {
-        const itemTotalOriginal = (Number(item.unit_price) || 0) * (Number(item.quantity) || 1);
-        const itemShare = itemTotalOriginal / orderTotalAmount;
-        const itemDiscountTotal = couponAmount * itemShare;
-        const itemDiscountPerUnit = itemDiscountTotal / (Number(item.quantity) || 1);
-        netUnitPrice = Math.max(0, (Number(item.unit_price) || 0) - itemDiscountPerUnit);
-      }
 
       orderItemsToUpsert.push({
         tenant_id: tenantId,
@@ -240,7 +223,7 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
         title: item.item?.title,
         sku: item.item?.seller_sku,
         quantity: item.quantity,
-        unit_price: netUnitPrice,
+        unit_price: item.unit_price,
         estimated_fee: item.sale_fee,
         unit_cost: unitCost,
       });

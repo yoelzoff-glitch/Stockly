@@ -129,6 +129,13 @@ export async function getFinancialData(
       let itemShipping = Number(item.estimated_shipping_cost) || 0;
       let itemExtra = orderPackagingCost * (qty / totalOrderQty);
 
+      const couponAmount = Number(raw?.coupon?.amount) || (raw?.payments && raw.payments.length > 0 ? Number(raw.payments[0].coupon_amount) : 0) || 0;
+      if (couponAmount > 0 && amount > 0) {
+        const itemTotalOriginal = Number(item.total_price) || 0;
+        const itemShare = itemTotalOriginal / amount;
+        itemExtra += couponAmount * itemShare;
+      }
+
       if (item.unit_cost !== null && Number(item.unit_cost) > 0) {
         itemCost = Number(item.unit_cost) * qty;
         unitsWithCost += qty;
@@ -195,7 +202,8 @@ export async function getFinancialData(
         p = (products || []).find(prod => prod.title === productTitle);
       }
       
-      let itemExtra = orderPackagingCost;
+      const couponAmount = Number(raw?.coupon?.amount) || (raw?.payments && raw.payments.length > 0 ? Number(raw.payments[0].coupon_amount) : 0) || 0;
+      let itemExtra = orderPackagingCost + couponAmount;
 
       if (p) {
         if (p.cost) {
