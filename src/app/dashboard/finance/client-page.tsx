@@ -129,7 +129,7 @@ export default function FinanceClientPage({
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Facturación Bruta</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-400">${facturacionBruta.toLocaleString("es-AR")}</div>
+            <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-400">${facturacionBruta.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</div>
           </CardContent>
         </Card>
         
@@ -138,7 +138,7 @@ export default function FinanceClientPage({
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Costos Productos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-red-500">-${costosProductos.toLocaleString("es-AR")}</div>
+            <div className="text-2xl font-semibold text-red-500">-${costosProductos.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</div>
           </CardContent>
         </Card>
 
@@ -147,7 +147,7 @@ export default function FinanceClientPage({
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Comisiones ML</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-red-500">-${comisionesML.toLocaleString("es-AR")}</div>
+            <div className="text-2xl font-semibold text-red-500">-${comisionesML.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</div>
           </CardContent>
         </Card>
 
@@ -156,7 +156,7 @@ export default function FinanceClientPage({
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Envíos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-red-500">-${envios.toLocaleString("es-AR")}</div>
+            <div className="text-2xl font-semibold text-red-500">-${envios.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</div>
           </CardContent>
         </Card>
 
@@ -165,7 +165,7 @@ export default function FinanceClientPage({
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cancelaciones</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-slate-500">${cancelacionesAmount.toLocaleString("es-AR")}</div>
+            <div className="text-2xl font-semibold text-slate-500">${cancelacionesAmount.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</div>
             <p className="text-[10px] text-muted-foreground mt-1">Ventas anuladas (no resta del total)</p>
           </CardContent>
         </Card>
@@ -181,7 +181,7 @@ export default function FinanceClientPage({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-500">
-              -${monthlyExpensesTotal.toLocaleString("es-AR")}
+              -${monthlyExpensesTotal.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
             </div>
             {appliedExpensesBreakdown.length > 0 ? (
               <div className="mt-1 space-y-0.5 max-h-[40px] overflow-y-auto pr-1 scrollbar-thin">
@@ -207,7 +207,7 @@ export default function FinanceClientPage({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-500">
-              -${totalCupones.toLocaleString("es-AR")}
+              -${totalCupones.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">
               Descuentos financiados en campañas de Mercado Libre
@@ -224,7 +224,7 @@ export default function FinanceClientPage({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-              ${gananciaNeta.toLocaleString("es-AR")}
+              ${gananciaNeta.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">Margen operativo: {margenNeto.toFixed(1)}%</p>
           </CardContent>
@@ -239,7 +239,7 @@ export default function FinanceClientPage({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${gananciaBolsilloLimpia.toLocaleString("es-AR")}
+              ${gananciaBolsilloLimpia.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
             </div>
             <p className="text-[10px] text-indigo-100/90 mt-1">
               Margen de Caja: {(facturacionBruta > 0 ? (gananciaBolsilloLimpia / facturacionBruta) * 100 : 0).toFixed(1)}%
@@ -290,14 +290,14 @@ export default function FinanceClientPage({
                         <div className="text-xs text-muted-foreground">{row.sku}</div>
                       </td>
                       <td className="px-4 py-3 text-right">{row.qty}</td>
-                      <td className="px-4 py-3 text-right font-medium">${row.revenue.toLocaleString("es-AR")}</td>
+                      <td className="px-4 py-3 text-right font-medium">${row.revenue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
                       <td className="px-4 py-3 text-right text-muted-foreground">
-                        {row.cost > 0 ? `$${row.cost.toLocaleString("es-AR")}` : <StatusBadge variant="danger">Falta</StatusBadge>}
+                        {row.cost > 0 ? `$${row.cost.toLocaleString("es-AR", { maximumFractionDigits: 0 })}` : <StatusBadge variant="danger">Falta</StatusBadge>}
                       </td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">${row.fee.toLocaleString("es-AR")}</td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">${row.shipping.toLocaleString("es-AR")}</td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">${row.extra.toLocaleString("es-AR")}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-emerald-600">${row.neta.toLocaleString("es-AR")}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">${row.fee.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">${row.shipping.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">${row.extra.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-emerald-600">${row.neta.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
                       <td className="px-4 py-3 text-right font-medium text-emerald-600">{row.marg.toFixed(1)}%</td>
                     </tr>
                   ))
@@ -307,12 +307,12 @@ export default function FinanceClientPage({
                 <tr>
                   <td className="px-4 py-4">TOTALES</td>
                   <td className="px-4 py-4 text-right">{totalUnitsSold}</td>
-                  <td className="px-4 py-4 text-right">${facturacionBruta.toLocaleString("es-AR")}</td>
-                  <td className="px-4 py-4 text-right text-red-500">-${costosProductos.toLocaleString("es-AR")}</td>
-                  <td className="px-4 py-4 text-right text-red-500">-${comisionesML.toLocaleString("es-AR")}</td>
-                  <td className="px-4 py-4 text-right text-red-500">-${envios.toLocaleString("es-AR")}</td>
-                  <td className="px-4 py-4 text-right text-red-500">-${promosCuotas.toLocaleString("es-AR")}</td>
-                  <td className="px-4 py-4 text-right text-emerald-600">${gananciaNeta.toLocaleString("es-AR")}</td>
+                  <td className="px-4 py-4 text-right">${facturacionBruta.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
+                  <td className="px-4 py-4 text-right text-red-500">-${costosProductos.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
+                  <td className="px-4 py-4 text-right text-red-500">-${comisionesML.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
+                  <td className="px-4 py-4 text-right text-red-500">-${envios.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
+                  <td className="px-4 py-4 text-right text-red-500">-${promosCuotas.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
+                  <td className="px-4 py-4 text-right text-emerald-600">${gananciaNeta.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
                   <td className="px-4 py-4 text-right text-emerald-600">-</td>
                 </tr>
               </tfoot>
