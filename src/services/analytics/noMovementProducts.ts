@@ -52,9 +52,6 @@ export async function getNoMovementProducts(tenantId: string, filter: NoMovement
 
   if (filter.status) {
     query = query.eq("status", filter.status);
-  } else {
-    // Default: only active products (or paused if we want to see them)
-    // We will bring all and filter or just active
   }
 
   if (filter.categoryId) {
@@ -67,29 +64,83 @@ export async function getNoMovementProducts(tenantId: string, filter: NoMovement
     return [];
   }
 
-  // 4. Filter products without movement and apply JS-side filters
-  let stagnantProducts = allProducts.filter((p) => !soldProductIds.has(p.id));
+  // Helper to identify products by SKU or a fallback unique identifier if no SKU exists
+  const getProductSku = (p: Product) => (p.sku && p.sku.trim() !== "") ? p.sku.trim() : `NO_SKU_${p.id}`;
 
+  // Find all SKUs that had sales (were sold in the period)
+  const soldSkus = new Set<string>();
+  allProducts.forEach((p) => {
+    if (soldProductIds.has(p.id)) {
+      soldSkus.add(getProductSku(p));
+    }
+  });
+
+  // Filter products without movement: exclude any product whose SKU has had sales
+  const stagnantProducts = allProducts.filter((p) => !soldSkus.has(getProductSku(p)));
+
+  // Group stagnant products by SKU key
+  const groupedProducts: Record<string, Product[]> = {};
+  stagnantProducts.forEach((p) => {
+    const skuKey = getProductSku(p);
+    if (!groupedProducts[skuKey]) {
+      groupedProducts[skuKey] = [];
+    }
+    groupedProducts[skuKey].push(p);
+  });
+
+  // Representative sorting: prioritize active status, then highest stock, then highest price
+  const getRepresentativeProduct = (products: Product[]): Product => {
+    return [...products].sort((a, b) => {
+      if (a.status === "active" && b.status !== "active") return -1;
+      if (a.status !== "active" && b.status === "active") return 1;
+      if ((a.available_quantity || 0) !== (b.available_quantity || 0)) {
+        return (b.available_quantity || 0) - (a.available_quantity || 0);
+      }
+      return (b.price || 0) - (a.price || 0);
+    })[0];
+  };
+
+  // Convert groups to representative/aggregated products
+  let aggregatedProducts: Product[] = Object.values(groupedProducts).map((group) => {
+    const rep = getRepresentativeProduct(group);
+    const totalAvailableQuantity = group.reduce((sum, p) => sum + (p.available_quantity || 0), 0);
+    const totalSoldQuantity = group.reduce((sum, p) => sum + (p.sold_quantity || 0), 0);
+    
+    const earliestCreatedAt = group.reduce((earliest, p) => {
+      return new Date(p.created_at) < new Date(earliest) ? p.created_at : earliest;
+    }, rep.created_at);
+
+    return {
+      ...rep,
+      available_quantity: totalAvailableQuantity,
+      sold_quantity: totalSoldQuantity,
+      created_at: earliestCreatedAt,
+    };
+  });
+
+  // Apply JS-side filters on the aggregated/grouped data
   // Minimum Stock
   if (filter.minStock !== undefined) {
-    stagnantProducts = stagnantProducts.filter((p) => p.available_quantity >= (filter.minStock as number));
+    aggregatedProducts = aggregatedProducts.filter((p) => p.available_quantity >= (filter.minStock as number));
   }
 
   // Has Cost
   if (filter.hasCost !== undefined) {
     if (filter.hasCost) {
-      stagnantProducts = stagnantProducts.filter((p) => p.cost !== null && p.cost !== undefined);
+      aggregatedProducts = aggregatedProducts.filter((p) => p.cost !== null && p.cost !== undefined);
     } else {
-      stagnantProducts = stagnantProducts.filter((p) => p.cost === null || p.cost === undefined);
+      aggregatedProducts = aggregatedProducts.filter((p) => p.cost === null || p.cost === undefined);
     }
   }
 
   // 5. Calculate metrics and recommendations
-  const enrichedProducts: NoMovementProduct[] = stagnantProducts.map((p) => {
-    const immobilizedCost = (p.cost || 0) * (p.available_quantity || 0);
+  const enrichedProducts: NoMovementProduct[] = aggregatedProducts.map((p) => {
+    const skuKey = getProductSku(p);
+    const group = groupedProducts[skuKey] || [p];
     
-    // We assume if it hasn't sold in the period, daysWithoutSales is at least `filter.days`
-    // If sold_quantity is 0, it never sold.
+    // Sum immobilized cost across all publications in the group
+    const immobilizedCost = group.reduce((sum, item) => sum + (item.cost || 0) * (item.available_quantity || 0), 0);
+
     let daysWithoutSales = filter.days;
     if (p.sold_quantity === 0) {
       const createdDaysAgo = Math.floor((new Date().getTime() - new Date(p.created_at).getTime()) / (1000 * 3600 * 24));
