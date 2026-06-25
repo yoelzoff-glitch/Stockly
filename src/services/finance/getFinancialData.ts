@@ -40,7 +40,8 @@ export async function getFinancialData(
   dateFrom: Date,
   dateTo: Date,
   packagingCost: number,
-  ignoredOrderIds: string[]
+  ignoredOrderIds: string[],
+  disableProration = false
 ): Promise<FinancialData> {
   // 1. Fetch orders
   const { data: orders } = await supabase
@@ -333,11 +334,11 @@ export async function getFinancialData(
           let appliedAmount = 0;
 
           if (e.type === "fixed_recurring") {
-            appliedAmount = Number(e.amount) * m.proration;
+            appliedAmount = Number(e.amount) * (disableProration ? 1 : m.proration);
           } else if (e.type === "fixed_one_off" && e.target_month) {
             // Verificar si aplica al mes evaluado
             if (e.target_month.substring(0, 7) === m.key) {
-              appliedAmount = Number(e.amount) * m.proration;
+              appliedAmount = Number(e.amount) * (disableProration ? 1 : m.proration);
             }
           } else if (e.type === "percent_variable") {
             // Se calcula directo sobre la facturación del mes

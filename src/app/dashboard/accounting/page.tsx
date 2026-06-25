@@ -66,7 +66,8 @@ export default async function AccountingPage() {
       dateFrom,
       dateTo,
       packagingCost,
-      ignoredOrderIds
+      ignoredOrderIds,
+      true
     );
     actualRevenue = financials.facturacionBruta;
     actualOperatingProfit = financials.gananciaNeta;

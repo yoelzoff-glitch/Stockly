@@ -66,7 +66,8 @@ export default async function FinancePage(props: { searchParams: Promise<{ perio
     dateFrom,
     dateTo,
     packagingCost,
-    ignoredOrderIds
+    ignoredOrderIds,
+    period === "current_month"
   );
 
   return (
