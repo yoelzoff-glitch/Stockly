@@ -50,7 +50,12 @@ export async function middleware(request: NextRequest) {
     if (isProtectedRoute) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("tenant_id")
+        .select(`
+          tenant_id,
+          tenants:tenants(
+            subscriptions:subscriptions(expires_at)
+          )
+        `)
         .eq("id", user.id)
         .single();
         
@@ -61,14 +66,10 @@ export async function middleware(request: NextRequest) {
       }
 
       if (profile?.tenant_id) {
-        const { data: sub } = await supabase
-          .from("subscriptions")
-          .select("expires_at")
-          .eq("tenant_id", profile.tenant_id)
-          .single();
+        const subExpiresAt = (profile as any)?.tenants?.subscriptions?.expires_at;
 
-        if (sub?.expires_at) {
-          const expiresAt = new Date(sub.expires_at);
+        if (subExpiresAt) {
+          const expiresAt = new Date(subExpiresAt);
           const now = new Date();
           
           if (expiresAt < now && !request.nextUrl.pathname.startsWith("/dashboard/billing") && request.nextUrl.pathname !== "/onboarding") {

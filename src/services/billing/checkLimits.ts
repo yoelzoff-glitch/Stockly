@@ -35,7 +35,7 @@ export async function getPlanLimits(): Promise<Record<string, { ai: number; auto
           ai: row.ai_credits_limit,
           auto: row.automation_limit,
           wa: row.whatsapp_limit,
-          pub: row.publications_limit
+          pub: row.sku_limit
         };
       }
       cachedPlanLimits = limits;

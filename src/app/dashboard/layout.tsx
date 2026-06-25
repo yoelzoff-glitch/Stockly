@@ -15,17 +15,25 @@ export default async function DashboardLayout({
   let daysRemaining = null;
 
   if (user) {
-    const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
-    if (profile?.tenant_id) {
-      const { data: subscription } = await supabase.from("subscriptions").select("*").eq("tenant_id", profile.tenant_id).single();
-      if (subscription) {
-        plan = subscription.plan;
-        if (subscription.expires_at) {
-          const expiresAt = new Date(subscription.expires_at);
-          const now = new Date();
-          const diffTime = expiresAt.getTime() - now.getTime();
-          daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        }
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select(`
+        tenant_id,
+        tenants:tenants(
+          subscriptions:subscriptions(plan, expires_at)
+        )
+      `)
+      .eq("id", user.id)
+      .single();
+
+    const subscription = (profile as any)?.tenants?.subscriptions;
+    if (subscription) {
+      plan = subscription.plan;
+      if (subscription.expires_at) {
+        const expiresAt = new Date(subscription.expires_at);
+        const now = new Date();
+        const diffTime = expiresAt.getTime() - now.getTime();
+        daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       }
     }
   }

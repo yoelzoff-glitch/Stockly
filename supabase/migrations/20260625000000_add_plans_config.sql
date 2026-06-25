@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS public.plans_config (
   ai_credits_limit INTEGER NOT NULL DEFAULT 500,
   automation_limit INTEGER NOT NULL DEFAULT 250,
   whatsapp_limit INTEGER NOT NULL DEFAULT 300,
-  publications_limit INTEGER NOT NULL DEFAULT 100,
+  sku_limit INTEGER NOT NULL DEFAULT 100,
   price_monthly NUMERIC,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.plans_config (
 );
 
 -- Seed the initial plan limits matching the hardcoded defaults
-INSERT INTO public.plans_config (plan_key, display_name, ai_credits_limit, automation_limit, whatsapp_limit, publications_limit)
+INSERT INTO public.plans_config (plan_key, display_name, ai_credits_limit, automation_limit, whatsapp_limit, sku_limit)
 VALUES 
   ('starter', 'Plan Starter', 500, 250, 300, 100),
   ('pro', 'Plan Pro', 1500, 800, 1500, 400),
