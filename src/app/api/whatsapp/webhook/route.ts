@@ -5,7 +5,7 @@ import { transcribeAudio } from "@/services/audio/transcribe";
 import { runBusinessAgent } from "@/services/ai/agent";
 import { incrementUsage, checkWhatsAppLimit } from "@/services/billing/checkLimits";
 import { logger } from "@/lib/errors/logger";
-import * as Sentry from "@sentry/nextjs";
+import { captureException } from "@sentry/nextjs";
 import { validateWebhookSignature } from "@/integrations/whatsapp/validateWebhookSignature";
 
 // Verify Webhook
@@ -187,7 +187,7 @@ export async function POST(req: Request) {
 
     return new NextResponse("OK", { status: 200 });
   } catch (error: any) {
-    Sentry.captureException(error, { extra: { context: "WHATSAPP_WEBHOOK" } });
+    captureException(error, { extra: { context: "WHATSAPP_WEBHOOK" } });
     logger.error(error, "WHATSAPP_WEBHOOK");
     return new NextResponse("Internal Server Error", { status: 500 });
   }
