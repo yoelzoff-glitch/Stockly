@@ -231,7 +231,23 @@ export async function getCampaignRecommendations(
 
     // Only recommend if we can find related publications in the user's actual catalog
     if (candidates.length > 0) {
-      const suggestedGroup = candidates.slice(0, 4).map(c => ({
+      // Deduplicate candidates by SKU key to prevent repeating SKUs
+      const seenSkus = new Set<string>();
+      const uniqueCandidates: typeof candidates = [];
+
+      for (const c of candidates) {
+        const rawSku = c.product.sku?.trim().toLowerCase() || "";
+        const skuKey = rawSku !== "" ? rawSku.replace(/\s+/g, "") : `no_sku_${c.product.id}`;
+
+        if (!seenSkus.has(skuKey)) {
+          seenSkus.add(skuKey);
+          uniqueCandidates.push(c);
+        }
+      }
+
+      if (uniqueCandidates.length === 0) continue;
+
+      const suggestedGroup = uniqueCandidates.slice(0, 4).map(c => ({
         sku: c.product.sku || "",
         title: c.product.title,
         price: c.product.price,
