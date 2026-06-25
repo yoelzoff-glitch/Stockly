@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { WorkflowActions } from "@/components/dashboard/workflow-actions";
 
 export default async function WorkflowsPage() {
   const supabase = await createClient();
@@ -90,6 +91,9 @@ export default async function WorkflowsPage() {
                       ))}
                     </ul>
                   </div>
+                  {wf.status === 'pending' && (
+                    <WorkflowActions workflowId={wf.id} />
+                  )}
                 </div>
               ))}
             </div>

@@ -8,6 +8,52 @@ export const PLAN_LIMITS = {
   ultra: { ai: 5000, auto: 1500, wa: 5000, pub: 1000 },
 };
 
+// Memory Cache for Database Plan Limits to avoid hammering Supabase on every request
+let cachedPlanLimits: Record<string, { ai: number; auto: number; wa: number; pub: number }> | null = null;
+let lastCacheUpdate = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache TTL
+
+export async function getPlanLimits(): Promise<Record<string, { ai: number; auto: number; wa: number; pub: number }>> {
+  const now = Date.now();
+  if (cachedPlanLimits && (now - lastCacheUpdate < CACHE_TTL_MS)) {
+    return cachedPlanLimits;
+  }
+
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("plans_config")
+      .select("*")
+      .eq("is_active", true);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      const limits: Record<string, { ai: number; auto: number; wa: number; pub: number }> = {};
+      for (const row of data) {
+        limits[row.plan_key] = {
+          ai: row.ai_credits_limit,
+          auto: row.automation_limit,
+          wa: row.whatsapp_limit,
+          pub: row.publications_limit
+        };
+      }
+      cachedPlanLimits = limits;
+      lastCacheUpdate = now;
+      return limits;
+    }
+  } catch (err) {
+    console.error("[Billing CheckLimits] Failed to load plans_config from database, falling back to static limits:", err);
+  }
+
+  // Fallback to static defaults
+  if (!cachedPlanLimits) {
+    cachedPlanLimits = PLAN_LIMITS;
+    lastCacheUpdate = now;
+  }
+  return PLAN_LIMITS;
+}
+
 export async function checkAILimit(tenantId: string): Promise<boolean> {
   const stats = await getUsageStats(tenantId);
   if (!stats) return true;
@@ -82,8 +128,9 @@ export async function incrementUsage(
     
     let planRaw = sub?.plan || "starter";
     if (planRaw === 'business') planRaw = 'ultra';
-    let plan = (planRaw as keyof typeof PLAN_LIMITS) || "starter";
-    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.starter;
+    const plan = (planRaw as string) || "starter";
+    const allPlanLimits = await getPlanLimits();
+    const limits = allPlanLimits[plan] || allPlanLimits.starter;
     
     let limit = 0;
     if (type === "ai_credits_used") limit = limits.ai;
@@ -129,8 +176,9 @@ export async function getUsageStats(tenantId: string) {
 
   let planRaw = sub?.plan || "starter";
   if (planRaw === 'business') planRaw = 'ultra';
-  let plan = (planRaw as keyof typeof PLAN_LIMITS) || "starter";
-  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.starter;
+  const plan = (planRaw as string) || "starter";
+  const allPlanLimits = await getPlanLimits();
+  const limits = allPlanLimits[plan] || allPlanLimits.starter;
 
   return {
     usage: usage || { ai_credits_used: 0, whatsapp_messages_used: 0, automation_actions_used: 0 },

@@ -146,7 +146,7 @@ function matchSkuToken(productSku: string, searchedSku: string): boolean {
   const normalizedSearch = normalizeSkuForSearch(searchedSku);
   const searchTokens = normalizedSearch.split(" ").filter(Boolean);
   const productTokens = splitSkuTokens(productSku);
-  
+
   // Para que el match sea valido, TODOS los tokens de la búsqueda deben estar en los tokens del producto
   return searchTokens.every(token => productTokens.includes(token));
 }
@@ -224,7 +224,7 @@ export async function searchProductsBySkuAction(sku: string) {
     .from("products")
     .select("id, meli_item_id, title, sku, price, status, thumbnail_url, permalink")
     .eq("tenant_id", profile.tenant_id);
-    
+
   if (!products) return [];
 
   // 2. Fetch all product_sku_components for the tenant
@@ -311,7 +311,7 @@ export async function createManualPromotionAction(payload: {
 
   // Crear la promoción localmente primero como "creating"
   const promoId = "PROMO-" + Math.floor(Math.random() * 1000000);
-  
+
   const { data: dbPromo, error: promoError } = await supabase.from("promotions").insert({
     tenant_id: profile.tenant_id,
     meli_promotion_id: promoId, // Fake id as ML doesn't return one for item promotions usually in this api

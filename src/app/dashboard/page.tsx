@@ -9,11 +9,13 @@ import { AlertCircle, CheckCircle2, MessageSquare, Package, RefreshCw, Sparkles,
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getCachedOrders } from "@/lib/cache";
-import { getOrCreateDailySummary } from "@/services/ai/dailySummary";
-import { generateBusinessInsights } from "@/services/analytics/insights";
 import { calculateBusinessHealth } from "@/services/health/calculateHealth";
 import { getActivationProgress } from "@/actions/activation";
 import { DashboardPeriodSelector } from "@/components/dashboard/dashboard-period-selector";
+import { Suspense } from "react";
+import { DailySummarySection } from "@/components/dashboard/daily-summary-section";
+import { InsightsSection } from "@/components/dashboard/insights-section";
+import { DailySummarySkeleton, InsightsSkeleton } from "@/components/dashboard/section-skeleton";
 import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 
 interface PageProps {
@@ -174,11 +176,6 @@ export default async function DashboardPage(props: PageProps) {
     .order("created_at", { ascending: false })
     .limit(3);
 
-  // 1. Daily Summary
-  const dailySummary = await getOrCreateDailySummary(tenantId);
-  
-  // 2. Business Insights
-  const insights = await generateBusinessInsights(tenantId);
 
   // 3. Billing Usage
   const { data: usage } = await supabase
@@ -266,21 +263,9 @@ export default async function DashboardPage(props: PageProps) {
       </div>
 
       {/* AI Daily Summary Hero */}
-      {dailySummary && (
-        <Card className="bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 text-white border-none shadow-[0_12px_32px_rgba(99,102,241,0.2)]">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2 font-medium">
-              <Sparkles className="w-5 h-5 text-yellow-300 drop-shadow-sm" />
-              Resumen Automático
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm md:text-base leading-relaxed whitespace-pre-wrap opacity-95">
-              {dailySummary}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      <Suspense fallback={<DailySummarySkeleton />}>
+        <DailySummarySection tenantId={tenantId} />
+      </Suspense>
 
       {/* Missing Costs Alert */}
       {(() => {
@@ -309,31 +294,9 @@ export default async function DashboardPage(props: PageProps) {
       })()}
 
       {/* Klyvo Recommends */}
-      {insights.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2 text-slate-900">
-            <Lightbulb className="w-5 h-5 text-amber-500" />
-            Klyvo Recomienda
-          </h3>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {insights.map(insight => (
-              <Card key={insight.id} className="border-l-[6px]" style={{ borderLeftColor: insight.type === 'positive' ? '#10b981' : insight.type === 'negative' ? '#ef4444' : insight.type === 'warning' ? '#f59e0b' : '#6366f1' }}>
-                <CardHeader className="p-5 pb-2">
-                  <CardTitle className="text-sm font-semibold text-slate-900">{insight.title}</CardTitle>
-                </CardHeader>
-                <CardContent className="p-5 pt-0">
-                  <p className="text-xs text-slate-500 mb-4">{insight.description}</p>
-                  {insight.actionLabel && (
-                    <Button variant="outline" size="sm" className="w-full text-xs h-8 rounded-full" asChild>
-                      <Link href={insight.actionHref || "#"}>{insight.actionLabel}</Link>
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
+      <Suspense fallback={<InsightsSkeleton />}>
+        <InsightsSection tenantId={tenantId} />
+      </Suspense>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <MetricCard 

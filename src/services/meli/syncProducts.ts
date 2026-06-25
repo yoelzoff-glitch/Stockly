@@ -1,9 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProducts } from "./getProducts";
+import { createRateLimiter } from "./rateLimiter";
 
 function extractSku(item: any): string | null {
   if (item.seller_custom_field) return item.seller_custom_field;
-  
+
   if (item.attributes && Array.isArray(item.attributes)) {
     const skuAttr = item.attributes.find((a: any) => a.id === "SELLER_SKU");
     if (skuAttr && skuAttr.value_name) return skuAttr.value_name;
@@ -44,7 +45,7 @@ export async function syncProducts(tenantId: string) {
     .select("metadata")
     .eq("id", tenantId)
     .single();
-  
+
   const tenantMetadata = (tenantData?.metadata as any) || {};
   const packagingCost = tenantMetadata.packaging_cost || 0;
   // const flexBaseCost = tenantMetadata.flex_base_cost || 0; // Not used at product level
@@ -173,7 +174,28 @@ export async function syncProducts(tenantId: string) {
   const productsToUpsert: any[] = [];
   const syncTimestamp = new Date().toISOString();
 
-  const batchSize = 10;
+  const limiter = createRateLimiter(5, 100);
+
+  async function withRetry<T>(fn: () => Promise<T>, maxRetries: number = 3, baseDelayMs: number = 1000): Promise<T> {
+    let attempt = 0;
+    while (true) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        attempt++;
+        const status = error.statusCode || error.status;
+        if (status === 429 && attempt <= maxRetries) {
+          const delay = baseDelayMs * Math.pow(2, attempt);
+          console.warn(`[Meli API Retry] Received 429. Retrying attempt ${attempt} in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        throw error;
+      }
+    }
+  }
+
+  const batchSize = rawProducts.length > 200 ? 5 : 10;
   for (let i = 0; i < rawProducts.length; i += batchSize) {
     const batch = rawProducts.slice(i, i + batchSize);
     await Promise.all(
@@ -183,8 +205,8 @@ export async function syncProducts(tenantId: string) {
         const existingProd = existingProductMap.get(item.id);
 
         // Re-use calculations if price, status are identical and we have estimated fee in DB
-        const hasPriceChanged = !existingProd || 
-          existingProd.price !== item.price || 
+        const hasPriceChanged = !existingProd ||
+          existingProd.price !== item.price ||
           existingProd.estimated_fee === null ||
           existingProd.estimated_shipping_cost === null;
 
@@ -195,32 +217,37 @@ export async function syncProducts(tenantId: string) {
           campaigns = existingProd.campaign_data;
           promotions = existingProd.promotion_data;
         } else {
-          // Fetch all 4 APIs in parallel for this item
-          [feeData, shippingData, campaigns, promotions] = await Promise.all([
-            getListingFees(siteId, item.price, item.category_id, item.listing_type_id, tenantId).catch(err => {
-              console.error(`Error fetching listing fees for ${item.id}:`, err);
-              return null;
-            }),
-            getShippingCostEstimate(item.id, meliAccount.access_token, item.shipping, item.seller_id, item.currency_id).catch(err => {
-              console.error(`Error fetching shipping estimate for ${item.id}:`, err);
-              return { estimated_shipping_cost: 0, raw_response: null };
-            }),
-            getCampaigns(item.id, meli_user_id, tenantId).catch(err => {
-              console.error(`Error fetching campaigns for ${item.id}:`, err);
-              return [];
-            }),
-            getPromotions(item.id, meli_user_id, tenantId).catch(err => {
-              console.error(`Error fetching promotions for ${item.id}:`, err);
-              return [];
-            })
-          ]);
+          await limiter.acquire();
+          try {
+            // Fetch all 4 APIs in parallel for this item with retry support for 429
+            [feeData, shippingData, campaigns, promotions] = await Promise.all([
+              withRetry(() => getListingFees(siteId, item.price, item.category_id, item.listing_type_id, tenantId)).catch(err => {
+                console.error(`Error fetching listing fees for ${item.id}:`, err);
+                return null;
+              }),
+              withRetry(() => getShippingCostEstimate(item.id, meliAccount.access_token, item.shipping, item.seller_id, item.currency_id)).catch(err => {
+                console.error(`Error fetching shipping estimate for ${item.id}:`, err);
+                return { estimated_shipping_cost: 0, raw_response: null };
+              }),
+              withRetry(() => getCampaigns(item.id, meli_user_id, tenantId)).catch(err => {
+                console.error(`Error fetching campaigns for ${item.id}:`, err);
+                return [];
+              }),
+              withRetry(() => getPromotions(item.id, meli_user_id, tenantId)).catch(err => {
+                console.error(`Error fetching promotions for ${item.id}:`, err);
+                return [];
+              })
+            ]);
+          } finally {
+            limiter.release();
+          }
         }
 
         const estimatedFee = feeData?.sale_fee_amount ?? null;
         const estimatedShipping = shippingData?.estimated_shipping_cost ?? 0;
 
         let extraFeeAmount = campaigns ? campaigns.reduce((acc: number, c: any) => acc + (c.fee_extra || 0), 0) : 0;
-        
+
         // Fallback: Si el API de campañas devolvió 403 o no detectó nada, pero el item tiene Cuota Simple (pcj-co-funded)
         if (extraFeeAmount === 0 && item.tags && item.tags.includes("pcj-co-funded")) {
           extraFeeAmount = item.price * 0.05; // Cuota simple cobra exactamente 5%
@@ -292,7 +319,7 @@ export async function syncProducts(tenantId: string) {
     const { data: chunkData, error: upsertError } = await supabase
       .from("products")
       .upsert(chunk, {
-        onConflict: "tenant_id, meli_item_id", 
+        onConflict: "tenant_id, meli_item_id",
       }).select("id, meli_item_id, sku");
 
     if (upsertError) {
@@ -312,7 +339,7 @@ export async function syncProducts(tenantId: string) {
       .from("product_components")
       .select("product_id")
       .eq("tenant_id", tenantId);
-    
+
     const productsWithComps = new Set(existingComps?.map(c => c.product_id) || []);
 
     const changedMeliIds = new Set<string>();
@@ -320,7 +347,7 @@ export async function syncProducts(tenantId: string) {
       const existingProd = existingProductMap.get(item.id);
       const sku = skuMap.get(item.id) || null;
       const hasComps = existingProd ? productsWithComps.has(existingProd.id) : false;
-      
+
       if (!existingProd || existingProd.sku !== sku || !hasComps) {
         changedMeliIds.add(item.id);
       }

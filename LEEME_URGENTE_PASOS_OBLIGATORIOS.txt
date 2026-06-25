@@ -1,0 +1,55 @@
+================================================================================
+🚨 LEEME_URGENTE: INSTRUCCIONES OBLIGATORIAS DE CONFIGURACIÓN Y RESUMEN DE CAMBIOS 🚨
+================================================================================
+
+Este archivo contiene el resumen de las mejoras de seguridad, estabilidad, UX y arquitectura implementadas en Klyvo (Stockly), junto con los pasos OBLIGATORIOS requeridos para su correcta ejecución en producción y desarrollo local.
+
+--------------------------------------------------------------------------------
+1. RESUMEN DE CAMBIOS REALIZADOS
+--------------------------------------------------------------------------------
+
+Fase 1: Seguridad y Estabilidad Crítica
+- [X] Validación de Webhook de WhatsApp: Creado 'src/integrations/whatsapp/validateWebhookSignature.ts' y modificado 'src/app/api/whatsapp/webhook/route.ts'. Ahora se valida la cabecera 'X-Hub-Signature-256' de Meta.
+- [X] Eliminación de Mutaciones en Layout: Se movió la lógica destructiva de downgrades al cron job 'applySubscriptionDowngradesJob.ts' en Inngest (ejecutado cada hora). Se eliminaron las escrituras del render principal en 'src/app/dashboard/layout.tsx'.
+- [X] Limitador de Tasa (Rate Limiting) para Mercado Libre: Creado 'src/services/meli/rateLimiter.ts' con concurrencia controlada (máximo 5 peticiones y delay de 100ms) e integrado con reintentos exponenciales en 'src/services/meli/syncProducts.ts' para evitar errores 429.
+
+Fase 2: Rendimiento de Frontend y UX
+- [X] Streaming en Dashboard (Suspense): Se extrajeron el 'Resumen Diario de IA' y las 'Recomendaciones de Negocio' (Klyvo Recomienda) a Server Components asíncronos independientes ('daily-summary-section.tsx' e 'insights-section.tsx'). Se envuelven en '<Suspense>' usando los placeholders en 'section-skeleton.tsx'. El dashboard ahora carga de forma instantánea.
+- [X] Eliminación de recargas bruscas (Flickering): Se reemplazó 'window.location.reload()' por 'router.refresh()' en la tabla de productos ('src/app/dashboard/products/client-page.tsx').
+
+Fase 3: Interactividad y Flujos de Trabajo
+- [X] Control de Workflows Autónomos: Creado el componente cliente 'src/components/dashboard/workflow-actions.tsx' con botones para "Aprobar" y "Rechazar" planes de acción de IA. Se integraron en la página 'src/app/dashboard/workflows/page.tsx' y se creó la ruta de API 'src/app/api/workflows/execute/route.ts'.
+
+Fase 4: Configuración Dinámica
+- [X] Límites de Planes Dinámicos: Los límites de los planes (créditos de IA, automatizaciones, WhatsApp y publicaciones) se migraron a la base de datos para modificarse en caliente. Se adaptó 'src/services/billing/checkLimits.ts' utilizando caché en memoria de 5 minutos (para evitar golpear Supabase en cada petición).
+
+*Nota: La tabla legacy 'product_sku_components' se mantuvo activa y sincronizada según tus indicaciones para no romper integraciones o dependencias externas.
+
+--------------------------------------------------------------------------------
+2. PASOS OBLIGATORIOS DE CONFIGURACIÓN
+--------------------------------------------------------------------------------
+
+PASE A BASE DE DATOS (SUPABASE)
+Deberás ejecutar la migración SQL creada en la base de datos de producción/desarrollo de Supabase. El script crea la tabla de configuración de planes 'plans_config' y añade los límites comerciales predeterminados.
+👉 Archivo de migración: 'supabase/migrations/20260625000000_add_plans_config.sql'
+(Copia el contenido y ejecútalo en la pestaña "SQL Editor" del dashboard de Supabase).
+
+VARIABLES DE ENTORNO
+1. Agrega la variable en tu archivo '.env.local':
+   WHATSAPP_APP_SECRET=tu_app_secret_de_meta
+2. Esta clave la encuentras en la sección de Configuración Básica de la app de desarrolladores de Meta (Meta for Developers).
+*Nota: Si no se define en local, el sistema continuará operando omitiendo de forma segura la verificación de firmas para facilitar el desarrollo local, pero en producción es OBLIGATORIA para evitar ejecuciones maliciosas.
+
+INSTALACIÓN DE DEPENDENCIAS
+Se actualizaron y corrigieron dependencias de Sentry. Asegúrate de reconstruir 'node_modules' antes de ejecutar el programa:
+👉 Comando: npm install
+
+COMPILACIÓN DEL PROYECTO
+En entornos de Windows donde no existan las dependencias nativas de Turbopack, utiliza la compilación de Webpack:
+👉 Comando: npx next build --webpack
+o
+👉 Comando de desarrollo: npm run dev
+
+================================================================================
+¡Listo! Todo el código y configuraciones han sido validados exitosamente.
+================================================================================

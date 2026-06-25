@@ -12,7 +12,7 @@ export type ResolvedProduct = {
   match_type?: 'sku_exact' | 'sku_component' | 'meli_item_id' | 'title';
 };
 
-export type ResolveResult = 
+export type ResolveResult =
   | { type: 'exact'; product: ResolvedProduct }
   | { type: 'multiple'; products: ResolvedProduct[] }
   | { type: 'not_found'; error: string };
@@ -20,7 +20,7 @@ export type ResolveResult =
 export async function resolveProduct(tenantId: string, query: string): Promise<ResolveResult> {
   const supabase = createAdminClient();
   let safeQuery = query.trim();
-  
+
   // Limpiar prefijos comunes que la IA podría mandar por error
   if (safeQuery.toLowerCase().startsWith('sku ')) {
     safeQuery = safeQuery.substring(4).trim();
@@ -36,7 +36,7 @@ export async function resolveProduct(tenantId: string, query: string): Promise<R
       .select("id, title, sku, price, available_quantity, status, meli_item_id")
       .eq("tenant_id", tenantId)
       .eq("id", safeQuery);
-    
+
     if (idMatches && idMatches.length === 1) {
       return { type: 'exact', product: { ...idMatches[0], match_type: 'sku_exact' } as ResolvedProduct };
     }

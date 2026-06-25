@@ -25,13 +25,13 @@ interface Product {
   last_synced_at: string;
 }
 
-export function ProductsClient({ 
-  initialProducts, 
-  totalCount = 0, 
-  currentPage = 1, 
-  searchQuery = "" 
-}: { 
-  initialProducts: any[], 
+export function ProductsClient({
+  initialProducts,
+  totalCount = 0,
+  currentPage = 1,
+  searchQuery = ""
+}: {
+  initialProducts: any[],
   totalCount?: number,
   currentPage?: number,
   searchQuery?: string
@@ -56,7 +56,7 @@ export function ProductsClient({
   };
 
   const handleSuccess = () => {
-    window.location.reload();
+    router.refresh();
   };
 
   const handleRecalculate = async () => {
@@ -64,7 +64,7 @@ export function ProductsClient({
     try {
       const res = await fetch("/api/profitability/recalculate", { method: "POST" });
       if (res.ok) {
-        window.location.reload();
+        router.refresh();
       }
     } finally {
       setIsRecalculating(false);
@@ -92,7 +92,7 @@ export function ProductsClient({
           </Link>
         </div>
       </div>
-      
+
       <Card>
         <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <div>
@@ -143,15 +143,15 @@ export function ProductsClient({
                           <td className="p-4 align-middle font-medium min-w-[250px]">
                             <div className="flex items-center gap-3">
                               {product.thumbnail_url && (
-                                <img 
-                                  src={product.thumbnail_url} 
-                                  alt="" 
-                                  className="w-10 h-10 rounded-md object-cover cursor-pointer hover:opacity-80 transition-opacity" 
+                                <img
+                                  src={product.thumbnail_url}
+                                  alt=""
+                                  className="w-10 h-10 rounded-md object-cover cursor-pointer hover:opacity-80 transition-opacity"
                                   onClick={() => setEditingProduct(product)}
                                 />
                               )}
                               <div className="flex flex-col">
-                                <span 
+                                <span
                                   className="line-clamp-2 cursor-pointer hover:text-indigo-600 transition-colors"
                                   onClick={() => setEditingProduct(product)}
                                 >
@@ -236,7 +236,7 @@ export function ProductsClient({
                           <td className="p-4 align-middle text-center">
                             <StatusBadge variant={
                               product.profitability_status === 'complete' ? 'success' :
-                              product.profitability_status === 'missing_cost' ? 'danger' : 'warning'
+                                product.profitability_status === 'missing_cost' ? 'danger' : 'warning'
                             }>
                               {product.profitability_status || 'unknown'}
                             </StatusBadge>
@@ -260,15 +260,15 @@ export function ProductsClient({
                   <div key={product.id} className="rounded-xl border border-slate-200 bg-white p-4 space-y-4 shadow-sm">
                     <div className="flex items-start gap-3">
                       {product.thumbnail_url && (
-                        <img 
-                          src={product.thumbnail_url} 
-                          alt="" 
-                          className="w-14 h-14 rounded-md object-cover border border-slate-100 shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
+                        <img
+                          src={product.thumbnail_url}
+                          alt=""
+                          className="w-14 h-14 rounded-md object-cover border border-slate-100 shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => setEditingProduct(product)}
                         />
                       )}
                       <div>
-                        <h4 
+                        <h4
                           className="font-medium text-sm line-clamp-2 text-slate-900 cursor-pointer hover:text-indigo-600 transition-colors"
                           onClick={() => setEditingProduct(product)}
                         >
@@ -292,7 +292,7 @@ export function ProductsClient({
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm border-t border-slate-100 pt-3">
                       <div className="flex flex-col">
                         <span className="text-xs text-muted-foreground uppercase">Precio</span>
@@ -315,7 +315,7 @@ export function ProductsClient({
                       <div className="flex flex-col items-start justify-center">
                         <StatusBadge variant={
                           product.profitability_status === 'complete' ? 'success' :
-                          product.profitability_status === 'missing_cost' ? 'danger' : 'warning'
+                            product.profitability_status === 'missing_cost' ? 'danger' : 'warning'
                         }>
                           {product.profitability_status || 'unknown'}
                         </StatusBadge>
@@ -333,16 +333,16 @@ export function ProductsClient({
               </div>
             </>
           )}
-          
+
           {totalCount > 50 && (
             <div className="flex items-center justify-between px-2 py-4 border-t">
               <div className="text-sm text-muted-foreground">
                 Mostrando {initialProducts.length} de {totalCount} productos
               </div>
               <div className="flex space-x-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   disabled={currentPage <= 1}
                   onClick={() => {
                     const params = new URLSearchParams(searchParams);
@@ -352,9 +352,9 @@ export function ProductsClient({
                 >
                   Anterior
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   disabled={currentPage * 50 >= totalCount}
                   onClick={() => {
                     const params = new URLSearchParams(searchParams);
@@ -371,20 +371,20 @@ export function ProductsClient({
       </Card>
 
       {editingProduct && (
-        <ProductCommandCenter 
-          product={editingProduct} 
+        <ProductCommandCenter
+          product={editingProduct}
           isOpen={!!editingProduct}
           onClose={() => setEditingProduct(null)}
           onSuccess={() => {
             setEditingProduct(null);
-            handleSuccess(); 
-          }} 
+            handleSuccess();
+          }}
         />
       )}
 
       {isImportModalOpen && (
-        <ImportCostsModal 
-          onClose={() => setIsImportModalOpen(false)} 
+        <ImportCostsModal
+          onClose={() => setIsImportModalOpen(false)}
           onSuccess={() => {
             setIsImportModalOpen(false);
             handleSuccess();

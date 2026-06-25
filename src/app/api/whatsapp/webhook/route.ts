@@ -6,6 +6,7 @@ import { runBusinessAgent } from "@/services/ai/agent";
 import { incrementUsage, checkWhatsAppLimit } from "@/services/billing/checkLimits";
 import { logger } from "@/lib/errors/logger";
 import * as Sentry from "@sentry/nextjs";
+import { validateWebhookSignature } from "@/integrations/whatsapp/validateWebhookSignature";
 
 // Verify Webhook
 export async function GET(req: Request) {
@@ -28,7 +29,16 @@ export async function GET(req: Request) {
 // Handle Incoming Messages
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const rawBody = await req.text();
+    const signature = req.headers.get("X-Hub-Signature-256");
+    const appSecret = process.env.WHATSAPP_APP_SECRET;
+
+    if (appSecret && !validateWebhookSignature(rawBody, signature, appSecret)) {
+      logger.warn("Invalid webhook signature received", "WHATSAPP_WEBHOOK");
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+
+    const body = JSON.parse(rawBody);
 
     if (body.object !== "whatsapp_business_account") {
       return new NextResponse("Not Found", { status: 404 });
@@ -54,7 +64,7 @@ export async function POST(req: Request) {
 
       // 1. Identify Tenant by SENDER'S cell phone number (from) instead of global bot number
       const supabase = createAdminClient();
-      
+
       let cleanedFrom = from.replace("+", "").trim();
       let alternativeFrom = cleanedFrom;
       if (cleanedFrom.startsWith("549") && cleanedFrom.length === 13) {
@@ -135,7 +145,7 @@ export async function POST(req: Request) {
 
       // 4. Run AI Agent
       const aiResult = await runBusinessAgent({
-        tenantId, 
+        tenantId,
         userMessage: textMessage,
         channel: "whatsapp",
         fromPhone: from

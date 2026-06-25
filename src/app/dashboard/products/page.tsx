@@ -16,7 +16,7 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
     .single();
 
   const tenantId = profile?.tenant_id;
-  
+
   const q = searchParams.q || "";
   const page = parseInt(searchParams.page || "1");
   const limit = 50;
@@ -36,8 +36,8 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
 
   const { data: products, count } = await query;
 
-  return <ProductsClient 
-    initialProducts={products || []} 
+  return <ProductsClient
+    initialProducts={products || []}
     totalCount={count || 0}
     currentPage={page}
     searchQuery={q}
