@@ -75,7 +75,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
     { data: products }
   ] = await Promise.all([
     supabase.from("orders").select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id").eq("tenant_id", tenantId).neq("status", "cancelled").gte("date_created", sevenDaysAgo.toISOString()).order("date_created", { ascending: false }),
-    supabase.from("order_cancellations").select("refund_amount").eq("tenant_id", tenantId).gte("created_at", sevenDaysAgo.toISOString()),
+    supabase.from("order_cancellations").select("refund_amount").eq("tenant_id", tenantId).gte("date_cancelled", sevenDaysAgo.toISOString()).lte("date_cancelled", new Date().toISOString()),
     supabase.from("shipments").select("substatus, shipping_cost, meli_shipment_id").eq("tenant_id", tenantId).gte("date_created", sevenDaysAgo.toISOString()),
     supabase.from("products").select("id, title, cost, sku, sold_quantity, margin_percent, available_quantity, profit_real_estimated, status, estimated_shipping_cost, meli_item_id, extra_fee_amount, promotion_discount_amount").eq("tenant_id", tenantId)
   ]);
