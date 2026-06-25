@@ -19,11 +19,11 @@ import { DailySummarySkeleton, InsightsSkeleton } from "@/components/dashboard/s
 import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 
 interface PageProps {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }> | { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 export default async function DashboardPage(props: PageProps) {
-  const resolvedParams = await (props.searchParams instanceof Promise ? props.searchParams : Promise.resolve(props.searchParams));
+  const resolvedParams = await props.searchParams;
   const daysParam = typeof resolvedParams?.days === "string" ? resolvedParams.days : "7";
   const days = ["7", "15", "30", "90"].includes(daysParam) ? parseInt(daysParam, 10) : 7;
   const supabase = await createClient();

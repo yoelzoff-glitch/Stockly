@@ -15,8 +15,9 @@ import { OpenAIConfigModal, WhatsAppConfigModal } from "./client-page";
 export default async function IntegrationsPage({
   searchParams,
 }: {
-  searchParams: { meli?: string };
+  searchParams: Promise<{ meli?: string }>;
 }) {
+  const resolvedSearchParams = await searchParams;
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -69,7 +70,7 @@ export default async function IntegrationsPage({
       </div>
       <p className="text-muted-foreground">Administra las conexiones de tu negocio con otras plataformas.</p>
 
-      {searchParams.meli === "connected" && (
+      {resolvedSearchParams.meli === "connected" && (
         <Alert className="mt-4 border-green-500 bg-green-500/10 text-green-600 dark:text-green-400">
           <CheckCircle2 className="h-4 w-4" color="currentColor" />
           <AlertTitle>¡Conexión Exitosa!</AlertTitle>
@@ -79,7 +80,7 @@ export default async function IntegrationsPage({
         </Alert>
       )}
 
-      {searchParams.meli === "error" && (
+      {resolvedSearchParams.meli === "error" && (
         <Alert variant="destructive" className="mt-4">
           <XCircle className="h-4 w-4" />
           <AlertTitle>Error de Conexión</AlertTitle>
