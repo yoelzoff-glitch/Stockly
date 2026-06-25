@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { OverviewChart } from "@/components/dashboard/overview-chart";
 import { TopProductsChart } from "@/components/dashboard/top-products-chart";
-import { TrendingUp, TrendingDown, ShoppingBag, CreditCard, AlertTriangle, DollarSign, PackageX, Activity, Cpu, Ban } from "lucide-react";
+import { TrendingUp, TrendingDown, ShoppingBag, CreditCard, AlertTriangle, DollarSign, PackageX, Activity, Cpu, Ban, Sparkles, ExternalLink, Layers, Flame } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -12,6 +12,7 @@ import { getParetoAnalysis } from "@/services/analytics/pareto";
 import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 import { TimeFilter } from "./time-filter";
 import { getFinancialData } from "@/services/finance/getFinancialData";
+import { getCampaignRecommendations } from "@/services/analytics/campaignRecommendations";
 
 export default async function AnalyticsAndInsightsPage(props: { searchParams: Promise<{ days?: string }> }) {
   const searchParams = await props.searchParams;
@@ -130,6 +131,13 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   // Pareto Analysis
   const pareto = await getParetoAnalysis({ tenantId, dateFrom: sevenDaysAgo });
 
+  // Campaign Recommendations
+  const { topProducts: campaignTopProducts, recommendations: campaignRecommendations } = await getCampaignRecommendations(
+    supabase,
+    tenantId,
+    sevenDaysAgo
+  );
+
   // Chart Data preparation based on the selected period
   const activeProductsFromPeriod = [...pareto.paretoProducts, ...pareto.longTailProducts];
   const chartData = activeProductsFromPeriod.slice(0, 5).map(p => ({
@@ -212,10 +220,11 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full max-w-[540px] grid-cols-3 bg-slate-100 p-1 rounded-lg">
+        <TabsList className="grid w-full max-w-[700px] grid-cols-4 bg-slate-100 p-1 rounded-lg">
           <TabsTrigger value="overview">Resumen General</TabsTrigger>
           <TabsTrigger value="catalog">Rendimiento Catálogo</TabsTrigger>
           <TabsTrigger value="pareto">Análisis Pareto 80/20</TabsTrigger>
+          <TabsTrigger value="campaigns">Impulso de Campañas</TabsTrigger>
         </TabsList>
 
         {/* PESTAÑA 1: RESUMEN GENERAL */}
@@ -494,6 +503,187 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
                 </CardContent>
               </Card>
             </div>
+          </div>
+        </TabsContent>
+
+        {/* PESTAÑA 4: IMPULSO DE CAMPAÑAS */}
+        <TabsContent value="campaigns" className="space-y-6 outline-none">
+          <div className="grid gap-6 md:grid-cols-12">
+            
+            {/* Recommendations Column */}
+            <div className="md:col-span-12 lg:col-span-8 space-y-6">
+              <Card className="shadow-md border-indigo-100 bg-gradient-to-br from-indigo-50/20 to-white">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-indigo-600" />
+                    <CardTitle>Campañas de Impulso Sugeridas</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Agrupaciones inteligentes basadas en categorías y temas de tu catálogo para campañas de publicidad.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {campaignRecommendations.length === 0 ? (
+                    <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                      <Layers className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                      <h4 className="text-slate-800 font-semibold">Sin recomendaciones grupales</h4>
+                      <p className="text-slate-500 text-sm mt-1 max-w-md mx-auto">
+                        No se detectaron suficientes publicaciones activas del mismo tipo o temática para agruparlas en campañas. ¡Publica productos similares para habilitar sugerencias!
+                      </p>
+                    </div>
+                  ) : (
+                    campaignRecommendations.map((campaign, idx) => (
+                      <div key={idx} className="p-5 rounded-xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-shadow space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+                          <div className="space-y-0.5">
+                            <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                              {campaign.campaignName}
+                            </h3>
+                            <p className="text-slate-500 text-xs">{campaign.reason}</p>
+                          </div>
+                          <div className="flex gap-1.5 flex-wrap">
+                            <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                              {campaign.category}
+                            </Badge>
+                            {campaign.subTheme && (
+                              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                {campaign.subTheme}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Left: Primary and best publication */}
+                          <div className="space-y-3">
+                            <div className="bg-emerald-50/30 border border-emerald-100/50 p-3 rounded-lg">
+                              <span className="text-xs font-semibold text-emerald-800 block mb-1">PRODUCTO PRINCIPAL (ALTA ROTACIÓN)</span>
+                              <span className="font-semibold text-slate-900 text-sm block">
+                                {campaign.primaryProduct.sku ? `[${campaign.primaryProduct.sku}] ` : ""}{campaign.primaryProduct.title}
+                              </span>
+                              <div className="flex items-center gap-4 mt-2 text-xs text-slate-600">
+                                <span>Vendidos: <strong>{campaign.primaryProduct.unitsSold} u.</strong></span>
+                                <span>Ingresos: <strong>${campaign.primaryProduct.revenue.toLocaleString('es-AR')}</strong></span>
+                              </div>
+                            </div>
+
+                            <div className="bg-indigo-50/30 border border-indigo-100/50 p-3 rounded-lg">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-semibold text-indigo-800">MEJOR PUBLICACIÓN PARA ANUNCIAR</span>
+                                {campaign.bestPublication.permalink && (
+                                  <a 
+                                    href={campaign.bestPublication.permalink} 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 text-xs font-medium"
+                                  >
+                                    Ver en ML <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                )}
+                              </div>
+                              <span className="font-semibold text-slate-800 text-sm block truncate" title={campaign.bestPublication.title}>
+                                {campaign.bestPublication.title}
+                              </span>
+                              <div className="flex flex-wrap items-center gap-2 mt-2">
+                                <span className="text-sm font-bold text-slate-900">${campaign.bestPublication.price.toLocaleString('es-AR')}</span>
+                                <Badge variant="secondary" className="text-[10px] py-0 px-2 bg-slate-100 text-slate-700 whitespace-normal text-left">
+                                  {campaign.bestPublication.listingType}
+                                </Badge>
+                                <span className="text-[10px] text-slate-500">({campaign.bestPublication.unitsSold} ventas en periodo)</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Suggested Group */}
+                          <div className="bg-slate-50/50 border border-slate-100 p-3.5 rounded-lg flex flex-col justify-between">
+                            <div>
+                              <span className="text-xs font-semibold text-slate-600 block mb-2">PRODUCTOS PARA AGRUPAR EN LA CAMPAÑA</span>
+                              <div className="space-y-2">
+                                {campaign.suggestedGroup.map((item, sIdx) => (
+                                  <div key={sIdx} className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5 last:border-0 last:pb-0">
+                                    <div className="min-w-0">
+                                      <span className="text-xs font-medium text-slate-800 block truncate" title={item.title}>
+                                        {item.sku ? `[${item.sku}] ` : ""}{item.title}
+                                      </span>
+                                      <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                                        <span>Precio: ${item.price.toLocaleString('es-AR')}</span>
+                                        <span>Stock: {item.available_quantity}</span>
+                                      </div>
+                                    </div>
+                                    {item.permalink && (
+                                      <a href={item.permalink} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-indigo-600 shrink-0">
+                                        <ExternalLink className="w-3.5 h-3.5" />
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right: Top Selling Products & Best Pub details */}
+            <div className="md:col-span-12 lg:col-span-4 space-y-6">
+              <Card className="shadow-sm border-slate-200">
+                <CardHeader className="bg-slate-50/60 pb-4 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <Flame className="w-5 h-5 text-amber-500" />
+                    <CardTitle className="text-lg">Top Productos del Período</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Desglose por SKU y análisis de la publicación con mejor desempeño.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                  {campaignTopProducts.length === 0 ? (
+                    <p className="text-slate-500 text-sm text-center py-6">No hay datos de ventas en este periodo.</p>
+                  ) : (
+                    campaignTopProducts.map((p, idx) => (
+                      <div key={idx} className="border-b pb-4 last:border-0 last:pb-0 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="font-semibold text-slate-900 text-sm block truncate" title={p.title}>
+                              #{idx + 1} {p.sku ? `[${p.sku}] ` : ""}{p.title}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {p.unitsSold} unidades vendidas · ${p.revenue.toLocaleString('es-AR')}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Best performing publication subcard */}
+                        <div className="bg-amber-50/30 border border-amber-100/50 p-2.5 rounded-lg text-xs space-y-1">
+                          <div className="flex items-center justify-between text-[10px] text-amber-800 font-semibold">
+                            <span>PUBLICACIÓN LÍDER DEL SKU</span>
+                            {p.bestPublication.permalink && (
+                              <a href={p.bestPublication.permalink} target="_blank" rel="noreferrer" className="text-amber-700 hover:underline flex items-center gap-0.5">
+                                Ver <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                          <p className="font-medium text-slate-700 truncate" title={p.bestPublication.title}>
+                            {p.bestPublication.title}
+                          </p>
+                          <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500">
+                            <span>Precio: <strong>${p.bestPublication.price.toLocaleString('es-AR')}</strong></span>
+                            <Badge variant="outline" className="text-[9px] py-0 px-1 bg-amber-50 text-amber-700 border-amber-200">
+                              {p.bestPublication.listingType}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+            
           </div>
         </TabsContent>
       </Tabs>
