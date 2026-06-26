@@ -220,9 +220,8 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full max-w-[700px] grid-cols-4 bg-slate-100 p-1 rounded-lg">
+        <TabsList className="grid w-full max-w-[600px] grid-cols-3 bg-slate-100 p-1 rounded-lg">
           <TabsTrigger value="overview">Resumen General</TabsTrigger>
-          <TabsTrigger value="catalog">Rendimiento Catálogo</TabsTrigger>
           <TabsTrigger value="pareto">Análisis Pareto 80/20</TabsTrigger>
           <TabsTrigger value="campaigns">Impulso de Campañas</TabsTrigger>
         </TabsList>
@@ -310,144 +309,7 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
           </div>
         </TabsContent>
 
-        {/* PESTAÑA 2: RENDIMIENTO CATÁLOGO */}
-        <TabsContent value="catalog" className="space-y-6 outline-none">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <MetricCard 
-              title="Tasa de Cancelación" 
-              value={`${cancellationRate}%`} 
-              description={`${totalCancellations} ventas canceladas`} 
-              icon={<Ban className="h-5 w-5" />} 
-              variant="red" 
-            />
-            <MetricCard 
-              title="Pérdida por Cancelaciones" 
-              value={`$${lostRevenue.toLocaleString('es-AR')}`} 
-              description="Monto devuelto en el periodo" 
-              icon={<TrendingDown className="h-5 w-5" />} 
-              variant="red" 
-            />
-            <MetricCard 
-              title="Envíos Demorados" 
-              value={delayedShipments} 
-              description={`${delayedRate}% de tus envíos`} 
-              icon={<AlertTriangle className="h-5 w-5" />} 
-              variant="amber" 
-            />
-            <MetricCard 
-              title="Costo Promedio Envío" 
-              value={`$${avgShippingCost.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`} 
-              description="Por orden de envío" 
-              icon={<Activity className="h-5 w-5" />} 
-              variant="slate" 
-            />
-          </div>
 
-          <div className="grid gap-6 md:grid-cols-12">
-            <div className="md:col-span-12 lg:col-span-8">
-              <Card className="shadow-sm h-full">
-                <CardHeader>
-                  <CardTitle>Tendencias Internas del Catálogo</CardTitle>
-                  <CardDescription>Clasificación de productos según su desempeño.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-2 text-emerald-600">
-                      <TrendingUp className="w-4 h-4" /> Líderes en Ventas
-                    </h4>
-                    <ul className="space-y-2 text-sm">
-                      {topGrowing.map(p => (
-                        <li key={p.id} className="flex justify-between border-b pb-1 hover:bg-slate-50/50 px-1 py-0.5 rounded transition-colors">
-                          <span className="truncate pr-2" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
-                            {p.sku ? `[${p.sku}] ${p.title}` : p.title}
-                          </span>
-                          <Badge variant="secondary" className="shrink-0">{p.sold_quantity} vendidos</Badge>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-2 text-red-500">
-                      <TrendingDown className="w-4 h-4" /> Capital Inmovilizado (Muertos)
-                    </h4>
-                    <ul className="space-y-2 text-sm">
-                      {deadProducts.map(p => (
-                        <li key={p.id} className="flex justify-between border-b pb-1 hover:bg-slate-50/50 px-1 py-0.5 rounded transition-colors">
-                          <span className="truncate pr-2" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
-                            {p.sku ? `[${p.sku}] ${p.title}` : p.title}
-                          </span>
-                          <Badge variant="outline" className="text-red-500 border-red-200 shrink-0">Stock: {p.available_quantity}</Badge>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-2 text-emerald-600">
-                      <DollarSign className="w-4 h-4" /> Mejores Márgenes
-                    </h4>
-                    <ul className="space-y-2 text-sm">
-                      {bestMargin.map(p => (
-                        <li key={p.id} className="flex justify-between border-b pb-1 hover:bg-slate-50/50 px-1 py-0.5 rounded transition-colors">
-                          <span className="truncate pr-2" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
-                            {p.sku ? `[${p.sku}] ${p.title}` : p.title}
-                          </span>
-                          <span className="font-semibold text-emerald-600 shrink-0">{p.margin_percent?.toFixed(1)}%</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-2 text-orange-500">
-                      <AlertTriangle className="w-4 h-4" /> Peores Márgenes
-                    </h4>
-                    <ul className="space-y-2 text-sm">
-                      {worstMargin.map(p => (
-                        <li key={p.id} className="flex justify-between border-b pb-1 hover:bg-slate-50/50 px-1 py-0.5 rounded transition-colors">
-                          <span className="truncate pr-2" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
-                            {p.sku ? `[${p.sku}] ${p.title}` : p.title}
-                          </span>
-                          <span className="font-semibold text-orange-500 shrink-0">{p.margin_percent?.toFixed(1)}%</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="md:col-span-12 lg:col-span-4">
-              {lowStockProducts && lowStockProducts.length > 0 ? (
-                <Card className="border-orange-200 dark:border-orange-900/50 shadow-sm h-full">
-                  <CardHeader className="bg-orange-50/50 dark:bg-orange-500/10 pb-4">
-                    <CardTitle className="flex items-center gap-2 text-orange-700">
-                      <AlertTriangle className="w-5 h-5 text-orange-500" /> Atención: Stock Crítico
-                    </CardTitle>
-                    <CardDescription>Reponer inventario pronto.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-6 space-y-4">
-                    {lowStockProducts.map((p, i) => (
-                      <div key={i} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0 hover:bg-slate-50/50 p-1 rounded transition-colors">
-                        <div className="font-medium text-sm truncate pr-2" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
-                          {p.sku ? `[${p.sku}] ${p.title}` : p.title}
-                        </div>
-                        <div className="text-sm text-red-500 font-bold shrink-0">{p.available_quantity} en stock</div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="border-slate-200 shadow-sm h-full flex flex-col justify-center items-center p-6 text-center">
-                  <Activity className="w-10 h-10 text-emerald-500 mb-2" />
-                  <p className="font-medium text-slate-800 text-sm">¡Niveles de stock óptimos!</p>
-                  <p className="text-xs text-slate-500 mt-1">Ningún producto está en nivel crítico actualmente.</p>
-                </Card>
-              )}
-            </div>
-          </div>
-        </TabsContent>
 
         {/* PESTAÑA 3: ANÁLISIS PARETO Y TOP 10 */}
         <TabsContent value="pareto" className="space-y-6 outline-none">
