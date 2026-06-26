@@ -5,7 +5,7 @@ export const MELI_PROMOTION_ENDPOINTS = {
   UPDATE_ITEM_PROMOTION: (promotionId: string, itemId: string) => `/seller-promotions/promotions/${promotionId}/items/${itemId}`,
   DELETE_ITEM_PROMOTION: (promotionId: string, itemId: string) => `/seller-promotions/promotions/${promotionId}/items/${itemId}`,
   
-  CREATE_COUPON: (sellerId: string) => `/seller-promotions/users/${sellerId}/coupons`,
-  GET_COUPONS: (sellerId: string) => `/seller-promotions/users/${sellerId}/coupons`,
-  CANCEL_COUPON: (sellerId: string, couponId: string) => `/seller-promotions/users/${sellerId}/coupons/${couponId}`
+  CREATE_COUPON: (sellerId: string) => `/seller-promotions/users/${sellerId}/coupons?app_version=v2`,
+  GET_COUPONS: (sellerId: string) => `/seller-promotions/users/${sellerId}/coupons?app_version=v2`,
+  CANCEL_COUPON: (sellerId: string, couponId: string) => `/seller-promotions/users/${sellerId}/coupons/${couponId}?app_version=v2`
 };
