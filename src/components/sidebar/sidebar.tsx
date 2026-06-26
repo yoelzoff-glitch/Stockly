@@ -28,8 +28,6 @@ import { logoutAction } from "@/actions/auth";
 
 const sidebarLinks = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Health Center", href: "/dashboard/health", icon: Activity },
-  { name: "Intelligence Center", href: "/dashboard/intelligence", icon: BrainCircuit },
   { name: "Analíticas e Insights", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Productos", href: "/dashboard/products", icon: Package },
   { name: "Stock Interno", href: "/dashboard/internal-stock", icon: Layers, indent: true },

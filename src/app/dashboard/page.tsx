@@ -5,11 +5,10 @@ import { TopProductsChart } from "@/components/dashboard/top-products-chart";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { SystemMonitor } from "@/components/dashboard/system-monitor";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { AlertCircle, CheckCircle2, MessageSquare, Package, RefreshCw, Sparkles, Lightbulb, ArrowRight, HeartPulse, DollarSign, LineChart } from "lucide-react";
+import { AlertCircle, CheckCircle2, MessageSquare, Package, RefreshCw, Sparkles, Lightbulb, ArrowRight, DollarSign, LineChart } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getCachedOrders } from "@/lib/cache";
-import { calculateBusinessHealth } from "@/services/health/calculateHealth";
 import { getActivationProgress } from "@/actions/activation";
 import { DashboardPeriodSelector } from "@/components/dashboard/dashboard-period-selector";
 import { Suspense } from "react";
@@ -195,7 +194,6 @@ export default async function DashboardPage(props: PageProps) {
 
   // Sprint 16: Health & Activation
   const activation = await getActivationProgress();
-  const healthData = await calculateBusinessHealth(tenantId);
 
   // Time formatting helper
   const formatTimeAgo = (dateStr: string) => {
@@ -238,11 +236,7 @@ export default async function DashboardPage(props: PageProps) {
         <div className="flex flex-wrap items-center gap-3">
           <DashboardPeriodSelector />
 
-          <Link href="/dashboard/health">
-            <StatusBadge variant={healthData.score >= 90 ? 'success' : healthData.score >= 70 ? 'info' : healthData.score >= 50 ? 'warning' : 'danger'} className="px-3 py-1.5 text-sm">
-              <HeartPulse className="w-4 h-4 mr-1.5" /> Salud: {healthData.score}/100
-            </StatusBadge>
-          </Link>
+
 
           <StatusBadge variant={meliAccount.status === 'syncing' ? 'info' : meliAccount.status === 'error' ? 'danger' : 'success'} className="px-3 py-1.5 text-sm">
             {meliAccount.status === 'syncing' ? (

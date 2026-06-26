@@ -79,7 +79,7 @@ export async function getActivationProgress() {
       id: "first_ai_query",
       title: "Hacer primera consulta IA",
       completed: isManualCompleted("first_ai_query"),
-      actionUrl: "/dashboard/intelligence"
+      actionUrl: "/dashboard/messages"
     }
   ];
 

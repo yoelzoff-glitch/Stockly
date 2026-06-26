@@ -42,7 +42,6 @@ export async function updateAISettings(model: string) {
     .eq("id", profile.tenant_id);
 
   revalidatePath("/dashboard/integrations");
-  revalidatePath("/dashboard/intelligence");
   
   return { success: true };
 }
