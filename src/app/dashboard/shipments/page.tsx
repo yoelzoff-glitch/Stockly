@@ -60,6 +60,14 @@ export default async function ShipmentsPage(props: { searchParams: Promise<{ per
     dateFrom = new Date(2000, 0, 1);
   }
 
+  // Sync shipments dynamically before retrieving them so the page has fresh status info
+  try {
+    const { syncShipments } = await import("@/services/meli/syncShipments");
+    await syncShipments(tenantId);
+  } catch (err) {
+    console.error("Failed to run on-demand shipment sync on page load:", err);
+  }
+
   // Fetch shipments within date range
   const { data: shipments } = await supabase
     .from("shipments")
@@ -79,11 +87,17 @@ export default async function ShipmentsPage(props: { searchParams: Promise<{ per
     const status = s.status?.toLowerCase();
     const substatus = s.substatus?.toLowerCase();
 
-    if (status === "pending") pendientes++;
-    else if (status === "shipped") enCamino++;
-    else if (status === "delivered") entregados++;
+    if (status === "pending" || status === "handling" || status === "ready_to_ship") {
+      pendientes++;
+    } else if (status === "shipped") {
+      enCamino++;
+    } else if (status === "delivered") {
+      entregados++;
+    }
     
-    if (substatus === "delayed") demorados++;
+    if (substatus === "delayed" || substatus?.includes("delayed") || substatus?.includes("late")) {
+      demorados++;
+    }
   });
 
   return (

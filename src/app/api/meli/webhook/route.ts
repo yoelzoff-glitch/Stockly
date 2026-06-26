@@ -4,6 +4,7 @@ import { inngest } from "@/inngest/client";
 import { logger } from "@/lib/errors/logger";
 import { syncOrders } from "@/services/meli/syncOrders";
 import { syncProducts } from "@/services/meli/syncProducts";
+import { syncShipments } from "@/services/meli/syncShipments";
 
 import * as Sentry from "@sentry/nextjs";
 
@@ -89,6 +90,15 @@ export async function POST(req: NextRequest) {
           });
         } catch (e: any) {
           console.warn("Failed to send meli/questions.received event to Inngest:", e.message || e);
+        }
+        break;
+
+      case "shipments":
+        const specificShipmentId = resource ? resource.split("/").pop() : undefined;
+        if (specificShipmentId) {
+          syncShipments(tenantId, specificShipmentId).catch(err => {
+            console.error(`Immediate syncShipments from webhook failed for tenant ${tenantId} (shipment ${specificShipmentId}):`, err);
+          });
         }
         break;
 

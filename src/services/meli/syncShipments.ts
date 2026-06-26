@@ -1,17 +1,46 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getShipment } from "./getShipment";
 
-export async function syncShipments(tenantId: string) {
+export async function syncShipments(tenantId: string, specificShipmentId?: string) {
   const supabase = createAdminClient();
 
-  // 1. Get orders with a shipment ID that don't have a final shipment status yet
-  const { data: orders, error: ordersError } = await supabase
+  // 1. Fetch recent orders (last 30 days) with a shipment ID
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  let query = supabase
     .from("orders")
     .select("id, meli_shipment_id, tenant_id")
     .eq("tenant_id", tenantId)
     .not("meli_shipment_id", "is", null);
 
+  if (specificShipmentId) {
+    query = query.eq("meli_shipment_id", specificShipmentId);
+  } else {
+    query = query.gte("date_created", thirtyDaysAgo.toISOString());
+  }
+
+  const { data: orders, error: ordersError } = await query;
+
   if (ordersError || !orders || orders.length === 0) {
+    return 0;
+  }
+
+  // Filter out orders that already have a completed shipment status in our DB
+  let ordersToSync = orders;
+  if (!specificShipmentId) {
+    const orderIds = orders.map(o => o.id);
+    const { data: completedShipments } = await supabase
+      .from("shipments")
+      .select("order_id")
+      .in("order_id", orderIds)
+      .in("status", ["delivered", "cancelled", "returned"]);
+
+    const completedOrderIds = new Set(completedShipments?.map(s => s.order_id) || []);
+    ordersToSync = orders.filter(o => !completedOrderIds.has(o.id));
+  }
+
+  if (ordersToSync.length === 0) {
     return 0;
   }
 
@@ -29,7 +58,7 @@ export async function syncShipments(tenantId: string) {
   const shipmentsToUpsert: any[] = [];
 
   // 2. Fetch each shipment
-  for (const order of orders) {
+  for (const order of ordersToSync) {
     try {
       // getShipment now accepts tenantId directly and uses meliFetch
       const shipment = await getShipment(tenantId, order.meli_shipment_id);
