@@ -28,7 +28,7 @@ export default function SalesClientPage({
   currentPage: number,
   searchQuery: string,
   currentStatus: string,
-  currentDays: number,
+  currentDays: string | number,
   ignoredOrderIds?: string[]
 }) {
   const router = useRouter();
@@ -69,9 +69,20 @@ export default function SalesClientPage({
     .reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
   // Chart Data preparation
-  const chartData = Array.from({ length: currentDays }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (currentDays - 1 - i));
+  let chartLength = typeof currentDays === 'number' ? currentDays : parseInt(currentDays as string) || 30;
+  let startForChart = new Date();
+  if (currentDays === "current_month") {
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+    chartLength = today.getDate();
+    startForChart = startOfMonth;
+  } else {
+    startForChart.setDate(startForChart.getDate() - (chartLength - 1));
+  }
+  startForChart.setHours(0,0,0,0);
+
+  const chartData = Array.from({ length: chartLength }, (_, i) => {
+    const d = new Date(startForChart);
+    d.setDate(d.getDate() + i);
     d.setHours(0,0,0,0);
     return {
       dateObj: d,
@@ -170,7 +181,9 @@ export default function SalesClientPage({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${totalSales.toLocaleString("es-AR")}</div>
-            <p className="text-xs text-muted-foreground">Últimos {currentDays} días</p>
+            <p className="text-xs text-muted-foreground">
+              {currentDays === "current_month" ? "Mes actual" : `Últimos ${currentDays} días`}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -282,6 +295,7 @@ export default function SalesClientPage({
                   onChange={(e) => handleFilterChange("days", e.target.value)}
                   className="flex h-9 w-full sm:w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
                 >
+                  <option value="current_month">Mes actual</option>
                   <option value="7">Últimos 7 días</option>
                   <option value="30">Últimos 30 días</option>
                   <option value="90">Últimos 3 meses</option>
@@ -317,6 +331,7 @@ export default function SalesClientPage({
                         onChange={(e) => handleFilterChange("days", e.target.value)}
                         className="flex h-12 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm"
                       >
+                        <option value="current_month">Mes actual</option>
                         <option value="7">Últimos 7 días</option>
                         <option value="30">Últimos 30 días</option>
                         <option value="90">Últimos 3 meses</option>

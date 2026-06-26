@@ -20,14 +20,19 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
   const q = searchParams.q || "";
   const page = parseInt(searchParams.page || "1");
   const status = searchParams.status || "all";
-  const days = parseInt(searchParams.days || "30");
+  const days = searchParams.days || "30";
   
   const limit = 50;
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
-  const dateFrom = new Date();
-  dateFrom.setDate(dateFrom.getDate() - days);
+  let dateFrom = new Date();
+  if (days === "current_month") {
+    dateFrom = new Date(dateFrom.getFullYear(), dateFrom.getMonth(), 1, 0, 0, 0, 0);
+  } else {
+    const daysNum = parseInt(days) || 30;
+    dateFrom.setDate(dateFrom.getDate() - daysNum);
+  }
 
   // If search query is provided, find matching order_ids by title first
   let orderIdsMatched: string[] = [];

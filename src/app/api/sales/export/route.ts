@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const days = parseInt(searchParams.get("days") || "30");
+  const daysParam = searchParams.get("days") || "30";
   const statusFilter = searchParams.get("status") || "all";
   const search = searchParams.get("search") || "";
 
@@ -57,8 +57,16 @@ export async function GET(request: NextRequest) {
   const today = new Date();
   const filteredOrders = orders.filter((o) => {
     const orderDate = new Date(o.date_created);
-    const diffDays = Math.ceil((today.getTime() - orderDate.getTime()) / (1000 * 3600 * 24));
-    const matchesDate = diffDays <= days;
+    
+    let matchesDate = false;
+    if (daysParam === "current_month") {
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+      matchesDate = orderDate >= startOfMonth;
+    } else {
+      const days = parseInt(daysParam) || 30;
+      const diffDays = Math.ceil((today.getTime() - orderDate.getTime()) / (1000 * 3600 * 24));
+      matchesDate = diffDays <= days;
+    }
 
     const matchesSearch = !search || 
                           o.buyer_nickname?.toLowerCase().includes(search.toLowerCase()) || 
