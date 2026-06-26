@@ -77,25 +77,7 @@ export async function generateBusinessInsights(tenantId: string): Promise<Busine
     });
   }
 
-  // 3. Stagnant products (No sales in 30 days)
-  // Simplified logic: Check items with sold_quantity = 0 or low sold_quantity but created > 30 days ago.
-  // We'll just look for sold_quantity == 0
-  const { count: stagnantCount } = await supabase
-    .from("products")
-    .select("*", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .eq("sold_quantity", 0);
 
-  if (stagnantCount && stagnantCount > 0) {
-    insights.push({
-      id: "stagnant-products",
-      type: "info",
-      title: "Productos sin movimiento",
-      description: `Tienes ${stagnantCount} productos que nunca se han vendido. Intenta ajustar el precio o mejorar la publicación.`,
-      actionLabel: "Ver productos",
-      actionHref: "/dashboard/products/no-movement"
-    });
-  }
 
   return insights;
 }

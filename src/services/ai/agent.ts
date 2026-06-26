@@ -256,22 +256,7 @@ ${chatHistory}
           parameters: { type: "object", properties: {} },
         },
       },
-      {
-        type: "function",
-        function: {
-          function: async (args: { days: number }) => tools.getNoMovementProducts(tenantId, { days: args.days }),
-          name: "getNoMovementProducts",
-          description: "Obtiene una lista de productos que no han tenido ventas en los últimos X días. Incluye recomendaciones como pausar o crear promoción.",
-          parse: JSON.parse,
-          parameters: { 
-            type: "object", 
-            properties: {
-              days: { type: "number", description: "Cantidad de días hacia atrás para buscar (ej. 30, 60, 90)" }
-            },
-            required: ["days"]
-          },
-        },
-      },
+
       {
         type: "function",
         function: {
