@@ -11,6 +11,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Check if Gemini API Key is configured
+    if (!process.env.GEMINI_API_KEY) {
+      return NextResponse.json({ 
+        error: "La clave de API de Gemini (GEMINI_API_KEY) no está configurada en el servidor. Asegúrate de haberla agregado en las variables de entorno de Vercel y haber redesplegado la aplicación." 
+      }, { status: 500 });
+    }
+
     const { data: profile } = await supabase
       .from("profiles")
       .select("tenant_id")
@@ -29,7 +36,6 @@ export async function POST(request: Request) {
     }
 
     // Extract Item ID or Catalog Product ID from Mercado Libre URL
-    // We require 8 to 12 digits so we don't match short numbers in titles (like "plata-925")
     const match = url.match(/(ML[A-Z]{1,2})[-_]?(\d{8,12})/i);
     if (!match) {
       return NextResponse.json({ 
@@ -40,7 +46,6 @@ export async function POST(request: Request) {
     const matchedPrefix = match[1].toUpperCase();
     const digits = match[2];
     
-    // Candidates to try: e.g. MLAU3911600852 and MLA3911600852
     const prefixesToTry = [matchedPrefix];
     if (matchedPrefix.length === 4) {
       prefixesToTry.push(matchedPrefix.substring(0, 3));
@@ -92,7 +97,7 @@ export async function POST(request: Request) {
       }, { status: 404 });
     }
 
-    // Normalize fields (catalog products have slightly different structures than items)
+    // Normalize fields
     const title = itemData.title || itemData.name || "Producto de Catálogo";
     const price = itemData.price || itemData.buy_box_winner?.price || 0;
     const originalPrice = itemData.original_price || itemData.buy_box_winner?.original_price || null;
@@ -100,7 +105,7 @@ export async function POST(request: Request) {
     const soldQuantity = itemData.sold_quantity || "No especificado";
     const thumbnail = itemData.thumbnail || itemData.pictures?.[0]?.url || itemData.secure_thumbnail || "";
 
-    // 2. Fetch Description (only available for items, not directly for catalog products)
+    // 2. Fetch Description
     let descriptionText = "";
     if (!isCatalogProduct) {
       try {
@@ -161,52 +166,59 @@ export async function POST(request: Request) {
       logistic_type: shipping?.logistic_type || "No especificado",
       seller_nickname: sellerData?.nickname || "Anónimo",
       seller_reputation: reputationDisplay,
-      description: descriptionText.substring(0, 1500), // limit length
+      description: descriptionText.substring(0, 1500),
       attributes: itemData.attributes?.slice(0, 15).map((a: any) => ({ name: a.name, value: a.value_name })) || [],
       is_catalog: isCatalogProduct
     };
 
     // 4. Call Gemini to analyze
-    const model = getGeminiModel("gemini-1.5-flash");
-    
-    const prompt = `
-    Actúa como un analista experto en E-commerce y Mercado Libre de Latinoamérica.
-    Analiza la siguiente publicación de la competencia y proporciona un análisis estratégico detallado estructurado en JSON.
+    let analysisResult: any;
+    try {
+      const model = getGeminiModel("gemini-1.5-flash");
+      const prompt = `
+      Actúa como un analista experto en E-commerce y Mercado Libre de Latinoamérica.
+      Analiza la siguiente publicación de la competencia y proporciona un análisis estratégico detallado estructurado en JSON.
 
-    Datos de la Publicación Competidora:
-    ${JSON.stringify(competitorPayload, null, 2)}
+      Datos de la Publicación Competidora:
+      ${JSON.stringify(competitorPayload, null, 2)}
 
-    El JSON devuelto DEBE seguir estrictamente esta estructura y todos los campos deben ser en español:
-    {
-      "title": "Título analizado",
-      "price": precio_numero,
-      "listingType": "Clásica o Premium",
-      "shipping": "Detalle del envío",
-      "estimatedSales": "Estimación de ventas del competidor",
-      "reputation": "Nivel de reputación del vendedor",
-      "analysis": {
-        "strengths": ["Punto fuerte 1", "Punto fuerte 2", ...],
-        "weaknesses": ["Punto débil 1", "Punto débil 2", ...],
-        "opportunities": ["Oportunidad para ganarle 1", "Oportunidad para ganarle 2", ...]
-      },
-      "pricingStrategy": "Análisis detallado de su estrategia de precio, financiamiento en cuotas y envío gratis.",
-      "actionPlan": [
-        "Paso 1 del plan de acción para superarlo",
-        "Paso 2 del plan de acción para superarlo",
-        "Paso 3 del plan de acción para superarlo"
-      ]
-    }
-    `;
-
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
+      El JSON devuelto DEBE seguir estrictamente esta estructura y todos los campos deben ser en español:
+      {
+        "title": "Título analizado",
+        "price": precio_numero,
+        "listingType": "Clásica o Premium",
+        "shipping": "Detalle del envío",
+        "estimatedSales": "Estimación de ventas del competidor",
+        "reputation": "Nivel de reputación del vendedor",
+        "analysis": {
+          "strengths": ["Punto fuerte 1", "Punto fuerte 2", ...],
+          "weaknesses": ["Punto débil 1", "Punto débil 2", ...],
+          "opportunities": ["Oportunidad para ganarle 1", "Oportunidad para ganarle 2", ...]
+        },
+        "pricingStrategy": "Análisis detallado de su estrategia de precio, financiamiento en cuotas y envío gratis.",
+        "actionPlan": [
+          "Paso 1 del plan de acción para superarlo",
+          "Paso 2 del plan de acción para superarlo",
+          "Paso 3 del plan de acción para superarlo"
+        ]
       }
-    });
+      `;
 
-    const responseText = result.response.text();
-    const analysisResult = JSON.parse(responseText);
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+        }
+      });
+
+      const responseText = result.response.text();
+      analysisResult = JSON.parse(responseText);
+    } catch (geminiError: any) {
+      console.error("Error calling Gemini API:", geminiError);
+      return NextResponse.json({ 
+        error: `Error al conectar con la Inteligencia Artificial (Gemini): ${geminiError.message || "Por favor verifica que la clave de API sea válida."}` 
+      }, { status: 502 });
+    }
 
     return NextResponse.json({
       success: true,
@@ -220,7 +232,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error("Error in competitor analysis:", error);
     return NextResponse.json({ 
-      error: "Error interno al procesar el análisis de la competencia. Por favor intenta de nuevo." 
+      error: `Error interno en el servidor: ${error.message || "Por favor intenta de nuevo."}` 
     }, { status: 500 });
   }
 }

@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "inngest": "inngest-cli dev"
+    "inngest": "inngest-cli dev",
+    "test-meli": "tsx scratch/test-meli-fetch.js"
   },
   "keywords": [],
   "author": "",
