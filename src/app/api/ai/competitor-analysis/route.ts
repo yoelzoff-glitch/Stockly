@@ -35,69 +35,88 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
-    // Extract Item ID or Catalog Product ID from Mercado Libre URL
-    const match = url.match(/(ML[A-Z]{1,2})[-_]?(\d{8,12})/i);
-    if (!match) {
-      return NextResponse.json({ 
-        error: "URL inválida. Asegúrate de ingresar un enlace válido de una publicación de Mercado Libre." 
-      }, { status: 400 });
+    // 1. Extract Item ID or Catalog Product ID
+    let itemId = "";
+    
+    // Check if there is a 'wid' parameter in the URL (which points to the specific listing in catalog pages)
+    const widMatch = url.match(/[?&#]wid=(ML[A-Z]{0,2}\d{8,12})/i);
+    if (widMatch) {
+      itemId = widMatch[1].toUpperCase();
+    } else {
+      // Extract standard ID (require 8 to 12 digits so we don't match short numbers in titles like "plata-925")
+      const match = url.match(/(ML[A-Z]{1,2})[-_]?(\d{8,12})/i);
+      if (!match) {
+        return NextResponse.json({ 
+          error: "URL inválida. Asegúrate de ingresar un enlace válido de una publicación de Mercado Libre." 
+        }, { status: 400 });
+      }
+      itemId = `${match[1].toUpperCase()}${match[2]}`;
     }
 
-    const matchedPrefix = match[1].toUpperCase();
-    const digits = match[2];
-    
-    const prefixesToTry = [matchedPrefix];
-    if (matchedPrefix.length === 4) {
-      prefixesToTry.push(matchedPrefix.substring(0, 3));
+    const prefixesToTry = [itemId];
+    if (itemId.startsWith("MLAU")) {
+      prefixesToTry.push("MLA" + itemId.substring(4));
     }
 
     let itemData: any = null;
-    let isCatalogProduct = false;
     let successfulId = "";
+    let isCatalogProduct = false;
 
-    // Try fetching as item first, then as catalog product
-    for (const prefix of prefixesToTry) {
-      const candidateId = `${prefix}${digits}`;
-      
-      // 1. Try as standard Item
+    // Try fetching the listing details
+    for (const idToTry of prefixesToTry) {
+      // A. Try as standard Item
       try {
         const res = await meliFetch({
           tenantId,
-          endpoint: `/items/${candidateId}`
+          endpoint: `/items/${idToTry}`
         });
         if (res && res.id) {
           itemData = res;
-          successfulId = candidateId;
+          successfulId = idToTry;
           break;
         }
       } catch (e) {
-        // ignore and try next
+        // ignore
       }
 
-      // 2. Try as Catalog Product
+      // B. Try as Catalog Product, and if successful, resolve to its Buy Box winner item
       try {
         const res = await meliFetch({
           tenantId,
-          endpoint: `/products/${candidateId}`
+          endpoint: `/products/${idToTry}`
         });
         if (res && res.id) {
+          const buyBoxItemId = res.buy_box_winner?.item_id;
+          if (buyBoxItemId) {
+            // Fetch the actual item of the Buy Box winner
+            const itemRes = await meliFetch({
+              tenantId,
+              endpoint: `/items/${buyBoxItemId}`
+            });
+            if (itemRes && itemRes.id) {
+              itemData = itemRes;
+              successfulId = buyBoxItemId;
+              break;
+            }
+          }
+          // Fallback to the product details if no buy box winner item could be fetched
           itemData = res;
-          successfulId = candidateId;
+          successfulId = idToTry;
           isCatalogProduct = true;
           break;
         }
       } catch (e) {
-        // ignore and try next
+        // ignore
       }
     }
 
     if (!itemData || !itemData.id) {
       return NextResponse.json({ 
-        error: `No se pudo obtener la publicación de Mercado Libre. Verifica que el ID extraído (${matchedPrefix}${digits}) sea válido y que tu cuenta de Mercado Libre esté conectada.` 
+        error: `No se pudo obtener la publicación de Mercado Libre. Verifica que el enlace sea válido y que tu cuenta de Mercado Libre esté conectada.` 
       }, { status: 404 });
     }
 
-    // Normalize fields
+    // Normalize fields (we now almost always have a standard item)
     const title = itemData.title || itemData.name || "Producto de Catálogo";
     const price = itemData.price || itemData.buy_box_winner?.price || 0;
     const originalPrice = itemData.original_price || itemData.buy_box_winner?.original_price || null;
