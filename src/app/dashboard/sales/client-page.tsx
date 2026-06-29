@@ -375,7 +375,11 @@ export default function SalesClientPage({
                   initialOrders.map((o) => {
                     const isIgnored = ignoredOrderIds.includes(o.meli_order_id);
                     return (
-                      <tr key={o.id} className={`hover:bg-slate-50 transition-colors ${isIgnored ? 'opacity-50 bg-slate-100/50 line-through decoration-slate-400' : ''}`}>
+                      <tr 
+                        key={o.id} 
+                        onClick={() => router.push(`/dashboard/sales/${o.id}`)}
+                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${isIgnored ? 'opacity-50 bg-slate-100/50 line-through decoration-slate-400' : ''}`}
+                      >
                         <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                           {new Date(o.date_created).toLocaleDateString("es-AR")}
                         </td>
@@ -393,7 +397,7 @@ export default function SalesClientPage({
                             <StatusBadge variant="neutral">Omitido (Prueba)</StatusBadge>
                           ) : (
                             <StatusBadge variant={o.status === 'paid' ? 'success' : 'neutral'}>
-                              {o.status === 'paid' ? 'Pagado' : o.status}
+                               {o.status === 'paid' ? 'Pagado' : o.status}
                             </StatusBadge>
                           )}
                         </td>
@@ -402,7 +406,10 @@ export default function SalesClientPage({
                             variant="ghost"
                             size="sm"
                             disabled={isPending}
-                            onClick={() => handleToggleIgnore(o.meli_order_id, isIgnored)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleIgnore(o.meli_order_id, isIgnored);
+                            }}
                             title={isIgnored ? "Incluir en reportes" : "Omitir de reportes"}
                             className="h-8 w-8 p-0"
                           >
