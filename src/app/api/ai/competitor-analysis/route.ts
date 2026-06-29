@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getGeminiModel } from "@/lib/ai/gemini";
+import { meliFetch } from "@/services/meli/client";
 
 export async function POST(request: Request) {
   try {
@@ -10,13 +11,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile || !profile.tenant_id) {
+      return NextResponse.json({ error: "No se encontró el inquilino (tenant) para el usuario." }, { status: 400 });
+    }
+
+    const tenantId = profile.tenant_id;
+
     const { url } = await request.json();
     if (!url) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
     // Extract Item ID from Mercado Libre URL
-    // e.g., https://articulo.mercadolibre.com.ar/MLA-1412345678-title-_JM
     const match = url.match(/([A-Z]{3})[-_]?(\d+)/i);
     if (!match) {
       return NextResponse.json({ 
@@ -26,23 +38,34 @@ export async function POST(request: Request) {
 
     const itemId = `${match[1].toUpperCase()}${match[2]}`;
 
-    // 1. Fetch Item Details from Mercado Libre API
-    const itemResponse = await fetch(`https://api.mercadolibre.com/items/${itemId}`);
-    if (!itemResponse.ok) {
+    // 1. Fetch Item Details from Mercado Libre API using authenticated client
+    let itemData: any;
+    try {
+      itemData = await meliFetch({
+        tenantId,
+        endpoint: `/items/${itemId}`
+      });
+    } catch (e: any) {
+      console.error("Error fetching item from Meli:", e);
       return NextResponse.json({ 
-        error: `No se pudo obtener la publicación de Mercado Libre. Verifica que el ID ${itemId} sea correcto.` 
+        error: `No se pudo obtener la publicación de Mercado Libre. Verifica que el ID ${itemId} sea correcto y que tu cuenta de Mercado Libre esté conectada.` 
       }, { status: 404 });
     }
-    const itemData = await itemResponse.json();
+
+    if (!itemData || !itemData.id) {
+      return NextResponse.json({ 
+        error: `No se pudo obtener la publicación de Mercado Libre.` 
+      }, { status: 404 });
+    }
 
     // 2. Fetch Description
     let descriptionText = "";
     try {
-      const descResponse = await fetch(`https://api.mercadolibre.com/items/${itemId}/description`);
-      if (descResponse.ok) {
-        const descData = await descResponse.json();
-        descriptionText = descData.plain_text || "";
-      }
+      const descData = await meliFetch({
+        tenantId,
+        endpoint: `/items/${itemId}/description`
+      });
+      descriptionText = descData?.plain_text || "";
     } catch (e) {
       console.warn("Could not fetch item description", e);
     }
@@ -51,10 +74,10 @@ export async function POST(request: Request) {
     let sellerData = null;
     if (itemData.seller_id) {
       try {
-        const sellerResponse = await fetch(`https://api.mercadolibre.com/users/${itemData.seller_id}`);
-        if (sellerResponse.ok) {
-          sellerData = await sellerResponse.json();
-        }
+        sellerData = await meliFetch({
+          tenantId,
+          endpoint: `/users/${itemData.seller_id}`
+        });
       } catch (e) {
         console.warn("Could not fetch seller details", e);
       }
