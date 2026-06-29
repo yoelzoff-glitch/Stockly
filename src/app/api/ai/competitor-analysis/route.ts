@@ -28,55 +28,100 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
-    // Extract Item ID from Mercado Libre URL
-    const match = url.match(/([A-Z]{3})[-_]?(\d+)/i);
+    // Extract Item ID or Catalog Product ID from Mercado Libre URL
+    // We require 8 to 12 digits so we don't match short numbers in titles (like "plata-925")
+    const match = url.match(/(ML[A-Z]{1,2})[-_]?(\d{8,12})/i);
     if (!match) {
       return NextResponse.json({ 
         error: "URL inválida. Asegúrate de ingresar un enlace válido de una publicación de Mercado Libre." 
       }, { status: 400 });
     }
 
-    const itemId = `${match[1].toUpperCase()}${match[2]}`;
+    const matchedPrefix = match[1].toUpperCase();
+    const digits = match[2];
+    
+    // Candidates to try: e.g. MLAU3911600852 and MLA3911600852
+    const prefixesToTry = [matchedPrefix];
+    if (matchedPrefix.length === 4) {
+      prefixesToTry.push(matchedPrefix.substring(0, 3));
+    }
 
-    // 1. Fetch Item Details from Mercado Libre API using authenticated client
-    let itemData: any;
-    try {
-      itemData = await meliFetch({
-        tenantId,
-        endpoint: `/items/${itemId}`
-      });
-    } catch (e: any) {
-      console.error("Error fetching item from Meli:", e);
-      return NextResponse.json({ 
-        error: `No se pudo obtener la publicación de Mercado Libre. Verifica que el ID ${itemId} sea correcto y que tu cuenta de Mercado Libre esté conectada.` 
-      }, { status: 404 });
+    let itemData: any = null;
+    let isCatalogProduct = false;
+    let successfulId = "";
+
+    // Try fetching as item first, then as catalog product
+    for (const prefix of prefixesToTry) {
+      const candidateId = `${prefix}${digits}`;
+      
+      // 1. Try as standard Item
+      try {
+        const res = await meliFetch({
+          tenantId,
+          endpoint: `/items/${candidateId}`
+        });
+        if (res && res.id) {
+          itemData = res;
+          successfulId = candidateId;
+          break;
+        }
+      } catch (e) {
+        // ignore and try next
+      }
+
+      // 2. Try as Catalog Product
+      try {
+        const res = await meliFetch({
+          tenantId,
+          endpoint: `/products/${candidateId}`
+        });
+        if (res && res.id) {
+          itemData = res;
+          successfulId = candidateId;
+          isCatalogProduct = true;
+          break;
+        }
+      } catch (e) {
+        // ignore and try next
+      }
     }
 
     if (!itemData || !itemData.id) {
       return NextResponse.json({ 
-        error: `No se pudo obtener la publicación de Mercado Libre.` 
+        error: `No se pudo obtener la publicación de Mercado Libre. Verifica que el ID extraído (${matchedPrefix}${digits}) sea válido y que tu cuenta de Mercado Libre esté conectada.` 
       }, { status: 404 });
     }
 
-    // 2. Fetch Description
+    // Normalize fields (catalog products have slightly different structures than items)
+    const title = itemData.title || itemData.name || "Producto de Catálogo";
+    const price = itemData.price || itemData.buy_box_winner?.price || 0;
+    const originalPrice = itemData.original_price || itemData.buy_box_winner?.original_price || null;
+    const availableQuantity = itemData.available_quantity || itemData.buy_box_winner?.available_quantity || "No especificado";
+    const soldQuantity = itemData.sold_quantity || "No especificado";
+    const thumbnail = itemData.thumbnail || itemData.pictures?.[0]?.url || itemData.secure_thumbnail || "";
+
+    // 2. Fetch Description (only available for items, not directly for catalog products)
     let descriptionText = "";
-    try {
-      const descData = await meliFetch({
-        tenantId,
-        endpoint: `/items/${itemId}/description`
-      });
-      descriptionText = descData?.plain_text || "";
-    } catch (e) {
-      console.warn("Could not fetch item description", e);
+    if (!isCatalogProduct) {
+      try {
+        const descData = await meliFetch({
+          tenantId,
+          endpoint: `/items/${successfulId}/description`
+        });
+        descriptionText = descData?.plain_text || "";
+      } catch (e) {
+        console.warn("Could not fetch item description", e);
+      }
     }
 
     // 3. Fetch Seller Details
     let sellerData = null;
-    if (itemData.seller_id) {
+    const sellerId = itemData.seller_id || itemData.buy_box_winner?.seller_id;
+    if (sellerId) {
       try {
         sellerData = await meliFetch({
           tenantId,
-          endpoint: `/users/${itemData.seller_id}`
+          endpoint: `/users/${sellerId}`
         });
       } catch (e) {
         console.warn("Could not fetch seller details", e);
@@ -84,14 +129,16 @@ export async function POST(request: Request) {
     }
 
     // Format listing type
-    const listingType = itemData.listing_type_id === "gold_pro" 
+    const listingTypeId = itemData.listing_type_id || itemData.buy_box_winner?.listing_type_id;
+    const listingType = listingTypeId === "gold_pro" 
       ? "Premium (Ofrece Cuotas sin Interés)" 
-      : itemData.listing_type_id === "gold_special" 
+      : listingTypeId === "gold_special" 
         ? "Clásica (Cuotas con interés estándar)" 
         : "Estándar / Exposición Baja";
 
     // Format shipping
-    const shippingInfo = itemData.shipping?.free_shipping 
+    const shipping = itemData.shipping || itemData.buy_box_winner?.shipping;
+    const shippingInfo = shipping?.free_shipping 
       ? "Envío Gratis a cargo del vendedor" 
       : "Envío a cargo del comprador";
 
@@ -104,18 +151,19 @@ export async function POST(request: Request) {
 
     // Prepare data for Gemini
     const competitorPayload = {
-      title: itemData.title,
-      price: itemData.price,
-      original_price: itemData.original_price,
-      available_quantity: itemData.available_quantity,
-      sold_quantity: itemData.sold_quantity || "No especificado",
+      title,
+      price,
+      original_price: originalPrice,
+      available_quantity: availableQuantity,
+      sold_quantity: soldQuantity,
       listing_type: listingType,
-      free_shipping: itemData.shipping?.free_shipping,
-      logistic_type: itemData.shipping?.logistic_type,
+      free_shipping: shipping?.free_shipping || false,
+      logistic_type: shipping?.logistic_type || "No especificado",
       seller_nickname: sellerData?.nickname || "Anónimo",
       seller_reputation: reputationDisplay,
       description: descriptionText.substring(0, 1500), // limit length
-      attributes: itemData.attributes?.slice(0, 15).map((a: any) => ({ name: a.name, value: a.value_name })) || []
+      attributes: itemData.attributes?.slice(0, 15).map((a: any) => ({ name: a.name, value: a.value_name })) || [],
+      is_catalog: isCatalogProduct
     };
 
     // 4. Call Gemini to analyze
@@ -164,8 +212,8 @@ export async function POST(request: Request) {
       success: true,
       data: {
         ...analysisResult,
-        permalink: itemData.permalink,
-        thumbnail: itemData.thumbnail?.replace("-I.jpg", "-O.jpg") || itemData.secure_thumbnail
+        permalink: itemData.permalink || url,
+        thumbnail: thumbnail.replace("-I.jpg", "-O.jpg")
       }
     });
 
