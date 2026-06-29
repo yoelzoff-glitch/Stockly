@@ -14,6 +14,7 @@ import { TimeFilter } from "./time-filter";
 import { getFinancialData } from "@/services/finance/getFinancialData";
 import { getCampaignRecommendations } from "@/services/analytics/campaignRecommendations";
 import SalesAnalytics from "./sales-analytics";
+import CompetitorAnalyzer from "./competitor-analyzer";
 
 export default async function AnalyticsAndInsightsPage(props: { searchParams: Promise<{ days?: string }> }) {
   const searchParams = await props.searchParams;
@@ -314,11 +315,12 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full max-w-[800px] grid-cols-4 bg-slate-100 p-1 rounded-lg">
+        <TabsList className="grid w-full max-w-[950px] grid-cols-5 bg-slate-100 p-1 rounded-lg">
           <TabsTrigger value="overview">Resumen General</TabsTrigger>
           <TabsTrigger value="pareto">Análisis Pareto 80/20</TabsTrigger>
           <TabsTrigger value="campaigns">Impulso de Campañas</TabsTrigger>
           <TabsTrigger value="sales">Analítica de Ventas</TabsTrigger>
+          <TabsTrigger value="competitors">Analizador de Competencia</TabsTrigger>
         </TabsList>
 
         {/* PESTAÑA 1: RESUMEN GENERAL */}
@@ -651,6 +653,11 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
             paymentTypeData={paymentTypeData}
             installmentDetails={installmentDetails}
           />
+        </TabsContent>
+
+        {/* PESTAÑA 6: ANALIZADOR DE COMPETENCIA */}
+        <TabsContent value="competitors" className="space-y-6 outline-none">
+          <CompetitorAnalyzer />
         </TabsContent>
       </Tabs>
     </div>
