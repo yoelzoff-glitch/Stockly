@@ -61,6 +61,7 @@ export async function POST(request: Request) {
     let itemData: any = null;
     let successfulId = "";
     let isCatalogProduct = false;
+    const fetchErrors: string[] = [];
 
     // Try fetching the listing details
     for (const idToTry of prefixesToTry) {
@@ -75,8 +76,8 @@ export async function POST(request: Request) {
           successfulId = idToTry;
           break;
         }
-      } catch (e) {
-        // ignore
+      } catch (e: any) {
+        fetchErrors.push(`[Ítem ${idToTry}]: ${e.message || e}`);
       }
 
       // B. Try as Catalog Product, and if successful, resolve to its Buy Box winner item
@@ -88,15 +89,19 @@ export async function POST(request: Request) {
         if (res && res.id) {
           const buyBoxItemId = res.buy_box_winner?.item_id;
           if (buyBoxItemId) {
-            // Fetch the actual item of the Buy Box winner
-            const itemRes = await meliFetch({
-              tenantId,
-              endpoint: `/items/${buyBoxItemId}`
-            });
-            if (itemRes && itemRes.id) {
-              itemData = itemRes;
-              successfulId = buyBoxItemId;
-              break;
+            try {
+              // Fetch the actual item of the Buy Box winner
+              const itemRes = await meliFetch({
+                tenantId,
+                endpoint: `/items/${buyBoxItemId}`
+              });
+              if (itemRes && itemRes.id) {
+                itemData = itemRes;
+                successfulId = buyBoxItemId;
+                break;
+              }
+            } catch (e: any) {
+              fetchErrors.push(`[Catálogo ${idToTry} -> Ganador ${buyBoxItemId}]: ${e.message || e}`);
             }
           }
           // Fallback to the product details if no buy box winner item could be fetched
@@ -105,18 +110,19 @@ export async function POST(request: Request) {
           isCatalogProduct = true;
           break;
         }
-      } catch (e) {
-        // ignore
+      } catch (e: any) {
+        fetchErrors.push(`[Catálogo ${idToTry}]: ${e.message || e}`);
       }
     }
 
     if (!itemData || !itemData.id) {
-      return NextResponse.json({ 
-        error: `No se pudo obtener la publicación de Mercado Libre. Verifica que el enlace sea válido y que tu cuenta de Mercado Libre esté conectada.` 
-      }, { status: 404 });
+      const detailedError = fetchErrors.length > 0 
+        ? `No se pudo obtener la publicación de Mercado Libre. Detalles de errores: ${fetchErrors.join(" | ")}`
+        : "No se pudo obtener la publicación de Mercado Libre. Verifica que el enlace sea válido y que tu cuenta de Mercado Libre esté conectada.";
+      return NextResponse.json({ error: detailedError }, { status: 404 });
     }
 
-    // Normalize fields (we now almost always have a standard item)
+    // Normalize fields
     const title = itemData.title || itemData.name || "Producto de Catálogo";
     const price = itemData.price || itemData.buy_box_winner?.price || 0;
     const originalPrice = itemData.original_price || itemData.buy_box_winner?.original_price || null;
