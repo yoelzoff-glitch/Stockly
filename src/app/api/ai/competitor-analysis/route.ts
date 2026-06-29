@@ -174,7 +174,7 @@ export async function POST(request: Request) {
     // 4. Call Gemini to analyze
     let analysisResult: any;
     try {
-      const model = getGeminiModel("gemini-1.5-flash");
+      const model = getGeminiModel("gemini-2.5-flash");
       const prompt = `
       Actúa como un analista experto en E-commerce y Mercado Libre de Latinoamérica.
       Analiza la siguiente publicación de la competencia y proporciona un análisis estratégico detallado estructurado en JSON.
