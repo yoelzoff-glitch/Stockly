@@ -13,6 +13,7 @@ import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 import { TimeFilter } from "./time-filter";
 import { getFinancialData } from "@/services/finance/getFinancialData";
 import { getCampaignRecommendations } from "@/services/analytics/campaignRecommendations";
+import SalesAnalytics from "./sales-analytics";
 
 export default async function AnalyticsAndInsightsPage(props: { searchParams: Promise<{ days?: string }> }) {
   const searchParams = await props.searchParams;
@@ -74,9 +75,9 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
     { data: shipments },
     { data: products }
   ] = await Promise.all([
-    supabase.from("orders").select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id").eq("tenant_id", tenantId).neq("status", "cancelled").gte("date_created", sevenDaysAgo.toISOString()).order("date_created", { ascending: false }),
+    supabase.from("orders").select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id, raw_data").eq("tenant_id", tenantId).neq("status", "cancelled").gte("date_created", sevenDaysAgo.toISOString()).order("date_created", { ascending: false }),
     supabase.from("order_cancellations").select("refund_amount").eq("tenant_id", tenantId).gte("date_cancelled", sevenDaysAgo.toISOString()).lte("date_cancelled", new Date().toISOString()),
-    supabase.from("shipments").select("substatus, shipping_cost, meli_shipment_id").eq("tenant_id", tenantId).gte("date_created", sevenDaysAgo.toISOString()),
+    supabase.from("shipments").select("substatus, shipping_cost, meli_shipment_id, receiver_state").eq("tenant_id", tenantId).gte("date_created", sevenDaysAgo.toISOString()),
     supabase.from("products").select("id, title, cost, sku, sold_quantity, margin_percent, available_quantity, profit_real_estimated, status, estimated_shipping_cost, meli_item_id, extra_fee_amount, promotion_discount_amount").eq("tenant_id", tenantId)
   ]);
 
@@ -207,6 +208,99 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
     aiRecommendations.push({ text: `El producto '${displayTitle}' representa el ${percentage}% de la facturación. ¡Cuidá su stock!`, type: "critical" });
   }
 
+  // 1. Sales by Province
+  const provinceSalesMap = new Map<string, { count: number; revenue: number }>();
+  const shipmentStateMap = new Map<string, string>();
+  
+  shipments?.forEach(s => {
+    if (s.meli_shipment_id && s.receiver_state) {
+      shipmentStateMap.set(s.meli_shipment_id.toString(), s.receiver_state);
+    }
+  });
+
+  let unknownProvinceCount = 0;
+  let unknownProvinceRevenue = 0;
+
+  activeOrders.forEach(o => {
+    const shipmentId = o.meli_shipment_id?.toString();
+    const state = shipmentId ? shipmentStateMap.get(shipmentId) : null;
+    const amount = Number(o.total_amount) || 0;
+
+    if (state) {
+      const existing = provinceSalesMap.get(state) || { count: 0, revenue: 0 };
+      provinceSalesMap.set(state, {
+        count: existing.count + 1,
+        revenue: existing.revenue + amount
+      });
+    } else {
+      unknownProvinceCount++;
+      unknownProvinceRevenue += amount;
+    }
+  });
+
+  const provinceSales = Array.from(provinceSalesMap.entries())
+    .map(([province, data]) => ({
+      province,
+      count: data.count,
+      revenue: data.revenue
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  if (unknownProvinceCount > 0) {
+    provinceSales.push({
+      province: "No especificado / Retiro en sucursal",
+      count: unknownProvinceCount,
+      revenue: unknownProvinceRevenue
+    });
+  }
+
+  // 2. Sales in Installments vs. One Payment
+  let singlePaymentCount = 0;
+  let singlePaymentRevenue = 0;
+  let installmentCount = 0;
+  let installmentRevenue = 0;
+
+  const installmentDetailsMap = new Map<number, { count: number; revenue: number }>();
+
+  activeOrders.forEach(o => {
+    const rawData = o.raw_data as any;
+    const payments = rawData?.payments || [];
+    const amount = Number(o.total_amount) || 0;
+
+    let maxInstallments = 1;
+    if (payments.length > 0) {
+      maxInstallments = payments.reduce((max: number, p: any) => Math.max(max, Number(p.installments) || 1), 1);
+    }
+
+    const existingDetail = installmentDetailsMap.get(maxInstallments) || { count: 0, revenue: 0 };
+    installmentDetailsMap.set(maxInstallments, {
+      count: existingDetail.count + 1,
+      revenue: existingDetail.revenue + amount
+    });
+
+    if (maxInstallments > 1) {
+      installmentCount++;
+      installmentRevenue += amount;
+    } else {
+      singlePaymentCount++;
+      singlePaymentRevenue += amount;
+    }
+  });
+
+  const paymentTypeData = [
+    { name: "Un solo pago", count: singlePaymentCount, revenue: singlePaymentRevenue, color: "#10b981" },
+    { name: "En cuotas", count: installmentCount, revenue: installmentRevenue, color: "#3b82f6" }
+  ];
+
+  const installmentDetails = Array.from(installmentDetailsMap.entries())
+    .map(([installments, data]) => ({
+      installments,
+      name: installments === 1 ? "1 pago" : `${installments} cuotas`,
+      count: data.count,
+      revenue: data.revenue
+    }))
+    .sort((a, b) => a.installments - b.installments);
+
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -220,10 +314,11 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full max-w-[600px] grid-cols-3 bg-slate-100 p-1 rounded-lg">
+        <TabsList className="grid w-full max-w-[800px] grid-cols-4 bg-slate-100 p-1 rounded-lg">
           <TabsTrigger value="overview">Resumen General</TabsTrigger>
           <TabsTrigger value="pareto">Análisis Pareto 80/20</TabsTrigger>
           <TabsTrigger value="campaigns">Impulso de Campañas</TabsTrigger>
+          <TabsTrigger value="sales">Analítica de Ventas</TabsTrigger>
         </TabsList>
 
         {/* PESTAÑA 1: RESUMEN GENERAL */}
@@ -547,6 +642,15 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
             </div>
             
           </div>
+        </TabsContent>
+
+        {/* PESTAÑA 5: ANALÍTICA DE VENTAS */}
+        <TabsContent value="sales" className="space-y-6 outline-none">
+          <SalesAnalytics 
+            provinceSales={provinceSales}
+            paymentTypeData={paymentTypeData}
+            installmentDetails={installmentDetails}
+          />
         </TabsContent>
       </Tabs>
     </div>
