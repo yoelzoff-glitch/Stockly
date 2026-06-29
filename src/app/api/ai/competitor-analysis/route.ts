@@ -80,7 +80,26 @@ export async function POST(request: Request) {
         fetchErrors.push(`[Ítem ${idToTry}]: ${e.message || e}`);
       }
 
-      // B. Try as Catalog Product, and if successful, resolve to its Buy Box winner item
+      // B. Try via Search API (extremely robust fallback that avoids 403 Forbidden on competitor items)
+      try {
+        const siteId = idToTry.substring(0, 3).toUpperCase();
+        const searchRes = await meliFetch({
+          tenantId,
+          endpoint: `/sites/${siteId}/search?q=${idToTry}`
+        });
+        if (searchRes && searchRes.results && searchRes.results.length > 0) {
+          const foundItem = searchRes.results.find((r: any) => r.id === idToTry);
+          if (foundItem) {
+            itemData = foundItem;
+            successfulId = idToTry;
+            break;
+          }
+        }
+      } catch (e: any) {
+        fetchErrors.push(`[Búsqueda ${idToTry}]: ${e.message || e}`);
+      }
+
+      // C. Try as Catalog Product, and if successful, resolve to its Buy Box winner item
       try {
         const res = await meliFetch({
           tenantId,
@@ -90,15 +109,31 @@ export async function POST(request: Request) {
           const buyBoxItemId = res.buy_box_winner?.item_id;
           if (buyBoxItemId) {
             try {
-              // Fetch the actual item of the Buy Box winner
-              const itemRes = await meliFetch({
-                tenantId,
-                endpoint: `/items/${buyBoxItemId}`
-              });
-              if (itemRes && itemRes.id) {
-                itemData = itemRes;
-                successfulId = buyBoxItemId;
-                break;
+              // Fetch the actual item of the Buy Box winner (try standard then search)
+              try {
+                const itemRes = await meliFetch({
+                  tenantId,
+                  endpoint: `/items/${buyBoxItemId}`
+                });
+                if (itemRes && itemRes.id) {
+                  itemData = itemRes;
+                  successfulId = buyBoxItemId;
+                  break;
+                }
+              } catch (e: any) {
+                // Fallback to search for the buy box winner item
+                const siteId = buyBoxItemId.substring(0, 3).toUpperCase();
+                const searchRes = await meliFetch({
+                  tenantId,
+                  endpoint: `/sites/${siteId}/search?q=${buyBoxItemId}`
+                });
+                const foundItem = searchRes?.results?.find((r: any) => r.id === buyBoxItemId);
+                if (foundItem) {
+                  itemData = foundItem;
+                  successfulId = buyBoxItemId;
+                  break;
+                }
+                throw e; // throw if both failed
               }
             } catch (e: any) {
               fetchErrors.push(`[Catálogo ${idToTry} -> Ganador ${buyBoxItemId}]: ${e.message || e}`);
@@ -127,7 +162,7 @@ export async function POST(request: Request) {
     const price = itemData.price || itemData.buy_box_winner?.price || 0;
     const originalPrice = itemData.original_price || itemData.buy_box_winner?.original_price || null;
     const availableQuantity = itemData.available_quantity || itemData.buy_box_winner?.available_quantity || "No especificado";
-    const soldQuantity = itemData.sold_quantity || "No especificado";
+    const soldQuantity = itemData.sold_quantity !== undefined ? itemData.sold_quantity : (itemData.buy_box_winner?.sold_quantity || "No especificado");
     const thumbnail = itemData.thumbnail || itemData.pictures?.[0]?.url || itemData.secure_thumbnail || "";
 
     // 2. Fetch Description
@@ -146,7 +181,7 @@ export async function POST(request: Request) {
 
     // 3. Fetch Seller Details
     let sellerData = null;
-    const sellerId = itemData.seller_id || itemData.buy_box_winner?.seller_id;
+    const sellerId = itemData.seller_id || itemData.seller?.id || itemData.buy_box_winner?.seller_id;
     if (sellerId) {
       try {
         sellerData = await meliFetch({
