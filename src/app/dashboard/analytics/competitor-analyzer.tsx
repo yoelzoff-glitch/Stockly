@@ -39,7 +39,7 @@ export default function CompetitorAnalyzer() {
     const steps = [
       "Extrayendo datos de la publicación...",
       "Obteniendo reputación del vendedor...",
-      "Consultando ficha técnica...",
+      "Consultando descripción del producto...",
       "Enviando datos a Gemini para el análisis...",
       "Estructurando recomendaciones estratégicas..."
     ];
@@ -55,21 +55,60 @@ export default function CompetitorAnalyzer() {
     }, 2500);
 
     try {
-      const response = await fetch("/api/ai/competitor-analysis", {
+      // Step 1: Resolve the URL (handles catalog, specific seller listings, etc.)
+      const resolveResponse = await fetch("/api/ai/competitor-analysis", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ action: "resolve", url }),
       });
 
-      const data = await response.json();
+      const resolveData = await resolveResponse.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || "Ocurrió un error al analizar la publicación.");
+      if (!resolveResponse.ok) {
+        throw new Error(resolveData.error || "Ocurrió un error al obtener la publicación de Mercado Libre.");
       }
 
-      setResult(data.data);
+      const { id: itemId, itemData, sellerData, isCatalogProduct } = resolveData.data;
+
+      // Step 2: Fetch description on the client side (bypasses server IP blocks and token 403s)
+      let description = "";
+      if (itemId && !isCatalogProduct) {
+        try {
+          const descRes = await fetch(`https://api.mercadolibre.com/items/${itemId}/description`);
+          if (descRes.ok) {
+            const descData = await descRes.json();
+            description = descData.plain_text || "";
+          }
+        } catch (descErr) {
+          console.warn("Could not fetch item description on client side, proceeding without it", descErr);
+        }
+      }
+
+      // Step 3: Run the AI analysis with Gemini
+      const analyzeResponse = await fetch("/api/ai/competitor-analysis", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          action: "analyze", 
+          id: itemId, 
+          itemData, 
+          sellerData, 
+          description, 
+          isCatalogProduct 
+        }),
+      });
+
+      const analyzeData = await analyzeResponse.json();
+
+      if (!analyzeResponse.ok) {
+        throw new Error(analyzeData.error || "Ocurrió un error al analizar la publicación con Inteligencia Artificial.");
+      }
+
+      setResult(analyzeData.data);
     } catch (err: any) {
       setError(err.message || "Error de conexión. Inténtalo de nuevo.");
     } finally {
