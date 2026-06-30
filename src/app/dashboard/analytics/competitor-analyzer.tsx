@@ -55,34 +55,136 @@ export default function CompetitorAnalyzer() {
     }, 2500);
 
     try {
-      // Step 1: Resolve the URL (handles catalog, specific seller listings, etc.)
-      const resolveResponse = await fetch("/api/ai/competitor-analysis", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ action: "resolve", url }),
-      });
-
-      const resolveData = await resolveResponse.json();
-
-      if (!resolveResponse.ok) {
-        throw new Error(resolveData.error || "Ocurrió un error al obtener la publicación de Mercado Libre.");
+      // 1. Extract ID from URL
+      let itemId = "";
+      const widMatch = url.match(/[?&#]wid=(ML[A-Z]{0,2}\d{8,12})/i);
+      if (widMatch) {
+        itemId = widMatch[1].toUpperCase();
+      } else {
+        const match = url.match(/(ML[A-Z]{1,2})[-_]?(\d{8,12})/i);
+        if (!match) {
+          throw new Error("URL inválida. Asegúrate de ingresar un enlace válido de una publicación de Mercado Libre.");
+        }
+        itemId = `${match[1].toUpperCase()}${match[2]}`;
       }
 
-      const { id: itemId, itemData, sellerData, isCatalogProduct } = resolveData.data;
-
-      // Step 2: Fetch description on the client side (bypasses server IP blocks and token 403s)
+      const isCatalogUrl = itemId.startsWith("MLAU") || url.includes("/p/") || url.includes("/up/");
+      
+      let itemData: any = null;
+      let sellerData: any = null;
       let description = "";
-      if (itemId && !isCatalogProduct) {
-        try {
-          const descRes = await fetch(`https://api.mercadolibre.com/items/${itemId}/description`);
-          if (descRes.ok) {
-            const descData = await descRes.json();
-            description = descData.plain_text || "";
+      let isCatalogProduct = false;
+      let resolvedId = itemId;
+
+      // Try fetching via client-side first (bypasses all server-side IP blocks and WAF)
+      try {
+        if (isCatalogUrl) {
+          const idsToTry = [itemId];
+          if (itemId.startsWith("MLAU")) {
+            idsToTry.push("MLA" + itemId.substring(4));
           }
-        } catch (descErr) {
-          console.warn("Could not fetch item description on client side, proceeding without it", descErr);
+
+          let productData: any = null;
+          for (const idToTry of idsToTry) {
+            try {
+              const res = await fetch(`https://api.mercadolibre.com/products/${idToTry}`);
+              if (res.ok) {
+                productData = await res.json();
+                break;
+              }
+            } catch (e) {
+              console.warn(`Client-side product fetch failed for ${idToTry}`, e);
+            }
+          }
+
+          if (productData) {
+            const buyBoxItemId = productData.buy_box_winner?.item_id;
+            if (buyBoxItemId) {
+              resolvedId = buyBoxItemId;
+              try {
+                const itemRes = await fetch(`https://api.mercadolibre.com/items/${buyBoxItemId}`);
+                if (itemRes.ok) {
+                  itemData = await itemRes.json();
+                }
+              } catch (e) {
+                console.warn("Client-side buy box item fetch failed", e);
+              }
+            }
+            if (!itemData) {
+              itemData = productData;
+              isCatalogProduct = true;
+            }
+          }
+        } else {
+          const itemRes = await fetch(`https://api.mercadolibre.com/items/${itemId}`);
+          if (itemRes.ok) {
+            itemData = await itemRes.json();
+            resolvedId = itemId;
+          }
+        }
+
+        // Fetch description and seller details if we got the item
+        if (itemData) {
+          if (!isCatalogProduct) {
+            try {
+              const descRes = await fetch(`https://api.mercadolibre.com/items/${resolvedId}/description`);
+              if (descRes.ok) {
+                const descData = await descRes.json();
+                description = descData.plain_text || "";
+              }
+            } catch (e) {
+              console.warn("Client-side description fetch failed", e);
+            }
+          }
+
+          const sellerId = itemData.seller_id || itemData.seller?.id || itemData.buy_box_winner?.seller_id;
+          if (sellerId) {
+            try {
+              const sellerRes = await fetch(`https://api.mercadolibre.com/users/${sellerId}`);
+              if (sellerRes.ok) {
+                sellerData = await sellerRes.json();
+              }
+            } catch (e) {
+              console.warn("Client-side seller fetch failed", e);
+            }
+          }
+        }
+      } catch (clientErr) {
+        console.warn("Client-side direct fetch failed, falling back to server", clientErr);
+      }
+
+      // If client-side fetch failed to get the item, fall back to server-side resolution
+      if (!itemData) {
+        const resolveResponse = await fetch("/api/ai/competitor-analysis", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ action: "resolve", url }),
+        });
+
+        const resolveData = await resolveResponse.json();
+
+        if (!resolveResponse.ok) {
+          throw new Error(resolveData.error || "Ocurrió un error al obtener la publicación de Mercado Libre.");
+        }
+
+        itemData = resolveData.data.itemData;
+        sellerData = resolveData.data.sellerData;
+        isCatalogProduct = resolveData.data.isCatalogProduct;
+        resolvedId = resolveData.data.id;
+
+        // Try to get description again on client side using the resolved ID
+        if (resolvedId && !isCatalogProduct && !description) {
+          try {
+            const descRes = await fetch(`https://api.mercadolibre.com/items/${resolvedId}/description`);
+            if (descRes.ok) {
+              const descData = await descRes.json();
+              description = descData.plain_text || "";
+            }
+          } catch (descErr) {
+            console.warn("Could not fetch item description on client side, proceeding without it", descErr);
+          }
         }
       }
 
@@ -94,7 +196,7 @@ export default function CompetitorAnalyzer() {
         },
         body: JSON.stringify({ 
           action: "analyze", 
-          id: itemId, 
+          id: resolvedId, 
           itemData, 
           sellerData, 
           description, 
