@@ -68,7 +68,8 @@ export default function CompetitorAnalyzer() {
         itemId = `${match[1].toUpperCase()}${match[2]}`;
       }
 
-      const isCatalogUrl = itemId.startsWith("MLAU") || url.includes("/p/") || url.includes("/up/");
+      const hasWid = /[?&]wid=/i.test(url);
+      const isCatalogUrl = !hasWid && (itemId.startsWith("MLAU") || url.includes("/p/") || url.includes("/up/"));
       
       let itemData: any = null;
       let sellerData: any = null;

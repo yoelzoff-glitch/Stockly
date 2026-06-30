@@ -62,7 +62,8 @@ export async function POST(request: Request) {
       let isCatalogProduct = false;
       const fetchErrors: string[] = [];
 
-      const isCatalogUrl = itemId.startsWith("MLAU") || url.includes("/p/") || url.includes("/up/");
+      const hasWid = /[?&]wid=/i.test(url);
+      const isCatalogUrl = !hasWid && (itemId.startsWith("MLAU") || url.includes("/p/") || url.includes("/up/"));
 
       // A. If it is a Catalog Product
       if (isCatalogUrl) {
