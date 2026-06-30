@@ -57,100 +57,104 @@ export async function POST(request: Request) {
         itemId = `${match[1].toUpperCase()}${match[2]}`;
       }
 
-      const prefixesToTry = [itemId];
-      if (itemId.startsWith("MLAU")) {
-        prefixesToTry.push("MLA" + itemId.substring(4));
-      }
-
       let itemData: any = null;
       let successfulId = "";
       let isCatalogProduct = false;
       const fetchErrors: string[] = [];
 
-      // Try fetching the listing details
-      for (const idToTry of prefixesToTry) {
-        // A. Try as standard Item
-        try {
-          const res = await meliFetch({
-            tenantId,
-            endpoint: `/items/${idToTry}`
-          });
-          if (res && res.id) {
-            itemData = res;
-            successfulId = idToTry;
-            break;
-          }
-        } catch (e: any) {
-          fetchErrors.push(`[Ítem ${idToTry}]: ${e.message || e}`);
+      const isCatalogUrl = itemId.startsWith("MLAU") || url.includes("/p/") || url.includes("/up/");
+
+      // A. If it is a Catalog Product
+      if (isCatalogUrl) {
+        const idsToTry = [itemId];
+        if (itemId.startsWith("MLAU")) {
+          idsToTry.push("MLA" + itemId.substring(4));
         }
 
-        // B. Try via Search API (extremely robust fallback that avoids 403 Forbidden on competitor items)
-        try {
-          const siteId = idToTry.substring(0, 3).toUpperCase();
-          const searchRes = await meliFetch({
-            tenantId,
-            endpoint: `/sites/${siteId}/search?q=${idToTry}`
-          });
-          if (searchRes && searchRes.results && searchRes.results.length > 0) {
-            const foundItem = searchRes.results.find((r: any) => r.id === idToTry);
-            if (foundItem) {
-              itemData = foundItem;
-              successfulId = idToTry;
-              break;
-            }
-          }
-        } catch (e: any) {
-          fetchErrors.push(`[Búsqueda ${idToTry}]: ${e.message || e}`);
-        }
-
-        // C. Try as Catalog Product, and if successful, resolve to its Buy Box winner item
-        try {
-          const res = await meliFetch({
-            tenantId,
-            endpoint: `/products/${idToTry}`
-          });
-          if (res && res.id) {
-            const buyBoxItemId = res.buy_box_winner?.item_id;
-            if (buyBoxItemId) {
-              try {
-                // Fetch the actual item of the Buy Box winner (try standard then search)
+        for (const idToTry of idsToTry) {
+          try {
+            const res = await meliFetch({
+              tenantId,
+              endpoint: `/products/${idToTry}`
+            });
+            if (res && res.id) {
+              const buyBoxItemId = res.buy_box_winner?.item_id;
+              if (buyBoxItemId) {
                 try {
-                  const itemRes = await meliFetch({
-                    tenantId,
-                    endpoint: `/items/${buyBoxItemId}`
-                  });
-                  if (itemRes && itemRes.id) {
-                    itemData = itemRes;
-                    successfulId = buyBoxItemId;
-                    break;
+                  // Fetch the actual item of the Buy Box winner (try standard then search)
+                  try {
+                    const itemRes = await meliFetch({
+                      tenantId,
+                      endpoint: `/items/${buyBoxItemId}`
+                    });
+                    if (itemRes && itemRes.id) {
+                      itemData = itemRes;
+                      successfulId = buyBoxItemId;
+                      break;
+                    }
+                  } catch (e: any) {
+                    // Fallback to search for the buy box winner item
+                    const siteId = buyBoxItemId.substring(0, 3).toUpperCase();
+                    const searchRes = await meliFetch({
+                      tenantId,
+                      endpoint: `/sites/${siteId}/search?q=${buyBoxItemId}`
+                    });
+                    const foundItem = searchRes?.results?.find((r: any) => r.id === buyBoxItemId);
+                    if (foundItem) {
+                      itemData = foundItem;
+                      successfulId = buyBoxItemId;
+                      break;
+                    }
+                    throw e; // throw if both failed
                   }
                 } catch (e: any) {
-                  // Fallback to search for the buy box winner item
-                  const siteId = buyBoxItemId.substring(0, 3).toUpperCase();
-                  const searchRes = await meliFetch({
-                    tenantId,
-                    endpoint: `/sites/${siteId}/search?q=${buyBoxItemId}`
-                  });
-                  const foundItem = searchRes?.results?.find((r: any) => r.id === buyBoxItemId);
-                  if (foundItem) {
-                    itemData = foundItem;
-                    successfulId = buyBoxItemId;
-                    break;
-                  }
-                  throw e; // throw if both failed
+                  fetchErrors.push(`[Catálogo ${idToTry} -> Ganador ${buyBoxItemId}]: ${e.message || e}`);
                 }
-              } catch (e: any) {
-                fetchErrors.push(`[Catálogo ${idToTry} -> Ganador ${buyBoxItemId}]: ${e.message || e}`);
               }
+              // Fallback to the product details if no buy box winner item could be fetched
+              itemData = res;
+              successfulId = idToTry;
+              isCatalogProduct = true;
+              break;
             }
-            // Fallback to the product details if no buy box winner item could be fetched
+          } catch (e: any) {
+            fetchErrors.push(`[Catálogo ${idToTry}]: ${e.message || e}`);
+          }
+        }
+      } else {
+        // B. If it is a standard Item ID
+        // 1. Try as standard Item
+        try {
+          const res = await meliFetch({
+            tenantId,
+            endpoint: `/items/${itemId}`
+          });
+          if (res && res.id) {
             itemData = res;
-            successfulId = idToTry;
-            isCatalogProduct = true;
-            break;
+            successfulId = itemId;
           }
         } catch (e: any) {
-          fetchErrors.push(`[Catálogo ${idToTry}]: ${e.message || e}`);
+          fetchErrors.push(`[Ítem ${itemId}]: ${e.message || e}`);
+        }
+
+        // 2. Try via Search API as fallback (only if the direct fetch failed)
+        if (!itemData) {
+          try {
+            const siteId = itemId.substring(0, 3).toUpperCase();
+            const searchRes = await meliFetch({
+              tenantId,
+              endpoint: `/sites/${siteId}/search?q=${itemId}`
+            });
+            if (searchRes && searchRes.results && searchRes.results.length > 0) {
+              const foundItem = searchRes.results.find((r: any) => r.id === itemId);
+              if (foundItem) {
+                itemData = foundItem;
+                successfulId = itemId;
+              }
+            }
+          } catch (e: any) {
+            fetchErrors.push(`[Búsqueda ${itemId}]: ${e.message || e}`);
+          }
         }
       }
 
@@ -193,16 +197,6 @@ export async function POST(request: Request) {
       let descriptionText = body.description || "";
       let isCatalogProduct = body.isCatalogProduct || false;
       let successfulId = body.id || resolvedItemData?.id;
-
-      // If called in one-step ("all" mode), resolve first
-      if (action === "all") {
-        if (!url) {
-          return NextResponse.json({ error: "URL is required" }, { status: 400 });
-        }
-        // Run the resolution logic inline
-        // (Fallback for backward compatibility or direct API calls)
-        // ... (truncated to keep it simple, but we can just use the action parameters)
-      }
 
       if (!resolvedItemData) {
         return NextResponse.json({ error: "itemData is required for analysis" }, { status: 400 });
