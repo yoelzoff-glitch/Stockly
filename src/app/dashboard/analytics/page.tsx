@@ -92,7 +92,9 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
     sevenDaysAgo,
     new Date(), // now
     packagingCost,
-    ignoredOrderIds
+    ignoredOrderIds,
+    false,
+    timezone
   );
 
   const totalOrders = activeOrders.length;
@@ -110,7 +112,9 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
     currentMonthStart,
     new Date(), // now
     packagingCost,
-    ignoredOrderIds
+    ignoredOrderIds,
+    false,
+    timezone
   );
 
   const currentMonthProfit = currentMonthFinancials.gananciaNeta;

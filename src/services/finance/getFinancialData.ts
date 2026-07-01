@@ -1,5 +1,17 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeSku } from "@/services/products/sku/normalizeSku";
+import { getMidnightInTimezone } from "@/services/ai/tools/finance";
+
+function getYearAndMonthInTimezone(date: Date, tz: string): { year: number; month: number } {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+  });
+  const [year, month] = formatter.format(date).split('-').map(Number);
+  return { year, month: month - 1 }; // month is 0-indexed internally
+}
+
 
 export interface ProductFinancialRow {
   title: string;
@@ -41,7 +53,8 @@ export async function getFinancialData(
   dateTo: Date,
   packagingCost: number,
   ignoredOrderIds: string[],
-  disableProration = false
+  disableProration = false,
+  timezone = 'America/Argentina/Buenos_Aires'
 ): Promise<FinancialData> {
   // 1. Fetch orders
   const { data: orders } = await supabase
@@ -276,20 +289,23 @@ export async function getFinancialData(
       .eq("is_active", true);
 
     if (expenses && expenses.length > 0) {
+      const orderDateFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+      });
+
       // Agrupar facturación de órdenes por mes (formato YYYY-MM)
       const monthlyRevenueMap: Record<string, number> = {};
       activeOrders.forEach(o => {
         const orderDate = new Date(o.date_created);
-        const mm = String(orderDate.getUTCMonth() + 1).padStart(2, '0');
-        const key = `${orderDate.getUTCFullYear()}-${mm}`;
+        const key = orderDateFormatter.format(orderDate); // "YYYY-MM"
         monthlyRevenueMap[key] = (monthlyRevenueMap[key] || 0) + (Number(o.total_amount) || 0);
       });
 
       // Encontrar todos los meses tocados por el rango de fechas [dateFrom, dateTo]
-      const startYear = dateFrom.getUTCFullYear();
-      const startMonth = dateFrom.getUTCMonth();
-      const endYear = dateTo.getUTCFullYear();
-      const endMonth = dateTo.getUTCMonth();
+      const { year: startYear, month: startMonth } = getYearAndMonthInTimezone(dateFrom, timezone);
+      const { year: endYear, month: endMonth } = getYearAndMonthInTimezone(dateTo, timezone);
 
       const monthsTouched: { key: string; proration: number }[] = [];
       let currYear = startYear;
@@ -301,9 +317,10 @@ export async function getFinancialData(
         // Días totales del mes
         const daysInMonth = new Date(currYear, currMonth + 1, 0).getDate();
 
-        // Calcular superposición de días
-        const monthStart = new Date(Date.UTC(currYear, currMonth, 1, 0, 0, 0));
-        const monthEnd = new Date(Date.UTC(currYear, currMonth, daysInMonth, 23, 59, 59, 999));
+        // Calcular superposición de días usando la zona horaria del tenant
+        const monthStart = getMidnightInTimezone(new Date(Date.UTC(currYear, currMonth, 1, 12, 0, 0)), timezone);
+        const nextMonthStart = getMidnightInTimezone(new Date(Date.UTC(currMonth === 11 ? currYear + 1 : currYear, currMonth === 11 ? 0 : currMonth + 1, 1, 12, 0, 0)), timezone);
+        const monthEnd = new Date(nextMonthStart.getTime() - 1);
 
         const overlapStart = new Date(Math.max(monthStart.getTime(), dateFrom.getTime()));
         const overlapEnd = new Date(Math.min(monthEnd.getTime(), dateTo.getTime()));
