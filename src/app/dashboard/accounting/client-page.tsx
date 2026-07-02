@@ -122,7 +122,7 @@ export function AccountingClient({
 
   // Actual month calculation logic
   const actualVariableExpenses = (totalPercentVariable * actualRevenue) / 100;
-  const cleanPocket = Math.max(0, actualOperatingProfit - totalFixedRecurring - totalTemporalThisMonth - actualVariableExpenses);
+  const cleanPocket = actualOperatingProfit - totalFixedRecurring - totalTemporalThisMonth - actualVariableExpenses;
   const pocketPercentage = actualRevenue > 0 ? (cleanPocket / actualRevenue) * 100 : 0;
 
   // Handlers
@@ -522,16 +522,16 @@ export function AccountingClient({
               <div className="pt-3 border-t border-slate-100 flex flex-col space-y-2">
                 <div className="flex justify-between items-end">
                   <span className="text-slate-500 font-medium">Bolsillo Limpio Real</span>
-                  <span className="text-xl font-bold text-emerald-600">
-                    ${cleanPocket.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <span className={`text-xl font-bold ${cleanPocket >= 0 ? "text-emerald-600" : "text-red-650"}`}>
+                    {cleanPocket < 0 ? "-" : ""}${Math.abs(cleanPocket).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
 
                 {/* Progress bar showing remaining % */}
                 <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden mt-1">
                   <div 
-                    className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
-                    style={{ width: `${Math.min(100, pocketPercentage)}%` }}
+                    className={`${cleanPocket >= 0 ? "bg-emerald-500" : "bg-red-500"} h-full rounded-full transition-all duration-500`} 
+                    style={{ width: `${Math.max(0, Math.min(100, pocketPercentage))}%` }}
                   />
                 </div>
                 <div className="flex justify-between text-[10px] text-muted-foreground">

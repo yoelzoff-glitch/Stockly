@@ -332,8 +332,13 @@ export async function getFinancialData(
         const overlapEnd = new Date(Math.min(monthEnd.getTime(), dateTo.getTime()));
 
         const overlapMs = Math.max(0, overlapEnd.getTime() - overlapStart.getTime());
-        const daysInRange = overlapMs > 0 ? (overlapMs / (1000 * 60 * 60 * 24)) : 0;
-        
+        let daysInRange = overlapMs > 0 ? (overlapMs / (1000 * 60 * 60 * 24)) : 0;
+
+        // Evitar errores de redondeo de milisegundos para meses completos
+        if (daysInMonth - daysInRange < 0.02) {
+          daysInRange = daysInMonth;
+        }
+
         const proration = Math.min(1, daysInRange / daysInMonth);
 
         if (proration > 0) {
@@ -359,7 +364,7 @@ export async function getFinancialData(
           // Check if this expense is valid/active for month `m.key`
           let isValidForMonth = false;
           if (e.type === "fixed_one_off") {
-            if (e.target_month && e.target_month.substring(0, 7) === m.key) {
+            if (e.target_month && e.target_month.substring(0, 7) === m.key && e.is_active) {
               isValidForMonth = true;
             }
           } else {
@@ -420,7 +425,7 @@ export async function getFinancialData(
     console.error("Error calculating monthly expenses in getFinancialData:", err.message);
   }
 
-  const gananciaBolsilloLimpia = Math.max(0, gananciaNeta - monthlyExpensesTotal);
+  const gananciaBolsilloLimpia = gananciaNeta - monthlyExpensesTotal;
 
   // Calculate net profit and margins for each product row, and sort by revenue descending
   const tableData: ProductFinancialRow[] = Object.values(productAggMap).map(row => {

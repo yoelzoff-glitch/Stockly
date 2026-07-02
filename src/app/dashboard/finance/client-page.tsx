@@ -216,22 +216,22 @@ export default function FinanceClientPage({
         </Card>
 
         {/* Card 3: Ganancia Operativa (Neta) */}
-        <Card className="bg-emerald-50 dark:bg-emerald-950/20 border-emerald-150">
+        <Card className={gananciaNeta >= 0 ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-150" : "bg-red-50 dark:bg-red-950/20 border-red-150"}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-semibold text-emerald-850 dark:text-emerald-300 uppercase tracking-wider">
+            <CardTitle className={`text-xs font-semibold uppercase tracking-wider ${gananciaNeta >= 0 ? "text-emerald-850 dark:text-emerald-300" : "text-red-850 dark:text-red-300"}`}>
               Ganancia Operativa (Neta)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-              ${gananciaNeta.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+            <div className={`text-2xl font-bold ${gananciaNeta >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+              {gananciaNeta < 0 ? "-" : ""}${Math.abs(gananciaNeta).toLocaleString("es-AR", { maximumFractionDigits: 0 })}
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">Margen operativo: {margenNeto.toFixed(1)}%</p>
           </CardContent>
         </Card>
 
         {/* Card 4: Ganancia Limpia de Bolsillo (Caja) */}
-        <Card className="bg-gradient-to-br from-indigo-600 to-purple-650 text-white shadow-md border-0">
+        <Card className={`text-white shadow-md border-0 ${gananciaBolsilloLimpia >= 0 ? "bg-gradient-to-br from-indigo-600 to-purple-650" : "bg-gradient-to-br from-red-600 to-red-700"}`}>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-semibold text-indigo-100 uppercase tracking-wider">
               Ganancia Limpia de Bolsillo
@@ -239,7 +239,7 @@ export default function FinanceClientPage({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${gananciaBolsilloLimpia.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+              {gananciaBolsilloLimpia < 0 ? "-" : ""}${Math.abs(gananciaBolsilloLimpia).toLocaleString("es-AR", { maximumFractionDigits: 0 })}
             </div>
             <p className="text-[10px] text-indigo-100/90 mt-1">
               Margen de Caja: {(facturacionBruta > 0 ? (gananciaBolsilloLimpia / facturacionBruta) * 100 : 0).toFixed(1)}%
@@ -297,8 +297,12 @@ export default function FinanceClientPage({
                       <td className="px-4 py-3 text-right text-muted-foreground">${row.fee.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
                       <td className="px-4 py-3 text-right text-muted-foreground">${row.shipping.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
                       <td className="px-4 py-3 text-right text-muted-foreground">${row.extra.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-emerald-600">${row.neta.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
-                      <td className="px-4 py-3 text-right font-medium text-emerald-600">{row.marg.toFixed(1)}%</td>
+                      <td className={`px-4 py-3 text-right font-semibold ${row.neta >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                        {row.neta < 0 ? "-" : ""}${Math.abs(row.neta).toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                      </td>
+                      <td className={`px-4 py-3 text-right font-medium ${row.neta >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                        {row.marg.toFixed(1)}%
+                      </td>
                     </tr>
                   ))
                 )}
@@ -312,8 +316,10 @@ export default function FinanceClientPage({
                   <td className="px-4 py-4 text-right text-red-500">-${comisionesML.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
                   <td className="px-4 py-4 text-right text-red-500">-${envios.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
                   <td className="px-4 py-4 text-right text-red-500">-${promosCuotas.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
-                  <td className="px-4 py-4 text-right text-emerald-600">${gananciaNeta.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
-                  <td className="px-4 py-4 text-right text-emerald-600">-</td>
+                  <td className={`px-4 py-4 text-right ${gananciaNeta >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                    {gananciaNeta < 0 ? "-" : ""}${Math.abs(gananciaNeta).toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                  </td>
+                  <td className={`px-4 py-4 text-right ${gananciaNeta >= 0 ? "text-emerald-600" : "text-red-500"}`}>-</td>
                 </tr>
               </tfoot>
             </table>
