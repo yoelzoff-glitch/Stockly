@@ -110,11 +110,74 @@ export async function getFinancialData(
   const productAggMap: Record<string, Omit<ProductFinancialRow, "neta" | "marg">> = {};
 
   activeOrders.forEach(o => {
-    const dbItems = (orderItems || []).filter(item => item.order_id === o.id);
+    let dbItems = (orderItems || []).filter(item => item.order_id === o.id);
+
+    // Deduplicate dbItems using raw_data.order_items as ground truth if available to prevent database duplication errors from skewing calculations
+    const raw = o.raw_data as any;
+    const rawItems = raw?.order_items;
+    if (Array.isArray(rawItems) && dbItems.length > 0) {
+      const deduplicatedItems: typeof dbItems = [];
+      const dbItemsPool = [...dbItems];
+
+      rawItems.forEach((rawItem: any) => {
+        const meliItemId = rawItem.item?.id;
+        const sku = rawItem.item?.seller_sku || null;
+        const qty = Number(rawItem.quantity) || 1;
+
+        // Priority 1: match meli_item_id, sku, and quantity
+        let matchIndex = dbItemsPool.findIndex(item =>
+          item.meli_item_id === meliItemId &&
+          item.sku === sku &&
+          Number(item.quantity) === qty
+        );
+
+        // Priority 2: match meli_item_id and quantity
+        if (matchIndex === -1) {
+          matchIndex = dbItemsPool.findIndex(item =>
+            item.meli_item_id === meliItemId &&
+            Number(item.quantity) === qty
+          );
+        }
+
+        // Priority 3: match meli_item_id and sku
+        if (matchIndex === -1) {
+          matchIndex = dbItemsPool.findIndex(item =>
+            item.meli_item_id === meliItemId &&
+            item.sku === sku
+          );
+        }
+
+        // Priority 4: match meli_item_id only
+        if (matchIndex === -1) {
+          matchIndex = dbItemsPool.findIndex(item =>
+            item.meli_item_id === meliItemId
+          );
+        }
+
+        if (matchIndex !== -1) {
+          deduplicatedItems.push(dbItemsPool[matchIndex]);
+          dbItemsPool.splice(matchIndex, 1);
+        } else {
+          // Fallback: build a virtual item from rawItem
+          deduplicatedItems.push({
+            order_id: o.id,
+            meli_item_id: meliItemId,
+            title: rawItem.item?.title || "Varios",
+            sku: sku,
+            quantity: qty,
+            total_price: (Number(rawItem.unit_price) || 0) * qty,
+            estimated_fee: (Number(rawItem.sale_fee) || 0) * qty,
+            estimated_shipping_cost: null,
+            unit_cost: null
+          });
+        }
+      });
+      dbItems = deduplicatedItems;
+    }
+
     const amount = Number(o.total_amount) || 0;
     facturacionBruta += amount;
 
-    const raw = o.raw_data as any;
     const couponAmount = Number(raw?.coupon?.amount) || (raw?.payments && raw.payments.length > 0 ? Number(raw.payments[0].coupon_amount) : 0) || 0;
     totalCupones += couponAmount;
     const orderPackagingCost = Number(raw?.klyvo_operational_costs?.packaging_cost || packagingCost);
