@@ -60,13 +60,20 @@ export default async function CancellationsPage(props: { searchParams: Promise<{
   }
 
   // Fetch cancellations in date range
-  const { data: cancellations } = await supabase
+  const { data: rawCancellations } = await supabase
     .from("order_cancellations")
-    .select("*, orders(meli_order_id, buyer_nickname, date_created)")
+    .select("*, orders(meli_order_id, buyer_nickname, date_created, raw_data)")
     .eq("tenant_id", tenantId)
     .gte("date_cancelled", dateFrom.toISOString())
     .lte("date_cancelled", dateTo.toISOString())
     .order("date_cancelled", { ascending: false });
+
+  const cancellations = (rawCancellations || []).filter(c => {
+    const order = c.orders as any;
+    if (!order) return false;
+    const payments = order.raw_data?.payments || [];
+    return payments.some((p: any) => p.status === 'approved' || p.status === 'refunded');
+  });
 
   // Fetch orders in date range to calculate rates
   const { data: allOrders } = await supabase
@@ -77,7 +84,7 @@ export default async function CancellationsPage(props: { searchParams: Promise<{
     .lte("date_created", dateTo.toISOString());
 
   const totalOrders = allOrders?.length || 1; // avoid division by zero
-  const totalCancellations = cancellations?.length || 0;
+  const totalCancellations = cancellations.length;
   const rate = ((totalCancellations / totalOrders) * 100).toFixed(1);
 
   // KPIs

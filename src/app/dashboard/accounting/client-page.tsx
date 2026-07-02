@@ -1,7 +1,8 @@
 // src/app/dashboard/accounting/client-page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,20 +28,32 @@ import {
   createMonthlyExpense, 
   updateMonthlyExpense, 
   deleteMonthlyExpense, 
+  updateMonthlyExpenseWithHistory,
   MonthlyExpense 
 } from "./actions";
 
 export function AccountingClient({ 
   initialExpenses,
   actualRevenue,
-  actualOperatingProfit
+  actualOperatingProfit,
+  currentMonthStr
 }: { 
   initialExpenses: MonthlyExpense[];
   actualRevenue: number;
   actualOperatingProfit: number;
+  currentMonthStr: string;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
   const [expenses, setExpenses] = useState<MonthlyExpense[]>(initialExpenses);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Sync state with props when initialExpenses changes
+  useEffect(() => {
+    setExpenses(initialExpenses);
+  }, [initialExpenses]);
 
   // Create Modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -48,11 +61,7 @@ export function AccountingClient({
   const [newType, setNewType] = useState<"fixed_recurring" | "fixed_one_off" | "percent_variable">("fixed_recurring");
   const [newAmount, setNewAmount] = useState("");
   const [newPercentage, setNewPercentage] = useState("");
-  const [newTargetMonth, setNewTargetMonth] = useState(() => {
-    const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    return `${d.getFullYear()}-${mm}`;
-  });
+  const [newTargetMonth, setNewTargetMonth] = useState(currentMonthStr);
 
   // Edit Modal state
   const [editingExpense, setEditingExpense] = useState<MonthlyExpense | null>(null);
@@ -61,15 +70,40 @@ export function AccountingClient({
   const [editAmount, setEditAmount] = useState("");
   const [editPercentage, setEditPercentage] = useState("");
   const [editTargetMonth, setEditTargetMonth] = useState("");
+  const [editMode, setEditMode] = useState<"history" | "global">("history");
 
-  const currentYearMonth = (() => {
-    const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    return `${d.getFullYear()}-${mm}`;
-  })();
+  // Sync Create Modal month when currentMonthStr changes
+  useEffect(() => {
+    setNewTargetMonth(currentMonthStr);
+  }, [currentMonthStr]);
 
-  // Calculations
-  const activeExpenses = expenses.filter(e => e.is_active);
+  const handleMonthChange = (newMonth: string) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("month", newMonth);
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  // Filter expenses valid for the selected month (currentMonthStr)
+  const activeExpenses = expenses.filter(e => {
+    // If it's globally inactive and does NOT have an end_month (meaning it was globally disabled, not chronologically closed)
+    if (!e.is_active && !e.end_month) return false;
+
+    if (e.type === "fixed_one_off") {
+      return e.target_month && e.target_month.startsWith(currentMonthStr);
+    } else {
+      const startMonthStr = e.start_month ? e.start_month.substring(0, 7) : null;
+      const endMonthStr = e.end_month ? e.end_month.substring(0, 7) : null;
+
+      // Fallback for start_month: if not present, use creation month
+      const fallbackStartMonth = startMonthStr || (e.created_at ? e.created_at.substring(0, 7) : "2000-01");
+
+      const started = currentMonthStr >= fallbackStartMonth;
+      const ended = endMonthStr ? currentMonthStr > endMonthStr : false;
+
+      // It is active if it started and has not ended
+      return started && !ended;
+    }
+  });
 
   const totalFixedRecurring = activeExpenses
     .filter(e => e.type === "fixed_recurring")
@@ -82,7 +116,7 @@ export function AccountingClient({
   const totalTemporalThisMonth = activeExpenses
     .filter(e => {
       if (e.type !== "fixed_one_off" || !e.target_month) return false;
-      return e.target_month.startsWith(currentYearMonth);
+      return e.target_month.startsWith(currentMonthStr);
     })
     .reduce((sum, e) => sum + Number(e.amount), 0);
 
@@ -99,12 +133,15 @@ export function AccountingClient({
 
     try {
       const formattedMonth = newType === "fixed_one_off" ? `${newTargetMonth}-01` : null;
+      const startMonth = newType !== "fixed_one_off" ? `${currentMonthStr}-01` : null;
+
       const res = await createMonthlyExpense({
         name: newName.trim(),
         type: newType,
         amount: newType === "percent_variable" ? 0 : parseFloat(newAmount) || 0,
         percentage: newType === "percent_variable" ? parseFloat(newPercentage) || 0 : 0,
-        target_month: formattedMonth
+        target_month: formattedMonth,
+        start_month: startMonth
       });
 
       if (res.success && res.data) {
@@ -115,6 +152,7 @@ export function AccountingClient({
         setNewType("fixed_recurring");
         setNewAmount("");
         setNewPercentage("");
+        router.refresh();
       } else {
         alert("Error creando gasto: " + res.error);
       }
@@ -131,13 +169,12 @@ export function AccountingClient({
     setEditType(expense.type);
     setEditAmount((expense.amount || "").toString());
     setEditPercentage((expense.percentage || "").toString());
+    setEditMode("history"); // Default edit mode is preserving history
     
     if (expense.target_month) {
       setEditTargetMonth(expense.target_month.substring(0, 7)); // YYYY-MM
     } else {
-      const d = new Date();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      setEditTargetMonth(`${d.getFullYear()}-${mm}`);
+      setEditTargetMonth(currentMonthStr);
     }
   };
 
@@ -148,17 +185,34 @@ export function AccountingClient({
 
     try {
       const formattedMonth = editType === "fixed_one_off" ? `${editTargetMonth}-01` : null;
-      const res = await updateMonthlyExpense(editingExpense.id, {
-        name: editName.trim(),
-        type: editType,
-        amount: editType === "percent_variable" ? 0 : parseFloat(editAmount) || 0,
-        percentage: editType === "percent_variable" ? parseFloat(editPercentage) || 0 : 0,
-        target_month: formattedMonth
-      });
+      
+      let res;
+      if (editType !== "fixed_one_off" && editMode === "history") {
+        // Chronological update (closes current expense last month, creates new one starting this month)
+        res = await updateMonthlyExpenseWithHistory(
+          editingExpense.id,
+          {
+            name: editName.trim(),
+            type: editType,
+            amount: editType === "percent_variable" ? 0 : parseFloat(editAmount) || 0,
+            percentage: editType === "percent_variable" ? parseFloat(editPercentage) || 0 : 0
+          },
+          currentMonthStr
+        );
+      } else {
+        // Global / Historical update
+        res = await updateMonthlyExpense(editingExpense.id, {
+          name: editName.trim(),
+          type: editType,
+          amount: editType === "percent_variable" ? 0 : parseFloat(editAmount) || 0,
+          percentage: editType === "percent_variable" ? parseFloat(editPercentage) || 0 : 0,
+          target_month: formattedMonth
+        });
+      }
 
-      if (res.success && res.data) {
-        setExpenses(prev => prev.map(item => item.id === editingExpense.id ? (res.data as MonthlyExpense) : item));
+      if (res.success) {
         setEditingExpense(null);
+        router.refresh();
       } else {
         alert("Error actualizando gasto: " + res.error);
       }
@@ -174,8 +228,8 @@ export function AccountingClient({
     try {
       const nextStatus = !expense.is_active;
       const res = await updateMonthlyExpense(expense.id, { is_active: nextStatus });
-      if (res.success && res.data) {
-        setExpenses(prev => prev.map(item => item.id === expense.id ? (res.data as MonthlyExpense) : item));
+      if (res.success) {
+        router.refresh();
       } else {
         alert("Error cambiando estado: " + res.error);
       }
@@ -187,19 +241,67 @@ export function AccountingClient({
   };
 
   const handleDelete = async (expense: MonthlyExpense) => {
-    if (!confirm(`¿Estás seguro de que deseas eliminar el gasto "${expense.name}"?`)) return;
-    setIsProcessing(true);
-    try {
-      const res = await deleteMonthlyExpense(expense.id);
-      if (res.success) {
-        setExpenses(prev => prev.filter(item => item.id !== expense.id));
-      } else {
-        alert("Error eliminando gasto: " + res.error);
+    if (expense.type === "fixed_one_off") {
+      if (!confirm(`¿Estás seguro de que deseas eliminar el gasto "${expense.name}"?`)) return;
+      setIsProcessing(true);
+      try {
+        const res = await deleteMonthlyExpense(expense.id);
+        if (res.success) {
+          setExpenses(prev => prev.filter(item => item.id !== expense.id));
+          router.refresh();
+        } else {
+          alert("Error eliminando gasto: " + res.error);
+        }
+      } catch (err: any) {
+        alert("Error: " + err.message);
+      } finally {
+        setIsProcessing(false);
       }
-    } catch (err: any) {
-      alert("Error: " + err.message);
-    } finally {
-      setIsProcessing(false);
+    } else {
+      // For recurring or variable expenses, offer history-preserving finalization vs complete deletion
+      const choice = confirm(
+        `¿Cómo deseas eliminar el gasto recurrente "${expense.name}"?\n\n` +
+        `Aceptar (OK): Finalizar a partir de este mes (${formatTargetMonth(currentMonthStr)}). Se mantendrá en el historial de meses pasados.\n\n` +
+        `Cancelar: Eliminar por completo de todo el historial (afecta meses anteriores).`
+      );
+
+      setIsProcessing(true);
+      try {
+        if (choice) {
+          // Finalize: set end_month to previous month
+          const [year, month] = currentMonthStr.split('-').map(Number);
+          const prevMonthDate = new Date(Date.UTC(year, month - 2, 1));
+          const prevMonthStr = `${prevMonthDate.getUTCFullYear()}-${String(prevMonthDate.getUTCMonth() + 1).padStart(2, '0')}-01`;
+
+          const res = await updateMonthlyExpense(expense.id, {
+            end_month: prevMonthStr,
+            is_active: false
+          });
+          if (res.success) {
+            router.refresh();
+          } else {
+            alert("Error al finalizar el gasto: " + res.error);
+          }
+        } else {
+          // Confirm global deletion
+          const doubleCheck = confirm(`¿Estás seguro de que deseas eliminar COMPLETAMENTE el gasto "${expense.name}" y todo su historial? Esta acción no se puede deshacer.`);
+          if (!doubleCheck) {
+            setIsProcessing(false);
+            return;
+          }
+          const res = await deleteMonthlyExpense(expense.id);
+          if (res.success) {
+            setExpenses(prev => prev.filter(item => item.id !== expense.id));
+            router.refresh();
+          } else {
+            alert("Error al eliminar gasto: " + res.error);
+          }
+        }
+      } catch (err: any) {
+        alert("Error: " + err.message);
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
@@ -217,15 +319,26 @@ export function AccountingClient({
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       {/* Header */}
-      <div className="flex items-center justify-between space-y-2">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="space-y-1">
           <h2 className="text-3xl font-bold tracking-tight">Contabilidad</h2>
           <p className="text-sm text-muted-foreground">
             Administra tus costos de estructura mensuales, impuestos locales (IIBB, Monotributo) y presupuestos de marketing.
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Button onClick={() => setIsCreateOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm">
+            <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-indigo-500" /> Mes:
+            </span>
+            <input
+              type="month"
+              value={currentMonthStr}
+              onChange={(e) => handleMonthChange(e.target.value)}
+              className="text-xs font-bold text-slate-800 bg-transparent border-0 outline-none focus:ring-0 cursor-pointer"
+            />
+          </div>
+          <Button onClick={() => setIsCreateOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
             <Plus className="mr-2 h-4 w-4" />
             Agregar Gasto
           </Button>
@@ -278,10 +391,10 @@ export function AccountingClient({
               <CardDescription>Visualiza, edita o desactiva los gastos cargados en el sistema.</CardDescription>
             </CardHeader>
             <CardContent>
-              {expenses.length === 0 ? (
+              {activeExpenses.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground text-sm flex flex-col items-center justify-center space-y-3">
                   <BadgeInfo className="w-8 h-8 text-slate-350" />
-                  <p>No tienes ningún gasto registrado. Comienza agregando uno arriba.</p>
+                  <p>No tienes ningún gasto activo para este mes. Comienza agregando uno arriba.</p>
                 </div>
               ) : (
                 <div className="rounded-xl border border-slate-200 overflow-x-auto">
@@ -297,7 +410,7 @@ export function AccountingClient({
                       </tr>
                     </thead>
                     <tbody>
-                      {expenses.map((expense) => {
+                      {activeExpenses.map((expense) => {
                         return (
                           <tr key={expense.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
                             <td className="p-3 font-semibold text-slate-800">{expense.name}</td>
@@ -321,7 +434,18 @@ export function AccountingClient({
                             <td className="p-3 text-muted-foreground capitalize">
                               {expense.type === "fixed_one_off" 
                                 ? formatTargetMonth(expense.target_month) 
-                                : <span className="text-slate-400">Siempre activo</span>
+                                : (
+                                  <div className="flex flex-col text-[10px] leading-tight normal-case">
+                                    {expense.start_month && (
+                                      <span>Desde: {formatTargetMonth(expense.start_month)}</span>
+                                    )}
+                                    {expense.end_month ? (
+                                      <span className="text-amber-600 font-medium">Hasta: {formatTargetMonth(expense.end_month)}</span>
+                                    ) : (
+                                      <span className="text-slate-400">Siempre activo</span>
+                                    )}
+                                  </div>
+                                )
                               }
                             </td>
                             <td className="p-3 text-center">
@@ -586,6 +710,44 @@ export function AccountingClient({
                     onChange={(e) => setEditTargetMonth(e.target.value)}
                     required
                   />
+                </div>
+              )}
+
+              {editType !== "fixed_one_off" && (
+                <div className="space-y-2 p-3 bg-slate-50 border border-slate-100 rounded-lg">
+                  <Label className="font-semibold text-slate-700 block mb-2">Aplicación del Cambio</Label>
+                  <div className="flex flex-col gap-3">
+                    <label className="flex items-start gap-2.5 cursor-pointer text-slate-700">
+                      <input
+                        type="radio"
+                        name="editMode"
+                        checked={editMode === "history"}
+                        onChange={() => setEditMode("history")}
+                        className="mt-0.5 accent-indigo-600"
+                      />
+                      <div className="flex flex-col leading-tight">
+                        <span className="font-semibold text-slate-800">A partir de este mes ({formatTargetMonth(currentMonthStr)})</span>
+                        <span className="text-[10px] text-muted-foreground mt-0.5">
+                          El valor anterior se conservará en los meses pasados (como el mes anterior).
+                        </span>
+                      </div>
+                    </label>
+                    <label className="flex items-start gap-2.5 cursor-pointer text-slate-700">
+                      <input
+                        type="radio"
+                        name="editMode"
+                        checked={editMode === "global"}
+                        onChange={() => setEditMode("global")}
+                        className="mt-0.5 accent-indigo-600"
+                      />
+                      <div className="flex flex-col leading-tight">
+                        <span className="font-semibold text-slate-800">Actualizar de forma global</span>
+                        <span className="text-[10px] text-muted-foreground mt-0.5">
+                          Modifica este gasto en todo el historial (afectando meses anteriores).
+                        </span>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               )}
 

@@ -13,7 +13,8 @@ export const metadata = {
   description: "Administra tus gastos fijos, temporales y variables para calcular tu rentabilidad real limpia."
 };
 
-export default async function AccountingPage() {
+export default async function AccountingPage(props: { searchParams: Promise<{ month?: string }> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -50,8 +51,20 @@ export default async function AccountingPage() {
   const tenantDateStr = tenantDateFormatter.format(new Date()); // "YYYY-MM-DD"
   const [tenantYear, tenantMonth] = tenantDateStr.split('-').map(Number);
 
-  const dateFrom = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 1, 1, 12, 0, 0)), timezone);
-  const dateTo = new Date(); // now
+  // Determine selected month (e.g. "2026-07")
+  const defaultMonthStr = `${tenantYear}-${String(tenantMonth).padStart(2, '0')}`;
+  const selectedMonthStr = searchParams.month || defaultMonthStr;
+  
+  const [year, month] = selectedMonthStr.split('-').map(Number);
+
+  // Calculate start of selected month
+  const dateFrom = getMidnightInTimezone(new Date(Date.UTC(year, month - 1, 1, 12, 0, 0)), timezone);
+  
+  // Calculate end of selected month
+  const nextMonthYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextMonthStart = getMidnightInTimezone(new Date(Date.UTC(nextMonthYear, nextMonth - 1, 1, 12, 0, 0)), timezone);
+  const dateTo = new Date(nextMonthStart.getTime() - 1);
 
   let initialExpenses: MonthlyExpense[] = [];
   let actualRevenue = 0;
@@ -67,7 +80,7 @@ export default async function AccountingPage() {
       dateTo,
       packagingCost,
       ignoredOrderIds,
-      true,
+      true, // disableProration = true (full month calculation)
       timezone
     );
     actualRevenue = financials.facturacionBruta;
@@ -81,6 +94,7 @@ export default async function AccountingPage() {
       initialExpenses={initialExpenses} 
       actualRevenue={actualRevenue}
       actualOperatingProfit={actualOperatingProfit}
+      currentMonthStr={selectedMonthStr}
     />
   );
 }

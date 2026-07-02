@@ -78,10 +78,10 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
     .select("meli_item_id, title, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount")
     .eq("tenant_id", tenantId);
 
-  // Obtener cancelaciones
+  // Obtener cancelaciones (sólo de órdenes que fueron pagadas/reembolsadas)
   const { data: cancellations } = await supabase
     .from("order_cancellations")
-    .select("refund_amount")
+    .select("refund_amount, orders(raw_data)")
     .eq("tenant_id", tenantId)
     .gte("date_cancelled", dateFrom.toISOString());
 
@@ -187,7 +187,14 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
     }
   });
 
-  const cancelaciones = cancellations?.reduce((sum, c) => sum + (Number(c.refund_amount) || 0), 0) || 0;
+  const validCancellations = (cancellations || []).filter((c: any) => {
+    const order = c.orders;
+    if (!order) return false;
+    const payments = order.raw_data?.payments || [];
+    return payments.some((p: any) => p.status === 'approved' || p.status === 'refunded');
+  });
+
+  const cancelaciones = validCancellations.reduce((sum, c) => sum + (Number(c.refund_amount) || 0), 0);
 
   const gananciaNeta = facturacion - costos - comisiones - envios - extra;
   const margenNeto = facturacion > 0 ? (gananciaNeta / facturacion) * 100 : 0;

@@ -65,10 +65,10 @@ export async function getFinancialData(
     .gte("date_created", dateFrom.toISOString())
     .lte("date_created", dateTo.toISOString());
 
-  // 2. Fetch cancellations
+  // 2. Fetch cancellations (only those that correspond to actual paid/refunded orders, not rejected/unpaid)
   const { data: cancellations } = await supabase
     .from("order_cancellations")
-    .select("refund_amount")
+    .select("refund_amount, orders(raw_data)")
     .eq("tenant_id", tenantId)
     .gte("date_cancelled", dateFrom.toISOString())
     .lte("date_cancelled", dateTo.toISOString());
@@ -271,7 +271,14 @@ export async function getFinancialData(
     totalUnitsSold += orderQty;
   });
 
-  const cancellationsAmount = (cancellations || []).reduce((sum, c) => sum + (Number(c.refund_amount) || 0), 0);
+  const validCancellations = (cancellations || []).filter((c: any) => {
+    const order = c.orders;
+    if (!order) return false;
+    const payments = order.raw_data?.payments || [];
+    return payments.some((p: any) => p.status === 'approved' || p.status === 'refunded');
+  });
+
+  const cancellationsAmount = validCancellations.reduce((sum, c) => sum + (Number(c.refund_amount) || 0), 0);
 
   const gananciaNeta = facturacionBruta - costosProductos - comisionesML - envios - promosCuotas;
   const margenNeto = facturacionBruta > 0 ? (gananciaNeta / facturacionBruta) * 100 : 0;
@@ -285,8 +292,7 @@ export async function getFinancialData(
     const { data: expenses } = await supabase
       .from("monthly_expenses")
       .select("*")
-      .eq("tenant_id", tenantId)
-      .eq("is_active", true);
+      .eq("tenant_id", tenantId);
 
     if (expenses && expenses.length > 0) {
       const orderDateFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -347,16 +353,40 @@ export async function getFinancialData(
       monthsTouched.forEach(m => {
         const monthRevenue = monthlyRevenueMap[m.key] || 0;
 
-        expenses.forEach(e => {
+        expenses.forEach((e: any) => {
           let appliedAmount = 0;
+
+          // Check if this expense is valid/active for month `m.key`
+          let isValidForMonth = false;
+          if (e.type === "fixed_one_off") {
+            if (e.target_month && e.target_month.substring(0, 7) === m.key) {
+              isValidForMonth = true;
+            }
+          } else {
+            // For recurring/variable, check start_month and end_month
+            const startMonthStr = e.start_month ? e.start_month.substring(0, 7) : null;
+            const endMonthStr = e.end_month ? e.end_month.substring(0, 7) : null;
+
+            // Fallback for start_month: if not present, use created_at month
+            const fallbackStartMonth = startMonthStr || (e.created_at ? e.created_at.substring(0, 7) : "2000-01");
+
+            const started = m.key >= fallbackStartMonth;
+            const ended = endMonthStr ? m.key > endMonthStr : false;
+
+            if (started && !ended) {
+              // If it's currently active, or if it has end_month (archived/ended version)
+              if (e.is_active || e.end_month) {
+                isValidForMonth = true;
+              }
+            }
+          }
+
+          if (!isValidForMonth) return;
 
           if (e.type === "fixed_recurring") {
             appliedAmount = Number(e.amount) * (disableProration ? 1 : m.proration);
           } else if (e.type === "fixed_one_off" && e.target_month) {
-            // Verificar si aplica al mes evaluado
-            if (e.target_month.substring(0, 7) === m.key) {
-              appliedAmount = Number(e.amount) * (disableProration ? 1 : m.proration);
-            }
+            appliedAmount = Number(e.amount) * (disableProration ? 1 : m.proration);
           } else if (e.type === "percent_variable") {
             // Se calcula directo sobre la facturación del mes
             appliedAmount = (Number(e.percentage) * monthRevenue) / 100;
