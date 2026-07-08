@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import * as XLSX from "xlsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -139,31 +140,22 @@ export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
     }
   };
 
-  // CSV Export
-  const handleExportCSV = () => {
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "SKU,Nombre,Categoria,Stock Deposito,Costo Promedio,Ultimo Costo Compra,Stock Minimo\n";
-    
-    items.forEach(item => {
-      const row = [
-        item.sku_normalized,
-        `"${item.name || ''}"`,
-        `"${item.category || ''}"`,
-        item.current_stock || 0,
-        item.average_cost || 0,
-        item.last_purchase_cost || 0,
-        item.minimum_stock || 0
-      ].join(",");
-      csvContent += row + "\n";
-    });
+  // Excel Export
+  const handleExportExcel = () => {
+    const data = items.map(item => ({
+      SKU: item.sku_normalized,
+      Nombre: item.name || "Sin nombre",
+      Categoría: item.category || "General",
+      "Stock Depósito": item.current_stock || 0,
+      "Costo Promedio": item.average_cost || 0,
+      "Último Costo Compra": item.last_purchase_cost || 0,
+      "Stock Mínimo": item.minimum_stock || 0
+    }));
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "inventario_deposito.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario Depósito");
+    XLSX.writeFile(workbook, "inventario_deposito.xlsx");
   };
 
   return (
@@ -177,9 +169,9 @@ export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
           </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button onClick={handleExportCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+          <Button onClick={handleExportExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white">
             <Download className="mr-2 h-4 w-4" />
-            Exportar CSV
+            Exportar Excel
           </Button>
         </div>
       </div>
