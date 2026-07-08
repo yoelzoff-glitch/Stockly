@@ -1,7 +1,7 @@
 // src/app/dashboard/internal-stock/client-page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,13 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertTriangle, Hammer, Edit3, BarChart, History, Download, RefreshCw, Layers, ArrowUpDown, ShieldAlert, BadgeInfo, Trash2 } from "lucide-react";
-import { adjustInventoryStock, updateInventoryItemParams, getInventoryMovements, deleteInventoryItem } from "./actions";
+import { AlertTriangle, Hammer, Edit3, BarChart, History, Download, Upload, RefreshCw, Layers, ArrowUpDown, ShieldAlert, BadgeInfo, Trash2 } from "lucide-react";
+import { adjustInventoryStock, updateInventoryItemParams, getInventoryMovements, deleteInventoryItem, bulkUpdateInventoryFromExcel } from "./actions";
 
 export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
   const [items, setItems] = useState<any[]>(initialItems);
   const [searchTerm, setSearchTerm] = useState("");
   const [stockFilter, setStockFilter] = useState("all");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Modals state
   const [adjustingItem, setAdjustingItem] = useState<any | null>(null);
@@ -158,8 +159,90 @@ export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
     XLSX.writeFile(workbook, "inventario_deposito.xlsx");
   };
 
+  // Excel Import
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessing(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const arrayBuffer = evt.target?.result as ArrayBuffer;
+        const data = new Uint8Array(arrayBuffer);
+        const wb = XLSX.read(data, { type: "array" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const rawData = XLSX.utils.sheet_to_json(ws) as any[];
+
+        if (rawData.length === 0) {
+          alert("El archivo Excel está vacío.");
+          setIsProcessing(false);
+          return;
+        }
+
+        const updates: Array<{
+          sku: string;
+          name?: string;
+          category?: string;
+          current_stock?: number;
+          average_cost?: number;
+          last_purchase_cost?: number;
+          minimum_stock?: number;
+        }> = [];
+
+        rawData.forEach((row: any) => {
+          const sku = row.SKU || row.sku || row.Sku;
+          if (!sku) return;
+
+          const name = row.Nombre || row.nombre || row.Name;
+          const category = row.Categoría || row.categoria || row.Category;
+          const stockVal = row["Stock Depósito"] ?? row["Stock Deposito"] ?? row["stock_deposito"] ?? row.Stock ?? row.stock;
+          const costVal = row["Costo Promedio"] ?? row["costo_promedio"] ?? row.Costo ?? row.cost;
+          const lastCostVal = row["Último Costo Compra"] ?? row["Ultimo Costo Compra"] ?? row["ultimo_costo_compra"] ?? row.UltimoCosto ?? row.last_cost;
+          const minStockVal = row["Stock Mínimo"] ?? row["Stock Minimo"] ?? row["stock_minimo"] ?? row.MinStock ?? row.min_stock;
+
+          updates.push({
+            sku: String(sku),
+            name: name !== undefined ? String(name) : undefined,
+            category: category !== undefined ? String(category) : undefined,
+            current_stock: stockVal !== undefined && !isNaN(Number(stockVal)) ? Number(stockVal) : undefined,
+            average_cost: costVal !== undefined && !isNaN(Number(costVal)) ? Number(costVal) : undefined,
+            last_purchase_cost: lastCostVal !== undefined && !isNaN(Number(lastCostVal)) ? Number(lastCostVal) : undefined,
+            minimum_stock: minStockVal !== undefined && !isNaN(Number(minStockVal)) ? Number(minStockVal) : undefined,
+          });
+        });
+
+        if (updates.length === 0) {
+          alert("No se encontraron registros válidos con la columna SKU.");
+          setIsProcessing(false);
+          return;
+        }
+
+        const res = await bulkUpdateInventoryFromExcel(updates);
+        if (res.success) {
+          alert(`Importación exitosa. Se actualizaron ${res.updatedCount} componentes. Omitidos: ${res.skippedCount}.`);
+          window.location.reload();
+        }
+      } catch (err: any) {
+        alert("Error procesando archivo Excel: " + err.message);
+      } finally {
+        setIsProcessing(false);
+        e.target.value = "";
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleImportExcel} 
+        accept=".xlsx, .xls" 
+        className="hidden" 
+      />
       {/* Header */}
       <div className="flex items-center justify-between space-y-2">
         <div className="space-y-1">
@@ -169,6 +252,15 @@ export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          <Button 
+            onClick={() => fileInputRef.current?.click()} 
+            variant="outline" 
+            className="border-slate-200 text-slate-700 hover:bg-slate-50"
+            disabled={isProcessing}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Importar Excel
+          </Button>
           <Button onClick={handleExportExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white">
             <Download className="mr-2 h-4 w-4" />
             Exportar Excel

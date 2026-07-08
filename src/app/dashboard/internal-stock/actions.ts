@@ -285,3 +285,162 @@ export async function deleteInventoryItem(itemId: string) {
   revalidatePath("/dashboard/internal-stock");
   return { success: true };
 }
+
+/**
+ * Realiza una actualización masiva de componentes a partir de los datos parseados de Excel.
+ */
+export async function bulkUpdateInventoryFromExcel(
+  updates: Array<{
+    sku: string;
+    name?: string;
+    category?: string;
+    current_stock?: number;
+    average_cost?: number;
+    last_purchase_cost?: number;
+    minimum_stock?: number;
+  }>
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.tenant_id) throw new Error("No tenant");
+  const tenantId = profile.tenant_id;
+
+  // Traer todos los items existentes del tenant
+  const { data: existingItems, error } = await supabase
+    .from("inventory_items")
+    .select("*")
+    .eq("tenant_id", tenantId);
+
+  if (error) throw new Error(`Failed to fetch existing items: ${error.message}`);
+  
+  const existingMap = new Map<string, any>();
+  existingItems?.forEach(item => {
+    existingMap.set(item.sku_normalized.toLowerCase(), item);
+  });
+
+  let updatedCount = 0;
+  let skippedCount = 0;
+  const componentsToRecalculate = new Set<string>();
+
+  for (const update of updates) {
+    if (!update.sku) {
+      skippedCount++;
+      continue;
+    }
+    const normalizedSku = update.sku.trim().toLowerCase();
+    const dbItem = existingMap.get(normalizedSku);
+
+    if (!dbItem) {
+      skippedCount++;
+      continue;
+    }
+
+    const itemId = dbItem.id;
+    const oldStock = dbItem.current_stock || 0;
+    const newStock = update.current_stock !== undefined ? update.current_stock : oldStock;
+    const stockChanged = newStock !== oldStock;
+
+    const oldAverageCost = dbItem.average_cost || 0;
+    const newAverageCost = update.average_cost !== undefined ? update.average_cost : oldAverageCost;
+    const costChanged = newAverageCost !== oldAverageCost;
+
+    const oldName = dbItem.name || "";
+    const newName = update.name !== undefined ? update.name.trim() : oldName;
+
+    const oldCategory = dbItem.category || "";
+    const newCategory = update.category !== undefined ? update.category.trim() : oldCategory;
+
+    const oldLastPurchaseCost = dbItem.last_purchase_cost || 0;
+    const newLastPurchaseCost = update.last_purchase_cost !== undefined ? update.last_purchase_cost : oldLastPurchaseCost;
+
+    const oldMinStock = dbItem.minimum_stock || 0;
+    const newMinStock = update.minimum_stock !== undefined ? update.minimum_stock : oldMinStock;
+
+    // Verificar si algo cambió
+    const anythingChanged = 
+      newName !== oldName ||
+      newCategory !== oldCategory ||
+      stockChanged ||
+      costChanged ||
+      newLastPurchaseCost !== oldLastPurchaseCost ||
+      newMinStock !== oldMinStock;
+
+    if (!anythingChanged) {
+      continue;
+    }
+
+    // Construir objeto de actualización
+    const updatePayload: any = {
+      updated_at: new Date().toISOString()
+    };
+    if (newName !== oldName) updatePayload.name = newName;
+    if (newCategory !== oldCategory) updatePayload.category = newCategory;
+    if (stockChanged) updatePayload.current_stock = newStock;
+    if (costChanged) updatePayload.average_cost = newAverageCost;
+    if (newLastPurchaseCost !== oldLastPurchaseCost) updatePayload.last_purchase_cost = newLastPurchaseCost;
+    if (newMinStock !== oldMinStock) updatePayload.minimum_stock = newMinStock;
+
+    // Actualizar en base de datos
+    const { error: updateErr } = await supabase
+      .from("inventory_items")
+      .update(updatePayload)
+      .eq("id", itemId)
+      .eq("tenant_id", tenantId);
+
+    if (updateErr) {
+      console.error(`Error updating item ${update.sku}:`, updateErr.message);
+      continue;
+    }
+
+    // Si cambió el stock, registrar el movimiento
+    if (stockChanged) {
+      const delta = newStock - oldStock;
+      await supabase.from("inventory_movements").insert({
+        tenant_id: tenantId,
+        inventory_item_id: itemId,
+        movement_type: "adjustment",
+        quantity_delta: delta,
+        previous_stock: oldStock,
+        new_stock: newStock,
+        source: "dashboard",
+        notes: "Ajuste masivo por importación de Excel",
+        created_by: user.id
+      });
+    }
+
+    // Agregar a la lista para recalcular costos
+    if (costChanged || stockChanged) {
+      componentsToRecalculate.add(itemId);
+    }
+
+    updatedCount++;
+  }
+
+  // Recalcular costos para productos afectados
+  if (componentsToRecalculate.size > 0) {
+    for (const itemId of componentsToRecalculate) {
+      try {
+        await recalculateAllProductsByComponent(tenantId, itemId);
+      } catch (recalcErr: any) {
+        console.error(`Failed to recalculate costs for component ${itemId}:`, recalcErr.message);
+      }
+    }
+  }
+
+  revalidatePath("/dashboard/internal-stock");
+  revalidatePath("/dashboard/products");
+
+  return {
+    success: true,
+    updatedCount,
+    skippedCount
+  };
+}
