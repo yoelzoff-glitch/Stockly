@@ -78,7 +78,7 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
   const totalAmount = Number(order.total_amount) || 0;
   
   // Sum up Mercado Libre fees from items
-  const totalMeliFees = items?.reduce((sum, item) => sum + (Number(item.estimated_fee) || 0), 0) || 0;
+  const totalMeliFees = items?.reduce((sum, item) => sum + ((Number(item.estimated_fee) || 0) * (Number(item.quantity) || 1)), 0) || 0;
   
   // Sum up product costs from items
   const totalProductCost = items?.reduce((sum, item) => sum + ((Number(item.unit_cost) || 0) * (Number(item.quantity) || 1)), 0) || 0;
@@ -246,7 +246,7 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
                         const unitPrice = Number(item.unit_price) || 0;
                         const qty = Number(item.quantity) || 1;
                         const subtotal = unitPrice * qty;
-                        const fee = Number(item.estimated_fee) || 0;
+                        const fee = (Number(item.estimated_fee) || 0) * qty;
                         const cost = Number(item.unit_cost) || 0;
                         const itemNetProfit = subtotal - fee - (cost * qty);
                         
