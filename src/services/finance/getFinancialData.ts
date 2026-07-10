@@ -76,7 +76,7 @@ export async function getFinancialData(
   // 3. Fetch products (cost and extra info)
   const { data: products } = await supabase
     .from("products")
-    .select("id, meli_item_id, title, sku, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount")
+    .select("id, meli_item_id, title, sku, status, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount")
     .eq("tenant_id", tenantId);
 
   // Filter out ignored/test orders
@@ -195,20 +195,83 @@ export async function getFinancialData(
       orderQty += qty;
 
       let p = item.meli_item_id ? (products || []).find(prod => prod.meli_item_id === item.meli_item_id) : undefined;
+      
+      // If matched by meli_item_id but product has no cost, find another product with same SKU that has cost
+      if (p && (!p.cost || Number(p.cost) <= 0) && p.sku) {
+        const normSku = normalizeSku(p.sku);
+        if (normSku) {
+          const alternativeProd = (products || []).find(prod => 
+            prod.sku && 
+            normalizeSku(prod.sku) === normSku && 
+            prod.cost && 
+            Number(prod.cost) > 0
+          );
+          if (alternativeProd) {
+            p = alternativeProd;
+          }
+        }
+      }
+
       if (!p && item.sku) {
         const normItemSku = normalizeSku(item.sku);
         if (normItemSku) {
-          p = (products || []).find(prod => prod.sku && normalizeSku(prod.sku) === normItemSku);
+          p = (products || []).find(prod => 
+            prod.sku && 
+            normalizeSku(prod.sku) === normItemSku && 
+            prod.cost && 
+            Number(prod.cost) > 0 &&
+            prod.status === 'active'
+          );
+          if (!p) {
+            p = (products || []).find(prod => 
+              prod.sku && 
+              normalizeSku(prod.sku) === normItemSku && 
+              prod.cost && 
+              Number(prod.cost) > 0
+            );
+          }
+          if (!p) {
+            p = (products || []).find(prod => 
+              prod.sku && 
+              normalizeSku(prod.sku) === normItemSku &&
+              prod.status === 'active'
+            );
+          }
+          if (!p) {
+            p = (products || []).find(prod => prod.sku && normalizeSku(prod.sku) === normItemSku);
+          }
         }
       }
+
       if (!p && item.title) {
-        p = (products || []).find(prod => prod.title === item.title);
+        p = (products || []).find(prod => 
+          prod.title === item.title && 
+          prod.cost && 
+          Number(prod.cost) > 0 &&
+          prod.status === 'active'
+        );
+        if (!p) {
+          p = (products || []).find(prod => 
+            prod.title === item.title && 
+            prod.cost && 
+            Number(prod.cost) > 0
+          );
+        }
+        if (!p) {
+          p = (products || []).find(prod => 
+            prod.title === item.title &&
+            prod.status === 'active'
+          );
+        }
+        if (!p) {
+          p = (products || []).find(prod => prod.title === item.title);
+        }
       }
       
       let itemCost = 0;
-      let itemFee = Number(item.estimated_fee) || 0;
+      let itemFee = (Number(item.estimated_fee) || 0) * qty;
       let itemShipping = Number(item.estimated_shipping_cost) || 0;
-      let itemExtra = orderPackagingCost * (qty / totalOrderQty);
+      let itemExtra = orderPackagingCost * qty;
 
       if (couponAmount > 0 && amount > 0) {
         const itemTotalOriginal = Number(item.total_price) || 0;
@@ -283,7 +346,7 @@ export async function getFinancialData(
       }
       
       const couponAmount = Number(raw?.coupon?.amount) || (raw?.payments && raw.payments.length > 0 ? Number(raw.payments[0].coupon_amount) : 0) || 0;
-      let itemExtra = orderPackagingCost + couponAmount;
+      let itemExtra = (orderPackagingCost * rawQty) + couponAmount;
 
       if (p) {
         if (p.cost) {

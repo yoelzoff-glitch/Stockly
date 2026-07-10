@@ -348,7 +348,9 @@ export async function syncProducts(tenantId: string) {
       const sku = skuMap.get(item.id) || null;
       const hasComps = existingProd ? productsWithComps.has(existingProd.id) : false;
 
-      if (!existingProd || existingProd.sku !== sku || !hasComps) {
+      const hasMissingCost = existingProd ? (existingProd.cost === null || existingProd.cost === undefined || Number(existingProd.cost) <= 0) : true;
+
+      if (!existingProd || existingProd.sku !== sku || !hasComps || hasMissingCost) {
         changedMeliIds.add(item.id);
       }
     });

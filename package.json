@@ -10,7 +10,10 @@
     "start": "next start",
     "lint": "next lint",
     "inngest": "inngest-cli dev",
-    "test-meli": "tsx scratch/test-meli-fetch.js"
+    "test-meli": "tsx scratch/test-meli-fetch.js",
+    "run-financials": "tsx scratch/run-financials.ts",
+    "test-sync-components": "tsx scratch/test-sync-components.ts",
+    "find-null-costs": "tsx scratch/find-null-costs.ts"
   },
   "keywords": [],
   "author": "",
