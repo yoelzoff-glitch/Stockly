@@ -152,13 +152,16 @@ export async function syncProducts(tenantId: string) {
 
   if (excludedProducts.length > 0) {
     // Warn the user
-    await supabase.from("alerts").insert({
+    const { error: alertErr } = await supabase.from("alerts").insert({
       tenant_id: tenantId,
-      type: "warning",
+      severity: "warning",
       title: "Límite de SKUs Alcanzado",
-      message: `Tienes más SKUs únicos en Mercado Libre de los permitidos en tu plan. Solo se sincronizaron las publicaciones asociadas a los primeros ${maxSkus} SKUs.`,
+      body: `Tienes más SKUs únicos en Mercado Libre de los permitidos en tu plan. Solo se sincronizaron las publicaciones asociadas a los primeros ${maxSkus} SKUs.`,
       is_read: false
     });
+    if (alertErr) {
+      console.error("Failed to create SKU limit warning alert:", alertErr);
+    }
   }
 
   // Reassign to rawProducts so the rest of the function operates on the filtered list

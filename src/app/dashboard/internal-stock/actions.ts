@@ -323,7 +323,7 @@ export async function bulkUpdateInventoryFromExcel(
   
   const existingMap = new Map<string, any>();
   existingItems?.forEach(item => {
-    existingMap.set(item.sku_normalized.toLowerCase(), item);
+    existingMap.set(normalizeSku(item.sku_normalized), item);
   });
 
   let updatedCount = 0;
@@ -335,7 +335,7 @@ export async function bulkUpdateInventoryFromExcel(
       skippedCount++;
       continue;
     }
-    const normalizedSku = update.sku.trim().toLowerCase();
+    const normalizedSku = normalizeSku(update.sku);
     const dbItem = existingMap.get(normalizedSku);
 
     if (!dbItem) {

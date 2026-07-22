@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrders } from "./getOrders";
 import { decrementInternalStockFromOrder } from "../inventory/decrementInternalStockFromOrder";
 import { syncShipments } from "./syncShipments";
+import { normalizeSku } from "../products/sku/normalizeSku";
 
 export async function syncOrders(tenantId: string, specificMeliOrderId?: string, dateFrom?: string) {
   const supabase = createAdminClient();
@@ -67,14 +68,25 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
   // 3. Get all existing products for this tenant to map order_items properly
   const { data: localProducts, error: productsError } = await supabase
     .from("products")
-    .select("id, meli_item_id, cost")
+    .select("id, meli_item_id, sku, cost")
     .eq("tenant_id", tenantId);
 
   // Map of meli_item_id -> local product info
   const productMap: Record<string, { id: string; cost: number | null }> = {};
+  // Map of normalized SKU -> local product info
+  const productSkuMap: Record<string, { id: string; cost: number | null }> = {};
+
   if (!productsError && localProducts) {
     localProducts.forEach(p => {
-      productMap[p.meli_item_id] = { id: p.id, cost: p.cost };
+      if (p.meli_item_id) {
+        productMap[p.meli_item_id] = { id: p.id, cost: p.cost };
+      }
+      if (p.sku) {
+        const normSku = normalizeSku(p.sku);
+        if (normSku) {
+          productSkuMap[normSku] = { id: p.id, cost: p.cost };
+        }
+      }
     });
   }
 
@@ -211,7 +223,16 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
 
     order.order_items.forEach((item: any) => {
       const meliItemId = item.item?.id;
-      const productInfo = meliItemId ? productMap[meliItemId] : undefined;
+      const itemSku = item.item?.seller_sku;
+      const normItemSku = itemSku ? normalizeSku(itemSku) : "";
+
+      let productInfo = meliItemId ? productMap[meliItemId] : undefined;
+
+      // Fallback matching by SKU if meli_item_id matching fails
+      if (!productInfo && normItemSku) {
+        productInfo = productSkuMap[normItemSku];
+      }
+
       const localProductId = productInfo?.id;
       const unitCost = productInfo?.cost ?? null;
 
