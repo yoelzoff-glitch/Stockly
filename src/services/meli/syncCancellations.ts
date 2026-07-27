@@ -57,7 +57,7 @@ export async function syncCancellations(tenantId: string) {
   if (cancellationsToUpsert.length > 0) {
     const { error: insertError } = await supabase
       .from("order_cancellations")
-      .upsert(cancellationsToUpsert, { onConflict: "order_id" });
+      .insert(cancellationsToUpsert);
 
     if (insertError) {
       console.error("Error inserting order cancellations:", insertError);

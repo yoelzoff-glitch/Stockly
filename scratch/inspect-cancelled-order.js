@@ -22,20 +22,29 @@ const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVIC
 const supa = createClient(supabaseUrl, supabaseKey);
 
 async function main() {
-  const { data: order } = await supa
-    .from("orders")
-    .select("*")
-    .eq("meli_order_id", "2000017200142254")
+  const { data: order, error } = await supa
+    .from('orders')
+    .select('*')
+    .eq('meli_order_id', '2000017613047290')
     .single();
 
-  console.log("Cancelled Order details:");
-  console.log("total_amount:", order.total_amount);
-  console.log("coupon_amount (raw_data):", order.raw_data?.coupon?.amount);
-  console.log("payments:", order.raw_data?.payments?.map(p => ({
-    transaction_amount: p.transaction_amount,
-    coupon_amount: p.coupon_amount,
-    shipping_cost: p.shipping_cost
-  })));
+  if (error) {
+    console.error("Error:", error);
+    return;
+  }
+
+  console.log("Order found:", {
+    id: order.id,
+    meli_order_id: order.meli_order_id,
+    status: order.status,
+    total_amount: order.total_amount,
+    date_created: order.date_created,
+    raw_data: {
+      status: order.raw_data?.status,
+      payments: order.raw_data?.payments?.map(p => ({ status: p.status, id: p.id })),
+      cancel_detail: order.raw_data?.cancel_detail
+    }
+  });
 }
 
 main();
