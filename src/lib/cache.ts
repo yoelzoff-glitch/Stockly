@@ -11,7 +11,7 @@ export const getCachedOrders = unstable_cache(
 
     const { data: recentOrders } = await supabase
       .from("orders")
-      .select("total_amount, date_created")
+      .select("total_amount, date_created, status, meli_order_id")
       .eq("tenant_id", tenantId)
       .gte("date_created", startDate.toISOString());
 

@@ -1,0 +1,1014 @@
+=== RUNNING DATABASE HEALING FOR DOUBLE DEDUCTIONS ===
+Total sale_confirmed movements found: 398
+
+Healing Order/Item Key: 1ab42112-b7d0-4e58-9006-05a1827fabb4_97bc3ad9-eef9-43c1-a5e7-f171ad84c5ab
+Keeping Movement ID: a7140c5d-6f49-414b-a5af-6f13345c9482 (Created: 2026-06-04T15:15:51.653647+00:00, Delta: -1)
+  - Processing duplicate Movement ID: a2c07311-f082-40ef-8b58-999ef93510f9 (Created: 2026-06-04T15:15:53.269883+00:00, Delta: -1)
+    Refunding Component "AR071A" (ID: 97bc3ad9-eef9-43c1-a5e7-f171ad84c5ab): 14 -> 15 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 6f17e8e2-bddb-4092-a06f-94ab74be004d (Created: 2026-06-04T15:15:53.496005+00:00, Delta: -1)
+    Refunding Component "AR071A" (ID: 97bc3ad9-eef9-43c1-a5e7-f171ad84c5ab): 15 -> 16 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 45847f78-d0aa-4cf1-ba43-cddf1a8194fa_3f7ea9a2-df64-429f-9c1c-2170d4dbad9e
+Keeping Movement ID: fade50f9-89a1-463f-958b-e8cff7411366 (Created: 2026-06-07T14:38:10.288252+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 7791357e-0540-402a-a3c7-81a07e4e4b8a (Created: 2026-06-07T14:38:10.425494+00:00, Delta: -1)
+    Refunding Component "AR071F" (ID: 3f7ea9a2-df64-429f-9c1c-2170d4dbad9e): 7 -> 8 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 5ca13ecc-6599-4328-994f-51d367decb22 (Created: 2026-06-07T14:38:11.284079+00:00, Delta: -1)
+    Refunding Component "AR071F" (ID: 3f7ea9a2-df64-429f-9c1c-2170d4dbad9e): 8 -> 9 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: ac749d82-7a7e-474f-9eb3-49ccce82d77f (Created: 2026-06-07T14:38:11.298602+00:00, Delta: -1)
+    Refunding Component "AR071F" (ID: 3f7ea9a2-df64-429f-9c1c-2170d4dbad9e): 9 -> 10 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: aeedef83-4432-46b1-8409-d9063defd344 (Created: 2026-06-07T14:38:11.301714+00:00, Delta: -1)
+    Refunding Component "AR071F" (ID: 3f7ea9a2-df64-429f-9c1c-2170d4dbad9e): 10 -> 11 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 791fd993-e559-44d6-a80d-0fef93ef046a (Created: 2026-06-07T14:38:11.464275+00:00, Delta: -1)
+    Refunding Component "AR071F" (ID: 3f7ea9a2-df64-429f-9c1c-2170d4dbad9e): 11 -> 12 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: bd7bd2f2-5cf8-49a0-81ef-d1b24a98eab6 (Created: 2026-06-07T14:39:41.606932+00:00, Delta: -1)
+    Refunding Component "AR071F" (ID: 3f7ea9a2-df64-429f-9c1c-2170d4dbad9e): 12 -> 13 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 11aa6015-84a2-446c-a847-3d3a7749fa4c (Created: 2026-06-07T14:39:41.623399+00:00, Delta: -1)
+    Refunding Component "AR071F" (ID: 3f7ea9a2-df64-429f-9c1c-2170d4dbad9e): 13 -> 14 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: c6be12db-6ac2-4a68-b8be-b96c5b690ca0_9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446
+Keeping Movement ID: 541122cb-48bd-4741-8e19-6f4fc45be35f (Created: 2026-06-07T23:39:52.6339+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 1183254f-4e3a-4f0a-be94-8647d598cfa9 (Created: 2026-06-07T23:40:04.371782+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 29 -> 30 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: c6be12db-6ac2-4a68-b8be-b96c5b690ca0_baa920f7-b29d-4679-a74a-ee38ca073618
+Keeping Movement ID: 82324ebd-57ca-4481-9b45-1f6e7f709a28 (Created: 2026-06-07T23:39:56.412034+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 6f306e33-5110-4afb-baf6-c5f717369f36 (Created: 2026-06-07T23:40:04.81424+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 42 -> 43 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 0dd2d40a-822a-4de4-9543-a07c983cb4b0_927d1066-2a01-4dfc-9e0c-019eee2b96c9
+Keeping Movement ID: ee987859-b641-4d00-b4c1-233f134ffed7 (Created: 2026-06-08T14:19:03.846016+00:00, Delta: -1)
+  - Processing duplicate Movement ID: c5467bb8-2c7a-421f-8d73-88e8692e615c (Created: 2026-06-08T14:19:52.21063+00:00, Delta: -1)
+    Refunding Component "AR128VERDE" (ID: 927d1066-2a01-4dfc-9e0c-019eee2b96c9): 8 -> 9 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: bebeeecc-69a2-40a9-82f8-6c8b31af898e_c21bb5a2-8a76-4cad-8f74-8e3c44f95b91
+Keeping Movement ID: af7e44ab-abdb-4d31-9219-15577d66560d (Created: 2026-06-11T12:50:29.769598+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 0f0b387f-1d27-4003-94af-dfdfc78f7413 (Created: 2026-06-11T12:51:57.090509+00:00, Delta: -1)
+    Refunding Component "C104" (ID: c21bb5a2-8a76-4cad-8f74-8e3c44f95b91): 6 -> 7 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: b6199ca5-4997-4fc1-a028-45a220aaa2e4_7754cf42-a1d4-4a09-8a68-f6ff5aad615b
+Keeping Movement ID: a7457320-bf2a-46cb-8e79-e4b047e88f59 (Created: 2026-06-11T14:49:55.738143+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 55ab1df3-88e6-4386-ae2a-b6cb96f30d38 (Created: 2026-06-11T14:49:56.670493+00:00, Delta: -1)
+    Refunding Component "D765Y" (ID: 7754cf42-a1d4-4a09-8a68-f6ff5aad615b): 5 -> 6 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: b6199ca5-4997-4fc1-a028-45a220aaa2e4_ba2f5f68-e3cf-49e7-b605-823bce98f107
+Keeping Movement ID: 9a29b80f-20aa-484c-8d38-d75b6e54f252 (Created: 2026-06-11T14:49:56.287854+00:00, Delta: -1)
+  - Processing duplicate Movement ID: a1497b82-0918-47e2-b872-b7c0041b3537 (Created: 2026-06-11T14:49:57.326315+00:00, Delta: -1)
+    Refunding Component "C206" (ID: ba2f5f68-e3cf-49e7-b605-823bce98f107): 9 -> 10 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 44fe7121-8865-46f9-a747-4975f1984068_7754cf42-a1d4-4a09-8a68-f6ff5aad615b
+Keeping Movement ID: bc31c133-c14f-444d-bfa2-5ea3eab26791 (Created: 2026-06-12T01:49:04.832547+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 818c2b90-2674-4661-82c2-2c2b43bb8732 (Created: 2026-06-12T01:51:43.813767+00:00, Delta: -1)
+    Refunding Component "D765Y" (ID: 7754cf42-a1d4-4a09-8a68-f6ff5aad615b): 6 -> 7 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 466b5764-73f2-4319-b3e6-38eb1e0ee903 (Created: 2026-06-12T01:52:01.843481+00:00, Delta: -1)
+    Refunding Component "D765Y" (ID: 7754cf42-a1d4-4a09-8a68-f6ff5aad615b): 7 -> 8 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 44fe7121-8865-46f9-a747-4975f1984068_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: 9fba864e-d983-4219-9cea-1a285f78c495 (Created: 2026-06-12T01:49:05.383938+00:00, Delta: -1)
+  - Processing duplicate Movement ID: ef5c1ce4-0ef1-46fe-9474-978c4d922d64 (Created: 2026-06-12T01:52:01.850088+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): -1 -> 0 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: b41f3c06-d4d3-417e-b2d2-a449383a312a (Created: 2026-06-12T01:52:02.166929+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 0 -> 1 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: a8c42ea3-16d4-4251-8704-554739cf2dc0_64307b48-84bc-4cc1-b89b-5c5fae2a34c7
+Keeping Movement ID: 4e7de9b0-a6fc-4a57-bb74-9f7166803c2d (Created: 2026-06-14T22:31:35.925419+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 5ed8611d-4c80-441a-bdcb-95b2ae7226b1 (Created: 2026-06-14T22:32:46.763424+00:00, Delta: -1)
+    Refunding Component "AR183R" (ID: 64307b48-84bc-4cc1-b89b-5c5fae2a34c7): 0 -> 1 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 5ad9428d-e265-457d-8872-bea4d59116cc_97bc3ad9-eef9-43c1-a5e7-f171ad84c5ab
+Keeping Movement ID: 2a0b1a9d-b838-44c9-9775-0644ee2f692a (Created: 2026-06-16T22:08:31.032802+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 967cc31d-7d31-4ffa-8b76-7dffaaf4663f (Created: 2026-06-16T22:08:31.184398+00:00, Delta: -1)
+    Refunding Component "AR071A" (ID: 97bc3ad9-eef9-43c1-a5e7-f171ad84c5ab): 16 -> 17 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 199ddaf4-775c-4ae9-9bdc-d49c77047a3c_224bcf4b-1d1b-45af-8232-3d5e0ca5d089
+Keeping Movement ID: f99e458f-3518-4c16-bedf-5c3a289da010 (Created: 2026-06-17T21:02:34.749362+00:00, Delta: -1)
+  - Processing duplicate Movement ID: a738e059-3238-463c-8dd8-45dffdc41448 (Created: 2026-06-17T21:03:56.967553+00:00, Delta: -1)
+    Refunding Component "D763R" (ID: 224bcf4b-1d1b-45af-8232-3d5e0ca5d089): 2 -> 3 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 47ca8e51-2058-416b-9162-c1a4837a7a7c (Created: 2026-06-17T21:03:57.763256+00:00, Delta: -1)
+    Refunding Component "D763R" (ID: 224bcf4b-1d1b-45af-8232-3d5e0ca5d089): 3 -> 4 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 2d043b08-3423-472f-b285-921cb7d1dcfd (Created: 2026-06-17T21:03:57.763256+00:00, Delta: -1)
+    Refunding Component "D763R" (ID: 224bcf4b-1d1b-45af-8232-3d5e0ca5d089): 4 -> 5 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 1ade27b6-cc01-4d15-9817-b70c99467d56 (Created: 2026-06-17T21:04:19.026064+00:00, Delta: -1)
+    Refunding Component "D763R" (ID: 224bcf4b-1d1b-45af-8232-3d5e0ca5d089): 5 -> 6 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 199ddaf4-775c-4ae9-9bdc-d49c77047a3c_ac9b86b1-c067-42ed-aa43-f9cb82f46185
+Keeping Movement ID: 9f4c991b-9996-4106-abbf-b5ee5f4b4b95 (Created: 2026-06-17T21:03:57.325294+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 00b95d2f-ad4d-4416-812b-692c88b7cbd9 (Created: 2026-06-17T21:03:57.573533+00:00, Delta: -1)
+    Refunding Component "C145" (ID: ac9b86b1-c067-42ed-aa43-f9cb82f46185): 23 -> 24 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 3950c791-604a-4a52-b936-84de38f440bc (Created: 2026-06-17T21:04:19.183634+00:00, Delta: -1)
+    Refunding Component "C145" (ID: ac9b86b1-c067-42ed-aa43-f9cb82f46185): 24 -> 25 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: af12a669-9080-48ba-90c0-1c1ddd49f50a (Created: 2026-06-17T21:04:19.577959+00:00, Delta: -1)
+    Refunding Component "C145" (ID: ac9b86b1-c067-42ed-aa43-f9cb82f46185): 25 -> 26 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 338c8524-36e0-4575-b144-51014abb9822 (Created: 2026-06-17T21:04:19.58905+00:00, Delta: -1)
+    Refunding Component "C145" (ID: ac9b86b1-c067-42ed-aa43-f9cb82f46185): 26 -> 27 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: d30cc77b-fd8e-449a-95d0-0488b6316815_3f7ea9a2-df64-429f-9c1c-2170d4dbad9e
+Keeping Movement ID: 0b6bebf3-8c11-42be-8297-38f188ff8948 (Created: 2026-06-19T14:42:18.585364+00:00, Delta: -1)
+  - Processing duplicate Movement ID: c1bb815d-a8db-4b2a-80de-e20d56cdbf2d (Created: 2026-06-19T14:42:18.981714+00:00, Delta: -1)
+    Refunding Component "AR071F" (ID: 3f7ea9a2-df64-429f-9c1c-2170d4dbad9e): 14 -> 15 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: be393f15-6126-40ab-a57b-f4004a38767f_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: 13d21163-e922-4029-9f27-077758ccaac2 (Created: 2026-06-22T00:30:16.19523+00:00, Delta: -1)
+  - Processing duplicate Movement ID: a90958ad-f41e-487f-b312-697341bd9317 (Created: 2026-06-22T00:30:16.613092+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 1 -> 2 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: cd49d647-7d83-4611-af9f-d7a58194668b (Created: 2026-06-22T00:31:48.78924+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 2 -> 3 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 05ceb8e3-246c-4c59-a8dd-0324154ea47c (Created: 2026-06-22T00:32:15.194752+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 3 -> 4 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: ab1ad7b0-8676-43cb-8596-03806f8d9c8d (Created: 2026-06-22T00:32:15.287256+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 4 -> 5 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: be393f15-6126-40ab-a57b-f4004a38767f_291e29d8-28c7-4ac7-ada7-f8875af24fbe
+Keeping Movement ID: 9de61bf9-04a3-4485-ae85-c2d8206ef819 (Created: 2026-06-22T00:31:48.088453+00:00, Delta: -1)
+  - Processing duplicate Movement ID: c4610e64-f8ee-4d4d-aeae-a6e063b1ebee (Created: 2026-06-22T00:31:48.25901+00:00, Delta: -1)
+    Refunding Component "D762R" (ID: 291e29d8-28c7-4ac7-ada7-f8875af24fbe): 10 -> 11 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 4ac9df09-87cf-4879-ae13-9dbfd9875894 (Created: 2026-06-22T00:34:20.765385+00:00, Delta: -1)
+    Refunding Component "D762R" (ID: 291e29d8-28c7-4ac7-ada7-f8875af24fbe): 11 -> 12 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: a580b73d-566c-4a91-a1eb-196b1c862314 (Created: 2026-06-22T00:34:20.782576+00:00, Delta: -1)
+    Refunding Component "D762R" (ID: 291e29d8-28c7-4ac7-ada7-f8875af24fbe): 12 -> 13 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: c565037b-e77f-4e82-9b2d-7257dd76320a (Created: 2026-06-22T00:34:21.032225+00:00, Delta: -1)
+    Refunding Component "D762R" (ID: 291e29d8-28c7-4ac7-ada7-f8875af24fbe): 13 -> 14 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 3720c5ca-cbfb-4da0-a376-4406c1ad441e_baa920f7-b29d-4679-a74a-ee38ca073618
+Keeping Movement ID: 83b1a097-2705-41d7-a10a-5f967f8f255f (Created: 2026-06-22T13:04:17.061986+00:00, Delta: -1)
+  - Processing duplicate Movement ID: d76e41e3-c968-47cf-beae-3c140933cf8e (Created: 2026-06-22T13:04:22.577639+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 43 -> 44 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 5bfd91f1-f15c-47d7-b37c-9296e56d8f82 (Created: 2026-06-22T13:04:23.168992+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 44 -> 45 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 3720c5ca-cbfb-4da0-a376-4406c1ad441e_9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446
+Keeping Movement ID: 12c44906-186c-43fc-8186-27bcc8bd1083 (Created: 2026-06-22T13:04:22.835031+00:00, Delta: -1)
+  - Processing duplicate Movement ID: b47fa5c6-2e4d-4946-a42f-5f7b04bad761 (Created: 2026-06-22T13:04:22.870909+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 30 -> 31 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 14ac24ab-8d81-49fa-b5a5-efe673b259d8 (Created: 2026-06-22T13:04:36.412164+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 31 -> 32 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 5441ee28-27c1-4be0-9134-477b4cdf2478_ac9b86b1-c067-42ed-aa43-f9cb82f46185
+Keeping Movement ID: 18717efc-f545-48ca-a5e8-90525b878b67 (Created: 2026-06-23T16:50:00.856466+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 831b228a-08fb-4d9f-896e-e99601f4098b (Created: 2026-06-23T16:50:01.29434+00:00, Delta: -1)
+    Refunding Component "C145" (ID: ac9b86b1-c067-42ed-aa43-f9cb82f46185): 27 -> 28 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 38d99194-3c51-44e8-ad9e-d44c910125b8_ac9b86b1-c067-42ed-aa43-f9cb82f46185
+Keeping Movement ID: 4b6434cf-27b5-425e-ad37-62df3fcc0f39 (Created: 2026-06-23T16:50:00.862998+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 037bdd92-b4b6-49c4-8026-fb30f12dcc3b (Created: 2026-06-23T16:50:01.036384+00:00, Delta: -1)
+    Refunding Component "C145" (ID: ac9b86b1-c067-42ed-aa43-f9cb82f46185): 28 -> 29 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: de00bf5f-b6f3-462c-91e9-d13c11b2206e (Created: 2026-06-23T16:50:01.724638+00:00, Delta: -1)
+    Refunding Component "C145" (ID: ac9b86b1-c067-42ed-aa43-f9cb82f46185): 29 -> 30 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: f90d591f-e7fe-42da-aa86-88ee34b40741 (Created: 2026-06-23T16:50:02.140474+00:00, Delta: -1)
+    Refunding Component "C145" (ID: ac9b86b1-c067-42ed-aa43-f9cb82f46185): 30 -> 31 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 15d9fa0f-a56c-41b8-944b-dd980c1dafad (Created: 2026-06-23T16:50:02.235515+00:00, Delta: -1)
+    Refunding Component "C145" (ID: ac9b86b1-c067-42ed-aa43-f9cb82f46185): 31 -> 32 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 5441ee28-27c1-4be0-9134-477b4cdf2478_224bcf4b-1d1b-45af-8232-3d5e0ca5d089
+Keeping Movement ID: c90903ba-94b9-4bc3-9a01-7358437bb6f5 (Created: 2026-06-23T16:50:01.156143+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 099f68d4-ead2-4371-92ff-4b9209b0457c (Created: 2026-06-23T16:50:01.601479+00:00, Delta: -1)
+    Refunding Component "D763R" (ID: 224bcf4b-1d1b-45af-8232-3d5e0ca5d089): 6 -> 7 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 38d99194-3c51-44e8-ad9e-d44c910125b8_3ebad907-1273-48f5-85b2-76dca2d5297d
+Keeping Movement ID: f3acb3d0-f9a5-40d9-a01b-d9b986ea0637 (Created: 2026-06-23T16:50:01.194029+00:00, Delta: -1)
+  - Processing duplicate Movement ID: d5e21205-cab7-405c-b44c-13e22c15e186 (Created: 2026-06-23T16:50:01.410944+00:00, Delta: -1)
+    Refunding Component "D763A" (ID: 3ebad907-1273-48f5-85b2-76dca2d5297d): 6 -> 7 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: c90b3f2f-040d-4e4a-beca-3976f8b5a85a (Created: 2026-06-23T16:50:02.094813+00:00, Delta: -1)
+    Refunding Component "D763A" (ID: 3ebad907-1273-48f5-85b2-76dca2d5297d): 7 -> 8 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 3cc9e07f-7dda-4273-89d6-8c092b4eb3af (Created: 2026-06-23T16:50:02.433299+00:00, Delta: -1)
+    Refunding Component "D763A" (ID: 3ebad907-1273-48f5-85b2-76dca2d5297d): 8 -> 9 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 804828eb-2f46-441c-8b58-6b9b23fc18a5 (Created: 2026-06-23T16:50:02.544906+00:00, Delta: -1)
+    Refunding Component "D763A" (ID: 3ebad907-1273-48f5-85b2-76dca2d5297d): 9 -> 10 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: ceb8214d-f1ff-4db7-85fa-09ee3a07bb07_1865e262-0439-4753-8577-3a01c31ba8ff
+Keeping Movement ID: 4a7093ed-b785-4bc7-9d78-7f206e064275 (Created: 2026-06-24T13:23:24.291597+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 9f4dc55f-d538-430b-9773-b40e871e5116 (Created: 2026-06-24T13:24:58.508628+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 23 -> 24 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: ceb8214d-f1ff-4db7-85fa-09ee3a07bb07_9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446
+Keeping Movement ID: 5b60a80f-0f9c-4185-aad5-365c17e10c8d (Created: 2026-06-24T13:23:24.642567+00:00, Delta: -1)
+  - Processing duplicate Movement ID: c6121e13-d031-4089-a035-0447957effbd (Created: 2026-06-24T13:24:58.7912+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 32 -> 33 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: d0386fa0-7e05-4e6f-b47d-4056901a52ba_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: 26ff7864-4f4d-48aa-be62-b6ee0f018d0e (Created: 2026-06-25T00:52:28.594088+00:00, Delta: -1)
+  - Processing duplicate Movement ID: aeb0f9c1-244b-415c-a19a-67837b9c47f8 (Created: 2026-06-25T00:53:14.634535+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 5 -> 6 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: d0386fa0-7e05-4e6f-b47d-4056901a52ba_291e29d8-28c7-4ac7-ada7-f8875af24fbe
+Keeping Movement ID: 1e0e6c0b-2469-457d-96e4-b4a6a59cd1cb (Created: 2026-06-25T00:53:14.220262+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 1b29de65-88ef-4688-a5ab-53db6354883e (Created: 2026-06-25T00:53:55.371413+00:00, Delta: -1)
+    Refunding Component "D762R" (ID: 291e29d8-28c7-4ac7-ada7-f8875af24fbe): 14 -> 15 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 5790b9dd-067e-4b0b-bb17-77b3016c8e56_1865e262-0439-4753-8577-3a01c31ba8ff
+Keeping Movement ID: b6adde65-06d8-4087-bc3e-e03e395006e7 (Created: 2026-06-25T12:47:54.426482+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 14372f5d-2940-4251-84ff-f137770c47b7 (Created: 2026-06-25T12:47:54.441002+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 24 -> 25 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 32553d9f-9ee8-4f36-8ea8-73bbcea6633c (Created: 2026-06-25T12:47:55.492091+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 25 -> 26 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: aaa62713-b54a-4d18-ba38-e14f73ca8ea9 (Created: 2026-06-25T12:49:19.707767+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 26 -> 27 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 0d646a16-dae6-4e45-a438-ad93647978b5 (Created: 2026-06-25T12:51:50.586551+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 27 -> 28 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 5790b9dd-067e-4b0b-bb17-77b3016c8e56_9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446
+Keeping Movement ID: ea8a7562-e3d0-492c-80bd-2324bf397c97 (Created: 2026-06-25T12:47:55.043943+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 0740cb8b-cc6c-4866-91d4-b87091e931a3 (Created: 2026-06-25T12:47:55.286615+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 33 -> 34 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 94f1c63d-cd7e-403c-b673-21c211ee10ca (Created: 2026-06-25T12:49:20.098824+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 34 -> 35 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 804baaa9-c864-49bf-9eb8-e1608b3346a8 (Created: 2026-06-25T12:51:50.399804+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 35 -> 36 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 26531357-aba3-401f-b541-b19bde8d899a (Created: 2026-06-25T12:51:53.052162+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 36 -> 37 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 61f9d4ad-d3f7-457e-a4b6-58cfbc7e0e51_f8c89e2c-7334-4220-8829-0443382d551b
+Keeping Movement ID: dd6328c8-d9a2-4bb5-8970-74a7e156ac60 (Created: 2026-06-26T12:26:28.270137+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 9dfac823-5d2e-4493-80dd-43ee2cc4adea (Created: 2026-06-26T12:26:28.590028+00:00, Delta: -1)
+    Refunding Component "AR183A" (ID: f8c89e2c-7334-4220-8829-0443382d551b): 0 -> 1 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 61f9d4ad-d3f7-457e-a4b6-58cfbc7e0e51_baa920f7-b29d-4679-a74a-ee38ca073618
+Keeping Movement ID: a0c784d5-7b73-4a90-8d03-3b6772ffaf81 (Created: 2026-06-26T12:26:28.596621+00:00, Delta: -1)
+  - Processing duplicate Movement ID: b9b36757-6009-46cb-acba-a3c09fa9b70a (Created: 2026-06-26T12:26:52.538058+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 45 -> 46 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 61f9d4ad-d3f7-457e-a4b6-58cfbc7e0e51_3ebad907-1273-48f5-85b2-76dca2d5297d
+Keeping Movement ID: 580cb6bf-c833-4a08-b2e4-b34bbd9f320e (Created: 2026-06-26T12:26:52.307435+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 23f3d3c0-6c58-420c-90a3-bde707b4ff5a (Created: 2026-06-26T12:27:05.683939+00:00, Delta: -1)
+    Refunding Component "D763A" (ID: 3ebad907-1273-48f5-85b2-76dca2d5297d): 10 -> 11 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 2083d440-b9e6-4317-b0dd-03eabb6b5728_291e29d8-28c7-4ac7-ada7-f8875af24fbe
+Keeping Movement ID: 0216c18e-7197-4512-9c60-e3c5e7838e43 (Created: 2026-06-26T15:38:29.053216+00:00, Delta: -1)
+  - Processing duplicate Movement ID: d648584d-3323-4042-a784-346cf277cc35 (Created: 2026-06-26T15:38:29.454511+00:00, Delta: -1)
+    Refunding Component "D762R" (ID: 291e29d8-28c7-4ac7-ada7-f8875af24fbe): 15 -> 16 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 9788be7b-fa1c-4c15-b2ee-19e746ddc28e (Created: 2026-06-26T15:38:48.039241+00:00, Delta: -1)
+    Refunding Component "D762R" (ID: 291e29d8-28c7-4ac7-ada7-f8875af24fbe): 16 -> 17 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 52175977-7a55-43dc-9c8c-06b814a31048 (Created: 2026-06-26T15:38:48.442657+00:00, Delta: -1)
+    Refunding Component "D762R" (ID: 291e29d8-28c7-4ac7-ada7-f8875af24fbe): 17 -> 18 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 014af57c-df4a-4907-83c3-29eda18ac7bb (Created: 2026-06-26T15:38:48.487244+00:00, Delta: -1)
+    Refunding Component "D762R" (ID: 291e29d8-28c7-4ac7-ada7-f8875af24fbe): 18 -> 19 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 67f29013-4447-48e3-9189-e0c443cc75fd (Created: 2026-06-26T15:38:49.282601+00:00, Delta: -1)
+    Refunding Component "D762R" (ID: 291e29d8-28c7-4ac7-ada7-f8875af24fbe): 19 -> 20 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 2083d440-b9e6-4317-b0dd-03eabb6b5728_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: d0ef4a6d-b9a0-4e97-b8a0-b9e7f5c98726 (Created: 2026-06-26T15:38:48.024654+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 6ac8bca8-0a96-4b9c-827c-ff6730efe8b4 (Created: 2026-06-26T15:38:48.326396+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 6 -> 7 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 3cc1c5ca-65af-45e0-b69c-4f5dc6ff8897 (Created: 2026-06-26T15:38:48.450334+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 7 -> 8 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: b3debbb0-b9d4-4d7a-9bc8-92d88b9f6eaf (Created: 2026-06-26T15:38:49.121065+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 8 -> 9 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 7aede462-55f8-443f-a51d-bdda3265c061 (Created: 2026-06-26T15:38:49.146911+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 9 -> 10 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 5c40b146-9361-4ed2-a755-13a63dbf9223 (Created: 2026-06-26T15:38:49.758965+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 10 -> 11 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 713b2c53-5cd0-4067-8e5a-991a9b72d31b_788ac793-0d9e-46f9-9259-f1c08c4b190c
+Keeping Movement ID: cf2dd5c5-29f3-4b31-935f-3737157e6ea9 (Created: 2026-07-01T23:26:42.973508+00:00, Delta: -1)
+  - Processing duplicate Movement ID: fa1f0098-76cd-4f2e-8c62-d7f32b6800fc (Created: 2026-07-01T23:26:44.730113+00:00, Delta: -1)
+    Refunding Component "AR178N" (ID: 788ac793-0d9e-46f9-9259-f1c08c4b190c): 8 -> 9 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: d5559bb5-d5a2-4e7f-a75f-2f1ac27202ea (Created: 2026-07-01T23:26:45.168092+00:00, Delta: -1)
+    Refunding Component "AR178N" (ID: 788ac793-0d9e-46f9-9259-f1c08c4b190c): 9 -> 10 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 06411fcf-371a-4ab2-b36e-2c472a614ecd (Created: 2026-07-01T23:26:47.173951+00:00, Delta: -1)
+    Refunding Component "AR178N" (ID: 788ac793-0d9e-46f9-9259-f1c08c4b190c): 10 -> 11 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: a6ff41c9-1794-4811-9dd5-d8d3c70c3ce6 (Created: 2026-07-01T23:26:48.230687+00:00, Delta: -1)
+    Refunding Component "AR178N" (ID: 788ac793-0d9e-46f9-9259-f1c08c4b190c): 11 -> 12 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 2f1a4fa1-1a1b-431a-9585-1edcc2e516c5_1865e262-0439-4753-8577-3a01c31ba8ff
+Keeping Movement ID: f35212d6-ccf4-4587-bd03-b731d19d0a77 (Created: 2026-07-02T12:31:40.319482+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 89a858e6-0255-4aaa-b90c-81f90734ad6d (Created: 2026-07-02T12:32:59.452393+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 28 -> 29 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 0708783c-ab41-4bbe-98ed-4e11aca7a101 (Created: 2026-07-02T12:33:26.402328+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 29 -> 30 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 2f1a4fa1-1a1b-431a-9585-1edcc2e516c5_9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446
+Keeping Movement ID: bd5db016-b57b-4c77-b97f-283124a367a6 (Created: 2026-07-02T12:32:46.728362+00:00, Delta: -1)
+  - Processing duplicate Movement ID: db8f510d-6a7b-46c2-b1f0-14de9b85c9b8 (Created: 2026-07-02T12:33:05.313238+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 37 -> 38 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: bec05811-9bf7-4fef-8a9a-1357b3fd81d3 (Created: 2026-07-02T12:33:34.970189+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 38 -> 39 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 11b2f5ad-0e74-479d-9acc-bddf42439356_1865e262-0439-4753-8577-3a01c31ba8ff
+Keeping Movement ID: f0c8ea1d-d62c-46c5-9fbb-3c2b9db2e190 (Created: 2026-07-02T22:41:31.750505+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 5e27045b-0870-46bc-b6c9-c82d2fe39e52 (Created: 2026-07-02T22:41:34.406528+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 30 -> 31 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 11b2f5ad-0e74-479d-9acc-bddf42439356_9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446
+Keeping Movement ID: ed7b2ede-fbee-4296-a6cc-acb5da5816a2 (Created: 2026-07-02T22:41:32.292492+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 07ffd93c-d25c-4a7c-bb93-81a2f12b724d (Created: 2026-07-02T22:41:34.701883+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 39 -> 40 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: c4bd3639-49be-4df3-84c3-aa3d6bcf1611_9b7f26fd-8cf2-469b-b348-ffc3053f2ad3
+Keeping Movement ID: b266f1cb-de8d-4fb5-8773-bff6b942f9cc (Created: 2026-07-03T00:35:40.295792+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 48a62c3c-f06f-46b3-8979-2a6ffd413f51 (Created: 2026-07-03T00:35:40.474897+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 16 -> 17 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 30cbb9f8-2105-4d79-ae99-80d23936f47c (Created: 2026-07-03T00:35:45.693936+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 17 -> 18 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 02881ec6-b731-4eba-aa5d-fac7cb12e7a8 (Created: 2026-07-03T00:35:45.701469+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 18 -> 19 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 5fc6e7c7-2041-450f-a3c2-5f83cd8d58d3 (Created: 2026-07-03T00:37:17.46387+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 19 -> 20 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: c4bd3639-49be-4df3-84c3-aa3d6bcf1611_baa920f7-b29d-4679-a74a-ee38ca073618
+Keeping Movement ID: 1393e769-1267-4b8a-a556-0281b1d5c080 (Created: 2026-07-03T00:35:45.260604+00:00, Delta: -1)
+  - Processing duplicate Movement ID: de065b5a-194e-4860-b946-5f16adbe5995 (Created: 2026-07-03T00:35:45.262261+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 46 -> 47 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 7eff21a9-6ac7-4862-9610-1140258b44f3 (Created: 2026-07-03T00:37:16.46992+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 47 -> 48 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 3dcfa0a9-09a5-4478-9578-9177b69a9d75 (Created: 2026-07-03T00:37:16.712994+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 48 -> 49 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 29abbc87-3220-4a07-80c2-5e1950f2fad5 (Created: 2026-07-03T00:37:17.74493+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 49 -> 50 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 5f784f6e-7dbd-437e-b389-cebdb3cc7c56_baa920f7-b29d-4679-a74a-ee38ca073618
+Keeping Movement ID: b26a0501-4df9-4b6c-84da-a557132ccea0 (Created: 2026-07-03T15:24:11.947228+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 57cf1759-297e-4698-bb36-73f1f0a91701 (Created: 2026-07-03T15:24:12.060083+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 50 -> 51 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 5f784f6e-7dbd-437e-b389-cebdb3cc7c56_224bcf4b-1d1b-45af-8232-3d5e0ca5d089
+Keeping Movement ID: df16248c-6c23-49fc-b3e4-d033a41ac7ce (Created: 2026-07-03T15:24:12.354203+00:00, Delta: -1)
+  - Processing duplicate Movement ID: a49615a0-3754-4f71-972f-1b641ca5aaae (Created: 2026-07-03T15:24:12.746438+00:00, Delta: -1)
+    Refunding Component "D763R" (ID: 224bcf4b-1d1b-45af-8232-3d5e0ca5d089): 7 -> 8 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: e60b3ff6-f555-4558-9dbe-beb194226daf_9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446
+Keeping Movement ID: 86a89d2f-b350-48b2-9f24-de4764eca7b4 (Created: 2026-07-04T22:06:34.188552+00:00, Delta: -1)
+  - Processing duplicate Movement ID: af1c1606-ba8a-4f0e-8564-1ddb60e147ac (Created: 2026-07-04T22:06:34.421184+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 40 -> 41 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 8e692d35-f07a-4408-acab-d4f59c711f72 (Created: 2026-07-04T22:06:34.650918+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 41 -> 42 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 0073b2df-bd4c-4f4c-84a0-cd2e93b1e54a (Created: 2026-07-04T22:08:32.718906+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 42 -> 43 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: f667799f-971b-4fd8-97ae-99aa3e386504 (Created: 2026-07-04T22:08:32.85951+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 43 -> 44 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 65521843-9912-4e68-a417-8b342919e666 (Created: 2026-07-04T22:08:32.961574+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 44 -> 45 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 4d09733f-62a3-48d0-b5ea-52e0e86ac164 (Created: 2026-07-04T22:08:32.974003+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 45 -> 46 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 1788e864-2def-4770-bc5d-c47cde854719 (Created: 2026-07-04T22:09:29.57418+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 46 -> 47 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: e215258b-d367-4d15-9cb8-201289ec8399 (Created: 2026-07-04T22:09:34.435033+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 47 -> 48 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 0d04fcee-e848-4447-b7ba-36eab33065d8 (Created: 2026-07-04T22:09:34.554234+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 48 -> 49 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: e60b3ff6-f555-4558-9dbe-beb194226daf_baa920f7-b29d-4679-a74a-ee38ca073618
+Keeping Movement ID: acc30aa2-c75d-48a2-923c-c0ec13dd2337 (Created: 2026-07-04T22:06:34.769316+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 98d86dd3-2cbc-4e0e-bb73-a857021a4248 (Created: 2026-07-04T22:06:59.039902+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 51 -> 52 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 094c4ae3-21cc-4b30-9d1b-3e255aa9fc0f (Created: 2026-07-04T22:06:59.244511+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 52 -> 53 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: ec6c50f6-83a0-4452-b5b8-1b2c36206e01 (Created: 2026-07-04T22:08:33.000367+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 53 -> 54 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 530b3555-5d7b-442a-abc8-96c440d32133 (Created: 2026-07-04T22:09:29.311436+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 54 -> 55 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 0415eabc-7287-464a-948a-b1561c3140d7 (Created: 2026-07-04T22:09:29.326423+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 55 -> 56 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 09968e2d-d628-4b24-b81c-418c74294b69 (Created: 2026-07-04T22:09:29.331238+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 56 -> 57 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 06d689e1-7017-4230-8b06-05de2d2f2f50 (Created: 2026-07-04T22:09:34.5696+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 57 -> 58 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: afbb6d66-6d77-463a-9047-dc5acfa5926a (Created: 2026-07-04T22:09:34.715347+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 58 -> 59 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: a37b7fcc-f91c-4135-bb82-ff3b8632a119 (Created: 2026-07-04T22:09:35.852382+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 59 -> 60 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: f666308f-3159-48d3-9e70-68bf845c7cfe_658dcce2-09af-4a24-a987-9f47ee5ce0a6
+Keeping Movement ID: be8c51df-3fe3-4f63-a745-571e84c88cef (Created: 2026-07-05T21:37:10.750365+00:00, Delta: -1)
+  - Processing duplicate Movement ID: e393509a-cd7e-4d8c-b73e-f21be6b4b4f9 (Created: 2026-07-05T21:37:12.420558+00:00, Delta: -1)
+    Refunding Component "AR178B" (ID: 658dcce2-09af-4a24-a987-9f47ee5ce0a6): 5 -> 6 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 94c4c12d-4a22-46bf-b8ce-f62e1ba4aace (Created: 2026-07-05T21:37:13.42005+00:00, Delta: -1)
+    Refunding Component "AR178B" (ID: 658dcce2-09af-4a24-a987-9f47ee5ce0a6): 6 -> 7 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 985a6ff4-bcef-488f-815f-2996b0b4b5f5_991ef4be-6e67-474d-8797-2410b94bb3ed
+Keeping Movement ID: 09f9afcb-2f33-40f3-b6a7-17b9852c2236 (Created: 2026-07-06T01:04:09.931904+00:00, Delta: -2)
+  - Processing duplicate Movement ID: de819960-d4e1-458a-b152-55f59f04d0ed (Created: 2026-07-06T01:04:09.947079+00:00, Delta: -2)
+    Refunding Component "P304" (ID: 991ef4be-6e67-474d-8797-2410b94bb3ed): 6 -> 8 (+2)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: c5b8a197-cfee-4829-8b8b-09b8cda839f9 (Created: 2026-07-06T01:04:09.947656+00:00, Delta: -2)
+    Refunding Component "P304" (ID: 991ef4be-6e67-474d-8797-2410b94bb3ed): 8 -> 10 (+2)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 1d564fea-de9d-4686-8d41-d0134d9ac8e5 (Created: 2026-07-06T01:04:57.238774+00:00, Delta: -2)
+    Refunding Component "P304" (ID: 991ef4be-6e67-474d-8797-2410b94bb3ed): 10 -> 12 (+2)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 34c00221-e854-4345-8c4c-3ed28c18aaf5 (Created: 2026-07-06T01:04:57.335302+00:00, Delta: -2)
+    Refunding Component "P304" (ID: 991ef4be-6e67-474d-8797-2410b94bb3ed): 12 -> 14 (+2)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: a52ca675-5b51-4db3-9462-503f2049c739 (Created: 2026-07-06T01:04:57.765619+00:00, Delta: -2)
+    Refunding Component "P304" (ID: 991ef4be-6e67-474d-8797-2410b94bb3ed): 14 -> 16 (+2)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 7ec8b27d-33fd-4fd3-bcd3-0edb12f0f5b2 (Created: 2026-07-06T01:04:59.588194+00:00, Delta: -2)
+    Refunding Component "P304" (ID: 991ef4be-6e67-474d-8797-2410b94bb3ed): 16 -> 18 (+2)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: e430a1da-3317-469c-9a77-c6e7b0eab479_a7e8b0eb-44bc-4743-ac60-9e0890a71692
+Keeping Movement ID: 6b3cd917-f7ff-48fa-877d-c5319a990882 (Created: 2026-07-06T04:57:14.730369+00:00, Delta: -1)
+  - Processing duplicate Movement ID: d50f674e-a902-4ce3-bcd8-ae5cb5ede859 (Created: 2026-07-06T04:57:22.793633+00:00, Delta: -1)
+    Refunding Component "D764Y" (ID: a7e8b0eb-44bc-4743-ac60-9e0890a71692): 0 -> 1 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 90836cad-d1d2-4f35-b12d-a16753398934_7754cf42-a1d4-4a09-8a68-f6ff5aad615b
+Keeping Movement ID: 0543777f-66c6-4661-81bf-1c4151f791f9 (Created: 2026-07-06T12:06:57.04973+00:00, Delta: -1)
+  - Processing duplicate Movement ID: b145d4e8-5371-47b4-bc6e-134ad7d95d87 (Created: 2026-07-06T12:07:20.088485+00:00, Delta: -1)
+    Refunding Component "D765Y" (ID: 7754cf42-a1d4-4a09-8a68-f6ff5aad615b): 8 -> 9 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 90836cad-d1d2-4f35-b12d-a16753398934_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: 1784b9b2-833f-4046-b67c-058070ae4696 (Created: 2026-07-06T12:07:19.902326+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 42e197dc-1230-4882-a80e-cc71799f8647 (Created: 2026-07-06T12:07:48.793789+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 11 -> 12 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: dabb3573-a347-431f-9425-847a3887030f_c21bb5a2-8a76-4cad-8f74-8e3c44f95b91
+Keeping Movement ID: 292561d0-ae7d-45bd-b232-78285f087da1 (Created: 2026-07-07T07:21:59.157252+00:00, Delta: -1)
+  - Processing duplicate Movement ID: e52692b6-0120-46b0-aaed-23bfeed93eba (Created: 2026-07-07T07:21:59.298055+00:00, Delta: -1)
+    Refunding Component "C104" (ID: c21bb5a2-8a76-4cad-8f74-8e3c44f95b91): 7 -> 8 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 43b76ef5-024b-4b90-8628-2acc32f26a58 (Created: 2026-07-07T07:21:59.314713+00:00, Delta: -1)
+    Refunding Component "C104" (ID: c21bb5a2-8a76-4cad-8f74-8e3c44f95b91): 8 -> 9 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 3b303544-ddfd-4a97-969c-b841ea7ae7cd (Created: 2026-07-07T07:23:18.642236+00:00, Delta: -1)
+    Refunding Component "C104" (ID: c21bb5a2-8a76-4cad-8f74-8e3c44f95b91): 9 -> 10 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: d6a409a9-8d91-4159-a998-787708adb3db (Created: 2026-07-07T07:23:45.399741+00:00, Delta: -1)
+    Refunding Component "C104" (ID: c21bb5a2-8a76-4cad-8f74-8e3c44f95b91): 10 -> 11 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 459d8387-caf3-481e-a0be-019fd59dab9c_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: 92b291d9-806c-4d8f-9700-9bf440a3ecfb (Created: 2026-07-09T22:43:26.045758+00:00, Delta: -1)
+  - Processing duplicate Movement ID: d8b77ae7-a350-4197-b1bf-832f0f3cd57d (Created: 2026-07-09T22:44:25.820975+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 12 -> 13 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 51ddeca1-063f-40e8-992d-48e17fcca5be_c5fdeb79-53bc-4777-b67e-2d9d276989e5
+Keeping Movement ID: 6d7d437e-d4c1-4632-b587-5196f8d97d27 (Created: 2026-07-11T19:54:37.783197+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 7dfb6fef-3c9e-45e9-88f7-24bd7a19ea3d (Created: 2026-07-11T19:54:38.030581+00:00, Delta: -1)
+    Refunding Component "SKUD136" (ID: c5fdeb79-53bc-4777-b67e-2d9d276989e5): -4 -> -3 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 5e047168-df8d-4444-9375-2e6568d8fda7 (Created: 2026-07-11T19:57:03.294842+00:00, Delta: -1)
+    Refunding Component "SKUD136" (ID: c5fdeb79-53bc-4777-b67e-2d9d276989e5): -3 -> -2 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: e4121992-f41a-44db-bdcf-a5ed732cecd2 (Created: 2026-07-11T19:57:03.499411+00:00, Delta: -1)
+    Refunding Component "SKUD136" (ID: c5fdeb79-53bc-4777-b67e-2d9d276989e5): -2 -> -1 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 2f56bc6d-405f-411b-936d-2536bc847f3c (Created: 2026-07-11T19:57:03.652015+00:00, Delta: -1)
+    Refunding Component "SKUD136" (ID: c5fdeb79-53bc-4777-b67e-2d9d276989e5): -1 -> 0 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 2bfd1c29-078f-407c-97ed-fe93ca32a844_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: 6073a691-da69-48ba-80f3-ade1e07c5177 (Created: 2026-07-12T16:05:36.46695+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 432979b0-680f-46fa-8491-2a55782a67ca (Created: 2026-07-12T16:05:36.754233+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 13 -> 14 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 0820716e-71e2-48fb-b023-535fc8d23ad6 (Created: 2026-07-12T16:06:23.398926+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 14 -> 15 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 2bfd1c29-078f-407c-97ed-fe93ca32a844_5af17142-fd1d-4ace-b191-ed14b6ae7d47
+Keeping Movement ID: 8d76b3e1-f6a9-4721-aade-258544dd4bb7 (Created: 2026-07-12T16:05:36.774178+00:00, Delta: -1)
+  - Processing duplicate Movement ID: bddf6cf0-944e-4e18-b117-7ba5aaf56a84 (Created: 2026-07-12T16:06:23.207802+00:00, Delta: -1)
+    Refunding Component "D762A" (ID: 5af17142-fd1d-4ace-b191-ed14b6ae7d47): 5 -> 6 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: baa6bb88-f5bd-4944-871e-892bb291a538 (Created: 2026-07-12T16:07:09.470213+00:00, Delta: -1)
+    Refunding Component "D762A" (ID: 5af17142-fd1d-4ace-b191-ed14b6ae7d47): 6 -> 7 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 15aeb147-3abe-45ac-ad75-be70fd1fc442_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: e5b4e6f4-4827-414a-b24b-f23f3d19b298 (Created: 2026-07-15T02:05:55.777739+00:00, Delta: -2)
+  - Processing duplicate Movement ID: 83d4bcd3-4fd9-4dca-a241-f11b2f49ea42 (Created: 2026-07-15T02:05:58.535716+00:00, Delta: -2)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 15 -> 17 (+2)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 22905918-0503-4d1e-aa35-fa0838d5727b (Created: 2026-07-15T02:07:28.154621+00:00, Delta: -2)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 17 -> 19 (+2)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 5eefccd1-55ee-4627-91e6-aeb87534fa8f (Created: 2026-07-15T02:07:28.560035+00:00, Delta: -2)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 19 -> 21 (+2)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: fbda401b-9923-47f2-a3bd-68807110a08e (Created: 2026-07-15T02:09:57.920478+00:00, Delta: -2)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 21 -> 23 (+2)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: d3e8e72e-cecb-4e35-a86b-bb360a997c37 (Created: 2026-07-15T02:09:58.680751+00:00, Delta: -2)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 23 -> 25 (+2)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 15aeb147-3abe-45ac-ad75-be70fd1fc442_d0c8b7f6-7123-4e0c-a6b7-9233097eced9
+Keeping Movement ID: 1560ea14-5ed2-4ab1-8fcd-aed040f76b57 (Created: 2026-07-15T02:05:58.534447+00:00, Delta: -2)
+  - Processing duplicate Movement ID: ffad01fd-8053-4891-8e7b-95c6e499f99c (Created: 2026-07-15T02:05:59.100156+00:00, Delta: -2)
+    Refunding Component "D764S" (ID: d0c8b7f6-7123-4e0c-a6b7-9233097eced9): -1 -> 1 (+2)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: e7ee00ee-bc52-4ed3-8f5d-baa9f6ea25c3 (Created: 2026-07-15T02:09:57.827445+00:00, Delta: -2)
+    Refunding Component "D764S" (ID: d0c8b7f6-7123-4e0c-a6b7-9233097eced9): 1 -> 3 (+2)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 02b928ef-908d-4a85-ad63-df135ef4eee5 (Created: 2026-07-15T02:09:58.108102+00:00, Delta: -2)
+    Refunding Component "D764S" (ID: d0c8b7f6-7123-4e0c-a6b7-9233097eced9): 3 -> 5 (+2)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: e77f97bb-80a4-4ad1-bfd6-866971bc55f7 (Created: 2026-07-15T02:09:58.522119+00:00, Delta: -2)
+    Refunding Component "D764S" (ID: d0c8b7f6-7123-4e0c-a6b7-9233097eced9): 5 -> 7 (+2)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 12ce8afb-f057-4ce2-b821-e0426fcbca8f (Created: 2026-07-15T02:09:59.035396+00:00, Delta: -2)
+    Refunding Component "D764S" (ID: d0c8b7f6-7123-4e0c-a6b7-9233097eced9): 7 -> 9 (+2)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 3abd25ee-0aa9-4f41-b091-d6cfee866537_26e4dbb8-868c-4a98-9f61-c55786228c6a
+Keeping Movement ID: daf55239-1d13-4090-ac1c-509d47ccbd50 (Created: 2026-07-15T03:56:44.866233+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 9726e08b-cd60-4588-bc51-542517de57d5 (Created: 2026-07-15T03:56:45.06084+00:00, Delta: -1)
+    Refunding Component "D764V" (ID: 26e4dbb8-868c-4a98-9f61-c55786228c6a): 2 -> 3 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: f83e7125-1816-4014-86d1-a312101c9be6 (Created: 2026-07-15T03:56:49.084231+00:00, Delta: -1)
+    Refunding Component "D764V" (ID: 26e4dbb8-868c-4a98-9f61-c55786228c6a): 3 -> 4 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 8d0f8832-b08f-4451-9a12-6accf0109105 (Created: 2026-07-15T03:56:53.089151+00:00, Delta: -1)
+    Refunding Component "D764V" (ID: 26e4dbb8-868c-4a98-9f61-c55786228c6a): 4 -> 5 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 19e2e3c5-cd81-4940-a952-1e310982e24b (Created: 2026-07-15T03:56:53.095245+00:00, Delta: -1)
+    Refunding Component "D764V" (ID: 26e4dbb8-868c-4a98-9f61-c55786228c6a): 5 -> 6 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: b37337e9-700c-4705-b22a-0eb1efa1f62c (Created: 2026-07-15T03:56:53.231215+00:00, Delta: -1)
+    Refunding Component "D764V" (ID: 26e4dbb8-868c-4a98-9f61-c55786228c6a): 6 -> 7 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 3abd25ee-0aa9-4f41-b091-d6cfee866537_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: 8cf5b5d6-f948-4317-866a-365653c7cf38 (Created: 2026-07-15T03:56:48.915772+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 7332977a-e918-4af4-972c-4656313dfbd4 (Created: 2026-07-15T03:56:49.043735+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 25 -> 26 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: cf043eb2-a949-45ee-93c7-17aa68098664 (Created: 2026-07-15T03:56:52.935025+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 26 -> 27 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 99a0d3c4-4935-41b9-a5c7-1a5154b0dc10 (Created: 2026-07-15T03:56:53.377318+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 27 -> 28 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: f9b293e6-044f-4181-bb89-8a2365ef33af (Created: 2026-07-15T03:56:53.546889+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 28 -> 29 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 5e496c53-501c-4b8a-926c-a6fc9fe7ee21 (Created: 2026-07-15T03:56:57.32132+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 29 -> 30 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 36cd8aea-cec9-4b4f-91eb-2b227f842d84_1865e262-0439-4753-8577-3a01c31ba8ff
+Keeping Movement ID: 2e16e7fb-860f-4002-857d-79ede6ea6763 (Created: 2026-07-19T01:19:38.920375+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 11e9846a-f87f-4240-a7f8-376a8a57f198 (Created: 2026-07-19T01:19:39.065772+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 31 -> 32 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 76bf0568-3c4b-4946-9e71-de3125dd4edb (Created: 2026-07-19T01:19:39.067987+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 32 -> 33 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 990ed03a-7296-4ce8-b488-ae34e8365e5e (Created: 2026-07-19T01:19:39.150926+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 33 -> 34 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: a7784920-e30c-4e11-9400-1a63b110a794 (Created: 2026-07-19T01:19:39.316041+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 34 -> 35 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: e0e0bdb0-ffaf-4211-8f81-73f458bfff90 (Created: 2026-07-19T01:19:45.744096+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 35 -> 36 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 1c8aecdb-b4bb-402f-ac63-3d36aa3cfaf2 (Created: 2026-07-19T01:19:46.198079+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 36 -> 37 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 40fd5e3d-82b0-499b-9c50-30d240b1a958 (Created: 2026-07-19T01:19:46.263921+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 37 -> 38 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 97ce910b-8492-46fc-aea4-19df1a425280 (Created: 2026-07-19T01:21:50.399568+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 38 -> 39 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: f49c90c4-2636-428e-ae5d-5f56baa2e736 (Created: 2026-07-19T01:21:50.400536+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 39 -> 40 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 83a47770-d986-43e2-9d6e-3c8f9e627192 (Created: 2026-07-19T01:22:01.155774+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 40 -> 41 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 9a18324c-0b94-49b0-ba27-cb066cdb90cf (Created: 2026-07-19T01:22:01.622406+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 41 -> 42 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: efa6b22b-f90c-4bdf-852a-002f7118bc39 (Created: 2026-07-19T01:22:11.595392+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 42 -> 43 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: d7ced767-66e2-4140-ba75-1989751e88f6 (Created: 2026-07-19T01:22:16.186502+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 43 -> 44 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 36cd8aea-cec9-4b4f-91eb-2b227f842d84_9b7f26fd-8cf2-469b-b348-ffc3053f2ad3
+Keeping Movement ID: 8c30552f-bbc1-4b4a-b001-85514be172ca (Created: 2026-07-19T01:19:45.755707+00:00, Delta: -1)
+  - Processing duplicate Movement ID: a965f3c9-928a-48ed-9815-f0f96de4d2b7 (Created: 2026-07-19T01:19:45.99229+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 20 -> 21 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 73fce60c-7bf5-4384-bc89-e1f5565f4bd3 (Created: 2026-07-19T01:19:46.015441+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 21 -> 22 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 3f6a9a25-6d14-407a-812b-e823174c7f99 (Created: 2026-07-19T01:19:46.015984+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 22 -> 23 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 602dd253-4346-4d24-bc6e-c2c74c9ec5be (Created: 2026-07-19T01:19:46.154148+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 23 -> 24 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: d6310cbd-7e39-4b51-8f4c-24bc569c7dac (Created: 2026-07-19T01:19:46.318513+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 24 -> 25 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: b4ed1ef6-ef30-4bdf-90e4-16407c378874 (Created: 2026-07-19T01:21:49.668201+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 25 -> 26 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 92877536-f22b-429f-8008-16dd14361523 (Created: 2026-07-19T01:21:49.694486+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 26 -> 27 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 5dd76245-d01c-45e0-9040-f47c6b92d842 (Created: 2026-07-19T01:22:01.362801+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 27 -> 28 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 75a34bc6-c9cb-4ef8-9240-e795449be51a (Created: 2026-07-19T01:22:01.701382+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 28 -> 29 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: a39e69cd-5554-4a29-ba56-35c3106f0716 (Created: 2026-07-19T01:22:11.614475+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 29 -> 30 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: fbac8d7b-070b-4682-a426-206227e4f797 (Created: 2026-07-19T01:22:11.71856+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 30 -> 31 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 1790d0f3-c4b4-4bf8-bc9b-a23003ec84f4 (Created: 2026-07-19T01:22:12.138439+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 31 -> 32 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 72a4757e-635a-46fe-9e89-5b732085165d (Created: 2026-07-19T01:22:19.104123+00:00, Delta: -1)
+    Refunding Component "D260AN" (ID: 9b7f26fd-8cf2-469b-b348-ffc3053f2ad3): 32 -> 33 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 3f25bc8d-b755-4060-977c-cef3a3cd4e54_ac9b86b1-c067-42ed-aa43-f9cb82f46185
+Keeping Movement ID: fac55aa2-b27e-4586-b0c7-5d43bfeff757 (Created: 2026-07-21T07:53:03.462354+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 95c55738-38a6-4eb8-a316-1c7d85cf2d09 (Created: 2026-07-21T07:53:03.841966+00:00, Delta: -1)
+    Refunding Component "C145" (ID: ac9b86b1-c067-42ed-aa43-f9cb82f46185): 32 -> 33 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 64e7993e-cddb-4eae-9e6b-8d3818890d0f (Created: 2026-07-21T07:54:16.790147+00:00, Delta: -1)
+    Refunding Component "C145" (ID: ac9b86b1-c067-42ed-aa43-f9cb82f46185): 33 -> 34 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 3f25bc8d-b755-4060-977c-cef3a3cd4e54_224bcf4b-1d1b-45af-8232-3d5e0ca5d089
+Keeping Movement ID: 63146d7f-dcbb-4652-b4cf-46bdb984a395 (Created: 2026-07-21T07:53:04.042437+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 45b82b3f-5d3b-4e1b-9a5a-51dc79e00bdb (Created: 2026-07-21T07:54:16.695139+00:00, Delta: -1)
+    Refunding Component "D763R" (ID: 224bcf4b-1d1b-45af-8232-3d5e0ca5d089): 8 -> 9 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 5216eaa3-9bb5-44cb-a45a-5e9d3d2cb546 (Created: 2026-07-21T07:55:34.737648+00:00, Delta: -1)
+    Refunding Component "D763R" (ID: 224bcf4b-1d1b-45af-8232-3d5e0ca5d089): 9 -> 10 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: cb8ea3d0-821d-441c-b810-69803d9e8690_ac9b86b1-c067-42ed-aa43-f9cb82f46185
+Keeping Movement ID: a11d6475-2a6f-4cfc-a12c-c3fe9597af54 (Created: 2026-07-21T10:52:44.580964+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 10d84120-1161-4343-b91a-a9bfe00d82cd (Created: 2026-07-21T10:53:00.678317+00:00, Delta: -1)
+    Refunding Component "C145" (ID: ac9b86b1-c067-42ed-aa43-f9cb82f46185): 34 -> 35 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: cc0c806c-d96d-43c9-9b9b-6af9de76dd28_9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446
+Keeping Movement ID: 7bb47b9f-a302-49be-b7d9-8fc4ed060848 (Created: 2026-07-21T14:53:41.041227+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 0959234a-c9ea-4025-8cf1-cd48e8240b9e (Created: 2026-07-21T14:54:22.227168+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 49 -> 50 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 92e9273a-3162-4ec5-b560-846f30244f9b (Created: 2026-07-21T14:54:22.574432+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 50 -> 51 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 3e243523-b0a4-43e0-ba40-9fbcf93529e3 (Created: 2026-07-21T14:54:26.212995+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 51 -> 52 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: cc0c806c-d96d-43c9-9b9b-6af9de76dd28_1865e262-0439-4753-8577-3a01c31ba8ff
+Keeping Movement ID: 225d188b-0746-4644-a794-cc896434dcf7 (Created: 2026-07-21T14:54:22.268355+00:00, Delta: -1)
+  - Processing duplicate Movement ID: a1bdab82-e34c-47c9-aa6a-dda248f25263 (Created: 2026-07-21T14:54:22.560877+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 44 -> 45 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 9afdba34-ccf8-4341-aa67-4b913f99daa0 (Created: 2026-07-21T14:54:26.048688+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 45 -> 46 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 883a8e29-ac76-4364-a480-2cb09c9ee503 (Created: 2026-07-21T14:54:26.527794+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 46 -> 47 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 3bbf4157-e3fe-45ba-aff2-0f85e4096cb2_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: c744795e-12cd-4a94-bd72-17233002c1f3 (Created: 2026-07-21T19:51:01.406506+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 979cf877-533e-4824-a4e2-5d575f35143a (Created: 2026-07-21T19:51:08.469026+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 30 -> 31 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 3bbf4157-e3fe-45ba-aff2-0f85e4096cb2_a7e8b0eb-44bc-4743-ac60-9e0890a71692
+Keeping Movement ID: 79f2539f-d802-4e82-b639-0bc6bb787128 (Created: 2026-07-21T19:51:01.956702+00:00, Delta: -1)
+  - Processing duplicate Movement ID: a095a236-3019-4de2-acdd-4cfdb8329e19 (Created: 2026-07-21T19:51:09.017565+00:00, Delta: -1)
+    Refunding Component "D764Y" (ID: a7e8b0eb-44bc-4743-ac60-9e0890a71692): 1 -> 2 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: f5afa4f4-f38d-4040-8b1d-1fd80af29e90_1865e262-0439-4753-8577-3a01c31ba8ff
+Keeping Movement ID: f1d732e1-4d32-41d5-9412-b0300a106ff1 (Created: 2026-07-24T14:52:50.683821+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 9a3dec19-8a22-4589-99c9-57820dd89c26 (Created: 2026-07-24T14:54:15.275135+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 47 -> 48 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 9915b75f-e6d3-4aa0-9d74-38266f7c8cd7 (Created: 2026-07-24T14:54:15.277159+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 48 -> 49 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 57f56aa0-4083-46a4-8c63-0c68c249e493 (Created: 2026-07-24T14:54:56.041895+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 49 -> 50 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 15b681c9-7893-4d3c-a3b8-19fb7e904f46 (Created: 2026-07-24T14:55:11.721602+00:00, Delta: -1)
+    Refunding Component "C197" (ID: 1865e262-0439-4753-8577-3a01c31ba8ff): 50 -> 51 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: f5afa4f4-f38d-4040-8b1d-1fd80af29e90_9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446
+Keeping Movement ID: 4909a261-30bf-4e14-9e02-fe886b56f69a (Created: 2026-07-24T14:52:51.06501+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 03d45334-71da-41bb-a85a-1d2f8446af59 (Created: 2026-07-24T14:54:55.617162+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 52 -> 53 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: ff3bb4bf-3ebe-48a7-bc97-0376e93e8b03 (Created: 2026-07-24T14:54:55.617059+00:00, Delta: -1)
+    Refunding Component "D260VN" (ID: 9dcb2b4e-a6e1-4c54-9a05-8d7b220f5446): 53 -> 54 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 272f4992-ccef-4c22-9b57-71f8e15942b6_af5d033e-d520-4775-882c-1b09401d0c34
+Keeping Movement ID: a77b22f7-8afc-4864-866b-244c2f33a0b7 (Created: 2026-07-24T15:10:16.495623+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 49311621-776b-4330-9e55-228a6ab1fc43 (Created: 2026-07-24T15:11:21.789889+00:00, Delta: -1)
+    Refunding Component "D764R" (ID: af5d033e-d520-4775-882c-1b09401d0c34): 1 -> 2 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 272f4992-ccef-4c22-9b57-71f8e15942b6_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: c735d915-f452-435e-972b-7595fa449fa5 (Created: 2026-07-24T15:10:36.719837+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 3d948f8e-b76d-4602-8795-5843440daed0 (Created: 2026-07-24T15:11:22.113176+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 31 -> 32 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 4cafdc80-dd81-4879-9094-2ac71a012aa8_ba2f5f68-e3cf-49e7-b605-823bce98f107
+Keeping Movement ID: d8fa69e5-24de-4867-822a-0b59eca56234 (Created: 2026-07-25T12:24:50.487501+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 90da04d4-7d1b-44ad-9855-eb00fd24515c (Created: 2026-07-25T12:24:50.488694+00:00, Delta: -1)
+    Refunding Component "C206" (ID: ba2f5f68-e3cf-49e7-b605-823bce98f107): 10 -> 11 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 7e0ffaa6-f7b5-4c9a-a424-753218149a4b (Created: 2026-07-25T12:24:50.491463+00:00, Delta: -1)
+    Refunding Component "C206" (ID: ba2f5f68-e3cf-49e7-b605-823bce98f107): 11 -> 12 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 0aac8e18-afe8-4980-9e21-81d607036738 (Created: 2026-07-25T12:25:00.127185+00:00, Delta: -1)
+    Refunding Component "C206" (ID: ba2f5f68-e3cf-49e7-b605-823bce98f107): 12 -> 13 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 24bf3257-ca20-41ab-9243-9a44b7ec8ba7 (Created: 2026-07-25T12:25:00.128019+00:00, Delta: -1)
+    Refunding Component "C206" (ID: ba2f5f68-e3cf-49e7-b605-823bce98f107): 13 -> 14 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 2783f2b2-64e5-412b-bc7f-fc70fce7ecc2 (Created: 2026-07-25T12:25:00.430318+00:00, Delta: -1)
+    Refunding Component "C206" (ID: ba2f5f68-e3cf-49e7-b605-823bce98f107): 14 -> 15 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 6627da5a-549b-4f44-9945-4f45e731eb35 (Created: 2026-07-25T12:25:00.662012+00:00, Delta: -1)
+    Refunding Component "C206" (ID: ba2f5f68-e3cf-49e7-b605-823bce98f107): 15 -> 16 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: bc16a15e-0154-49cc-8556-0d255bf92f9e (Created: 2026-07-25T12:25:08.650221+00:00, Delta: -1)
+    Refunding Component "C206" (ID: ba2f5f68-e3cf-49e7-b605-823bce98f107): 16 -> 17 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: cd695911-fee9-47a8-a9ec-70bd93f80612 (Created: 2026-07-25T12:25:12.107649+00:00, Delta: -1)
+    Refunding Component "C206" (ID: ba2f5f68-e3cf-49e7-b605-823bce98f107): 17 -> 18 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 56a2291b-21f1-458d-8065-fc24de13d068 (Created: 2026-07-25T12:25:12.120776+00:00, Delta: -1)
+    Refunding Component "C206" (ID: ba2f5f68-e3cf-49e7-b605-823bce98f107): 18 -> 19 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 6e06c994-daf3-4184-bfd0-f730d04a3f89 (Created: 2026-07-25T12:25:12.393296+00:00, Delta: -1)
+    Refunding Component "C206" (ID: ba2f5f68-e3cf-49e7-b605-823bce98f107): 19 -> 20 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: b3da1f99-3d26-47ee-95a7-a88027dfeaac (Created: 2026-07-25T12:25:20.000824+00:00, Delta: -1)
+    Refunding Component "C206" (ID: ba2f5f68-e3cf-49e7-b605-823bce98f107): 20 -> 21 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 0ace33fd-bb0a-4799-a4d9-a79e81c096b4 (Created: 2026-07-25T12:25:20.12121+00:00, Delta: -1)
+    Refunding Component "C206" (ID: ba2f5f68-e3cf-49e7-b605-823bce98f107): 21 -> 22 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 4cafdc80-dd81-4879-9094-2ac71a012aa8_8fe9df8f-dec7-455d-9564-50784b6f5cde
+Keeping Movement ID: 7c741b7c-d926-46c6-b284-eb452add6b6d (Created: 2026-07-25T12:24:50.774194+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 89c4a6c1-f4da-4f63-a9e6-5bcd61b826d1 (Created: 2026-07-25T12:24:51.026739+00:00, Delta: -1)
+    Refunding Component "D762V" (ID: 8fe9df8f-dec7-455d-9564-50784b6f5cde): -1 -> 0 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 8a0b26c3-729c-464d-aa69-8edb0618b913 (Created: 2026-07-25T12:24:51.045551+00:00, Delta: -1)
+    Refunding Component "D762V" (ID: 8fe9df8f-dec7-455d-9564-50784b6f5cde): 0 -> 1 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: e0dd69fe-98f4-42a1-9cc7-60497e0540ca (Created: 2026-07-25T12:25:00.416956+00:00, Delta: -1)
+    Refunding Component "D762V" (ID: 8fe9df8f-dec7-455d-9564-50784b6f5cde): 1 -> 2 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 757c3a00-607f-4f34-bbbd-61023a79ac2b (Created: 2026-07-25T12:25:00.426748+00:00, Delta: -1)
+    Refunding Component "D762V" (ID: 8fe9df8f-dec7-455d-9564-50784b6f5cde): 2 -> 3 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: ee9db7c6-1d18-4235-8e60-e81e998937b0 (Created: 2026-07-25T12:25:08.764336+00:00, Delta: -1)
+    Refunding Component "D762V" (ID: 8fe9df8f-dec7-455d-9564-50784b6f5cde): 3 -> 4 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 76dd62ee-1b3e-4b1b-87db-01788b7a56b5 (Created: 2026-07-25T12:25:08.777398+00:00, Delta: -1)
+    Refunding Component "D762V" (ID: 8fe9df8f-dec7-455d-9564-50784b6f5cde): 4 -> 5 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 831df38f-ba73-459d-8b69-c78886715a58 (Created: 2026-07-25T12:25:12.370585+00:00, Delta: -1)
+    Refunding Component "D762V" (ID: 8fe9df8f-dec7-455d-9564-50784b6f5cde): 5 -> 6 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: b307df41-b67e-43b5-95b3-6fa9c862c414 (Created: 2026-07-25T12:25:12.387894+00:00, Delta: -1)
+    Refunding Component "D762V" (ID: 8fe9df8f-dec7-455d-9564-50784b6f5cde): 6 -> 7 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 4338b02c-c695-49e9-b776-da3cbd445afb (Created: 2026-07-25T12:25:12.406231+00:00, Delta: -1)
+    Refunding Component "D762V" (ID: 8fe9df8f-dec7-455d-9564-50784b6f5cde): 7 -> 8 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 0871eacf-d8a0-4b88-afa7-af3ce1ff91e4 (Created: 2026-07-25T12:25:20.254098+00:00, Delta: -1)
+    Refunding Component "D762V" (ID: 8fe9df8f-dec7-455d-9564-50784b6f5cde): 8 -> 9 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 2cd964c7-457d-4ceb-9531-825bf2bd3ca9 (Created: 2026-07-25T12:25:25.105054+00:00, Delta: -1)
+    Refunding Component "D762V" (ID: 8fe9df8f-dec7-455d-9564-50784b6f5cde): 9 -> 10 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 9733b4e9-9186-4664-9af6-1869e8db6a7a (Created: 2026-07-25T12:25:25.118339+00:00, Delta: -1)
+    Refunding Component "D762V" (ID: 8fe9df8f-dec7-455d-9564-50784b6f5cde): 10 -> 11 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 7927cfd5-b141-4a71-af51-f8a39a622e91_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: 66326df5-fe7f-4add-a675-1ae3e1252648 (Created: 2026-07-25T14:13:57.540367+00:00, Delta: -1)
+  - Processing duplicate Movement ID: f2c4dc72-e183-4dca-af47-df011c3be70a (Created: 2026-07-25T14:14:08.948548+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 32 -> 33 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 7e5e57ab-4314-45d5-b600-52f8c2d083ff (Created: 2026-07-25T14:14:09.132094+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 33 -> 34 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 396d1602-532d-4289-9936-89749bafc576 (Created: 2026-07-25T14:14:12.734263+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 34 -> 35 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 7927cfd5-b141-4a71-af51-f8a39a622e91_d0c8b7f6-7123-4e0c-a6b7-9233097eced9
+Keeping Movement ID: 6c9a6a33-b55e-4cd8-a119-08615c059570 (Created: 2026-07-25T14:13:58.077665+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 4bf06583-7d3e-407c-ba9c-6d7fa92ad1a7 (Created: 2026-07-25T14:14:09.266533+00:00, Delta: -1)
+    Refunding Component "D764S" (ID: d0c8b7f6-7123-4e0c-a6b7-9233097eced9): 9 -> 10 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 579511fc-e559-4852-9ab0-d945e0145864 (Created: 2026-07-25T14:14:11.517648+00:00, Delta: -1)
+    Refunding Component "D764S" (ID: d0c8b7f6-7123-4e0c-a6b7-9233097eced9): 10 -> 11 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 390021dc-8bc3-4c45-8067-af3a7775f531 (Created: 2026-07-25T14:14:16.034382+00:00, Delta: -1)
+    Refunding Component "D764S" (ID: d0c8b7f6-7123-4e0c-a6b7-9233097eced9): 11 -> 12 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: bad7c37b-2ef2-41aa-aaa9-b235a0e57ceb_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: c26ee080-2add-40ac-82a8-e968362024d2 (Created: 2026-07-25T18:58:09.534491+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 97b3b2d3-987d-4111-b1fd-22885311d288 (Created: 2026-07-25T18:58:09.690949+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 35 -> 36 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: dd684561-cd1a-4bca-8d7e-3df8c1fa8856 (Created: 2026-07-25T18:58:10.782639+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 36 -> 37 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 106eff3d-ec17-4c36-b899-8237c87860a4 (Created: 2026-07-25T18:58:30.120927+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 37 -> 38 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: c42cf975-ce50-4fdb-9498-5f5b80ee9229 (Created: 2026-07-25T18:58:30.226446+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 38 -> 39 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: bad7c37b-2ef2-41aa-aaa9-b235a0e57ceb_3584efdc-61d3-4486-ba1b-85641b69016c
+Keeping Movement ID: 2d5900ca-7a73-47f0-a6eb-1832329a5c24 (Created: 2026-07-25T18:58:09.831491+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 68c2e6de-fd29-4614-8cb2-827f0e11cd8c (Created: 2026-07-25T18:58:10.035766+00:00, Delta: -1)
+    Refunding Component "D764B" (ID: 3584efdc-61d3-4486-ba1b-85641b69016c): 1 -> 2 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: d7c64511-fd04-49c3-aa8f-e72fc0c28e07 (Created: 2026-07-25T18:58:30.113787+00:00, Delta: -1)
+    Refunding Component "D764B" (ID: 3584efdc-61d3-4486-ba1b-85641b69016c): 2 -> 3 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: fc33aaaa-514a-4299-b26d-42d8efb2033e (Created: 2026-07-25T18:58:54.863681+00:00, Delta: -1)
+    Refunding Component "D764B" (ID: 3584efdc-61d3-4486-ba1b-85641b69016c): 3 -> 4 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 29e24994-9a0c-4661-bce1-d90e96c185fb (Created: 2026-07-25T18:58:55.108384+00:00, Delta: -1)
+    Refunding Component "D764B" (ID: 3584efdc-61d3-4486-ba1b-85641b69016c): 4 -> 5 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 4ff48a2b-d65b-4773-879f-f71c7b70cf1a_653dd66f-19b7-4648-aa70-ef1a39ced1e3
+Keeping Movement ID: 756a7f78-5c97-48ce-93e6-f8be41a40f3d (Created: 2026-07-26T02:43:09.487099+00:00, Delta: -1)
+  - Processing duplicate Movement ID: c013a7be-a16b-4b88-896a-9530229a9556 (Created: 2026-07-26T02:43:09.637024+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 39 -> 40 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 055b4db2-10de-4ed3-b130-02bc2a659633 (Created: 2026-07-26T02:43:09.647837+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 40 -> 41 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: c951d705-c124-4d1e-963f-c6abc2c409fe (Created: 2026-07-26T02:43:10.126292+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 41 -> 42 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 8102ad51-c0b5-4e2e-bbe3-baaeb7bab6d3 (Created: 2026-07-26T02:44:44.017352+00:00, Delta: -1)
+    Refunding Component "C207" (ID: 653dd66f-19b7-4648-aa70-ef1a39ced1e3): 42 -> 43 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 4ff48a2b-d65b-4773-879f-f71c7b70cf1a_5af17142-fd1d-4ace-b191-ed14b6ae7d47
+Keeping Movement ID: e4826b05-4641-40f1-92cd-e0f409bbb249 (Created: 2026-07-26T02:43:09.928244+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 30e8d835-8ac9-442c-b0cb-84cf9edfffd8 (Created: 2026-07-26T02:43:10.276948+00:00, Delta: -1)
+    Refunding Component "D762A" (ID: 5af17142-fd1d-4ace-b191-ed14b6ae7d47): 7 -> 8 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 208e40c4-8486-49c3-a937-098b35c1ab27 (Created: 2026-07-26T02:43:11.715255+00:00, Delta: -1)
+    Refunding Component "D762A" (ID: 5af17142-fd1d-4ace-b191-ed14b6ae7d47): 8 -> 9 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 19798ef8-373b-4f9d-b290-befb6f1aab4a (Created: 2026-07-26T02:43:11.814694+00:00, Delta: -1)
+    Refunding Component "D762A" (ID: 5af17142-fd1d-4ace-b191-ed14b6ae7d47): 9 -> 10 (+1)
+    Successfully deleted movement and restored stock.
+  - Processing duplicate Movement ID: 4b131bb4-46ce-47bb-b67a-a8d973739749 (Created: 2026-07-26T02:44:44.319317+00:00, Delta: -1)
+    Refunding Component "D762A" (ID: 5af17142-fd1d-4ace-b191-ed14b6ae7d47): 10 -> 11 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 98bc3647-2fc2-4613-9e46-cc961f5aba0f_baa920f7-b29d-4679-a74a-ee38ca073618
+Keeping Movement ID: 098e683c-b99c-4582-9932-99bba1438c8a (Created: 2026-07-27T19:50:53.340859+00:00, Delta: -1)
+  - Processing duplicate Movement ID: e438ec67-b0b9-443a-a258-5093a392af79 (Created: 2026-07-27T19:50:53.455815+00:00, Delta: -1)
+    Refunding Component "C144" (ID: baa920f7-b29d-4679-a74a-ee38ca073618): 60 -> 61 (+1)
+    Successfully deleted movement and restored stock.
+
+Healing Order/Item Key: 98bc3647-2fc2-4613-9e46-cc961f5aba0f_a8e2a4f8-ace3-4119-901e-9edc5e217dbe
+Keeping Movement ID: 6c0a4d6c-beff-4b5d-8cae-a053e9268571 (Created: 2026-07-27T19:51:31.751288+00:00, Delta: -1)
+  - Processing duplicate Movement ID: 035f8c0e-a50d-474b-857f-10b9216f2157 (Created: 2026-07-27T19:51:42.088409+00:00, Delta: -1)
+    Refunding Component "D761" (ID: a8e2a4f8-ace3-4119-901e-9edc5e217dbe): 6 -> 7 (+1)
+    Successfully deleted movement and restored stock.
+
+Summary:
+- Healed 82 groups with duplicate deductions.
+- Deleted 254 duplicate movements and restored stock.

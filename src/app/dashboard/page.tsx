@@ -68,15 +68,19 @@ export default async function DashboardPage(props: PageProps) {
   // Fetch real data
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("timezone")
+    .select("timezone, metadata")
     .eq("id", tenantId)
     .single();
   const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+  const ignoredOrderIds = (tenant?.metadata as any)?.ignored_order_ids || [];
 
   const today = getMidnightInTimezone(new Date(), timezone);
 
   // To be safe, fetch days + 1 in the cache so we don't miss boundaries
-  const recentOrders = await getCachedOrders(tenantId, days + 1);
+  const recentOrdersRaw = await getCachedOrders(tenantId, days + 1);
+  const recentOrders = (recentOrdersRaw || []).filter(o => 
+    o.status !== "cancelled" && !ignoredOrderIds.includes(o.meli_order_id)
+  );
 
   // Calculate metrics
   let salesToday = 0;
