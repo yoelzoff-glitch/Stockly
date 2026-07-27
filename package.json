@@ -17,7 +17,9 @@
     "check-skus": "tsx scratch/check-skus.ts",
     "check-discrepancies": "tsx scratch/check-discrepancies.ts",
     "inspect-components": "tsx scratch/inspect-components.ts",
-    "fix-missed-stock": "tsx scratch/fix-missed-stock.ts"
+    "fix-missed-stock": "tsx scratch/fix-missed-stock.ts",
+    "detect-double-deductions": "tsx scratch/detect-double-deductions.ts",
+    "heal-double-deductions": "tsx scratch/heal-double-deductions.ts"
   },
   "keywords": [],
   "author": "",

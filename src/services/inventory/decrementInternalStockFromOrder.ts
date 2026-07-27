@@ -33,6 +33,22 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
     return { success: true, message: "Internal stock already processed for this order" };
   }
 
+  // Marcar orden como procesada de forma atómica para evitar race conditions
+  const { data: updatedOrder, error: updateOrderError } = await supabase
+    .from("orders")
+    .update({ 
+      internal_stock_processed: true, 
+      internal_stock_processed_at: new Date().toISOString() 
+    })
+    .eq("id", order.id)
+    .eq("tenant_id", tenantId)
+    .eq("internal_stock_processed", false)
+    .select("id");
+
+  if (updateOrderError || !updatedOrder || updatedOrder.length === 0) {
+    return { success: true, message: "Internal stock already processed or processing in another thread" };
+  }
+
   const items = order.order_items || [];
   if (items.length === 0) return { success: true };
 
@@ -100,12 +116,6 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
       }
     }
   }
-
-  // Marcar orden como procesada
-  await supabase
-    .from("orders")
-    .update({ internal_stock_processed: true, internal_stock_processed_at: new Date().toISOString() })
-    .eq("id", order.id);
 
   return { success: true, movements: allMovements };
 }

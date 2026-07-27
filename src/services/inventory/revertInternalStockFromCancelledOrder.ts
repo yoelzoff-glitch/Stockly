@@ -36,6 +36,23 @@ export async function revertInternalStockFromCancelledOrder(tenantId: string, or
     return { success: true, message: "No action needed (not processed or already reverted)" };
   }
 
+  // Marcar orden como revertida de forma atómica para evitar race conditions
+  const { data: updatedOrder, error: updateOrderError } = await supabase
+    .from("orders")
+    .update({ 
+      internal_stock_reverted: true, 
+      internal_stock_reverted_at: new Date().toISOString() 
+    })
+    .eq("id", order.id)
+    .eq("tenant_id", tenantId)
+    .eq("internal_stock_processed", true)
+    .eq("internal_stock_reverted", false)
+    .select("id");
+
+  if (updateOrderError || !updatedOrder || updatedOrder.length === 0) {
+    return { success: true, message: "Internal stock already reverted or reverting in another thread" };
+  }
+
   const items = order.order_items || [];
   if (items.length === 0) return { success: true };
 
@@ -99,12 +116,6 @@ export async function revertInternalStockFromCancelledOrder(tenantId: string, or
       });
     }
   }
-
-  // Marcar orden como revertida
-  await supabase
-    .from("orders")
-    .update({ internal_stock_reverted: true, internal_stock_reverted_at: new Date().toISOString() })
-    .eq("id", order.id);
 
   return { success: true, movements: allMovements };
 }
