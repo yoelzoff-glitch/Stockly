@@ -28,11 +28,25 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     .single();
   
   const tenantMetadata = (tenantData?.metadata as any) || {};
-  const packagingCost = tenantMetadata.packaging_cost || 0;
-  const flexZones = tenantMetadata.flex_zones || [];
+  const now = Date.now();
+  if (tenantMetadata.orders_sync_lock && now - tenantMetadata.orders_sync_lock < 60000) {
+    console.log(`[syncOrders] Tenant ${tenantId} is already syncing. Skipping to prevent duplicates.`);
+    return 0;
+  }
 
-  // 2. Fetch orders from Meli API
-  let rawOrders: any[] = [];
+  // Set lock
+  const updatedMetadata = { ...tenantMetadata, orders_sync_lock: now };
+  await supabase
+    .from("tenants")
+    .update({ metadata: updatedMetadata })
+    .eq("id", tenantId);
+
+  try {
+    const packagingCost = tenantMetadata.packaging_cost || 0;
+    const flexZones = tenantMetadata.flex_zones || [];
+
+    // 2. Fetch orders from Meli API
+    let rawOrders: any[] = [];
   if (specificMeliOrderId) {
     const { meliFetch } = await import("./client");
     try {
@@ -285,16 +299,30 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
       }
   }
 
-  // --- SPRINT 36: Sincronización automática de envíos ---
-  await syncShipments(tenantId).catch((err) => {
-    console.error(`Failed to sync shipments during syncOrders for tenant ${tenantId}:`, err);
-  });
+    // --- SPRINT 36: Sincronización automática de envíos ---
+    await syncShipments(tenantId).catch((err) => {
+      console.error(`Failed to sync shipments during syncOrders for tenant ${tenantId}:`, err);
+    });
 
-  // --- SPRINT 37: Sincronización automática de cancelaciones ---
-  const { syncCancellations } = await import("./syncCancellations");
-  await syncCancellations(tenantId).catch((err) => {
-    console.error(`Failed to sync cancellations during syncOrders for tenant ${tenantId}:`, err);
-  });
+    // --- SPRINT 37: Sincronización automática de cancelaciones ---
+    const { syncCancellations } = await import("./syncCancellations");
+    await syncCancellations(tenantId).catch((err) => {
+      console.error(`Failed to sync cancellations during syncOrders for tenant ${tenantId}:`, err);
+    });
 
-  return ordersToUpsert.length;
+    return ordersToUpsert.length;
+  } finally {
+    // Release lock
+    const { data: tenantLatest } = await supabase
+      .from("tenants")
+      .select("metadata")
+      .eq("id", tenantId)
+      .single();
+    const latestMetadata = (tenantLatest?.metadata as any) || {};
+    delete latestMetadata.orders_sync_lock;
+    await supabase
+      .from("tenants")
+      .update({ metadata: latestMetadata })
+      .eq("id", tenantId);
+  }
 }

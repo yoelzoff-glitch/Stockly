@@ -19,7 +19,8 @@
     "inspect-components": "tsx scratch/inspect-components.ts",
     "fix-missed-stock": "tsx scratch/fix-missed-stock.ts",
     "detect-double-deductions": "tsx scratch/detect-double-deductions.ts",
-    "heal-double-deductions": "tsx scratch/heal-double-deductions.ts"
+    "heal-double-deductions": "tsx scratch/heal-double-deductions.ts",
+    "cleanup-duplicates": "node scratch/cleanup-all-duplicates.js"
   },
   "keywords": [],
   "author": "",
