@@ -50,6 +50,12 @@ export async function POST(req: NextRequest) {
     switch (topic) {
       case "orders_v2":
       case "orders":
+        // Sync orders directly in the background without blocking the HTTP response
+        const specificOrderId = resource ? resource.split("/").pop() : undefined;
+        syncOrders(tenantId, specificOrderId).catch(err => {
+          console.error(`Immediate syncOrders from webhook failed for tenant ${tenantId} (order ${specificOrderId}):`, err);
+        });
+
         try {
           await inngest.send({
             name: "meli/orders.updated",
@@ -61,6 +67,11 @@ export async function POST(req: NextRequest) {
         break;
 
       case "items":
+        // Sync products directly in the background
+        syncProducts(tenantId).catch(err => {
+          console.error(`Immediate syncProducts from webhook failed for tenant ${tenantId}:`, err);
+        });
+
         try {
           await inngest.send({
             name: "meli/items.updated",

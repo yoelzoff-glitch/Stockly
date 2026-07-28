@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import SalesClientPage from "./client-page";
 
-export default async function SalesPage(props: { searchParams: Promise<{ q?: string, page?: string, status?: string, days?: string }> }) {
+export default async function SalesPage(props: { searchParams: Promise<{ q?: string, page?: string, status?: string, days?: string, from?: string, to?: string }> }) {
   const searchParams = await props.searchParams;
   const supabase = await createClient();
 
@@ -20,15 +20,32 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
   const q = searchParams.q || "";
   const page = parseInt(searchParams.page || "1");
   const status = searchParams.status || "all";
-  const days = searchParams.days || "30";
+  const days = searchParams.days || "current_month";
+  const fromParam = searchParams.from || "";
+  const toParam = searchParams.to || "";
   
   const limit = 50;
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
   let dateFrom = new Date();
+  let dateTo = new Date();
+
   if (days === "current_month") {
     dateFrom = new Date(dateFrom.getFullYear(), dateFrom.getMonth(), 1, 0, 0, 0, 0);
+  } else if (days === "previous_month") {
+    const now = new Date();
+    dateFrom = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+    dateTo = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+  } else if (days === "custom") {
+    if (fromParam) {
+      dateFrom = new Date(fromParam + "T00:00:00");
+    } else {
+      dateFrom = new Date(dateFrom.getFullYear(), dateFrom.getMonth(), 1, 0, 0, 0, 0);
+    }
+    if (toParam) {
+      dateTo = new Date(toParam + "T23:59:59.999");
+    }
   } else {
     const daysNum = parseInt(days) || 30;
     dateFrom.setDate(dateFrom.getDate() - daysNum);
@@ -52,6 +69,7 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
     .select("*", { count: "exact" })
     .eq("tenant_id", profile.tenant_id)
     .gte("date_created", dateFrom.toISOString())
+    .lte("date_created", dateTo.toISOString())
     .order("date_created", { ascending: false })
     .range(from, to);
 
@@ -87,7 +105,8 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
     .from("orders")
     .select("total_amount, date_created, status, raw_data, meli_order_id")
     .eq("tenant_id", profile.tenant_id)
-    .gte("date_created", dateFrom.toISOString());
+    .gte("date_created", dateFrom.toISOString())
+    .lte("date_created", dateTo.toISOString());
 
   const allPeriodOrders = (rawPeriodOrders || []).map(o => ({
     total_amount: o.total_amount,
@@ -117,6 +136,8 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
         searchQuery={q}
         currentStatus={status}
         currentDays={days}
+        fromDate={fromParam}
+        toDate={toParam}
         ignoredOrderIds={ignoredOrderIds}
       />
     </div>

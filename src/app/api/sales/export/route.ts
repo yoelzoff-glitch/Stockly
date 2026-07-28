@@ -7,6 +7,8 @@ export async function GET(request: NextRequest) {
   const daysParam = searchParams.get("days") || "30";
   const statusFilter = searchParams.get("status") || "all";
   const search = searchParams.get("search") || "";
+  const fromParam = searchParams.get("from");
+  const toParam = searchParams.get("to");
 
   const cookieStore = await cookies();
   const supabase = createServerClient(
@@ -62,6 +64,14 @@ export async function GET(request: NextRequest) {
     if (daysParam === "current_month") {
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
       matchesDate = orderDate >= startOfMonth;
+    } else if (daysParam === "previous_month") {
+      const startOfPrevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1, 0, 0, 0, 0);
+      const endOfPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+      matchesDate = orderDate >= startOfPrevMonth && orderDate <= endOfPrevMonth;
+    } else if (daysParam === "custom") {
+      const startCustom = fromParam ? new Date(fromParam + "T00:00:00") : new Date(today.getFullYear(), today.getMonth(), 1);
+      const endCustom = toParam ? new Date(toParam + "T23:59:59.999") : new Date();
+      matchesDate = orderDate >= startCustom && orderDate <= endCustom;
     } else {
       const days = parseInt(daysParam) || 30;
       const diffDays = Math.ceil((today.getTime() - orderDate.getTime()) / (1000 * 3600 * 24));

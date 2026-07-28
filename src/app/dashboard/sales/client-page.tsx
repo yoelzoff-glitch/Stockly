@@ -20,6 +20,8 @@ export default function SalesClientPage({
   searchQuery,
   currentStatus,
   currentDays,
+  fromDate = "",
+  toDate = "",
   ignoredOrderIds = []
 }: { 
   initialOrders: any[],
@@ -29,6 +31,8 @@ export default function SalesClientPage({
   searchQuery: string,
   currentStatus: string,
   currentDays: string | number,
+  fromDate?: string,
+  toDate?: string,
   ignoredOrderIds?: string[]
 }) {
   const router = useRouter();
@@ -44,7 +48,9 @@ export default function SalesClientPage({
   };
 
   const handleExport = () => {
-    window.location.href = `/api/sales/export?days=${currentDays}&status=${currentStatus}&search=${encodeURIComponent(searchQuery)}`;
+    const fromParam = fromDate ? `&from=${fromDate}` : "";
+    const toParam = toDate ? `&to=${toDate}` : "";
+    window.location.href = `/api/sales/export?days=${currentDays}&status=${currentStatus}&search=${encodeURIComponent(searchQuery)}${fromParam}${toParam}`;
   };
 
   const handleToggleIgnore = async (orderId: string, isIgnored: boolean) => {
@@ -69,13 +75,25 @@ export default function SalesClientPage({
     .reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
   // Chart Data preparation
-  let chartLength = typeof currentDays === 'number' ? currentDays : parseInt(currentDays as string) || 30;
+  let chartLength = 30;
   let startForChart = new Date();
   if (currentDays === "current_month") {
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
     chartLength = today.getDate();
     startForChart = startOfMonth;
+  } else if (currentDays === "previous_month") {
+    const startOfPrevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1, 0, 0, 0, 0);
+    const endOfPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0, 0, 0, 0, 0);
+    chartLength = endOfPrevMonth.getDate();
+    startForChart = startOfPrevMonth;
+  } else if (currentDays === "custom") {
+    const startCustom = fromDate ? new Date(fromDate + "T00:00:00") : new Date(today.getFullYear(), today.getMonth(), 1);
+    const endCustom = toDate ? new Date(toDate + "T23:59:59") : new Date();
+    const diffTime = Math.abs(endCustom.getTime() - startCustom.getTime());
+    chartLength = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+    startForChart = startCustom;
   } else {
+    chartLength = typeof currentDays === 'number' ? currentDays : parseInt(currentDays as string) || 30;
     startForChart.setDate(startForChart.getDate() - (chartLength - 1));
   }
   startForChart.setHours(0,0,0,0);
@@ -153,15 +171,61 @@ export default function SalesClientPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-2 border-b border-border/40">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Ventas y Analíticas</h2>
           <p className="text-muted-foreground mt-1">Monitorea el rendimiento de tu negocio en tiempo real.</p>
         </div>
-        <Button onClick={handleExport} className="flex items-center gap-2">
-          <Download className="w-4 h-4" />
-          Exportar a CSV
-        </Button>
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Selector de estado */}
+          <select 
+            value={currentStatus} 
+            onChange={(e) => handleFilterChange("status", e.target.value)}
+            className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="all">Todos los estados</option>
+            <option value="paid">Pagados</option>
+            <option value="cancelled">Cancelados</option>
+          </select>
+
+          {/* Selector de periodo */}
+          <select 
+            value={currentDays} 
+            onChange={(e) => handleFilterChange("days", e.target.value)}
+            className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="current_month">Mes actual</option>
+            <option value="previous_month">Mes anterior</option>
+            <option value="7">Últimos 7 días</option>
+            <option value="30">Últimos 30 días</option>
+            <option value="90">Últimos 3 meses</option>
+            <option value="custom">Personalizado...</option>
+          </select>
+
+          {/* Rango de fechas para Personalizado */}
+          {currentDays === "custom" && (
+            <div className="flex items-center gap-2 bg-slate-50 border border-input rounded-md px-2 py-1 shadow-sm">
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => handleFilterChange("from", e.target.value)}
+                className="bg-transparent border-0 text-sm focus:outline-none p-0 text-slate-700"
+              />
+              <span className="text-muted-foreground text-xs font-semibold">a</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => handleFilterChange("to", e.target.value)}
+                className="bg-transparent border-0 text-sm focus:outline-none p-0 text-slate-700"
+              />
+            </div>
+          )}
+
+          <Button onClick={handleExport} variant="outline" className="flex items-center gap-2">
+            <Download className="w-4 h-4" />
+            Exportar CSV
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -182,7 +246,10 @@ export default function SalesClientPage({
           <CardContent>
             <div className="text-2xl font-bold">${totalSales.toLocaleString("es-AR")}</div>
             <p className="text-xs text-muted-foreground">
-              {currentDays === "current_month" ? "Mes actual" : `Últimos ${currentDays} días`}
+              {currentDays === "current_month" && "Mes actual"}
+              {currentDays === "previous_month" && "Mes anterior"}
+              {currentDays === "custom" && `Desde ${fromDate} hasta ${toDate}`}
+              {typeof currentDays === "string" && !["current_month", "previous_month", "custom"].includes(currentDays) && `Últimos ${currentDays} días`}
             </p>
           </CardContent>
         </Card>
@@ -276,69 +343,6 @@ export default function SalesClientPage({
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
               <div className="w-full sm:w-64">
                 <SearchInput placeholder="Buscar orden, comprador, producto..." />
-              </div>
-
-              {/* Desktop Filters */}
-              <div className="hidden sm:flex items-center gap-3">
-                <select 
-                  value={currentStatus} 
-                  onChange={(e) => handleFilterChange("status", e.target.value)}
-                  className="flex h-9 w-full sm:w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                >
-                  <option value="all">Todos</option>
-                  <option value="paid">Pagado</option>
-                  <option value="cancelled">Cancelado</option>
-                </select>
-
-                <select 
-                  value={currentDays} 
-                  onChange={(e) => handleFilterChange("days", e.target.value)}
-                  className="flex h-9 w-full sm:w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                >
-                  <option value="current_month">Mes actual</option>
-                  <option value="7">Últimos 7 días</option>
-                  <option value="30">Últimos 30 días</option>
-                  <option value="90">Últimos 3 meses</option>
-                </select>
-              </div>
-
-              {/* Mobile Filters */}
-              <div className="w-full sm:hidden">
-                <MobileFilterDrawer
-                  onClear={() => {
-                    handleFilterChange("status", "all");
-                    handleFilterChange("days", "7");
-                  }}
-                >
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Estado</label>
-                      <select 
-                        value={currentStatus} 
-                        onChange={(e) => handleFilterChange("status", e.target.value)}
-                        className="flex h-12 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm"
-                      >
-                        <option value="all">Todos</option>
-                        <option value="paid">Pagado</option>
-                        <option value="cancelled">Cancelado</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Período</label>
-                      <select 
-                        value={currentDays} 
-                        onChange={(e) => handleFilterChange("days", e.target.value)}
-                        className="flex h-12 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm"
-                      >
-                        <option value="current_month">Mes actual</option>
-                        <option value="7">Últimos 7 días</option>
-                        <option value="30">Últimos 30 días</option>
-                        <option value="90">Últimos 3 meses</option>
-                      </select>
-                    </div>
-                  </div>
-                </MobileFilterDrawer>
               </div>
             </div>
           </div>

@@ -23,7 +23,8 @@
     "cleanup-duplicates": "node scratch/cleanup-all-duplicates.js",
     "check-cancellations": "node scratch/check-cancellations.js",
     "inspect-cancelled-order": "node scratch/inspect-cancelled-order.js",
-    "run-cancellations-sync": "tsx scratch/run-cancellations-sync.ts"
+    "run-cancellations-sync": "tsx scratch/run-cancellations-sync.ts",
+    "run-orders-sync-test": "tsx scratch/run-orders-sync-test.ts"
   },
   "keywords": [],
   "author": "",
