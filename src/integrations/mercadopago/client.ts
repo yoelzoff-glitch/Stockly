@@ -16,16 +16,32 @@ const PLANS = {
   starter: {
     title: 'Klyvo Starter ($44 USD)',
     price: 65560, // Equiv ARS a $1490 * 44
+    promoPrice: 45892, // 30% off: ARS 45.892 (equiv a $30.8 USD)
+    trialDays: 15,
   },
   pro: {
     title: 'Klyvo Pro ($79 USD)',
     price: 117710, // Equiv ARS a $1490 * 79
+    promoPrice: 82397, // 30% off: ARS 82.397 (equiv a $55.3 USD)
+    trialDays: 15,
   },
   ultra: {
     title: 'Klyvo Ultra ($129 USD)',
     price: 192210, // Equiv ARS a $1490 * 129
+    promoPrice: 192210,
+    trialDays: 0,
   }
 };
+
+export async function updateSubscriptionAmount(id: string, amount: number) {
+  try {
+    const response = await preApproval.update({ id, body: { transaction_amount: amount } as any });
+    return response;
+  } catch (error: any) {
+    logger.error(`Error updating MP subscription amount ${id} to ${amount}: ${error.message}`, "MERCADOPAGO");
+    throw error;
+  }
+}
 
 export async function createSubscriptionPreference(
   referenceId: string, 
@@ -49,15 +65,24 @@ export async function createSubscriptionPreference(
 
     const backUrlPath = referenceType === 'user' ? '/onboarding' : '/dashboard/billing';
 
+    const autoRecurring: any = {
+      frequency: 1,
+      frequency_type: 'months',
+      transaction_amount: planDetails.promoPrice, // Comienza con precio de promoción (30% off)
+      currency_id: 'ARS',
+    };
+
+    if (planDetails.trialDays > 0) {
+      autoRecurring.free_trial = {
+        frequency: planDetails.trialDays,
+        frequency_type: 'days'
+      };
+    }
+
     const response = await preApproval.create({
       body: {
         reason: planDetails.title,
-        auto_recurring: {
-          frequency: 1,
-          frequency_type: 'months',
-          transaction_amount: planDetails.price,
-          currency_id: 'ARS',
-        },
+        auto_recurring: autoRecurring,
         back_url: `${getBaseUrl()}${backUrlPath}?success=true`,
         payer_email: userEmail,
         external_reference: `${referenceType}_${referenceId}`, // To identify the tenant or user when webhook arrives

@@ -9,11 +9,12 @@ const plans = [
   {
     name: "Starter",
     limit: "Hasta 100 SKUs de catálogo",
-    price: "$44 USD",
-    priceArs: "equiv. $65.560 ARS",
+    price: "$30.8 USD",
+    priceArs: "equiv. $45.892 ARS",
     features: [
-      "Tarifa de Lanzamiento (2 meses)",
-      "7 días de prueba gratis",
+      "30% OFF por los primeros 3 meses",
+      "15 días de prueba gratis",
+      "luego $44 USD ($65.560 ARS) al mes",
       "Dashboard completo",
       "500 mensajes de IA",
       "250 procesos automáticos",
@@ -27,11 +28,13 @@ const plans = [
   {
     name: "Pro",
     limit: "Hasta 400 SKUs de catálogo",
-    price: "$79 USD",
-    priceArs: "equiv. $117.710 ARS",
+    price: "$55.3 USD",
+    priceArs: "equiv. $82.397 ARS",
     features: [
       "Todo lo de Starter",
-      "Tarifa de Lanzamiento (2 meses)",
+      "30% OFF por los primeros 3 meses",
+      "15 días de prueba gratis",
+      "luego $79 USD ($117.710 ARS) al mes",
       "1.500 mensajes de IA",
       "800 procesos automáticos",
       "Hasta 2 números de WhatsApp",
@@ -48,7 +51,7 @@ const plans = [
     priceArs: "equiv. $192.210 ARS",
     features: [
       "Todo lo de Pro",
-      "Tarifa de Lanzamiento (2 meses)",
+      "Tarifa de Lanzamiento",
       "5.000 mensajes de IA",
       "1.500 procesos automáticos",
       "Hasta 3 números de WhatsApp",

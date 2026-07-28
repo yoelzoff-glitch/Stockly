@@ -91,9 +91,9 @@ export default function RegisterPage() {
                   defaultValue="starter"
                   className="flex h-11 w-full rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <option value="starter">Starter ($30 USD - 7 días gratis)</option>
-                  <option value="pro">Pro ($55 USD)</option>
-                  <option value="ultra">Ultra ($90 USD)</option>
+                  <option value="starter">Starter (15 días de prueba gratis, luego 30% OFF por 3 meses)</option>
+                  <option value="pro">Pro (15 días de prueba gratis, luego 30% OFF por 3 meses)</option>
+                  <option value="ultra">Ultra ($129 USD - Tarifa de Lanzamiento)</option>
                 </select>
               </div>
             </div>
