@@ -36,6 +36,11 @@ export async function revertInternalStockFromCancelledOrder(tenantId: string, or
     return { success: true, message: "No action needed (not processed or already reverted)" };
   }
 
+  const items = order.order_items || [];
+  if (items.length === 0) {
+    return { success: false, error: "No items found for this order" };
+  }
+
   // Marcar orden como revertida de forma atómica para evitar race conditions
   const { data: updatedOrder, error: updateOrderError } = await supabase
     .from("orders")
@@ -52,9 +57,6 @@ export async function revertInternalStockFromCancelledOrder(tenantId: string, or
   if (updateOrderError || !updatedOrder || updatedOrder.length === 0) {
     return { success: true, message: "Internal stock already reverted or reverting in another thread" };
   }
-
-  const items = order.order_items || [];
-  if (items.length === 0) return { success: true };
 
   let allMovements = [];
 

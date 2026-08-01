@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProducts } from "./getProducts";
 import { createRateLimiter } from "./rateLimiter";
+import { acquireLock, releaseLock } from "@/lib/locks";
 
 function extractSku(item: any): string | null {
   if (item.seller_custom_field) return item.seller_custom_field;
@@ -24,7 +25,15 @@ function extractSku(item: any): string | null {
 }
 
 export async function syncProducts(tenantId: string) {
+  const lockKey = `sync-products:${tenantId}`;
+  const acquired = await acquireLock(lockKey, 15000);
+  if (!acquired) {
+    console.log(`[syncProducts] Could not acquire lock for key ${lockKey}. Skipping to prevent concurrent sync.`);
+    return 0;
+  }
+
   const supabase = createAdminClient();
+  try {
 
   // 1. Get the Meli account for this tenant
   const { data: meliAccount, error: accountError } = await supabase
@@ -506,5 +515,8 @@ export async function syncProducts(tenantId: string) {
     .update({ last_sync_at: new Date().toISOString() })
     .eq("id", meli_account_id);
 
-  return productsToUpsert.length;
+    return productsToUpsert.length;
+  } finally {
+    releaseLock(lockKey);
+  }
 }

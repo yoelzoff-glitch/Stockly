@@ -33,6 +33,11 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
     return { success: true, message: "Internal stock already processed for this order" };
   }
 
+  const items = order.order_items || [];
+  if (items.length === 0) {
+    return { success: false, error: "No items found in database for this order yet" };
+  }
+
   // Marcar orden como procesada de forma atómica para evitar race conditions
   const { data: updatedOrder, error: updateOrderError } = await supabase
     .from("orders")
@@ -50,8 +55,6 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
   }
 
   try {
-    const items = order.order_items || [];
-    if (items.length === 0) return { success: true };
 
     let allMovements = [];
 

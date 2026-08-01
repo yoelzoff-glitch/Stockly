@@ -3,8 +3,16 @@ import { getOrders } from "./getOrders";
 import { decrementInternalStockFromOrder } from "../inventory/decrementInternalStockFromOrder";
 import { syncShipments } from "./syncShipments";
 import { normalizeSku } from "../products/sku/normalizeSku";
+import { acquireLock, releaseLock } from "@/lib/locks";
 
 export async function syncOrders(tenantId: string, specificMeliOrderId?: string, dateFrom?: string) {
+  const lockKey = `sync-orders:${tenantId}:${specificMeliOrderId || "all"}`;
+  const acquired = await acquireLock(lockKey, 15000);
+  if (!acquired) {
+    console.log(`[syncOrders] Could not acquire lock for key ${lockKey}. Skipping to prevent concurrent sync.`);
+    return 0;
+  }
+
   const supabase = createAdminClient();
 
   // 1. Get the Meli account for this tenant
@@ -15,6 +23,7 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     .single();
 
   if (accountError || !meliAccount) {
+    releaseLock(lockKey);
     throw new Error("Mercado Libre account not connected for this tenant.");
   }
 
@@ -31,6 +40,7 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
   const now = Date.now();
   if (tenantMetadata.orders_sync_lock && now - tenantMetadata.orders_sync_lock < 60000) {
     console.log(`[syncOrders] Tenant ${tenantId} is already syncing. Skipping to prevent duplicates.`);
+    releaseLock(lockKey);
     return 0;
   }
 
@@ -312,6 +322,8 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
 
     return ordersToUpsert.length;
   } finally {
+    // Release in-memory lock
+    releaseLock(lockKey);
     // Release lock
     const { data: tenantLatest } = await supabase
       .from("tenants")

@@ -50,21 +50,19 @@ export async function POST(req: NextRequest) {
     switch (topic) {
       case "orders_v2":
       case "orders":
-        // Sync orders directly and await to ensure it finishes without Next.js freezing
         const specificOrderId = resource ? resource.split("/").pop() : undefined;
-        try {
-          await syncOrders(tenantId, specificOrderId);
-        } catch (err: any) {
-          console.error(`Immediate syncOrders from webhook failed for tenant ${tenantId} (order ${specificOrderId}):`, err.message || err);
-        }
-
         try {
           await inngest.send({
             name: "meli/orders.updated",
             data: { tenantId, resource }
           });
         } catch (e: any) {
-          console.warn("Failed to send meli/orders.updated event to Inngest:", e.message || e);
+          console.warn("Failed to send meli/orders.updated event to Inngest, falling back to immediate sync:", e.message || e);
+          try {
+            await syncOrders(tenantId, specificOrderId);
+          } catch (err: any) {
+            console.error(`Immediate fallback syncOrders from webhook failed for tenant ${tenantId} (order ${specificOrderId}):`, err.message || err);
+          }
         }
         break;
 

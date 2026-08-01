@@ -24,7 +24,8 @@
     "check-cancellations": "node scratch/check-cancellations.js",
     "inspect-cancelled-order": "node scratch/inspect-cancelled-order.js",
     "run-cancellations-sync": "tsx scratch/run-cancellations-sync.ts",
-    "run-orders-sync-test": "tsx scratch/run-orders-sync-test.ts"
+    "run-orders-sync-test": "tsx scratch/run-orders-sync-test.ts",
+    "fix-missed-stock-orders": "tsx scratch/fix-missed-stock-orders.ts"
   },
   "keywords": [],
   "author": "",
