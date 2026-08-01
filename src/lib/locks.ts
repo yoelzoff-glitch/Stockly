@@ -22,3 +22,11 @@ export async function acquireLock(key: string, timeoutMs = 15000): Promise<boole
 export function releaseLock(key: string): void {
   activeLocks.delete(key);
 }
+
+/**
+ * Comprueba si una clave de bloqueo está actualmente activa.
+ */
+export function isLocked(key: string): boolean {
+  return activeLocks.has(key);
+}
+

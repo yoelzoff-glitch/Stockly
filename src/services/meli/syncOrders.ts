@@ -3,7 +3,7 @@ import { getOrders } from "./getOrders";
 import { decrementInternalStockFromOrder } from "../inventory/decrementInternalStockFromOrder";
 import { syncShipments } from "./syncShipments";
 import { normalizeSku } from "../products/sku/normalizeSku";
-import { acquireLock, releaseLock } from "@/lib/locks";
+import { acquireLock, releaseLock, isLocked } from "@/lib/locks";
 
 export async function syncOrders(tenantId: string, specificMeliOrderId?: string, dateFrom?: string) {
   const lockKey = `sync-orders:${tenantId}:${specificMeliOrderId || "all"}`;
@@ -37,19 +37,35 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     .single();
   
   const tenantMetadata = (tenantData?.metadata as any) || {};
+  const isFullSync = !specificMeliOrderId;
   const now = Date.now();
-  if (tenantMetadata.orders_sync_lock && now - tenantMetadata.orders_sync_lock < 60000) {
-    console.log(`[syncOrders] Tenant ${tenantId} is already syncing. Skipping to prevent duplicates.`);
-    releaseLock(lockKey);
-    return 0;
+
+  if (specificMeliOrderId) {
+    // Si es una orden específica, esperamos a que termine cualquier sincronización completa activa en memoria
+    const fullSyncKey = `sync-orders:${tenantId}:all`;
+    const start = Date.now();
+    while (isLocked(fullSyncKey)) {
+      if (Date.now() - start > 15000) {
+        break; // Timeout, procedemos de todos modos
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   }
 
-  // Set lock
-  const updatedMetadata = { ...tenantMetadata, orders_sync_lock: now };
-  await supabase
-    .from("tenants")
-    .update({ metadata: updatedMetadata })
-    .eq("id", tenantId);
+  if (isFullSync) {
+    if (tenantMetadata.orders_sync_lock && now - tenantMetadata.orders_sync_lock < 60000) {
+      console.log(`[syncOrders] Tenant ${tenantId} is already running a full sync. Skipping to prevent duplicates.`);
+      releaseLock(lockKey);
+      return 0;
+    }
+
+    // Establecer bloqueo en base de datos solo para sincronizaciones completas
+    const updatedMetadata = { ...tenantMetadata, orders_sync_lock: now };
+    await supabase
+      .from("tenants")
+      .update({ metadata: updatedMetadata })
+      .eq("id", tenantId);
+  }
 
   try {
     const packagingCost = tenantMetadata.packaging_cost || 0;
@@ -324,17 +340,19 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
   } finally {
     // Release in-memory lock
     releaseLock(lockKey);
-    // Release lock
-    const { data: tenantLatest } = await supabase
-      .from("tenants")
-      .select("metadata")
-      .eq("id", tenantId)
-      .single();
-    const latestMetadata = (tenantLatest?.metadata as any) || {};
-    delete latestMetadata.orders_sync_lock;
-    await supabase
-      .from("tenants")
-      .update({ metadata: latestMetadata })
-      .eq("id", tenantId);
+    // Release lock from DB only if it was a full sync
+    if (isFullSync) {
+      const { data: tenantLatest } = await supabase
+        .from("tenants")
+        .select("metadata")
+        .eq("id", tenantId)
+        .single();
+      const latestMetadata = (tenantLatest?.metadata as any) || {};
+      delete latestMetadata.orders_sync_lock;
+      await supabase
+        .from("tenants")
+        .update({ metadata: latestMetadata })
+        .eq("id", tenantId);
+    }
   }
 }
