@@ -42,31 +42,73 @@ export async function getInventoryItems() {
   const orderIds = recentOrders?.map(o => o.id) || [];
   let salesPerComponent: Record<string, number> = {};
 
+  // Map of inventory item SKU -> ID for quick fallback lookup
+  const inventoryItemSkuMap = new Map<string, string>();
+  items.forEach(item => {
+    if (item.sku_normalized) {
+      inventoryItemSkuMap.set(item.sku_normalized, item.id);
+    }
+  });
+
   if (orderIds.length > 0) {
     const { data: orderItems } = await supabase
       .from("order_items")
-      .select("product_id, quantity")
+      .select("product_id, quantity, sku")
       .in("order_id", orderIds);
 
     const productIds = Array.from(new Set(orderItems?.map(item => item.product_id).filter(Boolean))) as string[];
 
+    // Load existing linkages
+    const productComponentsMap = new Map<string, Array<{ inventory_item_id: string; quantity: number }>>();
     if (productIds.length > 0) {
       const { data: productComponents } = await supabase
         .from("product_components")
         .select("product_id, inventory_item_id, quantity")
         .in("product_id", productIds);
 
-      orderItems?.forEach(item => {
-        if (!item.product_id) return;
-        const components = productComponents?.filter(c => c.product_id === item.product_id) || [];
-        components.forEach(comp => {
-          if (comp.inventory_item_id) {
-            const qtyUsed = (item.quantity || 1) * (comp.quantity || 1);
-            salesPerComponent[comp.inventory_item_id] = (salesPerComponent[comp.inventory_item_id] || 0) + qtyUsed;
-          }
-        });
+      productComponents?.forEach(comp => {
+        if (comp.product_id && comp.inventory_item_id) {
+          const list = productComponentsMap.get(comp.product_id) || [];
+          list.push({
+            inventory_item_id: comp.inventory_item_id,
+            quantity: comp.quantity || 1
+          });
+          productComponentsMap.set(comp.product_id, list);
+        }
       });
     }
+
+    const { parseCompositeSku } = await import("@/services/products/sku/parseCompositeSku");
+
+    orderItems?.forEach(item => {
+      let linkedComponents = item.product_id ? productComponentsMap.get(item.product_id) : undefined;
+
+      if (linkedComponents && linkedComponents.length > 0) {
+        // Use database linkages (primary source of truth)
+        linkedComponents.forEach(comp => {
+          const qtyUsed = (item.quantity || 1) * comp.quantity;
+          salesPerComponent[comp.inventory_item_id] = (salesPerComponent[comp.inventory_item_id] || 0) + qtyUsed;
+        });
+      } else if (item.sku) {
+        // Fallback: Parse the composite SKU dynamically
+        const parsed = parseCompositeSku(item.sku);
+        if (parsed.components.length > 0) {
+          // Count occurrences of each component in the SKU
+          const compCounts: Record<string, number> = {};
+          parsed.components.forEach(comp => {
+            compCounts[comp] = (compCounts[comp] || 0) + 1;
+          });
+
+          for (const [comp, qty] of Object.entries(compCounts)) {
+            const itemId = inventoryItemSkuMap.get(comp);
+            if (itemId) {
+              const qtyUsed = (item.quantity || 1) * qty;
+              salesPerComponent[itemId] = (salesPerComponent[itemId] || 0) + qtyUsed;
+            }
+          }
+        }
+      }
+    });
   }
 
   // Enhance items with calculations
