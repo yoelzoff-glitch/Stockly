@@ -190,6 +190,11 @@ export async function getFinancialData(
 
     const totalOrderQty = dbItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0) || 1;
 
+    const shipment = o.meli_shipment_id ? (shipments || []).find(s => s.meli_shipment_id === o.meli_shipment_id) : undefined;
+    const actualShippingCost = shipment && shipment.shipping_cost !== null && Number(shipment.shipping_cost) > 0
+      ? Number(shipment.shipping_cost)
+      : null;
+
     dbItems.forEach(item => {
       const qty = Number(item.quantity) || 1;
       orderQty += qty;
@@ -270,7 +275,12 @@ export async function getFinancialData(
       
       let itemCost = 0;
       let itemFee = (Number(item.estimated_fee) || 0) * qty;
-      let itemShipping = Number(item.estimated_shipping_cost) || 0;
+      let itemShipping = 0;
+      if (actualShippingCost !== null) {
+        itemShipping = actualShippingCost * (qty / totalOrderQty);
+      } else {
+        itemShipping = Number(item.estimated_shipping_cost) || 0;
+      }
       let itemExtra = orderPackagingCost * qty;
 
       if (couponAmount > 0 && amount > 0) {
@@ -292,7 +302,7 @@ export async function getFinancialData(
         if (itemFee === 0) {
           itemFee = Number(p.estimated_fee || 0) * qty;
         }
-        if (itemShipping === 0) {
+        if (itemShipping === 0 && actualShippingCost === null) {
           itemShipping = Number(p.estimated_shipping_cost || 0) * qty;
         }
         itemExtra += (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * qty;
