@@ -71,11 +71,68 @@ export default async function FinancePage(props: { searchParams: Promise<{ perio
     timezone
   );
 
+  let comparisonData = null;
+
+  if (period === "current_month") {
+    const prevYear = tenantMonth === 1 ? tenantYear - 1 : tenantYear;
+    const prevMonth = tenantMonth === 1 ? 12 : tenantMonth - 1;
+    
+    const daysInPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
+    
+    let prevMonthDay = tenantDay;
+    if (tenantDay >= 30) {
+      prevMonthDay = 30;
+    }
+    prevMonthDay = Math.min(prevMonthDay, daysInPrevMonth);
+    
+    const prevDateFrom = getMidnightInTimezone(new Date(Date.UTC(prevYear, prevMonth - 1, 1, 12, 0, 0)), timezone);
+    
+    let prevDateTo: Date;
+    if (tenantDay === 31 || tenantDay > daysInPrevMonth) {
+      const endOfTargetDay = getMidnightInTimezone(new Date(Date.UTC(prevYear, prevMonth - 1, prevMonthDay, 12, 0, 0)), timezone);
+      prevDateTo = new Date(endOfTargetDay.getTime() + 24 * 60 * 60 * 1000 - 1);
+    } else {
+      const durationMs = dateTo.getTime() - dateFrom.getTime();
+      prevDateTo = new Date(prevDateFrom.getTime() + durationMs);
+    }
+
+    try {
+      const prevFinancials = await getFinancialData(
+        supabase,
+        tenantId,
+        prevDateFrom,
+        prevDateTo,
+        packagingCost,
+        ignoredOrderIds,
+        true, // disable proration to get exact numbers
+        timezone
+      );
+      
+      const getMonthName = (m: number) => {
+        const names = [
+          "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        ];
+        return names[m - 1] || "";
+      };
+      
+      comparisonData = {
+        label: `respecto al ${prevMonthDay} de ${getMonthName(prevMonth)}`,
+        prevFacturacionBruta: prevFinancials.facturacionBruta,
+        prevGananciaNeta: prevFinancials.gananciaNeta,
+        prevCancellationsAmount: prevFinancials.cancellationsAmount
+      };
+    } catch (e) {
+      console.error("Failed to fetch comparison financials:", e);
+    }
+  }
+
   return (
     <div className="flex-1 p-8 pt-6">
       <FinanceClientPage 
         financials={financials}
         currentPeriod={period}
+        comparisonData={comparisonData}
       />
     </div>
   );

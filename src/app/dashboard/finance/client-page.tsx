@@ -11,10 +11,17 @@ import { FinancialData } from "@/services/finance/getFinancialData";
 
 export default function FinanceClientPage({ 
   financials, 
-  currentPeriod
+  currentPeriod,
+  comparisonData
 }: { 
   financials: FinancialData;
   currentPeriod: string;
+  comparisonData?: {
+    label: string;
+    prevFacturacionBruta: number;
+    prevGananciaNeta: number;
+    prevCancellationsAmount: number;
+  } | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -44,6 +51,42 @@ export default function FinanceClientPage({
     gananciaBolsilloLimpia,
     appliedExpensesBreakdown
   } = financials;
+
+  const showComparison = currentPeriod === "current_month" && comparisonData;
+
+  const renderComparisonText = (current: number, previous: number) => {
+    if (!showComparison || !comparisonData) return null;
+    
+    let percent = 0;
+    if (previous > 0) {
+      percent = ((current - previous) / previous) * 100;
+    } else if (previous === 0 && current > 0) {
+      percent = 100;
+    } else if (previous === 0 && current === 0) {
+      percent = 0;
+    } else if (previous < 0) {
+      // For negative previous values, calculate the change direction properly
+      percent = ((current - previous) / Math.abs(previous)) * 100;
+    }
+
+    const formattedPercent = percent.toFixed(1).replace(".", ",");
+    const isPositive = percent > 0;
+    const isZero = percent === 0;
+
+    const colorClass = isZero 
+      ? "text-slate-400 dark:text-slate-500" 
+      : isPositive 
+        ? "text-emerald-600 dark:text-emerald-400" 
+        : "text-red-500 dark:text-red-450";
+    
+    const sign = isPositive ? "+" : "";
+
+    return (
+      <div className={`text-[10.5px] mt-1 font-medium ${colorClass} tracking-normal leading-none`}>
+        {sign}{formattedPercent}% {comparisonData.label}
+      </div>
+    );
+  };
 
   const impuestos = 0; // default 0 for MVP
 
@@ -130,6 +173,7 @@ export default function FinanceClientPage({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-400">${facturacionBruta.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</div>
+            {renderComparisonText(facturacionBruta, comparisonData?.prevFacturacionBruta ?? 0)}
           </CardContent>
         </Card>
         
@@ -167,6 +211,7 @@ export default function FinanceClientPage({
           <CardContent>
             <div className="text-2xl font-semibold text-slate-500">${cancelacionesAmount.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</div>
             <p className="text-[10px] text-muted-foreground mt-1">Ventas anuladas (no resta del total)</p>
+            {renderComparisonText(cancelacionesAmount, comparisonData?.prevCancellationsAmount ?? 0)}
           </CardContent>
         </Card>
       </div>
@@ -227,6 +272,7 @@ export default function FinanceClientPage({
               {gananciaNeta < 0 ? "-" : ""}${Math.abs(gananciaNeta).toLocaleString("es-AR", { maximumFractionDigits: 0 })}
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">Margen operativo: {margenNeto.toFixed(1)}%</p>
+            {renderComparisonText(gananciaNeta, comparisonData?.prevGananciaNeta ?? 0)}
           </CardContent>
         </Card>
 
