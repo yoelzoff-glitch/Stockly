@@ -121,6 +121,18 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
       }
     }
 
+    if (allMovements.length === 0) {
+      // Revertir marca de procesado ya que no se creó ningún descuento real (ej: producto sin componentes mapeados en ese momento)
+      await supabase
+        .from("orders")
+        .update({
+          internal_stock_processed: false,
+          internal_stock_processed_at: null
+        })
+        .eq("id", order.id);
+      return { success: false, error: "No inventory component movements created for this order" };
+    }
+
     return { success: true, movements: allMovements };
   } catch (err: any) {
     // Revertir el estado de procesado en caso de error crítico

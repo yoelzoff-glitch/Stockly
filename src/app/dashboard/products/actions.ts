@@ -246,6 +246,13 @@ export async function updateProductComponents(
     console.error("Error recalculating costs for sibling products:", e.message);
   }
 
+  // 5. Automatically reprocess recent sales for these products to catch any missed deductions
+  try {
+    await reprocessProductOrdersStock(productId);
+  } catch (e: any) {
+    console.error("Error auto-reprocessing stock for updated components:", e.message);
+  }
+
   revalidatePath("/dashboard/products");
   revalidatePath("/dashboard");
   return { success: true, updatedProductsCount: targetProductIds.length };
