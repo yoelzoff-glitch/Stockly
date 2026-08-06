@@ -23,7 +23,9 @@ import {
   cancelCommandCenterAction,
   getSiblingProducts
 } from "@/actions/product-command-actions";
-import { updateProductCost } from "@/app/dashboard/products/actions";
+import { updateProductCost, updateProductComponents, reprocessProductOrdersStock } from "@/app/dashboard/products/actions";
+import { getInventoryItems } from "@/app/dashboard/internal-stock/actions";
+import { Trash2, Plus, Check, Edit2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface ProductCommandCenterProps {
@@ -41,6 +43,15 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
   const [isFetchingStats, setIsFetchingStats] = useState(false);
   const [selectedDays, setSelectedDays] = useState<string>("7");
   const [refreshStatsTrigger, setRefreshStatsTrigger] = useState(0);
+
+  // Mapping and healing states
+  const [isEditingComponents, setIsEditingComponents] = useState(false);
+  const [editedComponents, setEditedComponents] = useState<Array<{ inventory_item_id: string; quantity: number; component_normalized: string }>>([]);
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [selectedNewComponentId, setSelectedNewComponentId] = useState("");
+  const [newComponentQty, setNewComponentQty] = useState(1);
+  const [isSavingComponents, setIsSavingComponents] = useState(false);
+  const [isReprocessingStock, setIsReprocessingStock] = useState(false);
   
   useEffect(() => {
     if (product && isOpen) {
@@ -57,6 +68,28 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
         });
     }
   }, [product, isOpen, activeTab]);
+
+  useEffect(() => {
+    if (internalStockData && internalStockData.components) {
+      setEditedComponents(
+        internalStockData.components.map((c: any) => ({
+          inventory_item_id: c.inventory_item_id,
+          quantity: c.quantity,
+          component_normalized: c.component_normalized
+        }))
+      );
+    } else {
+      setEditedComponents([]);
+    }
+  }, [internalStockData]);
+
+  useEffect(() => {
+    if (activeTab === "internalStock") {
+      getInventoryItems()
+        .then(items => setInventoryItems(items))
+        .catch(err => console.error("Error loading inventory items:", err));
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (product && isOpen && activeTab === "stats") {
@@ -313,6 +346,66 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
       alert(e.message);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleSaveComponents = async () => {
+    setIsSavingComponents(true);
+    try {
+      const res = await updateProductComponents(
+        product.id,
+        editedComponents.map(c => ({
+          inventory_item_id: c.inventory_item_id,
+          quantity: c.quantity
+        }))
+      );
+      if (res.success) {
+        const siblingMsg = res.updatedProductsCount && res.updatedProductsCount > 1
+          ? ` (se actualizaron ${res.updatedProductsCount} publicaciones hermanas con el mismo SKU)`
+          : "";
+        alert(`Asociaciones de componentes guardadas correctamente${siblingMsg}. Los costos han sido recalculados.`);
+        setIsEditingComponents(false);
+        // Refresh internalStockData
+        setIsLoadingInternalStock(true);
+        const refRes = await fetch(`/api/products/${product.id}/components`);
+        const refData = await refRes.json();
+        setInternalStockData(refData);
+        setIsLoadingInternalStock(false);
+        onSuccess();
+      } else {
+        alert("Error al guardar asociaciones: " + res.error);
+      }
+    } catch (e: any) {
+      alert("Error inesperado: " + e.message);
+    } finally {
+      setIsSavingComponents(false);
+    }
+  };
+
+  const handleReprocessStock = async () => {
+    setIsReprocessingStock(true);
+    try {
+      const res = await reprocessProductOrdersStock(product.id);
+      if (res.success) {
+        if (res.reprocessedCount !== undefined && res.reprocessedCount > 0) {
+          alert(`¡Éxito! Se re-procesaron y descontaron correctamente ${res.reprocessedCount} ventas pendientes.`);
+        } else {
+          alert(res.message || "No se encontraron ventas para re-procesar o ya tenían movimientos.");
+        }
+        // Refresh internalStockData
+        setIsLoadingInternalStock(true);
+        const refRes = await fetch(`/api/products/${product.id}/components`);
+        const refData = await refRes.json();
+        setInternalStockData(refData);
+        setIsLoadingInternalStock(false);
+        onSuccess();
+      } else {
+        alert("Error al re-procesar stock: " + res.error);
+      }
+    } catch (e: any) {
+      alert("Error inesperado al re-procesar stock: " + e.message);
+    } finally {
+      setIsReprocessingStock(false);
     }
   };
 
@@ -1286,19 +1379,190 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
               </TabsContent>
 
               <TabsContent value="internalStock" className="mt-0 space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Mapeo de Inventario Físico</h3>
+                  <div className="flex gap-2">
+                    {isEditingComponents ? (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => {
+                            setIsEditingComponents(false);
+                            if (internalStockData?.components) {
+                              setEditedComponents(
+                                internalStockData.components.map((c: any) => ({
+                                  inventory_item_id: c.inventory_item_id,
+                                  quantity: c.quantity,
+                                  component_normalized: c.component_normalized
+                                }))
+                              );
+                            }
+                          }}
+                          disabled={isSavingComponents}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                          onClick={handleSaveComponents}
+                          disabled={isSavingComponents || editedComponents.length === 0}
+                        >
+                          {isSavingComponents ? "Guardando..." : "Guardar Cambios"}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setIsEditingComponents(true)}
+                        disabled={isLoadingInternalStock}
+                      >
+                        <Edit2 className="w-3.5 h-3.5 mr-1.5" />
+                        Editar Mapeo
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
                 {isLoadingInternalStock ? (
                   <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                     <RefreshCw className="w-8 h-8 animate-spin mb-4" />
                     <p className="text-sm">Cargando componentes y stock real...</p>
                   </div>
+                ) : isEditingComponents ? (
+                  <div className="space-y-6">
+                    <Card className="border-indigo-100 bg-indigo-50/20">
+                      <CardContent className="pt-4 pb-4">
+                        <p className="text-xs text-indigo-700 leading-relaxed">
+                          Vincula los productos de tu inventario físico de depósito con esta publicación de Mercado Libre. 
+                          Especifica cuántas unidades de cada componente se consumen para despachar una unidad de esta publicación.
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {/* Current Edited Components List */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold">Componentes Vinculados</Label>
+                      {editedComponents.length === 0 ? (
+                        <div className="text-center py-6 border border-dashed rounded-xl text-muted-foreground text-xs">
+                          No hay componentes seleccionados. Usa el formulario de abajo para agregar al menos uno.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {editedComponents.map((c, idx) => (
+                            <div key={c.inventory_item_id || idx} className="flex items-center justify-between p-3 border rounded-xl bg-white dark:bg-slate-950 gap-4">
+                              <span className="font-medium text-sm text-slate-800 dark:text-slate-200">{c.component_normalized}</span>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-muted-foreground">Cant:</span>
+                                  <Input 
+                                    type="number" 
+                                    min="1" 
+                                    className="w-16 h-8 text-center" 
+                                    value={c.quantity} 
+                                    onChange={(e) => {
+                                      const val = Math.max(1, parseInt(e.target.value) || 1);
+                                      setEditedComponents(prev => prev.map((item, i) => i === idx ? { ...item, quantity: val } : item));
+                                    }}
+                                  />
+                                </div>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="text-red-500 hover:text-red-700 h-8 w-8 hover:bg-red-50"
+                                  onClick={() => {
+                                    setEditedComponents(prev => prev.filter((_, i) => i !== idx));
+                                  }}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <Separator />
+
+                    {/* Form to add a new Component */}
+                    <Card className="border border-slate-200 shadow-sm bg-slate-50/50">
+                      <CardHeader className="p-4 pb-2">
+                        <CardTitle className="text-sm font-semibold">Agregar Componente al Producto</CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-4 pt-0 space-y-4">
+                        <div className="grid gap-3 sm:grid-cols-3 items-end">
+                          <div className="space-y-1.5 sm:col-span-2">
+                            <Label className="text-xs text-muted-foreground">Seleccionar Componente</Label>
+                            <select 
+                              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                              value={selectedNewComponentId}
+                              onChange={(e) => setSelectedNewComponentId(e.target.value)}
+                            >
+                              <option value="">-- Seleccionar un SKU del Depósito --</option>
+                              {inventoryItems
+                                .filter(item => !editedComponents.some(ec => ec.inventory_item_id === item.id))
+                                .map(item => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.sku} ({item.name || 'Sin nombre'} - Stock: {item.current_stock})
+                                  </option>
+                                ))
+                              }
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">Cantidad por Unidad</Label>
+                            <div className="flex gap-2">
+                              <Input 
+                                type="number" 
+                                min="1" 
+                                className="h-9 text-center" 
+                                value={newComponentQty}
+                                onChange={(e) => setNewComponentQty(Math.max(1, parseInt(e.target.value) || 1))}
+                              />
+                              <Button 
+                                type="button"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
+                                onClick={() => {
+                                  if (!selectedNewComponentId) return;
+                                  const item = inventoryItems.find(i => i.id === selectedNewComponentId);
+                                  if (item) {
+                                    setEditedComponents(prev => [
+                                      ...prev,
+                                      {
+                                        inventory_item_id: item.id,
+                                        quantity: newComponentQty,
+                                        component_normalized: item.sku
+                                      }
+                                    ]);
+                                    setSelectedNewComponentId("");
+                                    setNewComponentQty(1);
+                                  }
+                                }}
+                                disabled={!selectedNewComponentId}
+                              >
+                                <Plus className="w-4 h-4 mr-1.5" /> Agregar
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
                 ) : !internalStockData || !internalStockData.components || internalStockData.components.length === 0 ? (
                   <div className="bg-slate-50/50 rounded-xl border border-dashed border-slate-200 p-8 text-center">
                     <AlertTriangle className="w-8 h-8 mx-auto text-amber-500 mb-3" />
                     <h5 className="font-semibold text-slate-800 mb-1">Sin componentes configurados</h5>
-                    <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                    <p className="text-xs text-muted-foreground max-w-sm mx-auto mb-4">
                       Esta publicación de Mercado Libre no tiene componentes enlazados en depósito.
                       Para vincular componentes automáticamente, asigna un SKU compuesto (ej: "C 144 D 163") y sincroniza el catálogo.
                     </p>
+                    <Button variant="outline" size="sm" onClick={() => setIsEditingComponents(true)}>
+                      <Plus className="w-3.5 h-3.5 mr-1.5" />
+                      Asociar Componentes Manualmente
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -1406,6 +1670,34 @@ export function ProductCommandCenter({ product, isOpen, onClose, onSuccess }: Pr
                         <span>${internalStockData.product.cost?.toLocaleString() || 0}</span>
                       </div>
                     </div>
+
+                    {/* Stock Reprocessing Healing Section */}
+                    <Card className="border-amber-200 bg-amber-50/30 dark:bg-amber-950/10">
+                      <CardHeader className="p-4 pb-2">
+                        <CardTitle className="text-sm font-bold flex items-center gap-2">
+                          <RefreshCw className={`w-4 h-4 text-amber-600 ${isReprocessingStock ? 'animate-spin' : ''}`} />
+                          Reprocesar Stock de Ventas Pendientes
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-4 pt-0 space-y-3">
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          ¿Tuviste ventas de esta publicación en los últimos 7 días que no se descontaron correctamente del stock físico? 
+                          Si recién configuraste o corregiste los componentes, puedes hacer clic aquí para forzar el descuento pendiente de forma retroactiva.
+                        </p>
+                        <div className="flex justify-end">
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            className="border-amber-300 text-amber-800 hover:bg-amber-100 hover:text-amber-900 bg-white"
+                            onClick={handleReprocessStock}
+                            disabled={isReprocessingStock || isLoadingInternalStock}
+                          >
+                            {isReprocessingStock ? "Reprocesando..." : "Descontar Ventas Pendientes"}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 )}
               </TabsContent>
