@@ -469,25 +469,29 @@ export async function syncProducts(tenantId: string) {
           }
         }
 
-        // 4. Perform clear and insert in chunks
+        // 4. Perform clear and insert in chunks (only for products that have valid components ready to insert)
         const chunkSize = 100;
-        for (let i = 0; i < productIdsToClear.length; i += chunkSize) {
-          const chunk = productIdsToClear.slice(i, i + chunkSize);
-          await supabase.from("product_sku_components").delete().in("product_id", chunk);
-          await supabase.from("product_components").delete().in("product_id", chunk);
-        }
+        const targetProductIdsToClear = Array.from(new Set(prodComponentsToInsert.map(c => c.product_id)));
 
-        // Insert into legacy product_sku_components table
-        for (let i = 0; i < componentsToInsert.length; i += chunkSize) {
-          const chunk = componentsToInsert.slice(i, i + chunkSize);
-          await supabase.from("product_sku_components").insert(chunk);
-        }
+        if (targetProductIdsToClear.length > 0) {
+          for (let i = 0; i < targetProductIdsToClear.length; i += chunkSize) {
+            const chunk = targetProductIdsToClear.slice(i, i + chunkSize);
+            await supabase.from("product_sku_components").delete().in("product_id", chunk);
+            await supabase.from("product_components").delete().in("product_id", chunk);
+          }
 
-        // Insert into new product_components table
-        for (let i = 0; i < prodComponentsToInsert.length; i += chunkSize) {
-          const chunk = prodComponentsToInsert.slice(i, i + chunkSize);
-          const { error: pCompError } = await supabase.from("product_components").insert(chunk);
-          if (pCompError) console.error("Error inserting product components:", pCompError);
+          // Insert into legacy product_sku_components table
+          for (let i = 0; i < componentsToInsert.length; i += chunkSize) {
+            const chunk = componentsToInsert.slice(i, i + chunkSize);
+            await supabase.from("product_sku_components").insert(chunk);
+          }
+
+          // Insert into new product_components table
+          for (let i = 0; i < prodComponentsToInsert.length; i += chunkSize) {
+            const chunk = prodComponentsToInsert.slice(i, i + chunkSize);
+            const { error: pCompError } = await supabase.from("product_components").insert(chunk);
+            if (pCompError) console.error("Error inserting product components:", pCompError);
+          }
         }
 
         // 5. Recalculate automatic costing for each modified product in batch

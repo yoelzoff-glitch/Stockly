@@ -17,7 +17,8 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
       order_items (
         product_id,
         quantity,
-        title
+        title,
+        sku
       )
     `)
     .eq("tenant_id", tenantId)
@@ -62,7 +63,7 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
       if (!item.product_id) continue; // No mapeado a producto local
 
       // Obtener componentes del producto
-      const { data: components } = await supabase
+      let { data: components } = await supabase
         .from("product_components")
         .select(`
           quantity,
@@ -73,7 +74,66 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
         .eq("tenant_id", tenantId)
         .eq("product_id", item.product_id);
 
-      if (!components || components.length === 0) continue; // Producto simple sin componentes registrados en interno
+      // Auto-healing: Si el producto no tiene componentes vinculados, intentar mapearlos automáticamente desde el SKU
+      if (!components || components.length === 0) {
+        const itemSku = (item as any).sku;
+        if (itemSku) {
+          const { parseCompositeSku } = await import("../products/sku/parseCompositeSku");
+          const parsed = parseCompositeSku(itemSku);
+          if (parsed.components.length > 0) {
+            const { data: invItems } = await supabase
+              .from("inventory_items")
+              .select("id, sku_normalized")
+              .eq("tenant_id", tenantId)
+              .in("sku_normalized", parsed.components);
+
+            if (invItems && invItems.length > 0) {
+              const itemMap = new Map(invItems.map(i => [i.sku_normalized, i.id]));
+              const compCounts: Record<string, number> = {};
+              for (const comp of parsed.components) {
+                compCounts[comp] = (compCounts[comp] || 0) + 1;
+              }
+
+              const newCompsToInsert = [];
+              for (const [comp, qty] of Object.entries(compCounts)) {
+                const invId = itemMap.get(comp);
+                if (invId) {
+                  newCompsToInsert.push({
+                    tenant_id: tenantId,
+                    product_id: item.product_id,
+                    inventory_item_id: invId,
+                    component_sku: comp,
+                    component_normalized: comp,
+                    quantity: qty
+                  });
+                }
+              }
+
+              if (newCompsToInsert.length > 0) {
+                await supabase.from("product_components").insert(newCompsToInsert);
+                
+                // Volver a consultar componentes recién enlazados
+                const { data: refetchedComps } = await supabase
+                  .from("product_components")
+                  .select(`
+                    quantity,
+                    inventory_item_id,
+                    component_sku,
+                    inventory_items ( current_stock )
+                  `)
+                  .eq("tenant_id", tenantId)
+                  .eq("product_id", item.product_id);
+
+                if (refetchedComps && refetchedComps.length > 0) {
+                  components = refetchedComps;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (!components || components.length === 0) continue; // Producto sin componentes registrados en inventario interno
 
       for (const comp of components) {
         if (!comp.inventory_item_id) continue;
