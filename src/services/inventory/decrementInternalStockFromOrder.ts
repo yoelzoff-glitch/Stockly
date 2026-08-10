@@ -60,85 +60,93 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
     let allMovements = [];
 
     for (const item of items) {
-      if (!item.product_id) continue; // No mapeado a producto local
+      let components: Array<{ quantity: number; inventory_item_id: string; component_sku: string; current_stock?: number }> = [];
 
-      // Obtener componentes del producto
-      let { data: components } = await supabase
-        .from("product_components")
-        .select(`
-          quantity,
-          inventory_item_id,
-          component_sku,
-          inventory_items ( current_stock )
-        `)
-        .eq("tenant_id", tenantId)
-        .eq("product_id", item.product_id);
+      // 1. Si existe product_id, intentar buscar en product_components
+      if (item.product_id) {
+        const { data: existingComps } = await supabase
+          .from("product_components")
+          .select(`
+            quantity,
+            inventory_item_id,
+            component_sku,
+            inventory_items ( current_stock )
+          `)
+          .eq("tenant_id", tenantId)
+          .eq("product_id", item.product_id);
 
-      // Auto-healing: Si el producto no tiene componentes vinculados, intentar mapearlos automáticamente desde el SKU
-      if (!components || components.length === 0) {
-        const itemSku = (item as any).sku;
-        if (itemSku) {
-          const { parseCompositeSku } = await import("../products/sku/parseCompositeSku");
-          const parsed = parseCompositeSku(itemSku);
-          if (parsed.components.length > 0) {
-            const { data: invItems } = await supabase
-              .from("inventory_items")
-              .select("id, sku_normalized")
-              .eq("tenant_id", tenantId)
-              .in("sku_normalized", parsed.components);
+        if (existingComps && existingComps.length > 0) {
+          components = existingComps.map(c => ({
+            quantity: c.quantity,
+            inventory_item_id: c.inventory_item_id,
+            component_sku: c.component_sku,
+            current_stock: (c as any).inventory_items?.current_stock || 0
+          }));
+        }
+      }
 
-            if (invItems && invItems.length > 0) {
-              const itemMap = new Map(invItems.map(i => [i.sku_normalized, i.id]));
-              const compCounts: Record<string, number> = {};
-              for (const comp of parsed.components) {
-                compCounts[comp] = (compCounts[comp] || 0) + 1;
-              }
+      // 2. Si no hay componentes en product_components, hacer resolución DIRECTA por SKU (Fail-Safe en caliente)
+      if (components.length === 0 && item.sku) {
+        const { parseCompositeSku } = await import("../products/sku/parseCompositeSku");
+        const parsed = parseCompositeSku(item.sku);
 
-              const newCompsToInsert = [];
-              for (const [comp, qty] of Object.entries(compCounts)) {
-                const invId = itemMap.get(comp);
-                if (invId) {
+        if (parsed.components.length > 0) {
+          const { data: invItems } = await supabase
+            .from("inventory_items")
+            .select("id, sku_normalized, current_stock")
+            .eq("tenant_id", tenantId)
+            .in("sku_normalized", parsed.components);
+
+          if (invItems && invItems.length > 0) {
+            const itemMap = new Map(invItems.map(i => [i.sku_normalized, i]));
+            const compCounts: Record<string, number> = {};
+            for (const comp of parsed.components) {
+              compCounts[comp] = (compCounts[comp] || 0) + 1;
+            }
+
+            const newCompsToInsert = [];
+            for (const [compSku, qty] of Object.entries(compCounts)) {
+              const matchedInv = itemMap.get(compSku);
+              if (matchedInv) {
+                components.push({
+                  quantity: qty,
+                  inventory_item_id: matchedInv.id,
+                  component_sku: compSku,
+                  current_stock: matchedInv.current_stock || 0
+                });
+
+                if (item.product_id) {
                   newCompsToInsert.push({
                     tenant_id: tenantId,
                     product_id: item.product_id,
-                    inventory_item_id: invId,
-                    component_sku: comp,
-                    component_normalized: comp,
+                    inventory_item_id: matchedInv.id,
+                    component_sku: compSku,
+                    component_normalized: compSku,
                     quantity: qty
                   });
                 }
               }
+            }
 
-              if (newCompsToInsert.length > 0) {
-                await supabase.from("product_components").insert(newCompsToInsert);
-                
-                // Volver a consultar componentes recién enlazados
-                const { data: refetchedComps } = await supabase
-                  .from("product_components")
-                  .select(`
-                    quantity,
-                    inventory_item_id,
-                    component_sku,
-                    inventory_items ( current_stock )
-                  `)
-                  .eq("tenant_id", tenantId)
-                  .eq("product_id", item.product_id);
-
-                if (refetchedComps && refetchedComps.length > 0) {
-                  components = refetchedComps;
-                }
+            // Auto-guardar la vinculación en product_components para dejar sincronizada la UI
+            if (newCompsToInsert.length > 0 && item.product_id) {
+              const { error: insErr } = await supabase.from("product_components").insert(newCompsToInsert);
+              if (insErr) {
+                logger.warn(`Could not auto-insert product_components: ${insErr.message}`, "INVENTORY_SYNC");
               }
             }
           }
         }
       }
 
-      if (!components || components.length === 0) continue; // Producto sin componentes registrados en inventario interno
+      if (components.length === 0) continue; // No hay equivalencia de inventario interno para este ítem
 
       for (const comp of components) {
         if (!comp.inventory_item_id) continue;
 
-        const currentStock = (comp as any).inventory_items?.current_stock || 0;
+        const currentStock = comp.current_stock !== undefined 
+          ? comp.current_stock 
+          : ((comp as any).inventory_items?.current_stock || 0);
         const compQtyRequired = comp.quantity || 1;
         const orderQty = item.quantity || 1;
         const requiredQty = compQtyRequired * orderQty;
