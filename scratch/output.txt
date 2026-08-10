@@ -1,4 +1,0 @@
-=== DETECTING DOUBLE DEDUCTIONS ===
-Total sale_confirmed movements found: 144
-
-Summary: Found 0 instances of double/multiple stock deductions.
