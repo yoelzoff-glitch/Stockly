@@ -59,8 +59,8 @@ export default async function IntegrationsPage({
   const openAIStatus = process.env.OPENAI_API_KEY ? "conectado" : "pendiente";
 
   // Fetch current AI Settings and Usage
-  const { data: tenant } = await supabase.from("tenants").select("metadata").eq("id", tenantId).single();
-  const { data: usage } = await supabase.from("subscription_usage").select("ai_requests_used, ai_requests_limit").eq("tenant_id", tenantId).single();
+  const { data: tenant } = await supabase.from("tenants").select("metadata").eq("id", tenantId).maybeSingle();
+  const { data: usage } = await supabase.from("subscription_usage").select("ai_credits_used").eq("tenant_id", tenantId).maybeSingle();
   const aiModel = tenant?.metadata?.ai_settings?.model || "gpt-4o-mini";
 
   return (
@@ -127,7 +127,7 @@ export default async function IntegrationsPage({
                 {openAIStatus}
               </StatusBadge>
               {openAIStatus === 'conectado' ? (
-                <OpenAIConfigModal currentModel={aiModel} usage={usage?.ai_requests_used || 0} limit={usage?.ai_requests_limit || 500} />
+                <OpenAIConfigModal currentModel={aiModel} usage={usage?.ai_credits_used || 0} limit={500} />
               ) : (
                 <Button variant="outline" size="sm">Conectar</Button>
               )}

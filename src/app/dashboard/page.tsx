@@ -183,18 +183,18 @@ export default async function DashboardPage(props: PageProps) {
   // 3. Billing Usage
   const { data: usage } = await supabase
     .from("subscription_usage")
-    .select("ai_requests_used, ai_requests_limit")
+    .select("ai_credits_used")
     .eq("tenant_id", tenantId)
-    .single();
+    .maybeSingle();
     
   const { data: sub } = await supabase
     .from("subscriptions")
     .select("plan")
     .eq("tenant_id", tenantId)
-    .single();
+    .maybeSingle();
 
-  const aiUsed = usage?.ai_requests_used || 0;
-  const aiLimit = sub?.plan === 'business' ? '∞' : (usage?.ai_requests_limit || 500);
+  const aiUsed = usage?.ai_credits_used || 0;
+  const aiLimit = sub?.plan === 'business' ? '∞' : 500;
 
   // Sprint 16: Health & Activation
   const activation = await getActivationProgress();
