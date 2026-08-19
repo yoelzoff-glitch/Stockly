@@ -21,18 +21,22 @@ export async function getActivationProgress() {
 
   const tenantId = profile.tenant_id;
 
-  // 1. Check DB states automatically
-  const { data: meli } = await supabase.from("meli_accounts").select("id").eq("tenant_id", tenantId).single();
-  const { count: productCount } = await supabase.from("products").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
-  const { count: orderCount } = await supabase.from("orders").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
-  const { count: costCount } = await supabase.from("products").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).gt("cost", 0);
-  const { data: tenant } = await supabase.from("tenants").select("metadata").eq("id", tenantId).single();
-
-  // Read manually completed steps from tenant_progress
-  const { data: manualProgress } = await supabase
-    .from("tenant_progress")
-    .select("step, completed")
-    .eq("tenant_id", tenantId);
+  // 1. Check DB states automatically in parallel
+  const [
+    { data: meli },
+    { count: productCount },
+    { count: orderCount },
+    { count: costCount },
+    { data: tenant },
+    { data: manualProgress }
+  ] = await Promise.all([
+    supabase.from("meli_accounts").select("id").eq("tenant_id", tenantId).maybeSingle(),
+    supabase.from("products").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+    supabase.from("products").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).gt("cost", 0),
+    supabase.from("tenants").select("metadata").eq("id", tenantId).maybeSingle(),
+    supabase.from("tenant_progress").select("step, completed").eq("tenant_id", tenantId)
+  ]);
 
   const isManualCompleted = (stepId: string) => {
     return manualProgress?.some(p => p.step === stepId && p.completed) || false;

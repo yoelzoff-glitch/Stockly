@@ -65,19 +65,30 @@ export default async function DashboardPage(props: PageProps) {
     );
   }
 
-  // Fetch real data
-  const { data: tenant } = await supabase
-    .from("tenants")
-    .select("timezone, metadata")
-    .eq("id", tenantId)
-    .single();
+  // Fetch all real data in parallel to maximize performance
+  const [
+    { data: tenant },
+    recentOrdersRaw,
+    { data: allProducts },
+    { data: recentMessages },
+    { data: usage },
+    { data: sub },
+    activation
+  ] = await Promise.all([
+    supabase.from("tenants").select("timezone, metadata").eq("id", tenantId).maybeSingle(),
+    getCachedOrders(tenantId, days + 1),
+    supabase.from("products").select("id, title, cost, sku, available_quantity, sold_quantity, margin_percent, margin_amount, estimated_fee").eq("tenant_id", tenantId),
+    supabase.from("messages").select("text, direction, created_at").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(3),
+    supabase.from("subscription_usage").select("ai_credits_used").eq("tenant_id", tenantId).maybeSingle(),
+    supabase.from("subscriptions").select("plan").eq("tenant_id", tenantId).maybeSingle(),
+    getActivationProgress()
+  ]);
+
   const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
   const ignoredOrderIds = (tenant?.metadata as any)?.ignored_order_ids || [];
 
   const today = getMidnightInTimezone(new Date(), timezone);
 
-  // To be safe, fetch days + 1 in the cache so we don't miss boundaries
-  const recentOrdersRaw = await getCachedOrders(tenantId, days + 1);
   const recentOrders = (recentOrdersRaw || []).filter(o => 
     o.status !== "cancelled" && !ignoredOrderIds.includes(o.meli_order_id)
   );
@@ -99,12 +110,6 @@ export default async function DashboardPage(props: PageProps) {
       salesToday += Number(order.total_amount) || 0;
     }
   });
-
-  // Products count & low stock
-  const { data: allProducts } = await supabase
-    .from("products")
-    .select("id, title, cost, sku, available_quantity, sold_quantity, margin_percent, margin_amount, estimated_fee")
-    .eq("tenant_id", tenantId);
 
   // Group products by SKU to unify standard/premium listings
   const groupedProductsMap = new Map<string, any>();
@@ -170,34 +175,8 @@ export default async function DashboardPage(props: PageProps) {
 
   const missingFeesCount = aggregatedProducts.filter(p => p.estimated_fee === null || p.estimated_fee === undefined).length;
 
-
-  // Recent AI Messages
-  const { data: recentMessages } = await supabase
-    .from("messages")
-    .select("text, direction, created_at")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false })
-    .limit(3);
-
-
-  // 3. Billing Usage
-  const { data: usage } = await supabase
-    .from("subscription_usage")
-    .select("ai_credits_used")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-    
-  const { data: sub } = await supabase
-    .from("subscriptions")
-    .select("plan")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-
   const aiUsed = usage?.ai_credits_used || 0;
   const aiLimit = sub?.plan === 'business' ? '∞' : 500;
-
-  // Sprint 16: Health & Activation
-  const activation = await getActivationProgress();
 
   // Time formatting helper
   const formatTimeAgo = (dateStr: string) => {
