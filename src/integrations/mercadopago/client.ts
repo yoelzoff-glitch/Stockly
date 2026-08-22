@@ -14,21 +14,21 @@ const preApproval = new PreApproval(client);
 
 const PLANS = {
   starter: {
-    title: 'Klyvo Starter ($44 USD)',
-    price: 65560, // Equiv ARS a $1490 * 44
-    promoPrice: 45892, // 30% off: ARS 45.892 (equiv a $30.8 USD)
+    title: 'Klyvo Starter ($49.99 USD)',
+    price: 78984, // Equiv ARS a $1580 * 49.99
+    promoPrice: 78984,
     trialDays: 15,
   },
   pro: {
-    title: 'Klyvo Pro ($79 USD)',
-    price: 117710, // Equiv ARS a $1490 * 79
-    promoPrice: 82397, // 30% off: ARS 82.397 (equiv a $55.3 USD)
+    title: 'Klyvo Pro ($79.99 USD)',
+    price: 126384, // Equiv ARS a $1580 * 79.99
+    promoPrice: 126384,
     trialDays: 15,
   },
   ultra: {
-    title: 'Klyvo Ultra ($129 USD)',
-    price: 192210, // Equiv ARS a $1490 * 129
-    promoPrice: 192210,
+    title: 'Klyvo Ultra ($129.99 USD)',
+    price: 205384, // Equiv ARS a $1580 * 129.99
+    promoPrice: 205384,
     trialDays: 0,
   }
 };
@@ -68,7 +68,7 @@ export async function createSubscriptionPreference(
     const autoRecurring: any = {
       frequency: 1,
       frequency_type: 'months',
-      transaction_amount: planDetails.promoPrice, // Comienza con precio de promoción (30% off)
+      transaction_amount: planDetails.price,
       currency_id: 'ARS',
     };
 

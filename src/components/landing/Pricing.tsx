@@ -9,15 +9,13 @@ const plans = [
   {
     name: "Starter",
     limit: "Hasta 100 SKUs de catálogo",
-    price: "$30.8 USD",
-    priceArs: "equiv. $45.892 ARS",
+    price: "$49.99 USD",
+    priceArs: "equiv. $78.984 ARS",
     features: [
-      "30% OFF por los primeros 3 meses",
       "15 días de prueba gratis",
-      "luego $44 USD ($65.560 ARS) al mes",
       "Dashboard completo",
-      "500 mensajes de IA",
-      "250 procesos automáticos",
+      "500 mensajes de IA (WhatsApp/Web)",
+      "250 procesos automáticos mensuales",
       "1 número de WhatsApp",
       "Gestión de Títulos con IA",
       "Stock en Mercado Libre y Depósito"
@@ -28,16 +26,14 @@ const plans = [
   {
     name: "Pro",
     limit: "Hasta 400 SKUs de catálogo",
-    price: "$55.3 USD",
-    priceArs: "equiv. $82.397 ARS",
+    price: "$79.99 USD",
+    priceArs: "equiv. $126.384 ARS",
     features: [
       "Todo lo de Starter",
-      "30% OFF por los primeros 3 meses",
       "15 días de prueba gratis",
-      "luego $79 USD ($117.710 ARS) al mes",
-      "1.500 mensajes de IA",
-      "800 procesos automáticos",
-      "Hasta 2 números de WhatsApp",
+      "1.500 mensajes de IA (WhatsApp/Web)",
+      "800 procesos automáticos mensuales",
+      "Hasta 2 números de WhatsApp vinculados",
       "Soporte prioritario",
       "Optimización y Cambio Masivo de Títulos"
     ],
@@ -47,8 +43,8 @@ const plans = [
   {
     name: "Ultra",
     limit: "Hasta 1.000 SKUs de catálogo",
-    price: "$129 USD",
-    priceArs: "equiv. $192.210 ARS",
+    price: "$129.99 USD",
+    priceArs: "equiv. $205.384 ARS",
     features: [
       "Todo lo de Pro",
       "Tarifa de Lanzamiento",

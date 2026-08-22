@@ -238,12 +238,11 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Starter</CardTitle>
             <CardDescription>Para pequeños vendedores.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$30.8 <span className="text-xs font-normal text-muted-foreground">USD/mes (Por 3 meses)</span></div>
-            <div className="text-xs text-slate-400 font-medium mt-1">equiv. $45.892 ARS / mes por 3 meses (luego $44 USD / $65.560 ARS)</div>
+            <div className="mt-4 text-3xl font-bold">$49.99 <span className="text-xs font-normal text-muted-foreground">USD/mes</span></div>
+            <div className="text-xs text-slate-400 font-medium mt-1">equiv. $78.984 ARS / mes (Mercado Pago)</div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>15 días de prueba gratis</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>30% OFF por los primeros 3 meses</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 100 SKUs de catálogo (sin límite de publicaciones)</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>500 mensajes de IA (WhatsApp/Web)</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>250 procesos automáticos mensuales</span></div>
@@ -273,12 +272,11 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Pro</CardTitle>
             <CardDescription>Para tiendas en crecimiento.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$55.3 <span className="text-xs font-normal text-muted-foreground">USD/mes (Por 3 meses)</span></div>
-            <div className="text-xs text-slate-400 font-medium mt-1">equiv. $82.397 ARS / mes por 3 meses (luego $79 USD / $117.710 ARS)</div>
+            <div className="mt-4 text-3xl font-bold">$79.99 <span className="text-xs font-normal text-muted-foreground">USD/mes</span></div>
+            <div className="text-xs text-slate-400 font-medium mt-1">equiv. $126.384 ARS / mes (Mercado Pago)</div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>15 días de prueba gratis</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>30% OFF por los primeros 3 meses</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 400 SKUs de catálogo (sin límite de publicaciones)</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>1.500 mensajes de IA (WhatsApp/Web)</span></div>
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>800 procesos automáticos mensuales</span></div>
@@ -303,8 +301,8 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Ultra</CardTitle>
             <CardDescription>Para negocios a gran escala.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$129 <span className="text-xs font-normal text-muted-foreground">USD/mes</span></div>
-            <div className="text-xs text-slate-400 font-medium mt-1">equiv. $192.210 ARS / mes (Mercado Pago)</div>
+            <div className="mt-4 text-3xl font-bold">$129.99 <span className="text-xs font-normal text-muted-foreground">USD/mes</span></div>
+            <div className="text-xs text-slate-400 font-medium mt-1">equiv. $205.384 ARS / mes (Mercado Pago)</div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 1.000 SKUs de catálogo (sin límite de publicaciones)</span></div>

@@ -30,26 +30,7 @@ export async function POST(req: Request) {
 
     if (topic === "subscription_preapproval" && resourceId) {
       const subscription = await getSubscription(resourceId);
-      
-      // Auto-upgrade subscription price to full price after 3 payments (30% off for 3 months)
       const reason = subscription.reason || "";
-      const isStarter = reason.toLowerCase().includes("starter");
-      const isPro = reason.toLowerCase().includes("pro");
-      const fullPrice = isStarter ? 65560 : (isPro ? 117710 : null);
-
-      if (
-        fullPrice && 
-        subscription.auto_recurring?.transaction_amount !== fullPrice && 
-        (subscription.summarized?.charged_quantity ?? 0) >= 3
-      ) {
-        logger.info(`Subscription ${resourceId} reached ${subscription.summarized?.charged_quantity ?? 0} payments. Updating to full price: ${fullPrice}`, "MERCADOPAGO_WEBHOOK");
-        try {
-          await updateSubscriptionAmount(resourceId, fullPrice);
-        } catch (e: any) {
-          logger.error(`Failed to update subscription ${resourceId} to full price: ${e.message}`, "MERCADOPAGO_WEBHOOK");
-        }
-      }
-
       const externalReference = subscription.external_reference || "";
       const [refType, ...refIdParts] = externalReference.split("_");
       const refId = refIdParts.join("_"); // En caso de que el UUID tenga guiones bajos, aunque no deberia.
