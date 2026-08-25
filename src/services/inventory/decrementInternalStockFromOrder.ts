@@ -14,6 +14,7 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
       id,
       meli_order_id,
       internal_stock_processed,
+      raw_data,
       order_items (
         product_id,
         quantity,
@@ -32,6 +33,20 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
 
   if (order.internal_stock_processed) {
     return { success: true, message: "Internal stock already processed for this order" };
+  }
+
+  // Si la orden fue despachada directamente desde la Bodega FULL de Mercado Libre,
+  // no debemos descontar stock del depósito físico local.
+  const isFullOrder = order.raw_data?.shipping?.logistic_type === "fulfillment";
+  if (isFullOrder) {
+    await supabase
+      .from("orders")
+      .update({
+        internal_stock_processed: true,
+        internal_stock_processed_at: new Date().toISOString()
+      })
+      .eq("id", order.id);
+    return { success: true, message: "Order is fulfilled by Mercado Libre FULL warehouse. Skipping internal stock deduction." };
   }
 
   const items = order.order_items || [];

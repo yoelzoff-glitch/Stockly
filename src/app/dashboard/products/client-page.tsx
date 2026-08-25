@@ -38,6 +38,19 @@ export function ProductsClient({
 }) {
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
+  const [logisticFilter, setLogisticFilter] = useState<"all" | "fulfillment" | "other">("all");
+
+  // Calculate FULL Fulfillment metrics
+  const fullProducts = initialProducts.filter(p => p.raw_data?.shipping?.logistic_type === "fulfillment");
+  const fullStockTotal = fullProducts.reduce((sum, p) => sum + (p.available_quantity || 0), 0);
+  const fullCriticalCount = fullProducts.filter(p => (p.available_quantity || 0) <= 5).length;
+
+  const filteredInitialProducts = initialProducts.filter(product => {
+    const isFull = product.raw_data?.shipping?.logistic_type === "fulfillment";
+    if (logisticFilter === "fulfillment") return isFull;
+    if (logisticFilter === "other") return !isFull;
+    return true;
+  });
 
   const groupedProducts = (() => {
     const groups: {
@@ -48,7 +61,7 @@ export function ProductsClient({
       totalAvailableQty: number;
     }[] = [];
 
-    initialProducts.forEach(product => {
+    filteredInitialProducts.forEach(product => {
       const sku = product.sku?.trim();
       if (!sku) {
         groups.push({
@@ -194,6 +207,50 @@ export function ProductsClient({
         </div>
       </div>
 
+      {/* Metric Cards for FULL Fulfillment & Stock Overview */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="bg-gradient-to-br from-yellow-500/10 via-amber-500/5 to-transparent border-amber-200/60 dark:border-amber-900/30">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Stock en Bodega FULL</CardTitle>
+            <Badge className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold px-2 py-0.5">⚡ FULL</Badge>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{fullStockTotal} <span className="text-xs font-normal text-muted-foreground">unidades</span></div>
+            <p className="text-xs text-muted-foreground mt-1">
+              En depósitos de Mercado Libre
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Publicaciones FULL</CardTitle>
+            <Package className="h-4 w-4 text-amber-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{fullProducts.length} <span className="text-xs font-normal text-muted-foreground">publicaciones</span></div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Operadas con envío FULL
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className={fullCriticalCount > 0 ? "border-red-200 bg-red-50/30 dark:bg-red-950/10" : ""}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Stock Crítico FULL</CardTitle>
+            <span className="text-xs">⚠️</span>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${fullCriticalCount > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
+              {fullCriticalCount} <span className="text-xs font-normal text-muted-foreground">ítems</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Con 5 o menos unidades en ML
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <div>
@@ -202,7 +259,28 @@ export function ProductsClient({
               Tus productos sincronizados desde Mercado Libre.
             </CardDescription>
           </div>
-          <div className="w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            {/* Logistics Filter */}
+            <div className="flex items-center rounded-lg border border-slate-200 p-1 bg-slate-50 text-xs">
+              <button
+                onClick={() => setLogisticFilter("all")}
+                className={`px-2.5 py-1 rounded-md transition-all ${logisticFilter === "all" ? "bg-white text-slate-900 shadow-sm font-semibold" : "text-slate-500 hover:text-slate-900"}`}
+              >
+                Todos
+              </button>
+              <button
+                onClick={() => setLogisticFilter("fulfillment")}
+                className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${logisticFilter === "fulfillment" ? "bg-amber-400 text-slate-950 shadow-sm font-bold" : "text-slate-600 hover:text-slate-900"}`}
+              >
+                ⚡ FULL ({fullProducts.length})
+              </button>
+              <button
+                onClick={() => setLogisticFilter("other")}
+                className={`px-2.5 py-1 rounded-md transition-all ${logisticFilter === "other" ? "bg-white text-slate-900 shadow-sm font-semibold" : "text-slate-500 hover:text-slate-900"}`}
+              >
+                📦 Propio / Flex
+              </button>
+            </div>
             <SearchInput placeholder="Buscar por título, SKU..." />
           </div>
         </CardHeader>
@@ -241,6 +319,7 @@ export function ProductsClient({
                     {groupedProducts.map((group) => {
                       if (!group.hasMultiple) {
                         const product = group.representative;
+                        const isFullProduct = product.raw_data?.shipping?.logistic_type === "fulfillment";
                         return (
                           <tr key={product.id} className="border-b border-slate-100 transition-colors hover:bg-slate-50 data-[state=selected]:bg-slate-50">
                             <td className="p-4 align-middle font-medium min-w-[250px]">
@@ -255,17 +334,24 @@ export function ProductsClient({
                                   />
                                 )}
                                 <div className="flex flex-col">
-                                  <span
-                                    className="line-clamp-2 cursor-pointer hover:text-indigo-600 transition-colors"
-                                    onClick={() => setEditingProduct(product)}
-                                  >
-                                    {product.title}
-                                  </span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span
+                                      className="line-clamp-2 cursor-pointer hover:text-indigo-600 transition-colors"
+                                      onClick={() => setEditingProduct(product)}
+                                    >
+                                      {product.title}
+                                    </span>
+                                    {isFullProduct && (
+                                      <Badge className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-extrabold text-[10px] px-1.5 py-0 h-4 shadow-sm border-0">
+                                        ⚡ FULL
+                                      </Badge>
+                                    )}
+                                  </div>
                                   <div className="flex flex-col gap-1 mt-1">
                                     <div className="flex flex-col gap-0.5 mt-0.5 text-[11px] text-muted-foreground">
                                       <span>SKU: {product.sku || 'N/A'}</span>
                                       <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span>ML: <strong className="text-slate-700 dark:text-slate-300">{product.available_quantity}</strong></span>
+                                        <span>{isFullProduct ? 'Stock FULL:' : 'ML:'} <strong className="text-slate-700 dark:text-slate-300">{product.available_quantity}</strong></span>
                                         {(() => {
                                           const intStock = getInternalStock(product);
                                           if (intStock === null) return null;

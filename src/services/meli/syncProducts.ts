@@ -95,7 +95,7 @@ export async function syncProducts(tenantId: string) {
   // 3. Fetch existing products to preserve "cost" and check existing active SKUs
   const { data: existingProducts } = await supabase
     .from("products")
-    .select("meli_item_id, sku, cost, status, price, estimated_fee, estimated_shipping_cost, campaign_data, promotion_data, raw_data")
+    .select("meli_item_id, sku, cost, status, available_quantity, price, estimated_fee, estimated_shipping_cost, campaign_data, promotion_data, raw_data")
     .eq("tenant_id", tenantId);
 
   const existingProductMap = new Map<string, any>();
@@ -501,6 +501,55 @@ export async function syncProducts(tenantId: string) {
         } catch (costErr: any) {
           console.error(`Failed to recalculate costs in batch during sync:`, costErr.message);
         }
+      }
+    }
+  }
+
+  // 4.2 Automated local stock deduction when FULL warehouse stock increases
+  for (const item of rawProducts) {
+    const isFull = item.shipping?.logistic_type === "fulfillment";
+    if (!isFull) continue;
+
+    const existingProd = existingProductMap.get(item.id);
+    if (!existingProd || typeof existingProd.available_quantity !== "number") continue;
+
+    const fullDelta = (item.available_quantity || 0) - existingProd.available_quantity;
+    if (fullDelta > 0) {
+      const sku = skuMap.get(item.id) || existingProd.sku;
+      if (!sku) continue;
+
+      const { normalizeSku } = await import("../products/sku/normalizeSku");
+      const normSku = normalizeSku(sku);
+
+      // Find local inventory item
+      const { data: invItem } = await supabase
+        .from("inventory_items")
+        .select("id, current_stock")
+        .eq("tenant_id", tenantId)
+        .eq("sku_normalized", normSku)
+        .maybeSingle();
+
+      if (invItem) {
+        const prevStock = invItem.current_stock || 0;
+        const newStock = prevStock - fullDelta;
+
+        await supabase
+          .from("inventory_items")
+          .update({ current_stock: newStock, updated_at: new Date().toISOString() })
+          .eq("id", invItem.id);
+
+        await supabase.from("inventory_movements").insert({
+          tenant_id: tenantId,
+          inventory_item_id: invItem.id,
+          movement_type: "transfer_to_fulfillment",
+          quantity_delta: -fullDelta,
+          previous_stock: prevStock,
+          new_stock: newStock,
+          source: "meli_fulfillment_inbound",
+          notes: `Ingreso automático a Bodega FULL Mercado Libre (+${fullDelta} un. en ML) para ítem ${item.title}`
+        });
+
+        console.log(`[syncProducts] Auto-deducted ${fullDelta} units from local stock for FULL item ${item.id} (${sku})`);
       }
     }
   }
