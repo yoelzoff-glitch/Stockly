@@ -33,15 +33,25 @@ El valor diferenciador de Klyvo reside en su capacidad de eliminar el trabajo ad
   * **Tope de Operaciones Masivas:** Limita a un máximo de **50 productos** por lote en modificaciones remotas para evitar daños colaterales.
 * **Intersector de Confirmación de Dos Pasos:** Las acciones críticas (modificaciones en Mercado Libre o Base de Datos) nunca se aplican de inmediato. El backend las guarda como una acción pendiente (`ai_actions` en estado `pending`) y solicita confirmación explícita. El sistema **intercepta e ignora** respuestas ambiguas (como *"ok"*, *"si"*, *"dale"*), respondiendo con una advertencia de seguridad indicando que el usuario debe escribir exactamente la palabra **"confirmo"** o **"confirmar"** para autorizar la acción.
 
-### 4. Inventario de Depósito Basado en Componentes (BOM & Sales Velocity)
-* **Relación N-a-M de Componentes a Publicaciones:** Klyvo permite mapear un catálogo de materia prima o piezas individuales (ej. tornillos, gabinetes, pantallas) a las publicaciones finales vendidas en Mercado Libre. Cuando ocurre una venta, el inventario deduce proporcionalmente los componentes consumidos.
+### 4. Inventario de Depósito y Bodega FULL Mercado Libre (Stock Interno)
+* **Relación N-a-M de Componentes a Publicaciones:** Klyvo permite mapear un catálogo de materia prima o piezas individuales (ej. tornillos, gabinetes, pantallas, dijes) a las publicaciones finales vendidas en Mercado Libre. Cuando ocurre una venta, el inventario deduce proporcionalmente los componentes consumidos.
+* **⚡ Bodega FULL Agrupada por SKU Único:** Módulo dedicado en `Stock Interno` (`/dashboard/internal-stock`) que sincroniza el inventario físico almacenado en las bodegas de Mercado Libre FULL. Agrupa inteligentemente las publicaciones por **SKU único normalizado**, evitando la duplicación de unidades entre publicaciones compartidas (ej. publicación Clásica vs Premium de un mismo producto).
 * **Reabastecimiento Predictivo Basado en Demanda:** Analiza la velocidad de ventas en los últimos 30 días, proyecta el consumo de componentes de depósito y emite recomendaciones de reabastecimiento automáticas ajustadas a un **20% de stock de seguridad**.
 
-### 5. Suscripciones y Facturación (Mercado Pago API)
+### 5. Mercado Libre Product ADS (Publicidad & ROAS Real)
+* **Aislamiento Estricto de ADS:** Módulo especializado (`/dashboard/ads`) enfocado únicamente en **Mercado Libre Product ADS** (publicidad patrocinada de presupuesto diario), distinguiéndola de promociones y cupones de descuento.
+* **Cálculo de Ganancia Limpia Real por Anuncio:** Sincroniza consumo publicitario, clics, CPC y ventas atribuidas de cada anuncio en la campaña (ej. *Campaña Dijes y Cadenas*). Cruza los ingresos con el **costo de producto guardado en la Base de Datos**, comisiones de Mercado Libre y envío para mostrar la **Ganancia Limpia exacta en bolsillo** ($ y % neto).
+* **Filtros Temporales en Tiempo Real:** Permite auditar la inversión y rentabilidad en múltiples ventanas de tiempo (`Últimos 30 días`, `Este Mes`, `Mes Anterior`, `Últimos 7 días`, `Hoy`, `Histórico Completo`), recalculando las métricas en vivo.
+
+### 6. Gestión de Promociones y Cupones en Vivo
+* **Sincronización en Tiempo Real con Seller Promotions API:** Conexión directa a la API de promociones del vendedor (`/seller-promotions/users/{user_id}?app_version=v2`), identificando ofertas activas y programadas (`SMART`, `DEAL`, `LIGHTNING`, `CUSTOM`) y campañas de cupones (`SELLER_COUPON_CAMPAIGN`).
+* **Desglose de Descuentos Subvencionados por ML:** Consulta las publicaciones participantes de cada promoción (`/seller-promotions/promotions/{id}/items`) mostrando el precio original, el precio oferta final y el desglose de descuentos entre el **porcentaje a cargo del vendedor** y el **porcentaje financiado/subvencionado por Mercado Libre**.
+
+### 7. Suscripciones y Facturación (Mercado Pago API)
 * **Pasarela de Cobro Automatizada:** Sistema de planes (Starter, Pro, Ultra) controlado por el estado de las suscripciones en Mercado Pago (`subscription_preapproval`).
 * **Manejo de Períodos de Gracia:** Si una suscripción es cancelada por el usuario, el webhook detecta el cambio pero mantiene activo el acceso de pago hasta que se cumpla la fecha exacta de vencimiento original (`expires_at`), degradando a la cuenta al plan básico recién al expirar el plazo pagado.
 
-### 6. Workers Serverless en Segundo Plano (Inngest Queues)
+### 8. Workers Serverless en Segundo Plano (Inngest Queues)
 * **Procesamiento Asíncrono e Inmune al Timeout:** Sincronizaciones recurrentes (órdenes cada 5 min, productos cada 15 min, alertas horarias) delegadas a **Inngest**. Esto evita el bloqueo de hilos de ejecución en el servidor Next.js y permite saltarse las limitaciones de tiempo de ejecución (timeouts) de las Edge o Serverless functions de Vercel.
 
 ---
