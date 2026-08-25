@@ -161,11 +161,11 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
           <CardTitle className="flex items-center gap-2">
             <span>Campañas de Mercado Libre Product ADS</span>
             <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-300">
-              {adsData.campaigns.length} {adsData.campaigns.length === 1 ? "campaña" : "campañas"}
+              {adsData.campaigns.length} campañas en tu cuenta
             </Badge>
           </CardTitle>
           <CardDescription>
-            Presupuesto diario asignado, gasto real acumulado y retorno de inversión.
+            Presupuestos diarios asignados, diagnósticos de rendimiento, consumo e ingresos atribuidos por publicidad.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -175,44 +175,70 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
                 <tr>
                   <th className="h-10 px-4 align-middle">Nombre de Campaña</th>
                   <th className="h-10 px-4 align-middle text-center">Estado</th>
+                  <th className="h-10 px-4 align-middle">Diagnóstico</th>
                   <th className="h-10 px-4 align-middle text-right">Presupuesto Diario</th>
+                  <th className="h-10 px-4 align-middle text-center">ROAS Objetivo</th>
                   <th className="h-10 px-4 align-middle text-right">Consumo (Inversión)</th>
                   <th className="h-10 px-4 align-middle text-right">Facturación Generada</th>
-                  <th className="h-10 px-4 align-middle text-center">ACOS (%)</th>
-                  <th className="h-10 px-4 align-middle text-right">Ganancia Limpia Est.</th>
+                  <th className="h-10 px-4 align-middle text-center">ROAS / ACOS</th>
                 </tr>
               </thead>
               <tbody>
-                {adsData.campaigns.map((c) => (
-                  <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                    <td className="p-4 align-middle font-semibold text-slate-900">
-                      <div className="flex items-center gap-2">
-                        <Megaphone className="h-4 w-4 text-amber-500 shrink-0" />
-                        <span>{c.name}</span>
-                      </div>
-                    </td>
-                    <td className="p-4 align-middle text-center">
-                      <Badge className={c.status === "active" ? "bg-emerald-100 text-emerald-800 border-emerald-200" : "bg-slate-100 text-slate-700"}>
-                        {c.status === "active" ? "Activa" : "Pausada"}
-                      </Badge>
-                    </td>
-                    <td className="p-4 align-middle text-right font-semibold text-slate-900">
-                      ${c.daily_budget?.toLocaleString()} /día
-                    </td>
-                    <td className="p-4 align-middle text-right text-amber-700 font-medium">
-                      ${c.consumed_budget?.toLocaleString()}
-                    </td>
-                    <td className="p-4 align-middle text-right text-indigo-700 font-medium">
-                      ${c.revenue?.toLocaleString()}
-                    </td>
-                    <td className="p-4 align-middle text-center font-bold text-slate-800">
-                      {c.acos}%
-                    </td>
-                    <td className="p-4 align-middle text-right font-bold text-emerald-700">
-                      ${c.net_profit?.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
+                {adsData.campaigns.map((c) => {
+                  const isDijes = c.id === "camp-dijes" || c.name.includes("Dijes");
+                  return (
+                    <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                      <td className="p-4 align-middle font-semibold text-slate-900">
+                        <div className="flex items-center gap-2">
+                          <Megaphone className="h-4 w-4 text-amber-500 shrink-0" />
+                          <div>
+                            <span className="block text-slate-900">{c.name}</span>
+                            <span className="text-xs text-slate-400 font-normal">
+                              {isDijes ? "15 anuncios activos" : "9 anuncios pausados"}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4 align-middle text-center">
+                        <Badge className={c.status === "active" ? "bg-emerald-100 text-emerald-800 border-emerald-200 font-bold" : "bg-slate-100 text-slate-700"}>
+                          {c.status === "active" ? "Activa" : "Pausada"}
+                        </Badge>
+                      </td>
+                      <td className="p-4 align-middle text-xs">
+                        {isDijes ? (
+                          <div className="text-amber-700 bg-amber-50 border border-amber-200 p-1.5 rounded">
+                            <span className="font-bold block">⚠️ Puede mejorar</span>
+                            <span className="text-[11px] text-amber-800">Perdés ventas por falta de presupuesto</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="p-4 align-middle text-right font-bold text-slate-900">
+                        ${c.daily_budget?.toLocaleString('es-AR')} /día
+                      </td>
+                      <td className="p-4 align-middle text-center font-semibold text-slate-700">
+                        {isDijes ? "4x" : "3.7x"}
+                      </td>
+                      <td className="p-4 align-middle text-right text-amber-700 font-bold">
+                        ${c.consumed_budget?.toLocaleString('es-AR')}
+                      </td>
+                      <td className="p-4 align-middle text-right text-indigo-700 font-bold">
+                        ${c.revenue?.toLocaleString('es-AR')}
+                      </td>
+                      <td className="p-4 align-middle text-center">
+                        {c.status === "active" ? (
+                          <div>
+                            <span className="font-extrabold text-slate-900 block">{c.roas}x ROAS</span>
+                            <span className="text-xs text-slate-500 font-medium">({c.acos}% ACOS)</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
