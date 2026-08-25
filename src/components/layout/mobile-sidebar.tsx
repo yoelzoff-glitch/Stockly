@@ -21,7 +21,8 @@ import {
   Tag,
   ShoppingBag,
   Layers,
-  Calculator
+  Calculator,
+  Megaphone
 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
@@ -32,6 +33,7 @@ const sidebarLinks = [
   { name: "Stock Interno", href: "/dashboard/internal-stock", icon: Layers, indent: true },
   { name: "Compras Internas", href: "/dashboard/purchases", icon: ShoppingBag, indent: true },
   { name: "Promociones", href: "/dashboard/promotions", icon: Tag },
+  { name: "Mercado Libre ADS", href: "/dashboard/ads", icon: Megaphone, indent: true },
   { name: "Ventas", href: "/dashboard/sales", icon: ShoppingCart },
   { name: "Envíos", href: "/dashboard/shipments", icon: Truck, indent: true },
   { name: "Cancelaciones", href: "/dashboard/cancellations", icon: Ban, indent: true },
