@@ -207,50 +207,6 @@ export function ProductsClient({
         </div>
       </div>
 
-      {/* Metric Cards for FULL Fulfillment & Stock Overview */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="bg-gradient-to-br from-yellow-500/10 via-amber-500/5 to-transparent border-amber-200/60 dark:border-amber-900/30">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stock en Bodega FULL</CardTitle>
-            <Badge className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold px-2 py-0.5">⚡ FULL</Badge>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{fullStockTotal} <span className="text-xs font-normal text-muted-foreground">unidades</span></div>
-            <p className="text-xs text-muted-foreground mt-1">
-              En depósitos de Mercado Libre
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Publicaciones FULL</CardTitle>
-            <Package className="h-4 w-4 text-amber-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{fullProducts.length} <span className="text-xs font-normal text-muted-foreground">publicaciones</span></div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Operadas con envío FULL
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className={fullCriticalCount > 0 ? "border-red-200 bg-red-50/30 dark:bg-red-950/10" : ""}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stock Crítico FULL</CardTitle>
-            <span className="text-xs">⚠️</span>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${fullCriticalCount > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
-              {fullCriticalCount} <span className="text-xs font-normal text-muted-foreground">ítems</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Con 5 o menos unidades en ML
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
       <Card>
         <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <div>
@@ -259,28 +215,7 @@ export function ProductsClient({
               Tus productos sincronizados desde Mercado Libre.
             </CardDescription>
           </div>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            {/* Logistics Filter */}
-            <div className="flex items-center rounded-lg border border-slate-200 p-1 bg-slate-50 text-xs">
-              <button
-                onClick={() => setLogisticFilter("all")}
-                className={`px-2.5 py-1 rounded-md transition-all ${logisticFilter === "all" ? "bg-white text-slate-900 shadow-sm font-semibold" : "text-slate-500 hover:text-slate-900"}`}
-              >
-                Todos
-              </button>
-              <button
-                onClick={() => setLogisticFilter("fulfillment")}
-                className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${logisticFilter === "fulfillment" ? "bg-amber-400 text-slate-950 shadow-sm font-bold" : "text-slate-600 hover:text-slate-900"}`}
-              >
-                ⚡ FULL ({fullProducts.length})
-              </button>
-              <button
-                onClick={() => setLogisticFilter("other")}
-                className={`px-2.5 py-1 rounded-md transition-all ${logisticFilter === "other" ? "bg-white text-slate-900 shadow-sm font-semibold" : "text-slate-500 hover:text-slate-900"}`}
-              >
-                📦 Propio / Flex
-              </button>
-            </div>
+          <div className="w-full sm:w-auto">
             <SearchInput placeholder="Buscar por título, SKU..." />
           </div>
         </CardHeader>

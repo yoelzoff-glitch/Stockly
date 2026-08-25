@@ -13,12 +13,38 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertTriangle, Hammer, Edit3, BarChart, History, Download, Upload, RefreshCw, Layers, ArrowUpDown, ShieldAlert, BadgeInfo, Trash2 } from "lucide-react";
 import { adjustInventoryStock, updateInventoryItemParams, getInventoryMovements, deleteInventoryItem, bulkUpdateInventoryFromExcel } from "./actions";
 
-export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
+export function InternalStockClient({ 
+  initialItems,
+  initialFullData
+}: { 
+  initialItems: any[],
+  initialFullData?: {
+    fullProducts: any[];
+    totalFullUnits: number;
+    fullPublicationsCount: number;
+    criticalFullCount: number;
+  }
+}) {
   const [items, setItems] = useState<any[]>(initialItems);
+  const [activeTab, setActiveTab] = useState<"local" | "full">("local");
   const [searchTerm, setSearchTerm] = useState("");
   const [stockFilter, setStockFilter] = useState("all");
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // FULL Data
+  const fullProducts = initialFullData?.fullProducts || [];
+  const totalFullUnits = initialFullData?.totalFullUnits || 0;
+  const fullPubsCount = initialFullData?.fullPublicationsCount || 0;
+  const criticalFullCount = initialFullData?.criticalFullCount || 0;
+
+  // Filter FULL products
+  const filteredFullProducts = fullProducts.filter(p => {
+    const titleMatch = p.title?.toLowerCase().includes(searchTerm.toLowerCase());
+    const skuMatch = p.sku?.toLowerCase().includes(searchTerm.toLowerCase());
+    const meliMatch = p.meli_item_id?.toLowerCase().includes(searchTerm.toLowerCase());
+    return titleMatch || skuMatch || meliMatch;
+  });
+
   // Modals state
   const [adjustingItem, setAdjustingItem] = useState<any | null>(null);
   const [adjustStockVal, setAdjustStockVal] = useState("");
@@ -268,41 +294,216 @@ export function InternalStockClient({ initialItems }: { initialItems: any[] }) {
         </div>
       </div>
 
-      {/* Analytics */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Valor Total de Activos</CardTitle>
-            <Layers className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalAssetsValue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">Suma del stock real x costo promedio</p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Componentes Faltantes</CardTitle>
-            <ShieldAlert className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{outOfStockCount} items</div>
-            <p className="text-xs text-muted-foreground mt-1">Con stock igual a 0</p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bajo Stock Mínimo</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{lowStockCount} items</div>
-            <p className="text-xs text-muted-foreground mt-1">Requieren reposición a proveedores</p>
-          </CardContent>
-        </Card>
+      {/* Navigation Tabs */}
+      <div className="flex items-center space-x-2 border-b border-slate-200 pb-3 mb-2">
+        <button
+          onClick={() => setActiveTab("local")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+            activeTab === "local"
+              ? "bg-slate-900 text-white shadow-sm"
+              : "text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          📦 Depósito Propio (Local)
+        </button>
+        <button
+          onClick={() => setActiveTab("full")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+            activeTab === "full"
+              ? "bg-amber-400 text-slate-950 shadow-sm font-bold"
+              : "text-slate-600 hover:bg-amber-50"
+          }`}
+        >
+          ⚡ Bodega FULL Mercado Libre
+          <span className="ml-1 bg-slate-900 text-amber-300 text-xs px-2 py-0.5 rounded-full font-bold">
+            {totalFullUnits} un.
+          </span>
+        </button>
       </div>
+
+      {activeTab === "full" ? (
+        <div className="space-y-4">
+          {/* Analytics FULL */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="bg-gradient-to-br from-yellow-500/10 via-amber-500/5 to-transparent border-amber-200/60 dark:border-amber-900/30">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Stock en Bodega FULL</CardTitle>
+                <Badge className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold px-2 py-0.5">⚡ FULL</Badge>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{totalFullUnits} <span className="text-xs font-normal text-muted-foreground">unidades</span></div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  En los centros de distribución de Mercado Libre
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Publicaciones FULL</CardTitle>
+                <Layers className="h-4 w-4 text-amber-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{fullPubsCount} <span className="text-xs font-normal text-muted-foreground">publicaciones</span></div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Publicaciones activas con envío FULL
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className={criticalFullCount > 0 ? "border-red-200 bg-red-50/30 dark:bg-red-950/10" : ""}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Stock Crítico FULL</CardTitle>
+                <AlertTriangle className="h-4 w-4 text-red-500" />
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold ${criticalFullCount > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
+                  {criticalFullCount} <span className="text-xs font-normal text-muted-foreground">ítems</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Con 5 o menos unidades en ML
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* FULL Products Table */}
+          <Card className="shadow-sm">
+            <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <span>Inventario en Bodega FULL (Mercado Libre)</span>
+                  <Badge className="bg-amber-400 text-slate-950 font-extrabold text-xs">⚡ FULL</Badge>
+                </CardTitle>
+                <CardDescription>
+                  Publicaciones almacenadas físicamente en los centros de logística de Mercado Libre.
+                </CardDescription>
+              </div>
+              <div className="w-full sm:w-auto">
+                <Input
+                  placeholder="Buscar por título, SKU o ID de ML..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="max-w-xs"
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {filteredFullProducts.length === 0 ? (
+                <div className="py-12 text-center text-slate-500">
+                  {fullProducts.length === 0 
+                    ? "No tienes publicaciones activas operadas con envío FULL en Mercado Libre."
+                    : "No se encontraron resultados que coincidan con la búsqueda."}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="border-b bg-slate-50 font-medium text-slate-600">
+                      <tr>
+                        <th className="h-10 px-4 align-middle">Publicación FULL</th>
+                        <th className="h-10 px-4 align-middle">SKU / ID ML</th>
+                        <th className="h-10 px-4 align-middle text-right">Precio</th>
+                        <th className="h-10 px-4 align-middle text-center">Stock en Bodega FULL</th>
+                        <th className="h-10 px-4 align-middle text-right">Vendidas</th>
+                        <th className="h-10 px-4 align-middle text-center">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredFullProducts.map((p) => {
+                        const isLowStock = (p.available_quantity || 0) <= 5;
+                        return (
+                          <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                            <td className="p-4 align-middle font-medium min-w-[280px]">
+                              <div className="flex items-center gap-3">
+                                {p.thumbnail_url && (
+                                  <img src={p.thumbnail_url} alt="" className="w-10 h-10 rounded-md object-cover border" />
+                                )}
+                                <span className="line-clamp-2">{p.title}</span>
+                              </div>
+                            </td>
+                            <td className="p-4 align-middle">
+                              <div className="flex flex-col text-xs">
+                                <span className="font-semibold text-slate-800">{p.sku || "Sin SKU"}</span>
+                                <span className="text-slate-400">{p.meli_item_id}</span>
+                              </div>
+                            </td>
+                            <td className="p-4 align-middle text-right font-semibold">
+                              ${p.price?.toLocaleString()}
+                            </td>
+                            <td className="p-4 align-middle text-center">
+                              <span className={`inline-flex items-center gap-1 font-bold px-3 py-1 rounded-full text-xs ${
+                                isLowStock 
+                                  ? "bg-red-100 text-red-700 border border-red-200" 
+                                  : "bg-amber-100 text-amber-900 border border-amber-200"
+                              }`}>
+                                {p.available_quantity} unidades
+                                {isLowStock && " ⚠️"}
+                              </span>
+                            </td>
+                            <td className="p-4 align-middle text-right text-slate-500">
+                              {p.sold_quantity || 0}
+                            </td>
+                            <td className="p-4 align-middle text-center">
+                              {p.permalink && (
+                                <a 
+                                  href={p.permalink} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-indigo-600 hover:underline font-medium"
+                                >
+                                  Ver en ML ↗
+                                </a>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <>
+          {/* Analytics Local */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Valor Total de Activos</CardTitle>
+                <Layers className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">${totalAssetsValue.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">Suma del stock real x costo promedio</p>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Componentes Faltantes</CardTitle>
+                <ShieldAlert className="h-4 w-4 text-red-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{outOfStockCount} items</div>
+                <p className="text-xs text-muted-foreground mt-1">Con stock igual a 0</p>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Bajo Stock Mínimo</CardTitle>
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{lowStockCount} items</div>
+                <p className="text-xs text-muted-foreground mt-1">Requieren reposición a proveedores</p>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
 
       {/* Main Table Card */}
       <Card className="shadow-sm">

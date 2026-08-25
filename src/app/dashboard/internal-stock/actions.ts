@@ -486,3 +486,36 @@ export async function bulkUpdateInventoryFromExcel(
     skippedCount
   };
 }
+
+/**
+ * Obtiene el inventario almacenado en las Bodegas FULL de Mercado Libre para el tenant.
+ */
+export async function getFullStockData() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.tenant_id) throw new Error("No tenant");
+
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, title, sku, meli_item_id, available_quantity, sold_quantity, price, thumbnail_url, raw_data, status")
+    .eq("tenant_id", profile.tenant_id);
+
+  const fullProducts = (products || []).filter(p => p.raw_data?.shipping?.logistic_type === "fulfillment");
+  const totalFullUnits = fullProducts.reduce((acc, p) => acc + (p.available_quantity || 0), 0);
+  const criticalFullCount = fullProducts.filter(p => (p.available_quantity || 0) <= 5).length;
+
+  return {
+    fullProducts,
+    totalFullUnits,
+    fullPublicationsCount: fullProducts.length,
+    criticalFullCount
+  };
+}
