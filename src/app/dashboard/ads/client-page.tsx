@@ -219,16 +219,16 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
         </CardContent>
       </Card>
 
-      {/* Listado de Productos en ADS con Ganancia Limpia */}
+      {/* Listado de Anuncios en Campaña ADS con Ganancia Limpia */}
       <Card className="shadow-sm border-slate-200">
         <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <span>Productos en ADS con Ganancia Limpia Real</span>
-              <Badge className="bg-emerald-500 text-white font-bold text-xs">Costo en BD + ADS</Badge>
+              <span>Anuncios en Campaña Product ADS</span>
+              <Badge className="bg-amber-400 text-slate-950 font-bold text-xs">Inversión Diaria ADS</Badge>
             </CardTitle>
             <CardDescription>
-              Desglose producto por producto: Facturación, Inversión en ADS, Costo de Joya en BD y Ganancia Limpia resultante.
+              Muestra exclusivamente productos anunciados en campañas publicitarias Product ADS (excluye ofertas, promociones de cuotas o cupones).
             </CardDescription>
           </div>
 

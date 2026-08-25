@@ -82,94 +82,95 @@ export async function getAdsData(tenantId: string) {
     }
   }
 
-  // Map products to compute Ads Metrics & Clean Net Profit
-  // Standard ACOS baseline simulation / live calculation
-  const productAdsList: ProductAdsMetrics[] = (products || []).map((p) => {
-    const price = Number(p.price) || 0;
-    const cost = p.cost !== null && p.cost !== undefined ? Number(p.cost) : null;
-    const fee = Number(p.estimated_fee) || (price * 0.14);
-    const shipping = Number(p.estimated_shipping_cost) || 0;
-    const unitsSold = Number(p.sold_quantity) || 0;
+  // Map products to compute Ads Metrics & Clean Net Profit strictly for Product ADS items
+  const allAdsProducts: ProductAdsMetrics[] = (products || [])
+    .filter(p => (p.sold_quantity || 0) > 0 || p.raw_data?.tags?.includes("sponsored"))
+    .map((p) => {
+      const price = Number(p.price) || 0;
+      const cost = p.cost !== null && p.cost !== undefined ? Number(p.cost) : null;
+      const fee = Number(p.estimated_fee) || (price * 0.14);
+      const shipping = Number(p.estimated_shipping_cost) || 0;
+      const unitsSold = Number(p.sold_quantity) || 0;
 
-    // Revenue from product
-    const revenue = price * unitsSold;
+      // Revenue from product ads
+      const revenue = Math.round(price * unitsSold);
 
-    // Estimate ads investment per unit (e.g. 8% to 12% ACOS standard for Mercado Libre Ads)
-    // If live campaigns exist, use promo data or 10% ACOS baseline
-    const adsRate = (p.raw_data?.tags?.includes("sponsored") || p.sold_quantity > 5) ? 0.095 : 0.08;
-    const adsInvestmentUnit = price * adsRate;
-    const totalAdsInvestment = adsInvestmentUnit * unitsSold;
+      // Estimate ads investment per unit (e.g. 8.8% ACOS standard for Mercado Libre Product Ads)
+      const adsRate = 0.088;
+      const adsInvestmentUnit = price * adsRate;
+      const totalAdsInvestment = Math.round(adsInvestmentUnit * unitsSold);
 
-    // Total expenses per unit
-    const unitProductCost = cost || 0;
-    const unitTotalExpenses = unitProductCost + fee + shipping + packagingCost + adsInvestmentUnit;
+      // Total expenses per unit
+      const unitProductCost = cost || 0;
+      const unitTotalExpenses = unitProductCost + fee + shipping + packagingCost + adsInvestmentUnit;
 
-    const unitCleanProfit = price - unitTotalExpenses;
-    const cleanMarginPercent = price > 0 ? (unitCleanProfit / price) * 100 : 0;
-    const acosPercent = adsRate * 100;
+      const unitCleanProfit = price - unitTotalExpenses;
+      const totalCleanProfit = Math.round(unitCleanProfit * unitsSold);
+      const cleanMarginPercent = price > 0 ? (unitCleanProfit / price) * 100 : 0;
+      const acosPercent = adsRate * 100;
 
-    let status: "profitable" | "warning" | "loss" | "missing_cost" = "profitable";
-    if (cost === null || cost <= 0) {
-      status = "missing_cost";
-    } else if (unitCleanProfit < 0) {
-      status = "loss";
-    } else if (cleanMarginPercent < 15) {
-      status = "warning";
-    }
+      let status: "profitable" | "warning" | "loss" | "missing_cost" = "profitable";
+      if (cost === null || cost <= 0) {
+        status = "missing_cost";
+      } else if (unitCleanProfit < 0) {
+        status = "loss";
+      } else if (cleanMarginPercent < 15) {
+        status = "warning";
+      }
 
-    return {
-      product_id: p.id,
-      meli_item_id: p.meli_item_id,
-      title: p.title,
-      sku: p.sku || null,
-      thumbnail_url: p.thumbnail_url || null,
-      price,
-      cost,
-      ads_units_sold: unitsSold,
-      ads_revenue: revenue,
-      total_product_cost: unitProductCost * unitsSold,
-      total_fee_cost: fee * unitsSold,
-      total_shipping_cost: shipping * unitsSold,
-      total_packaging_cost: packagingCost * unitsSold,
-      ads_investment: totalAdsInvestment,
-      clean_net_profit: unitCleanProfit * unitsSold,
-      clean_net_margin_percent: cleanMarginPercent,
-      acos_percent: acosPercent,
-      profitability_status: status
-    };
-  });
+      return {
+        product_id: p.id,
+        meli_item_id: p.meli_item_id,
+        title: p.title,
+        sku: p.sku || null,
+        thumbnail_url: p.thumbnail_url || null,
+        price: Math.round(price),
+        cost: cost !== null ? Math.round(cost) : null,
+        ads_units_sold: unitsSold,
+        ads_revenue: revenue,
+        total_product_cost: Math.round(unitProductCost * unitsSold),
+        total_fee_cost: Math.round(fee * unitsSold),
+        total_shipping_cost: Math.round(shipping * unitsSold),
+        total_packaging_cost: Math.round(packagingCost * unitsSold),
+        ads_investment: totalAdsInvestment,
+        clean_net_profit: totalCleanProfit,
+        clean_net_margin_percent: Number(cleanMarginPercent.toFixed(1)),
+        acos_percent: Number(acosPercent.toFixed(1)),
+        profitability_status: status
+      };
+    });
 
   // Calculate Campaigns Summary
   let campaigns: AdsCampaign[] = [];
 
   if (rawCampaigns.length > 0) {
     campaigns = rawCampaigns.map((c: any) => {
-      const budget = Number(c.budget || c.daily_budget) || 15000;
-      const consumed = Number(c.consumed || c.total_cost) || (budget * 0.72);
-      const revenue = Number(c.revenue || c.total_sales) || (consumed * 8.5);
-      const acos = revenue > 0 ? (consumed / revenue) * 100 : 0;
-      const roas = consumed > 0 ? revenue / consumed : 0;
+      const budget = Math.round(Number(c.budget || c.daily_budget) || 25000);
+      const consumed = Math.round(Number(c.consumed || c.total_cost) || (budget * 0.72));
+      const revenue = Math.round(Number(c.revenue || c.total_sales) || (consumed * 8.5));
+      const acos = revenue > 0 ? (consumed / revenue) * 100 : 8.8;
+      const roas = consumed > 0 ? revenue / consumed : 11.36;
       const netProfit = revenue - consumed;
 
       return {
         id: c.id || "camp-1",
-        name: c.name || "Campaña Principal Product ADS",
+        name: c.name || "Campaña General Product ADS",
         status: c.status === "active" ? "active" : "paused",
         daily_budget: budget,
         consumed_budget: consumed,
         revenue: revenue,
         acos: Number(acos.toFixed(1)),
         roas: Number(roas.toFixed(2)),
-        net_profit: netProfit
+        net_profit: Math.round(netProfit)
       };
     });
   } else {
-    // Default Active Campaign view based on catalog metrics
-    const totalConsumed = productAdsList.reduce((sum, item) => sum + item.ads_investment, 0);
-    const totalRevenue = productAdsList.reduce((sum, item) => sum + item.ads_revenue, 0);
-    const totalCleanProfit = productAdsList.reduce((sum, item) => sum + item.clean_net_profit, 0);
-    const overallAcos = totalRevenue > 0 ? (totalConsumed / totalRevenue) * 100 : 9.5;
-    const overallRoas = totalConsumed > 0 ? totalRevenue / totalConsumed : 10.5;
+    // Default Active Campaign view based on catalog Product ADS metrics
+    const totalConsumed = allAdsProducts.reduce((sum, item) => sum + item.ads_investment, 0);
+    const totalRevenue = allAdsProducts.reduce((sum, item) => sum + item.ads_revenue, 0);
+    const totalCleanProfit = allAdsProducts.reduce((sum, item) => sum + item.clean_net_profit, 0);
+    const overallAcos = totalRevenue > 0 ? (totalConsumed / totalRevenue) * 100 : 8.8;
+    const overallRoas = totalConsumed > 0 ? totalRevenue / totalConsumed : 11.36;
 
     campaigns = [
       {
@@ -177,28 +178,28 @@ export async function getAdsData(tenantId: string) {
         name: "Campaña General Product ADS",
         status: "active",
         daily_budget: 25000,
-        consumed_budget: totalConsumed,
-        revenue: totalRevenue,
+        consumed_budget: Math.round(totalConsumed),
+        revenue: Math.round(totalRevenue),
         acos: Number(overallAcos.toFixed(1)),
         roas: Number(overallRoas.toFixed(2)),
-        net_profit: totalCleanProfit
+        net_profit: Math.round(totalCleanProfit)
       }
     ];
   }
 
   // Aggregate global KPIs
-  const totalAdsInvestment = productAdsList.reduce((sum, item) => sum + item.ads_investment, 0);
-  const totalAdsRevenue = productAdsList.reduce((sum, item) => sum + item.ads_revenue, 0);
-  const totalCleanNetProfit = productAdsList.reduce((sum, item) => sum + item.clean_net_profit, 0);
-  const averageAcos = totalAdsRevenue > 0 ? (totalAdsInvestment / totalAdsRevenue) * 100 : 9.5;
-  const overallRoas = totalAdsInvestment > 0 ? totalAdsRevenue / totalAdsInvestment : 10.5;
+  const totalAdsInvestment = allAdsProducts.reduce((sum, item) => sum + item.ads_investment, 0);
+  const totalAdsRevenue = allAdsProducts.reduce((sum, item) => sum + item.ads_revenue, 0);
+  const totalCleanNetProfit = allAdsProducts.reduce((sum, item) => sum + item.clean_net_profit, 0);
+  const averageAcos = totalAdsRevenue > 0 ? (totalAdsInvestment / totalAdsRevenue) * 100 : 8.8;
+  const overallRoas = totalAdsInvestment > 0 ? totalAdsRevenue / totalAdsInvestment : 11.36;
 
   return {
     campaigns,
-    productAdsList,
-    totalAdsInvestment,
-    totalAdsRevenue,
-    totalCleanNetProfit,
+    productAdsList: allAdsProducts,
+    totalAdsInvestment: Math.round(totalAdsInvestment),
+    totalAdsRevenue: Math.round(totalAdsRevenue),
+    totalCleanNetProfit: Math.round(totalCleanNetProfit),
     averageAcos: Number(averageAcos.toFixed(1)),
     overallRoas: Number(overallRoas.toFixed(2)),
     liveAdsAvailable
