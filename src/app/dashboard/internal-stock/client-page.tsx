@@ -340,13 +340,13 @@ export function InternalStockClient({
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Publicaciones FULL</CardTitle>
+                <CardTitle className="text-sm font-medium">Productos Únicos FULL</CardTitle>
                 <Layers className="h-4 w-4 text-amber-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{fullPubsCount} <span className="text-xs font-normal text-muted-foreground">publicaciones</span></div>
+                <div className="text-2xl font-bold">{fullPubsCount} <span className="text-xs font-normal text-muted-foreground">productos</span></div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Publicaciones activas con envío FULL
+                  Agrupados por SKU (sin duplicar por cuotas/clasica)
                 </p>
               </CardContent>
             </Card>
@@ -358,10 +358,10 @@ export function InternalStockClient({
               </CardHeader>
               <CardContent>
                 <div className={`text-2xl font-bold ${criticalFullCount > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
-                  {criticalFullCount} <span className="text-xs font-normal text-muted-foreground">ítems</span>
+                  {criticalFullCount} <span className="text-xs font-normal text-muted-foreground">productos</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Con 5 o menos unidades en ML
+                  Con 5 o menos unidades físicas en ML
                 </p>
               </CardContent>
             </Card>
@@ -372,16 +372,16 @@ export function InternalStockClient({
             <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <span>Inventario en Bodega FULL (Mercado Libre)</span>
+                  <span>Inventario Físico en Bodega FULL (Mercado Libre)</span>
                   <Badge className="bg-amber-400 text-slate-950 font-extrabold text-xs">⚡ FULL</Badge>
                 </CardTitle>
                 <CardDescription>
-                  Publicaciones almacenadas físicamente en los centros de logística de Mercado Libre.
+                  Unidades físicas reales por SKU almacenadas en los centros de distribución de Mercado Libre.
                 </CardDescription>
               </div>
               <div className="w-full sm:w-auto">
                 <Input
-                  placeholder="Buscar por título, SKU o ID de ML..."
+                  placeholder="Buscar por título o SKU..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="max-w-xs"
@@ -392,7 +392,7 @@ export function InternalStockClient({
               {filteredFullProducts.length === 0 ? (
                 <div className="py-12 text-center text-slate-500">
                   {fullProducts.length === 0 
-                    ? "No tienes publicaciones activas operadas con envío FULL en Mercado Libre."
+                    ? "No tienes productos activos en la Bodega FULL de Mercado Libre."
                     : "No se encontraron resultados que coincidan con la búsqueda."}
                 </div>
               ) : (
@@ -400,60 +400,51 @@ export function InternalStockClient({
                   <table className="w-full text-sm text-left">
                     <thead className="border-b bg-slate-50 font-medium text-slate-600">
                       <tr>
-                        <th className="h-10 px-4 align-middle">Publicación FULL</th>
-                        <th className="h-10 px-4 align-middle">SKU / ID ML</th>
-                        <th className="h-10 px-4 align-middle text-right">Precio</th>
-                        <th className="h-10 px-4 align-middle text-center">Stock en Bodega FULL</th>
-                        <th className="h-10 px-4 align-middle text-right">Vendidas</th>
-                        <th className="h-10 px-4 align-middle text-center">Acción</th>
+                        <th className="h-10 px-4 align-middle">Producto / Joya</th>
+                        <th className="h-10 px-4 align-middle">SKU</th>
+                        <th className="h-10 px-4 align-middle text-center">Publicaciones ML</th>
+                        <th className="h-10 px-4 align-middle text-center">Stock Físico Único FULL</th>
+                        <th className="h-10 px-4 align-middle text-right">Total Vendidas</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredFullProducts.map((p) => {
-                        const isLowStock = (p.available_quantity || 0) <= 5;
+                      {filteredFullProducts.map((group: any) => {
+                        const stockQty = group.physicalStockInFull || 0;
+                        const isLowStock = stockQty <= 5;
+                        const pubCount = group.publications?.length || 1;
+
                         return (
-                          <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                          <tr key={group.sku || group.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                             <td className="p-4 align-middle font-medium min-w-[280px]">
                               <div className="flex items-center gap-3">
-                                {p.thumbnail_url && (
-                                  <img src={p.thumbnail_url} alt="" className="w-10 h-10 rounded-md object-cover border" />
+                                {group.thumbnail_url && (
+                                  <img src={group.thumbnail_url} alt="" className="w-10 h-10 rounded-md object-cover border" />
                                 )}
-                                <span className="line-clamp-2">{p.title}</span>
+                                <span className="line-clamp-2">{group.title}</span>
                               </div>
                             </td>
                             <td className="p-4 align-middle">
-                              <div className="flex flex-col text-xs">
-                                <span className="font-semibold text-slate-800">{p.sku || "Sin SKU"}</span>
-                                <span className="text-slate-400">{p.meli_item_id}</span>
-                              </div>
-                            </td>
-                            <td className="p-4 align-middle text-right font-semibold">
-                              ${p.price?.toLocaleString()}
+                              <span className="font-bold text-slate-800 bg-slate-100 px-2 py-1 rounded text-xs">
+                                {group.sku || "Sin SKU"}
+                              </span>
                             </td>
                             <td className="p-4 align-middle text-center">
-                              <span className={`inline-flex items-center gap-1 font-bold px-3 py-1 rounded-full text-xs ${
+                              <Badge variant="outline" className="text-xs bg-slate-50 border-slate-300 text-slate-700">
+                                {pubCount} {pubCount === 1 ? "publicación" : "publicaciones vinculadas"}
+                              </Badge>
+                            </td>
+                            <td className="p-4 align-middle text-center">
+                              <span className={`inline-flex items-center gap-1 font-bold px-3.5 py-1 rounded-full text-xs ${
                                 isLowStock 
                                   ? "bg-red-100 text-red-700 border border-red-200" 
                                   : "bg-amber-100 text-amber-900 border border-amber-200"
                               }`}>
-                                {p.available_quantity} unidades
+                                {stockQty} unidades
                                 {isLowStock && " ⚠️"}
                               </span>
                             </td>
-                            <td className="p-4 align-middle text-right text-slate-500">
-                              {p.sold_quantity || 0}
-                            </td>
-                            <td className="p-4 align-middle text-center">
-                              {p.permalink && (
-                                <a 
-                                  href={p.permalink} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-indigo-600 hover:underline font-medium"
-                                >
-                                  Ver en ML ↗
-                                </a>
-                              )}
+                            <td className="p-4 align-middle text-right font-medium text-slate-700">
+                              {group.totalSold || 0}
                             </td>
                           </tr>
                         );

@@ -505,17 +505,50 @@ export async function getFullStockData() {
 
   const { data: products } = await supabase
     .from("products")
-    .select("id, title, sku, meli_item_id, available_quantity, sold_quantity, price, thumbnail_url, raw_data, status")
+    .select("id, title, sku, meli_item_id, available_quantity, sold_quantity, price, thumbnail_url, raw_data, status, permalink")
     .eq("tenant_id", profile.tenant_id);
 
   const fullProducts = (products || []).filter(p => p.raw_data?.shipping?.logistic_type === "fulfillment");
-  const totalFullUnits = fullProducts.reduce((acc, p) => acc + (p.available_quantity || 0), 0);
-  const criticalFullCount = fullProducts.filter(p => (p.available_quantity || 0) <= 5).length;
+
+  // Group by normalized SKU so shared listings (Clásica vs Premium / Cuotas) do not double-count physical stock
+  const { normalizeSku } = await import("@/services/products/sku/normalizeSku");
+  const skuGroupMap = new Map<string, any>();
+
+  fullProducts.forEach(p => {
+    const rawSku = p.sku?.trim();
+    const normSku = rawSku ? normalizeSku(rawSku) : null;
+    const groupKey = normSku ? normSku : `no-sku-${p.meli_item_id}`;
+
+    if (!skuGroupMap.has(groupKey)) {
+      skuGroupMap.set(groupKey, {
+        id: p.id,
+        sku: rawSku || "Sin SKU",
+        title: p.title,
+        thumbnail_url: p.thumbnail_url,
+        physicalStockInFull: p.available_quantity || 0,
+        totalSold: p.sold_quantity || 0,
+        publications: [p],
+        prices: [p.price]
+      });
+    } else {
+      const group = skuGroupMap.get(groupKey);
+      group.publications.push(p);
+      group.totalSold += (p.sold_quantity || 0);
+      group.prices.push(p.price);
+      group.physicalStockInFull = Math.max(group.physicalStockInFull, p.available_quantity || 0);
+    }
+  });
+
+  const groupedFullProducts = Array.from(skuGroupMap.values());
+  const totalFullUnits = groupedFullProducts.reduce((sum, g) => sum + g.physicalStockInFull, 0);
+  const criticalFullCount = groupedFullProducts.filter(g => g.physicalStockInFull <= 5).length;
 
   return {
-    fullProducts,
+    fullProducts: groupedFullProducts,
     totalFullUnits,
-    fullPublicationsCount: fullProducts.length,
+    fullPublicationsCount: groupedFullProducts.length,
+    fullProductsCount: groupedFullProducts.length,
+    rawPublicationsCount: fullProducts.length,
     criticalFullCount
   };
 }
