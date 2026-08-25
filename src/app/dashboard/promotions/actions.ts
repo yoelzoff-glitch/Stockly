@@ -233,12 +233,131 @@ export async function getPromotionsAction() {
 
   if (!profile?.tenant_id) return [];
 
+  // Live Sync Mercado Libre Seller Promotions & Participating Items
+  try {
+    const { data: account } = await supabase
+      .from("meli_accounts")
+      .select("meli_user_id, access_token")
+      .eq("tenant_id", profile.tenant_id)
+      .maybeSingle();
+
+    if (account?.meli_user_id && account?.access_token) {
+      const res = await fetch(`https://api.mercadolibre.com/seller-promotions/users/${account.meli_user_id}?app_version=v2`, {
+        headers: { 'Authorization': `Bearer ${account.access_token}` }
+      });
+
+      if (res.ok) {
+        const mlData = await res.json();
+        const results = mlData.results || [];
+        const mlPromos = results.filter((item: any) => item.type !== "SELLER_COUPON_CAMPAIGN" && !item.id?.startsWith("C-"));
+
+        const { data: dbPromos } = await supabase
+          .from("promotions")
+          .select("*")
+          .eq("tenant_id", profile.tenant_id);
+
+        const { data: dbProducts } = await supabase
+          .from("products")
+          .select("id, meli_item_id, title, sku, price")
+          .eq("tenant_id", profile.tenant_id);
+
+        for (const item of mlPromos) {
+          const meliPromoId = item.id;
+          if (!meliPromoId) continue;
+
+          const existing = dbPromos?.find(p => p.meli_promotion_id === meliPromoId);
+
+          const startsAt = item.start_date || new Date().toISOString();
+          const endsAt = item.finish_date || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString();
+          const status = item.status === "started" ? "active" : (item.status === "pending" ? "pending" : item.status);
+
+          const promoData = {
+            tenant_id: profile.tenant_id,
+            meli_promotion_id: meliPromoId,
+            type: item.type?.toLowerCase() || 'custom',
+            status,
+            title: item.name || `Promoción Mercado Libre (${item.type})`,
+            description: `Tipo: ${item.type} | Estado ML: ${item.status}`,
+            discount_type: 'percent',
+            discount_value: 15,
+            starts_at: startsAt,
+            ends_at: endsAt,
+            raw_payload: item,
+            updated_at: new Date().toISOString()
+          };
+
+          let promoRecordId = existing?.id;
+
+          if (existing) {
+            await supabase.from("promotions").update(promoData).eq("id", existing.id);
+          } else {
+            const { data: inserted } = await supabase.from("promotions").insert({ ...promoData, created_by: user.id }).select().single();
+            promoRecordId = inserted?.id;
+          }
+
+          // Fetch participating items for this promotion from ML API
+          if (promoRecordId) {
+            try {
+              const itemsRes = await fetch(`https://api.mercadolibre.com/seller-promotions/promotions/${meliPromoId}/items?promotion_type=${item.type}&app_version=v2`, {
+                headers: { 'Authorization': `Bearer ${account.access_token}` }
+              });
+
+              if (itemsRes.ok) {
+                const itemsData = await itemsRes.json();
+                const promoItemsList = itemsData.results || [];
+
+                for (const pItem of promoItemsList) {
+                  const matchedProd = dbProducts?.find(p => p.meli_item_id === pItem.id);
+                  const origPrice = Number(pItem.original_price || matchedProd?.price || 0);
+                  const dealPrice = Number(pItem.price || origPrice);
+                  const sellerPct = Number(pItem.seller_percentage || 0);
+                  const meliPct = Number(pItem.meli_percentage || 0);
+                  const totalPct = sellerPct + meliPct > 0 ? (sellerPct + meliPct) : (origPrice > 0 ? ((origPrice - dealPrice) / origPrice) * 100 : 0);
+
+                  const itemStatus = pItem.status === 'started' ? 'active' : pItem.status;
+
+                  const { data: existingItems } = await supabase
+                    .from("promotion_items")
+                    .select("id")
+                    .eq("promotion_id", promoRecordId)
+                    .eq("meli_item_id", pItem.id);
+
+                  const promoItemRow = {
+                    tenant_id: profile.tenant_id,
+                    promotion_id: promoRecordId,
+                    product_id: matchedProd?.id || pItem.id,
+                    meli_item_id: pItem.id,
+                    current_price: origPrice,
+                    discount_price: dealPrice,
+                    discount_percent: Number(totalPct.toFixed(1)),
+                    status: itemStatus,
+                    raw_response: pItem
+                  };
+
+                  if (existingItems && existingItems.length > 0) {
+                    await supabase.from("promotion_items").update(promoItemRow).eq("id", existingItems[0].id);
+                  } else {
+                    await supabase.from("promotion_items").insert(promoItemRow);
+                  }
+                }
+              }
+            } catch (itemErr) {
+              console.warn(`Could not fetch items for promotion ${meliPromoId}:`, itemErr);
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error synchronizing promotions from Mercado Libre:", error);
+  }
+
   const { data: promotions } = await supabase
     .from("promotions")
     .select(`
       *,
       promotion_items (
-        id, product_id, current_price, discount_price, discount_percent, status
+        id, product_id, meli_item_id, current_price, discount_price, discount_percent, status, raw_response
       )
     `)
     .eq("tenant_id", profile.tenant_id)

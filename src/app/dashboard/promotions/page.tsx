@@ -25,6 +25,7 @@ type Coupon = {
 type Promotion = {
   id: string;
   title: string;
+  type?: string;
   status: string;
   discount_type: string;
   discount_value: number;
@@ -241,9 +242,31 @@ export default function PromotionsPage() {
         </TabsList>
 
         <TabsContent value="promotions" className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-sm font-semibold text-slate-700">
+              Ofertas y Promociones Mercado Libre ({promotions.length})
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                setIsLoadingPromos(true);
+                try {
+                  const data = await getPromotionsAction();
+                  setPromotions(data);
+                } catch (e) {} finally {
+                  setIsLoadingPromos(false);
+                }
+              }}
+              disabled={isLoadingPromos}
+            >
+              🔄 Sincronizar con Mercado Libre
+            </Button>
+          </div>
+
           {isLoadingPromos ? (
             <div className="text-center py-12">
-              <p className="text-slate-500 animate-pulse">Cargando promociones...</p>
+              <p className="text-slate-500 animate-pulse">Sincronizando promociones con Mercado Libre...</p>
             </div>
           ) : promotions.length === 0 ? (
             <div className="text-center py-12">
@@ -257,52 +280,86 @@ export default function PromotionsPage() {
                   <summary className="p-4 cursor-pointer hover:bg-slate-50 flex items-center justify-between list-none">
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-medium text-slate-900">{promo.title}</h4>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                          promo.status === 'active' ? 'bg-green-100 text-green-800' : 
-                          promo.status === 'creating' ? 'bg-yellow-100 text-yellow-800' :
+                        <h4 className="font-semibold text-slate-900">{promo.title}</h4>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
+                          promo.status === 'active' || promo.status === 'started' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 
+                          promo.status === 'pending' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
                           promo.status === 'failed' ? 'bg-red-100 text-red-800' :
                           'bg-slate-100 text-slate-800'
                         }`}>
-                          {promo.status}
+                          {promo.status === 'active' || promo.status === 'started' ? 'ACTIVA' : (promo.status === 'pending' ? 'PROGRAMADA' : promo.status)}
                         </span>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                          {promo.discount_type === 'percent' ? `${promo.discount_value}% OFF` : `$${promo.discount_value} OFF`}
-                        </span>
+                        {promo.type && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase">
+                            {promo.type}
+                          </span>
+                        )}
                       </div>
                       <span className="text-xs text-slate-500">
-                        {new Date(promo.starts_at).toLocaleDateString('es-AR')} al {new Date(promo.ends_at).toLocaleDateString('es-AR')} • {promo.promotion_items?.length || 0} publicaciones
+                        Vigencia: {new Date(promo.starts_at).toLocaleDateString('es-AR')} al {new Date(promo.ends_at).toLocaleDateString('es-AR')} • {promo.promotion_items?.length || 0} publicaciones vinculadas
                       </span>
                     </div>
                     <span className="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
                   </summary>
                   <div className="p-4 bg-slate-50 border-t border-slate-200">
-                    <table className="w-full text-sm text-left text-slate-600">
-                      <thead>
-                        <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                          <th className="py-2">Publicación</th>
-                          <th className="py-2 text-right">Precio Orginal</th>
-                          <th className="py-2 text-right">Descuento</th>
-                          <th className="py-2 text-right">Precio Final</th>
-                          <th className="py-2 text-center">Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(promo.promotion_items || []).map(item => (
-                          <tr key={item.id} className="border-b border-slate-100 last:border-0">
-                            <td className="py-2 font-medium text-slate-900">{item.product_id.split('-')[0]}...</td>
-                            <td className="py-2 text-right">${item.current_price}</td>
-                            <td className="py-2 text-right text-red-600">-{item.discount_percent}%</td>
-                            <td className="py-2 text-right font-medium">${item.discount_price}</td>
-                            <td className="py-2 text-center">
-                              <span className={`text-[10px] px-2 py-1 rounded-full ${item.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                {item.status}
-                              </span>
-                            </td>
+                    {promo.promotion_items && promo.promotion_items.length > 0 ? (
+                      <table className="w-full text-sm text-left text-slate-600">
+                        <thead>
+                          <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
+                            <th className="py-2">Item ML</th>
+                            <th className="py-2 text-right">Precio Original</th>
+                            <th className="py-2 text-right">Descuento Total</th>
+                            <th className="py-2 text-right">A Tu Cargo / ML</th>
+                            <th className="py-2 text-right">Precio Oferta</th>
+                            <th className="py-2 text-center">Estado</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {promo.promotion_items.map(item => {
+                            const raw = item.raw_response || {};
+                            const sellerPct = raw.seller_percentage || 0;
+                            const meliPct = raw.meli_percentage || 0;
+
+                            return (
+                              <tr key={item.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-100/50">
+                                <td className="py-2 font-semibold text-slate-900">
+                                  #{item.meli_item_id || item.product_id}
+                                </td>
+                                <td className="py-2 text-right text-slate-500 line-through">
+                                  ${item.current_price?.toLocaleString('es-AR')}
+                                </td>
+                                <td className="py-2 text-right font-bold text-red-600">
+                                  -{item.discount_percent}% OFF
+                                </td>
+                                <td className="py-2 text-right text-xs">
+                                  {sellerPct > 0 || meliPct > 0 ? (
+                                    <span>
+                                      <span className="text-amber-700 font-semibold">{sellerPct}% vdr</span> / <span className="text-emerald-700 font-semibold">{meliPct}% ML</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400">—</span>
+                                  )}
+                                </td>
+                                <td className="py-2 text-right font-extrabold text-emerald-700">
+                                  ${item.discount_price?.toLocaleString('es-AR')}
+                                </td>
+                                <td className="py-2 text-center">
+                                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                                    item.status === 'active' || item.status === 'started' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
+                                  }`}>
+                                    {item.status === 'started' || item.status === 'active' ? 'Participando' : item.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="py-4 text-center text-xs text-slate-500">
+                        Esta oferta de Mercado Libre abarca ítems elegibles según la campaña.
+                      </div>
+                    )}
                   </div>
                 </details>
               ))}
