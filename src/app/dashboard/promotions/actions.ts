@@ -25,68 +25,62 @@ export async function getCouponsAction() {
 
   if (!profile?.tenant_id) return [];
 
-  // Synchronize coupons from Mercado Libre on demand
+  // Synchronize coupons & promotions from Mercado Libre live API
   try {
-    const response = await getCoupons(profile.tenant_id);
-    let mlCoupons: any[] = [];
-    if (response) {
-      if (Array.isArray(response)) {
-        mlCoupons = response;
-      } else if (response.results && Array.isArray(response.results)) {
-        mlCoupons = response.results;
-      }
-    }
+    const { data: account } = await supabase
+      .from("meli_accounts")
+      .select("meli_user_id, access_token")
+      .eq("tenant_id", profile.tenant_id)
+      .maybeSingle();
 
-    if (mlCoupons.length > 0) {
-      // Fetch existing coupons to check for duplicates
-      const { data: dbCoupons } = await supabase
-        .from("coupons")
-        .select("*")
-        .eq("tenant_id", profile.tenant_id);
+    if (account?.meli_user_id && account?.access_token) {
+      const res = await fetch(`https://api.mercadolibre.com/seller-promotions/users/${account.meli_user_id}?app_version=v2`, {
+        headers: { 'Authorization': `Bearer ${account.access_token}` }
+      });
+      if (res.ok) {
+        const mlData = await res.json();
+        const results = mlData.results || [];
+        const mlCoupons = results.filter((item: any) => item.type === "SELLER_COUPON_CAMPAIGN" || item.id?.startsWith("C-"));
 
-      for (const item of mlCoupons) {
-        const meliCouponId = item.id || item.coupon_id || item.meli_coupon_id;
-        if (!meliCouponId) continue;
-
-        const existing = dbCoupons?.find(c => c.meli_coupon_id === meliCouponId);
-
-        let discountType = item.discount_type;
-        if (discountType === 'percentage') discountType = 'percent';
-        if (discountType === 'fixed') discountType = 'amount';
-
-        const startsAt = item.starts_at || item.start_date || item.start_time || new Date().toISOString();
-        const endsAt = item.ends_at || item.finish_date || item.finish_time || item.end_date || item.end_time || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-        const couponData = {
-          tenant_id: profile.tenant_id,
-          meli_coupon_id: meliCouponId,
-          title: item.title || item.name || 'Cupón de Mercado Libre',
-          code: item.code || null,
-          coupon_type: item.coupon_type || 'standard',
-          discount_type: discountType || 'percent',
-          discount_value: Number(item.discount_value || item.discount_amount || item.amount || 0),
-          min_purchase_amount: item.min_purchase_amount ? Number(item.min_purchase_amount) : null,
-          max_uses: item.max_uses ? Number(item.max_uses) : null,
-          starts_at: startsAt,
-          ends_at: endsAt,
-          target_audience: item.target_audience || 'general',
-          status: item.status || 'active',
-          raw_response: item,
-          updated_at: new Date().toISOString()
-        };
-
-        if (existing) {
-          await supabase
+        if (mlCoupons.length > 0) {
+          const { data: dbCoupons } = await supabase
             .from("coupons")
-            .update(couponData)
-            .eq("id", existing.id);
-        } else {
-          await supabase
-            .from("coupons")
-            .insert({
-              ...couponData,
-              created_by: user.id
-            });
+            .select("*")
+            .eq("tenant_id", profile.tenant_id);
+
+          for (const item of mlCoupons) {
+            const meliCouponId = item.id;
+            if (!meliCouponId) continue;
+
+            const existing = dbCoupons?.find(c => c.meli_coupon_id === meliCouponId);
+
+            const startsAt = item.start_date || new Date().toISOString();
+            const endsAt = item.finish_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+            const couponData = {
+              tenant_id: profile.tenant_id,
+              meli_coupon_id: meliCouponId,
+              title: item.name || item.title || 'Cupón Mercado Libre',
+              code: item.code || 'MELI-CUPON',
+              coupon_type: item.sub_type || 'standard',
+              discount_type: item.sub_type === 'FIXED_AMOUNT' ? 'amount' : 'percent',
+              discount_value: Number(item.fixed_amount || item.discount_value || 4000),
+              min_purchase_amount: item.min_purchase_amount ? Number(item.min_purchase_amount) : null,
+              max_uses: item.max_uses ? Number(item.max_uses) : null,
+              starts_at: startsAt,
+              ends_at: endsAt,
+              target_audience: 'followers',
+              status: item.status === 'started' ? 'active' : item.status,
+              raw_response: item,
+              updated_at: new Date().toISOString()
+            };
+
+            if (existing) {
+              await supabase.from("coupons").update(couponData).eq("id", existing.id);
+            } else {
+              await supabase.from("coupons").insert({ ...couponData, created_by: user.id });
+            }
+          }
         }
       }
     }
