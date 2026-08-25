@@ -37,13 +37,27 @@ interface AdsClientPageProps {
 export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
   const [adsData, setAdsData] = useState(initialAdsData);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("30days");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const handlePeriodChange = async (periodKey: string) => {
+    setSelectedPeriod(periodKey);
+    setIsRefreshing(true);
+    try {
+      const freshData = await getAdsDataAction(periodKey);
+      setAdsData(freshData);
+    } catch (err) {
+      console.error("Failed to load period ads data:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const freshData = await getAdsDataAction();
+      const freshData = await getAdsDataAction(selectedPeriod);
       setAdsData(freshData);
     } catch (err) {
       console.error("Refresh failed:", err);
@@ -79,15 +93,50 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
             Supervisa presupuestos diarios, consumo publicitario y la ganancia limpia real descontando costo de joya cargado en BD, comisiones y envío.
           </p>
         </div>
-        <div className="flex items-center space-x-2">
+        
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          {/* Time Period Filter Selector */}
+          <div className="flex items-center rounded-lg border border-slate-200 p-1 bg-slate-50 text-xs">
+            <button
+              onClick={() => handlePeriodChange("30days")}
+              className={`px-2.5 py-1.5 rounded-md transition-all font-semibold ${selectedPeriod === "30days" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              📅 Últimos 30 días
+            </button>
+            <button
+              onClick={() => handlePeriodChange("this_month")}
+              className={`px-2.5 py-1.5 rounded-md transition-all font-semibold ${selectedPeriod === "this_month" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              📆 Este Mes
+            </button>
+            <button
+              onClick={() => handlePeriodChange("last_month")}
+              className={`px-2.5 py-1.5 rounded-md transition-all font-semibold ${selectedPeriod === "last_month" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              🗓️ Mes Anterior
+            </button>
+            <button
+              onClick={() => handlePeriodChange("7days")}
+              className={`px-2.5 py-1.5 rounded-md transition-all font-semibold ${selectedPeriod === "7days" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              ⚡ 7 Días
+            </button>
+            <button
+              onClick={() => handlePeriodChange("today")}
+              className={`px-2.5 py-1.5 rounded-md transition-all font-semibold ${selectedPeriod === "today" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              🎯 Hoy
+            </button>
+          </div>
+
           <Button 
             onClick={handleRefresh} 
             variant="outline" 
-            className="border-slate-200 text-slate-700 hover:bg-slate-50"
+            className="border-slate-200 text-slate-700 hover:bg-slate-50 shrink-0"
             disabled={isRefreshing}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            Actualizar ADS
+            Actualizar
           </Button>
         </div>
       </div>
