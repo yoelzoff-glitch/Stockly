@@ -311,11 +311,11 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
               <table className="w-full text-sm text-left">
                 <thead className="border-b bg-slate-50 font-medium text-slate-600">
                   <tr>
-                    <th className="h-10 px-4 align-middle">Producto / Joya</th>
-                    <th className="h-10 px-4 align-middle">SKU</th>
-                    <th className="h-10 px-4 align-middle text-right">Precio Venta</th>
-                    <th className="h-10 px-4 align-middle text-center">Ventas Ads</th>
-                    <th className="h-10 px-4 align-middle text-right">Facturación</th>
+                    <th className="h-10 px-4 align-middle">Anuncio / Producto</th>
+                    <th className="h-10 px-4 align-middle">SKU BD</th>
+                    <th className="h-10 px-4 align-middle text-center">Clics & CPC</th>
+                    <th className="h-10 px-4 align-middle text-center">ROAS ML</th>
+                    <th className="h-10 px-4 align-middle text-center">Ventas Atribuidas</th>
                     <th className="h-10 px-4 align-middle text-right">Inversión ADS</th>
                     <th className="h-10 px-4 align-middle text-right">Costo BD + Fees</th>
                     <th className="h-10 px-4 align-middle text-right">💰 Ganancia Limpia Real</th>
@@ -334,7 +334,7 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
                             {p.thumbnail_url && (
                               <img src={p.thumbnail_url} alt="" className="w-10 h-10 rounded-md object-cover border" />
                             )}
-                            <span className="line-clamp-2 text-slate-900">{p.title}</span>
+                            <span className="line-clamp-2 text-slate-900 font-semibold">{p.title}</span>
                           </div>
                         </td>
                         <td className="p-4 align-middle">
@@ -342,22 +342,32 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
                             {p.sku || "Sin SKU"}
                           </span>
                         </td>
-                        <td className="p-4 align-middle text-right font-semibold text-slate-900">
-                          ${p.price?.toLocaleString()}
+                        <td className="p-4 align-middle text-center">
+                          <div className="flex flex-col text-xs">
+                            <span className="font-bold text-slate-800">{p.clics || 0} clics</span>
+                            <span className="text-slate-400">CPC: ${p.cpc ? p.cpc.toFixed(2) : "0"}</span>
+                          </div>
                         </td>
-                        <td className="p-4 align-middle text-center font-bold text-slate-800">
-                          {p.ads_units_sold} un.
+                        <td className="p-4 align-middle text-center">
+                          {p.roas > 0 ? (
+                            <span className="font-bold text-slate-900 bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-xs">
+                              {p.roas}x
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">-</span>
+                          )}
                         </td>
-                        <td className="p-4 align-middle text-right text-indigo-700 font-semibold">
-                          ${p.ads_revenue?.toLocaleString()}
+                        <td className="p-4 align-middle text-center">
+                          <span className="font-extrabold text-sm text-slate-900">
+                            {p.ads_units_sold} {p.ads_units_sold === 1 ? "venta" : "ventas"}
+                          </span>
                         </td>
-                        <td className="p-4 align-middle text-right text-amber-700 font-semibold">
-                          ${p.ads_investment?.toLocaleString()}
-                          <span className="block text-[10px] text-slate-400 font-normal">({p.acos_percent.toFixed(1)}% ACOS)</span>
+                        <td className="p-4 align-middle text-right text-amber-700 font-bold">
+                          ${p.ads_investment?.toLocaleString('es-AR')}
                         </td>
                         <td className="p-4 align-middle text-right text-slate-600 font-medium">
                           {hasCost ? (
-                            `$${(p.total_product_cost + p.total_fee_cost + p.total_shipping_cost + p.total_packaging_cost).toLocaleString()}`
+                            `$${(p.total_product_cost + p.total_fee_cost + p.total_shipping_cost + p.total_packaging_cost).toLocaleString('es-AR')}`
                           ) : (
                             <span className="text-slate-400 italic text-xs">Sin costo BD</span>
                           )}
@@ -366,11 +376,13 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
                           {hasCost ? (
                             <div>
                               <span className={`font-extrabold text-sm ${isProfit ? "text-emerald-600" : "text-red-600"}`}>
-                                ${p.clean_net_profit?.toLocaleString()}
+                                ${p.clean_net_profit?.toLocaleString('es-AR')}
                               </span>
-                              <span className="block text-xs font-semibold text-slate-500">
-                                ({p.clean_net_margin_percent.toFixed(1)}% neto)
-                              </span>
+                              {p.ads_units_sold > 0 && (
+                                <span className="block text-xs font-semibold text-slate-500">
+                                  ({p.clean_net_margin_percent.toFixed(1)}% neto)
+                                </span>
+                              )}
                             </div>
                           ) : (
                             <span className="text-amber-600 text-xs font-medium">Carga costo en BD</span>
@@ -389,7 +401,7 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
                           )}
                           {p.profitability_status === "loss" && (
                             <Badge className="bg-red-100 text-red-800 border-red-200 gap-1">
-                              <AlertTriangle className="h-3 w-3 text-red-600" /> Pérdida en ADS
+                              <AlertTriangle className="h-3 w-3 text-red-600" /> Pérdida
                             </Badge>
                           )}
                           {p.profitability_status === "missing_cost" && (
