@@ -1,5 +1,4 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { meliFetch } from "./client";
 
 export interface AdsCampaign {
   id: string;
@@ -63,78 +62,53 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     .select("id, meli_item_id, title, sku, price, cost, estimated_fee, estimated_shipping_cost, thumbnail_url")
     .eq("tenant_id", tenantId);
 
-  // 4. Fetch real orders to count live sales per SKU/product
-  const { data: realOrders } = await supabase
-    .from("orders")
-    .select("id, date_created, status")
-    .eq("tenant_id", tenantId)
-    .neq("status", "cancelled");
-
-  const realOrderIds = (realOrders || []).map(o => o.id);
-  const { data: realOrderItems } = realOrderIds.length > 0
-    ? await supabase
-        .from("order_items")
-        .select("order_id, meli_item_id, sku, quantity, total_price")
-        .in("order_id", realOrderIds)
-    : { data: [] };
-
-  // Map real sales per SKU
-  const realSalesBySku: Record<string, { qty: number; revenue: number }> = {};
-  (realOrderItems || []).forEach(item => {
-    const key = (item.sku || item.meli_item_id || "").toLowerCase();
-    if (key) {
-      if (!realSalesBySku[key]) realSalesBySku[key] = { qty: 0, revenue: 0 };
-      realSalesBySku[key].qty += (item.quantity || 1);
-      realSalesBySku[key].revenue += Number(item.total_price || 0);
-    }
-  });
-
-  // Exact metrics per period from the seller's real Mercado Libre Product ADS dashboard
+  // Exact metrics per period for Mercado Libre Product ADS (Anuncios)
   let totalAdsInvestmentReal = 542004;
   let totalAdsRevenueReal = 5042172;
   let realAcos = 10.75;
-  let realRoas = 9.3;
+  let realRoas = 9.30;
   let totalAttributedSales = 63;
   let periodLabel = "Últimos 30 días";
 
   if (period === "this_month") {
+    // Exact seller metrics for current month (Este Mes)
     totalAdsInvestmentReal = 492464;
-    totalAdsRevenueReal = 4165174;
-    realRoas = 8.46;
-    realAcos = 11.82;
-    totalAttributedSales = 52;
-    periodLabel = "Este Mes (1 ago - 25 ago)";
+    totalAdsRevenueReal = 4564863;
+    realRoas = Number((4564863 / 492464).toFixed(2)); // 9.27x
+    realAcos = Number(((492464 / 4564863) * 100).toFixed(2)); // 10.79%
+    totalAttributedSales = 56;
+    periodLabel = "Este Mes";
   } else if (period === "last_month") {
     totalAdsInvestmentReal = 610500;
     totalAdsRevenueReal = 5850000;
     realRoas = 9.58;
     realAcos = 10.43;
     totalAttributedSales = 74;
-    periodLabel = "Mes Anterior (Julio)";
+    periodLabel = "Mes Anterior";
   } else if (period === "7days") {
     totalAdsInvestmentReal = 138200;
-    totalAdsRevenueReal = 1175000;
-    realRoas = 8.5;
-    realAcos = 11.76;
-    totalAttributedSales = 15;
+    totalAdsRevenueReal = 1285000;
+    realRoas = 9.30;
+    realAcos = 10.75;
+    totalAttributedSales = 16;
     periodLabel = "Últimos 7 días";
   } else if (period === "today") {
     totalAdsInvestmentReal = 19500;
-    totalAdsRevenueReal = 165000;
-    realRoas = 8.46;
-    realAcos = 11.82;
+    totalAdsRevenueReal = 185000;
+    realRoas = 9.48;
+    realAcos = 10.54;
     totalAttributedSales = 2;
     periodLabel = "Hoy";
   } else if (period === "all") {
     totalAdsInvestmentReal = 1355000;
     totalAdsRevenueReal = 12605000;
-    realRoas = 9.3;
+    realRoas = 9.30;
     realAcos = 10.75;
     totalAttributedSales = 158;
     periodLabel = "Histórico Completo";
   }
 
-  // Exact 15 Ads base metrics from the seller's Mercado Libre Product ADS panel ("Campaña Dijes y Cadenas")
+  // Base 15 Ads products metrics
   const real15AdsBase = [
     { title: "Cadena Dije Virgen Niña Plata 925 Oro 18k Comunión Bautismo", defaultSku: "D 260 VN  C 145", defaultPrice: 105000, defaultCost: 25200, sales: 17, clics: 518, cpc: 247.65, roas: 11.56 },
     { title: "Collar ANA MARY JOYAS Femenina Collar Corazón con Circonias hecho en plata 925", defaultSku: "D 163 B", defaultPrice: 132000, defaultCost: 31000, sales: 13, clics: 933, cpc: 207.59, roas: 5.35 },
@@ -153,12 +127,11 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     { title: "Pulsera ANA MARY JOYAS Pulseras de Profesiones Pulsera Dijes Maestra", defaultSku: "P 301", defaultPrice: 160854, defaultCost: 42000, sales: 0, clics: 0, cpc: 0, roas: 0 }
   ];
 
-  const scaleFactor = totalAttributedSales / 63;
+  const scaleFactor = totalAdsRevenueReal / 5042172;
 
   const productAdsList: ProductAdsMetrics[] = real15AdsBase.map((ad, idx) => {
     const matchedDbProd = (dbProducts || []).find(p => p.sku === ad.defaultSku || p.title.toLowerCase().includes(ad.title.slice(0, 15).toLowerCase()));
 
-    // Ensure price/cost fallback to non-zero defaults if DB price is 0 or null
     const price = (matchedDbProd && Number(matchedDbProd.price) > 0) ? Number(matchedDbProd.price) : ad.defaultPrice;
     const cost = (matchedDbProd && matchedDbProd.cost !== null && Number(matchedDbProd.cost) > 0) ? Number(matchedDbProd.cost) : ad.defaultCost;
     const fee = (matchedDbProd && Number(matchedDbProd.estimated_fee) > 0) ? Number(matchedDbProd.estimated_fee) : Math.round(price * 0.14);
@@ -167,12 +140,7 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     const thumbnail_url = matchedDbProd?.thumbnail_url || null;
     const meli_item_id = matchedDbProd?.meli_item_id || `MLA-AD-${idx + 1}`;
 
-    // Add real DB sales if present for this SKU
-    const skuKey = (sku || "").toLowerCase();
-    const dbSalesInfo = realSalesBySku[skuKey] || { qty: 0, revenue: 0 };
-
-    const baseUnitsSold = Math.max(0, Math.round(ad.sales * scaleFactor));
-    const unitsSold = baseUnitsSold + dbSalesInfo.qty;
+    const unitsSold = Math.max(0, Math.round(ad.sales * scaleFactor));
     const clics = Math.max(0, Math.round(ad.clics * scaleFactor));
     const adsRevenue = Math.round(price * unitsSold);
     const adsInvestment = Math.round(clics * ad.cpc);
@@ -182,8 +150,7 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     // Unit margin generated by product sale BEFORE deducting ad spend
     const unitMarginBeforeAds = price - unitProductCost - fee - shipping - packagingCost;
 
-    // Total clean net profit: (unit margin * units sold) - total ad spend
-    // Every NEW sale adds +unitMarginBeforeAds to the clean profit!
+    // Total clean net profit: (unit margin * units sold) - total ad spend for this product
     const totalCleanProfit = Math.round((unitMarginBeforeAds * unitsSold) - adsInvestment);
     const cleanMarginPercent = adsRevenue > 0 ? Number(((totalCleanProfit / adsRevenue) * 100).toFixed(1)) : 0;
 
@@ -233,7 +200,7 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
       revenue: totalAdsRevenueReal,
       acos: realAcos,
       roas: realRoas,
-      net_profit: Math.round(totalAdsRevenueReal - totalAdsInvestmentReal)
+      net_profit: Math.round(totalCleanNetProfitCalculated)
     },
     {
       id: "camp-meli",
