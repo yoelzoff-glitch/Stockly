@@ -105,12 +105,24 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
   let totalAdsInvestmentCalculated: number | null = null;
   let totalAdsRevenueCalculated: number | null = null;
   let rawAdsProductsList: any[] = [];
+  let advertiserId: number | null = null;
 
   if (meliAccount?.access_token && meliAccount?.meli_user_id) {
+    // Query advertiser ID
+    try {
+      const advRes = await meliFetch({ tenantId, endpoint: "/advertising/advertisers?product_id=PADS" });
+      if (advRes?.advertisers?.[0]?.advertiser_id) {
+        advertiserId = Number(advRes.advertisers[0].advertiser_id);
+      }
+    } catch (_) {}
+
+    const targetAdvId = advertiserId || meliAccount.meli_user_id;
+
     const apiEndpoints = [
-      `/advertising/product_ads/campaigns/search?user_id=${meliAccount.meli_user_id}`,
-      `/advertising/product_ads/advertisers/${meliAccount.meli_user_id}/campaigns`,
-      `/advertising/product_ads/campaigns`
+      `/advertising/product_ads/campaigns/search?advertiser_id=${targetAdvId}`,
+      `/advertising/advertisers/${targetAdvId}/product_ads/campaigns`,
+      `/advertising/product_ads/advertisers/${targetAdvId}/campaigns`,
+      `/advertising/product_ads/campaigns/search?user_id=${meliAccount.meli_user_id}`
     ];
 
     for (const ep of apiEndpoints) {
@@ -163,7 +175,7 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     try {
       const adsRes = await meliFetch({
         tenantId,
-        endpoint: `/advertising/product_ads/advertisers/${meliAccount.meli_user_id}/ads`
+        endpoint: `/advertising/advertisers/${targetAdvId}/product_ads/ads`
       });
       if (adsRes && (Array.isArray(adsRes.results) || Array.isArray(adsRes))) {
         rawAdsProductsList = Array.isArray(adsRes.results) ? adsRes.results : adsRes;
@@ -186,19 +198,17 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
   const { data: tenantOrders } = await ordersQuery;
   const activeOrders = tenantOrders || [];
 
-  // Strictly filter orders with explicit advertising attribution tags (e.g. raw_data.tags includes 'advertising' or raw_data.advertising)
+  // Strictly filter orders with explicit advertising attribution tags
   const adsAttributedOrders = activeOrders.filter(o => {
     const rawStr = JSON.stringify(o.raw_data || {});
     return rawStr.includes("advertising") || rawStr.includes("ads") || o.raw_data?.tags?.includes("advertising");
   });
 
-  // If live MeLi API did not return campaign spend/revenue, use explicitly attributed advertising orders
   if (!liveAdsFetched) {
     if (adsAttributedOrders.length > 0) {
       totalAdsRevenueCalculated = adsAttributedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
       totalAdsInvestmentCalculated = Math.round(totalAdsRevenueCalculated * 0.1127);
     } else {
-      // If no live API and no explicitly tagged advertising orders exist, return null metrics without inventing numbers
       totalAdsRevenueCalculated = null;
       totalAdsInvestmentCalculated = null;
     }
@@ -270,7 +280,7 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     target.revenue += price;
   });
 
-  // If live MeLi Ads products API returned ads list, merge clics and ads_investment per item
+  // Merge live rawAdsProductsList if returned by API
   if (rawAdsProductsList.length > 0) {
     rawAdsProductsList.forEach((rawAd: any) => {
       const itemKey = (rawAd.sku || rawAd.item_id || "").toLowerCase();
@@ -292,7 +302,6 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     const adsRevenue = item.revenue;
     const unitPrice = unitsSold > 0 ? Math.round(adsRevenue / unitsSold) : 0;
 
-    // Proportionally allocate ad investment if item-level ad spend is null
     let adsInvestmentForItem = item.adsInvestment;
     if (adsInvestmentForItem === null) {
       if (totalAdsInvestmentCalculated !== null && totalAdsRevenueCalculated !== null && totalAdsRevenueCalculated > 0) {
@@ -303,7 +312,6 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
       }
     }
 
-    // Call Klyvo's official calculateRealProfitability function
     const profitInput = {
       price: unitPrice,
       cost: item.cost,
@@ -321,7 +329,6 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     let cleanNetMarginPercentForItem: number | null = null;
 
     if (realProfitRes.profitability_status === "complete" && realProfitRes.real_margin_amount !== null) {
-      // Net unit profit from Klyvo profitability engine * units sold - ad spend
       const totalUnitCosts = (item.cost || 0) + (item.fee || 0) + (item.extraFee || 0) + (item.shipping || 0) + (item.promoDiscount || 0) + (item.tax || 0) + packagingCost;
       const grossMarginForUnits = (unitPrice * unitsSold) - (totalUnitCosts * unitsSold);
       cleanNetProfitForItem = Math.round(grossMarginForUnits - adsInvestmentForItem);
@@ -356,11 +363,9 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     };
   });
 
-  // Calculate total clean net profit
   const completeProfits = productAdsList.filter(p => p.clean_net_profit !== null);
   const totalCleanNetProfit = completeProfits.length > 0 ? completeProfits.reduce((sum, item) => sum + (item.clean_net_profit || 0), 0) : null;
 
-  // Calculate overall ROAS and ACOS
   const overallRoas = (totalAdsInvestmentCalculated !== null && totalAdsInvestmentCalculated > 0 && totalAdsRevenueCalculated !== null)
     ? Number((totalAdsRevenueCalculated / totalAdsInvestmentCalculated).toFixed(2))
     : null;
@@ -369,7 +374,6 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     ? Number(((totalAdsInvestmentCalculated / totalAdsRevenueCalculated) * 100).toFixed(2))
     : null;
 
-  // Final campaign output
   if (campaignsList.length === 0 && (totalAdsRevenueCalculated !== null || totalAdsInvestmentCalculated !== null)) {
     campaignsList = [
       {
