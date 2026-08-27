@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { meliFetch } from "./client";
 
 export interface AdsCampaign {
   id: string;
@@ -61,6 +62,39 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     .from("products")
     .select("id, meli_item_id, title, sku, price, cost, estimated_fee, estimated_shipping_cost, thumbnail_url")
     .eq("tenant_id", tenantId);
+
+  // 4. Attempt live fetch from Mercado Libre Product ADS API if account is connected
+  let liveAdsFetched = false;
+  let liveCampaignsList: AdsCampaign[] = [];
+
+  if (meliAccount?.access_token && meliAccount?.meli_user_id) {
+    try {
+      const meliAdsRes = await meliFetch({
+        tenantId,
+        endpoint: `/advertising/product_ads/campaigns/search?user_id=${meliAccount.meli_user_id}`
+      });
+
+      if (meliAdsRes && (Array.isArray(meliAdsRes.results) || Array.isArray(meliAdsRes))) {
+        const rawCampaigns = Array.isArray(meliAdsRes.results) ? meliAdsRes.results : meliAdsRes;
+        if (rawCampaigns.length > 0) {
+          liveCampaignsList = rawCampaigns.map((c: any) => ({
+            id: c.id || `camp-${c.name}`,
+            name: c.name || "Campaña Product ADS",
+            status: c.status === "active" ? "active" : "paused",
+            daily_budget: Number(c.budget || c.daily_budget || 20000),
+            consumed_budget: Number(c.consumed_budget || c.metrics?.cost || 0),
+            revenue: Number(c.revenue || c.metrics?.revenue || 0),
+            acos: Number(c.acos || c.metrics?.acos || 0),
+            roas: Number(c.roas || c.metrics?.roas || 0),
+            net_profit: Number((c.revenue || 0) - (c.consumed_budget || 0))
+          }));
+          liveAdsFetched = true;
+        }
+      }
+    } catch (e: any) {
+      console.log("[getAdsData] MeLi Product Ads API Endpoint fallback (App pending scope approval):", e?.message || e);
+    }
+  }
 
   // Exact metrics per period matching Mercado Libre official panel (Anuncios)
   let totalAdsInvestmentReal = 573500;
@@ -190,7 +224,7 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
 
   const totalCleanNetProfitCalculated = productAdsList.reduce((sum, item) => sum + item.clean_net_profit, 0);
 
-  const campaigns: AdsCampaign[] = [
+  const campaigns: AdsCampaign[] = liveAdsFetched ? liveCampaignsList : [
     {
       id: "camp-dijes",
       name: "Campaña Dijes y Cadenas",
@@ -225,6 +259,6 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     totalCleanNetProfit: Math.round(totalCleanNetProfitCalculated),
     averageAcos: realAcos,
     overallRoas: realRoas,
-    liveAdsAvailable: true
+    liveAdsAvailable: liveAdsFetched
   };
 }
