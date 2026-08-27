@@ -10,14 +10,23 @@ export const metadata = {
 };
 
 export default async function AdsDashboardPage() {
-  let adsData = {
-    campaigns: [] as any[],
-    productAdsList: [] as any[],
-    totalAdsInvestment: 0,
-    totalAdsRevenue: 0,
-    totalCleanNetProfit: 0,
-    averageAcos: 0,
-    overallRoas: 0,
+  let adsData: {
+    campaigns: any[];
+    productAdsList: any[];
+    totalAdsInvestment: number | null;
+    totalAdsRevenue: number | null;
+    totalCleanNetProfit: number | null;
+    averageAcos: number | null;
+    overallRoas: number | null;
+    liveAdsAvailable: boolean;
+  } = {
+    campaigns: [],
+    productAdsList: [],
+    totalAdsInvestment: null,
+    totalAdsRevenue: null,
+    totalCleanNetProfit: null,
+    averageAcos: null,
+    overallRoas: null,
     liveAdsAvailable: false
   };
 

@@ -25,11 +25,11 @@ interface AdsClientPageProps {
   initialAdsData: {
     campaigns: any[];
     productAdsList: any[];
-    totalAdsInvestment: number;
-    totalAdsRevenue: number;
-    totalCleanNetProfit: number;
-    averageAcos: number;
-    overallRoas: number;
+    totalAdsInvestment: number | null;
+    totalAdsRevenue: number | null;
+    totalCleanNetProfit: number | null;
+    averageAcos: number | null;
+    overallRoas: number | null;
     liveAdsAvailable: boolean;
   };
 }
@@ -66,16 +66,31 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
     }
   };
 
+  const formatCurrency = (val: number | null | undefined) => {
+    if (val === null || val === undefined) return "N/D";
+    return `$${val.toLocaleString()}`;
+  };
+
+  const formatPercent = (val: number | null | undefined) => {
+    if (val === null || val === undefined) return "N/D";
+    return `${val}%`;
+  };
+
+  const formatRoas = (val: number | null | undefined) => {
+    if (val === null || val === undefined) return "N/D";
+    return `${val}x`;
+  };
+
   // Filter products
-  const filteredProducts = adsData.productAdsList.filter((p) => {
+  const filteredProducts = (adsData.productAdsList || []).filter((p) => {
     const titleMatch = p.title?.toLowerCase().includes(searchTerm.toLowerCase());
     const skuMatch = p.sku?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSearch = titleMatch || skuMatch;
 
     if (statusFilter === "all") return matchesSearch;
-    if (statusFilter === "profitable") return matchesSearch && p.profitability_status === "profitable";
-    if (statusFilter === "warning") return matchesSearch && p.profitability_status === "warning";
-    if (statusFilter === "loss") return matchesSearch && p.profitability_status === "loss";
+    if (statusFilter === "profitable") return matchesSearch && p.profitability_status === "complete";
+    if (statusFilter === "warning") return matchesSearch && p.clean_net_margin_percent !== null && p.clean_net_margin_percent < 15;
+    if (statusFilter === "loss") return matchesSearch && p.clean_net_profit !== null && p.clean_net_profit < 0;
     if (statusFilter === "missing_cost") return matchesSearch && p.profitability_status === "missing_cost";
     return matchesSearch;
   });
@@ -150,7 +165,7 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
             <Megaphone className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">${adsData.totalAdsInvestment.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-slate-900">{formatCurrency(adsData.totalAdsInvestment)}</div>
             <p className="text-xs text-muted-foreground mt-1">
               Gasto publicitario acumulado
             </p>
@@ -164,7 +179,7 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
             <TrendingUp className="h-4 w-4 text-indigo-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">${adsData.totalAdsRevenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-slate-900">{formatCurrency(adsData.totalAdsRevenue)}</div>
             <p className="text-xs text-muted-foreground mt-1">
               Ventas brutas originadas por anuncios
             </p>
@@ -179,7 +194,7 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-slate-900">
-              {adsData.averageAcos}% <span className="text-xs font-normal text-muted-foreground">(ROAS {adsData.overallRoas}x)</span>
+              {formatPercent(adsData.averageAcos)} <span className="text-xs font-normal text-muted-foreground">(ROAS {formatRoas(adsData.overallRoas)})</span>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Porcentaje de costo sobre facturación
@@ -195,7 +210,7 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-              ${adsData.totalCleanNetProfit.toLocaleString()}
+              {formatCurrency(adsData.totalCleanNetProfit)}
             </div>
             <p className="text-xs text-emerald-800 dark:text-emerald-300 font-medium mt-1">
               Limpio real tras costo BD + Fees + ADS
@@ -224,9 +239,7 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
                 <tr>
                   <th className="h-10 px-4 align-middle">Nombre de Campaña</th>
                   <th className="h-10 px-4 align-middle text-center">Estado</th>
-                  <th className="h-10 px-4 align-middle">Diagnóstico</th>
                   <th className="h-10 px-4 align-middle text-right">Presupuesto Diario</th>
-                  <th className="h-10 px-4 align-middle text-center">ROAS Objetivo</th>
                   <th className="h-10 px-4 align-middle text-right">Consumo (Inversión)</th>
                   <th className="h-10 px-4 align-middle text-right">Facturación Generada</th>
                   <th className="h-10 px-4 align-middle text-center">ROAS / ACOS</th>
@@ -234,7 +247,6 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
               </thead>
               <tbody>
                 {adsData.campaigns.map((c) => {
-                  const isDijes = c.id === "camp-dijes" || c.name.includes("Dijes");
                   return (
                     <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                       <td className="p-4 align-middle font-semibold text-slate-900">
@@ -243,229 +255,153 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
                           <div>
                             <span className="block text-slate-900">{c.name}</span>
                             <span className="text-xs text-slate-400 font-normal">
-                              {isDijes ? "15 anuncios activos" : "9 anuncios pausados"}
+                              {c.id}
                             </span>
                           </div>
                         </div>
                       </td>
                       <td className="p-4 align-middle text-center">
-                        <Badge className={c.status === "active" ? "bg-emerald-100 text-emerald-800 border-emerald-200 font-bold" : "bg-slate-100 text-slate-700"}>
+                        <Badge className={c.status === "active" ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : "bg-slate-100 text-slate-700 hover:bg-slate-100"}>
                           {c.status === "active" ? "Activa" : "Pausada"}
                         </Badge>
                       </td>
-                      <td className="p-4 align-middle text-xs">
-                        {isDijes ? (
-                          <div className="text-amber-700 bg-amber-50 border border-amber-200 p-1.5 rounded">
-                            <span className="font-bold block">⚠️ Puede mejorar</span>
-                            <span className="text-[11px] text-amber-800">Perdés ventas por falta de presupuesto</span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
+                      <td className="p-4 align-middle text-right font-medium text-slate-700">
+                        {c.daily_budget !== null ? `${formatCurrency(c.daily_budget)}/día` : "N/D"}
                       </td>
-                      <td className="p-4 align-middle text-right font-bold text-slate-900">
-                        ${c.daily_budget?.toLocaleString('es-AR')} /día
+                      <td className="p-4 align-middle text-right font-semibold text-amber-600">
+                        {formatCurrency(c.consumed_budget)}
                       </td>
-                      <td className="p-4 align-middle text-center font-semibold text-slate-700">
-                        {isDijes ? "4x" : "3.7x"}
+                      <td className="p-4 align-middle text-right font-bold text-indigo-600">
+                        {formatCurrency(c.revenue)}
                       </td>
-                      <td className="p-4 align-middle text-right text-amber-700 font-bold">
-                        ${c.consumed_budget?.toLocaleString('es-AR')}
-                      </td>
-                      <td className="p-4 align-middle text-right text-indigo-700 font-bold">
-                        ${c.revenue?.toLocaleString('es-AR')}
-                      </td>
-                      <td className="p-4 align-middle text-center">
-                        {c.status === "active" ? (
-                          <div>
-                            <span className="font-extrabold text-slate-900 block">{c.roas}x ROAS</span>
-                            <span className="text-xs text-slate-500 font-medium">({c.acos}% ACOS)</span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400">-</span>
-                        )}
+                      <td className="p-4 align-middle text-center font-bold text-slate-900">
+                        <div>{formatRoas(c.roas)} ROAS</div>
+                        <div className="text-xs text-slate-400 font-normal">({formatPercent(c.acos)} ACOS)</div>
                       </td>
                     </tr>
                   );
                 })}
+
+                {adsData.campaigns.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-500">
+                      No hay campañas registradas en este período.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
 
-      {/* Listado de Anuncios en Campaña ADS con Ganancia Limpia */}
+      {/* Tabla de Anuncios en Campaña */}
       <Card className="shadow-sm border-slate-200">
-        <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <span>Anuncios en Campaña Product ADS</span>
-              <Badge className="bg-amber-400 text-slate-950 font-bold text-xs">Inversión Diaria ADS</Badge>
-            </CardTitle>
-            <CardDescription>
-              Muestra exclusivamente productos anunciados en campañas publicitarias Product ADS (excluye ofertas, promociones de cuotas o cupones).
-            </CardDescription>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            {/* Rentability Filter */}
-            <div className="flex items-center rounded-lg border border-slate-200 p-1 bg-slate-50 text-xs">
-              <button
-                onClick={() => setStatusFilter("all")}
-                className={`px-2.5 py-1 rounded-md transition-all ${statusFilter === "all" ? "bg-white text-slate-900 shadow-sm font-semibold" : "text-slate-500 hover:text-slate-900"}`}
-              >
-                Todos ({adsData.productAdsList.length})
-              </button>
-              <button
-                onClick={() => setStatusFilter("profitable")}
-                className={`px-2.5 py-1 rounded-md transition-all ${statusFilter === "profitable" ? "bg-emerald-500 text-white shadow-sm font-semibold" : "text-slate-600 hover:text-slate-900"}`}
-              >
-                💰 Rentables
-              </button>
-              <button
-                onClick={() => setStatusFilter("warning")}
-                className={`px-2.5 py-1 rounded-md transition-all ${statusFilter === "warning" ? "bg-amber-400 text-slate-950 shadow-sm font-bold" : "text-slate-600 hover:text-slate-900"}`}
-              >
-                ⚠️ Ajustados
-              </button>
-              <button
-                onClick={() => setStatusFilter("loss")}
-                className={`px-2.5 py-1 rounded-md transition-all ${statusFilter === "loss" ? "bg-red-500 text-white shadow-sm font-semibold" : "text-slate-600 hover:text-slate-900"}`}
-              >
-                ❌ En Pérdida
-              </button>
-              <button
-                onClick={() => setStatusFilter("missing_cost")}
-                className={`px-2.5 py-1 rounded-md transition-all ${statusFilter === "missing_cost" ? "bg-slate-200 text-slate-800 shadow-sm font-semibold" : "text-slate-500 hover:text-slate-900"}`}
-              >
-                ❓ Sin Costo BD
-              </button>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <span>Anuncios en Campaña Product ADS</span>
+                <Badge className="bg-amber-500 text-slate-950 font-semibold text-xs">Inversión Diaria ADS</Badge>
+              </CardTitle>
+              <CardDescription className="mt-1">
+                Muestra exclusivamente productos anunciados en campañas publicitarias Product ADS (excluye ofertas, promociones de cuotas o cupones).
+              </CardDescription>
             </div>
-
-            <Input
-              placeholder="Buscar producto o SKU..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-xs"
-            />
+            
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Buscar producto..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full sm:w-[220px] bg-slate-50"
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          {filteredProducts.length === 0 ? (
-            <div className="py-12 text-center text-slate-500">
-              No se encontraron productos que coincidan con la búsqueda o filtro.
-            </div>
-          ) : (
-            <div className="rounded-xl border border-slate-200 overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="border-b bg-slate-50 font-medium text-slate-600">
-                  <tr>
-                    <th className="h-10 px-4 align-middle">Anuncio / Producto</th>
-                    <th className="h-10 px-4 align-middle">SKU BD</th>
-                    <th className="h-10 px-4 align-middle text-center">Clics & CPC</th>
-                    <th className="h-10 px-4 align-middle text-center">ROAS ML</th>
-                    <th className="h-10 px-4 align-middle text-center">Ventas Atribuidas</th>
-                    <th className="h-10 px-4 align-middle text-right">Inversión ADS</th>
-                    <th className="h-10 px-4 align-middle text-right">Costo BD + Fees</th>
-                    <th className="h-10 px-4 align-middle text-right">💰 Ganancia Limpia Real</th>
-                    <th className="h-10 px-4 align-middle text-center">Estado ADS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredProducts.map((p) => {
-                    const hasCost = p.cost !== null && p.cost > 0;
-                    const isProfit = p.clean_net_profit > 0;
-
-                    return (
-                      <tr key={p.product_id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td className="p-4 align-middle font-medium min-w-[260px]">
-                          <div className="flex items-center gap-3">
-                            {p.thumbnail_url && (
-                              <img src={p.thumbnail_url} alt="" className="w-10 h-10 rounded-md object-cover border" />
-                            )}
-                            <span className="line-clamp-2 text-slate-900 font-semibold">{p.title}</span>
-                          </div>
-                        </td>
-                        <td className="p-4 align-middle">
-                          <span className="font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded text-xs">
-                            {p.sku || "Sin SKU"}
-                          </span>
-                        </td>
-                        <td className="p-4 align-middle text-center">
-                          <div className="flex flex-col text-xs">
-                            <span className="font-bold text-slate-800">{p.clics || 0} clics</span>
-                            <span className="text-slate-400">CPC: ${p.cpc ? p.cpc.toFixed(2) : "0"}</span>
-                          </div>
-                        </td>
-                        <td className="p-4 align-middle text-center">
-                          {p.roas > 0 ? (
-                            <span className="font-bold text-slate-900 bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-xs">
-                              {p.roas}x
-                            </span>
+          <div className="rounded-xl border border-slate-200 overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="border-b bg-slate-50 font-medium text-slate-600">
+                <tr>
+                  <th className="h-10 px-4 align-middle">Producto Anunciado</th>
+                  <th className="h-10 px-4 align-middle text-right">Precio Venta</th>
+                  <th className="h-10 px-4 align-middle text-right">Costo Joya BD</th>
+                  <th className="h-10 px-4 align-middle text-center">Ventas Ads</th>
+                  <th className="h-10 px-4 align-middle text-right">Facturación Ads</th>
+                  <th className="h-10 px-4 align-middle text-right">Gasto Ads</th>
+                  <th className="h-10 px-4 align-middle text-center">ACOS / ROAS</th>
+                  <th className="h-10 px-4 align-middle text-right">Ganancia Limpia</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProducts.map((p) => {
+                  const hasLoss = p.clean_net_profit !== null && p.clean_net_profit < 0;
+                  return (
+                    <tr key={p.product_id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                      <td className="p-4 align-middle font-medium max-w-[280px]">
+                        <div className="flex items-center gap-3">
+                          {p.thumbnail_url ? (
+                            <img src={p.thumbnail_url} alt={p.title} className="h-10 w-10 rounded-md object-cover border border-slate-200 shrink-0" />
                           ) : (
-                            <span className="text-slate-400">-</span>
-                          )}
-                        </td>
-                        <td className="p-4 align-middle text-center">
-                          <span className="font-extrabold text-sm text-slate-900">
-                            {p.ads_units_sold} {p.ads_units_sold === 1 ? "venta" : "ventas"}
-                          </span>
-                        </td>
-                        <td className="p-4 align-middle text-right text-amber-700 font-bold">
-                          ${p.ads_investment?.toLocaleString('es-AR')}
-                        </td>
-                        <td className="p-4 align-middle text-right text-slate-600 font-medium">
-                          {hasCost ? (
-                            `$${(p.total_product_cost + p.total_fee_cost + p.total_shipping_cost + p.total_packaging_cost).toLocaleString('es-AR')}`
-                          ) : (
-                            <span className="text-slate-400 italic text-xs">Sin costo BD</span>
-                          )}
-                        </td>
-                        <td className="p-4 align-middle text-right">
-                          {hasCost ? (
-                            <div>
-                              <span className={`font-extrabold text-sm ${isProfit ? "text-emerald-600" : "text-red-600"}`}>
-                                ${p.clean_net_profit?.toLocaleString('es-AR')}
-                              </span>
-                              {p.ads_units_sold > 0 && (
-                                <span className="block text-xs font-semibold text-slate-500">
-                                  ({p.clean_net_margin_percent.toFixed(1)}% neto)
-                                </span>
-                              )}
+                            <div className="h-10 w-10 rounded-md bg-slate-100 flex items-center justify-center text-slate-400 font-bold shrink-0">
+                              ADS
                             </div>
-                          ) : (
-                            <span className="text-amber-600 text-xs font-medium">Carga costo en BD</span>
                           )}
-                        </td>
-                        <td className="p-4 align-middle text-center">
-                          {p.profitability_status === "profitable" && (
-                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 gap-1">
-                              <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Rentable
-                            </Badge>
-                          )}
-                          {p.profitability_status === "warning" && (
-                            <Badge className="bg-amber-100 text-amber-900 border-amber-200 gap-1">
-                              <AlertTriangle className="h-3 w-3 text-amber-600" /> Margen Bajo
-                            </Badge>
-                          )}
-                          {p.profitability_status === "loss" && (
-                            <Badge className="bg-red-100 text-red-800 border-red-200 gap-1">
-                              <AlertTriangle className="h-3 w-3 text-red-600" /> Pérdida
-                            </Badge>
-                          )}
-                          {p.profitability_status === "missing_cost" && (
-                            <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-300 gap-1">
-                              <HelpCircle className="h-3 w-3 text-slate-400" /> Sin Costo
-                            </Badge>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                          <div className="truncate">
+                            <span className="block text-slate-900 font-semibold truncate">{p.title}</span>
+                            <span className="text-xs text-slate-400 font-mono">SKU: {p.sku || "N/D"} | MLA: {p.meli_item_id}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4 align-middle text-right text-slate-900 font-medium">
+                        {formatCurrency(p.price)}
+                      </td>
+                      <td className="p-4 align-middle text-right font-medium">
+                        {p.cost !== null ? (
+                          <span className="text-slate-700">{formatCurrency(p.cost)}</span>
+                        ) : (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">
+                            Cargar costo
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="p-4 align-middle text-center font-bold text-slate-800">
+                        {p.ads_units_sold} u.
+                      </td>
+                      <td className="p-4 align-middle text-right font-bold text-indigo-600">
+                        {formatCurrency(p.ads_revenue)}
+                      </td>
+                      <td className="p-4 align-middle text-right font-semibold text-amber-600">
+                        {formatCurrency(p.ads_investment)}
+                      </td>
+                      <td className="p-4 align-middle text-center font-medium text-slate-700">
+                        <div>{formatPercent(p.acos_percent)} ACOS</div>
+                        <div className="text-xs text-slate-400">({formatRoas(p.roas)} ROAS)</div>
+                      </td>
+                      <td className="p-4 align-middle text-right font-extrabold">
+                        {p.clean_net_profit !== null ? (
+                          <span className={hasLoss ? "text-red-600" : "text-emerald-600"}>
+                            {formatCurrency(p.clean_net_profit)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">N/D</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {filteredProducts.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="p-8 text-center text-slate-500">
+                      No se encontraron anuncios correspondientes a los filtros seleccionados.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
     </div>
