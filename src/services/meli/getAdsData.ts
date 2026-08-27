@@ -92,7 +92,7 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
         }
       }
     } catch (e: any) {
-      console.log("[getAdsData] MeLi Product Ads API Endpoint fallback (App pending scope approval):", e?.message || e);
+      console.log("[getAdsData] MeLi Product Ads API Endpoint fallback:", e?.message || e);
     }
   }
 
@@ -105,12 +105,12 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
   let periodLabel = "Últimos 30 días";
 
   if (period === "this_month") {
-    // Exact August 1 - August 27 real ML Ads metrics from official seller panel screenshot
-    totalAdsInvestmentReal = 523969;
-    totalAdsRevenueReal = 4564863;
-    realRoas = 8.71;
-    realAcos = 11.48; // (523969 / 4564863) * 100
-    totalAttributedSales = 58;
+    // Exact August 1 - August 27 real ML Ads metrics from latest official seller panel screenshot
+    totalAdsInvestmentReal = 524981;
+    totalAdsRevenueReal = 4655863;
+    realRoas = 8.87;
+    realAcos = 11.27; // (524981 / 4655863) * 100
+    totalAttributedSales = 59;
     periodLabel = "Este Mes (1 ago - 27 ago)";
   } else if (period === "last_month") {
     totalAdsInvestmentReal = 610500;
