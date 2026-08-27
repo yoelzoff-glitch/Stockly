@@ -158,13 +158,13 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     return rawStr.includes("advertising") || rawStr.includes("ads") || o.raw_data?.tags?.includes("advertising");
   });
 
-  const ordersForAdsCalc = adsTaggedOrders.length > 0 ? adsTaggedOrders : activeOrders;
+  const targetOrders = adsTaggedOrders.length > 0 ? adsTaggedOrders : activeOrders;
 
   // If live MeLi API wasn't available, calculate revenue & investment dynamically from tenant's DB orders
   if (!liveAdsFetched) {
-    const totalOrderRevenueDB = ordersForAdsCalc.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
-    // Product ADS attributed revenue dynamically derived from DB orders
-    totalAdsRevenueCalculated = Math.round(totalOrderRevenueDB * 0.44);
+    const totalOrderRevenueDB = targetOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    const adsAttributionRatio = adsTaggedOrders.length > 0 ? 1.0 : 0.441;
+    totalAdsRevenueCalculated = Math.round(totalOrderRevenueDB * adsAttributionRatio);
     totalAdsInvestmentCalculated = Math.round(totalAdsRevenueCalculated * 0.1127);
 
     campaignsList = [
@@ -182,12 +182,12 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     ];
   }
 
-  // 6. Fetch order items for orders
-  const { data: orderItems } = ordersForAdsCalc.length > 0
+  // 6. Fetch order items for target orders
+  const { data: orderItems } = targetOrders.length > 0
     ? await supabase
         .from("order_items")
         .select("order_id, meli_item_id, sku, title, quantity, total_price, unit_cost, estimated_fee, estimated_shipping_cost")
-        .in("order_id", ordersForAdsCalc.map(o => o.id))
+        .in("order_id", targetOrders.map(o => o.id))
     : { data: [] };
 
   // Aggregate items dynamically by SKU / meli_item_id
@@ -204,62 +204,61 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     product_id: string;
   }> = {};
 
-  // First seed map with tenant products from DB
-  tenantProducts.forEach(p => {
-    const key = (p.sku || p.meli_item_id || p.id).toLowerCase();
-    itemAggMap[key] = {
-      meli_item_id: p.meli_item_id || "",
-      sku: p.sku || null,
-      title: p.title || "Producto",
-      unitsSold: 0,
-      revenue: 0,
-      cost: Number(p.cost) || 0,
-      fee: Number(p.estimated_fee) || (Number(p.price || 0) * 0.14),
-      shipping: Number(p.estimated_shipping_cost) || 0,
-      thumbnail_url: p.thumbnail_url || null,
-      product_id: p.id
-    };
-  });
+  const adsAttributionRatio = adsTaggedOrders.length > 0 ? 1.0 : 0.441;
 
-  // Accumulate units sold & revenue from tenant's actual DB order items
   (orderItems || []).forEach(item => {
     const itemSkuKey = (item.sku || "").toLowerCase();
     const itemIdKey = (item.meli_item_id || "").toLowerCase();
     const itemKey = itemSkuKey || itemIdKey || item.order_id || "unknown";
 
+    const dbProdMatch = tenantProducts.find(p =>
+      (p.sku && p.sku.toLowerCase() === itemSkuKey) ||
+      (p.meli_item_id && p.meli_item_id.toLowerCase() === itemIdKey)
+    );
+
+    const fullPrice = Number(item.total_price || (dbProdMatch?.price ? Number(dbProdMatch.price) * Number(item.quantity || 1) : 0));
+    const qty = Number(item.quantity) || 1;
+
+    // Proportionally attributed ads sales units and full unit metrics
+    const adsQty = Math.max(1, Math.round(qty * adsAttributionRatio));
+    const adsRev = Math.round(fullPrice * adsAttributionRatio);
+
+    const unitPrice = adsQty > 0 ? Math.round(adsRev / adsQty) : fullPrice;
+    const unitCost = Number(dbProdMatch?.cost ?? item.unit_cost ?? 0);
+    const unitFee = Number(dbProdMatch?.estimated_fee ?? item.estimated_fee ?? (unitPrice * 0.14));
+    const unitShipping = Number(dbProdMatch?.estimated_shipping_cost ?? item.estimated_shipping_cost ?? 0);
+
     if (!itemAggMap[itemKey]) {
       itemAggMap[itemKey] = {
-        meli_item_id: item.meli_item_id || "",
-        sku: item.sku || null,
-        title: item.title || "Producto",
+        meli_item_id: item.meli_item_id || dbProdMatch?.meli_item_id || "",
+        sku: item.sku || dbProdMatch?.sku || null,
+        title: item.title || dbProdMatch?.title || "Producto",
         unitsSold: 0,
         revenue: 0,
-        cost: Number(item.unit_cost) || 0,
-        fee: Number(item.estimated_fee) || (Number(item.total_price || 0) * 0.14),
-        shipping: Number(item.estimated_shipping_cost) || 0,
-        thumbnail_url: null,
-        product_id: item.order_id
+        cost: unitCost,
+        fee: unitFee,
+        shipping: unitShipping,
+        thumbnail_url: dbProdMatch?.thumbnail_url || null,
+        product_id: dbProdMatch?.id || item.order_id
       };
     }
 
     const target = itemAggMap[itemKey];
-    const qty = Number(item.quantity) || 1;
-    const rev = Math.round(Number(item.total_price || 0) * 0.44);
-    target.unitsSold += Math.max(1, Math.round(qty * 0.44));
-    target.revenue += rev;
+    target.unitsSold += adsQty;
+    target.revenue += adsRev;
   });
 
-  // Filter only products that have sales or are active products in tenant DB
-  const aggregatedItemsList = Object.values(itemAggMap).filter(item => item.unitsSold > 0 || tenantProducts.some(p => p.id === item.product_id));
+  // Filter STRICTLY items that have sales in Product ADS campaign
+  const aggregatedItemsList = Object.values(itemAggMap).filter(item => item.unitsSold > 0 && item.revenue > 0);
 
   // Build 100% dynamic productAdsList
   const productAdsList: ProductAdsMetrics[] = aggregatedItemsList.map((item, idx) => {
-    const price = item.unitsSold > 0 ? Math.round(item.revenue / item.unitsSold) : (item.revenue || 100000);
-    const cost = item.cost;
-    const fee = item.fee;
-    const shipping = item.shipping;
     const unitsSold = item.unitsSold;
     const adsRevenue = item.revenue;
+    const unitPrice = unitsSold > 0 ? Math.round(adsRevenue / unitsSold) : 0;
+    const unitCost = item.cost;
+    const unitFee = Math.round(unitPrice * 0.14); // Standard 14% MeLi selling fee
+    const unitShipping = Math.min(item.shipping, Math.round(unitPrice * 0.05)); // Proportionally allocated shipping
 
     const revenueShare = totalAdsRevenueCalculated > 0 ? (adsRevenue / totalAdsRevenueCalculated) : (1 / Math.max(1, aggregatedItemsList.length));
     const adsInvestment = Math.round(totalAdsInvestmentCalculated * revenueShare);
@@ -267,14 +266,17 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     const clics = Math.round(adsInvestment / 210);
     const cpc = 210;
 
-    const unitProductCost = cost;
-    const unitMarginBeforeAds = price - unitProductCost - fee - shipping - packagingCost;
-    const totalCleanProfit = Math.round((unitMarginBeforeAds * unitsSold) - adsInvestment);
+    const totalProdCost = Math.round(unitCost * unitsSold);
+    const totalFeeCost = Math.round(unitFee * unitsSold);
+    const totalShippingCost = Math.round(unitShipping * unitsSold);
+    const totalPackagingCost = Math.round(packagingCost * unitsSold);
+
+    const totalCleanProfit = Math.round(adsRevenue - totalProdCost - totalFeeCost - totalShippingCost - totalPackagingCost - adsInvestment);
     const cleanMarginPercent = adsRevenue > 0 ? Number(((totalCleanProfit / adsRevenue) * 100).toFixed(1)) : 0;
     const roas = adsInvestment > 0 ? Number((adsRevenue / adsInvestment).toFixed(2)) : 0;
 
     let status: "profitable" | "warning" | "loss" | "missing_cost" = "profitable";
-    if (cost === null || cost <= 0) {
+    if (unitCost === null || unitCost <= 0) {
       status = "missing_cost";
     } else if (totalCleanProfit < 0) {
       status = "loss";
@@ -288,17 +290,17 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
       title: item.title,
       sku: item.sku,
       thumbnail_url: item.thumbnail_url,
-      price: Math.round(price),
-      cost: cost > 0 ? Math.round(cost) : null,
+      price: unitPrice,
+      cost: unitCost > 0 ? Math.round(unitCost) : null,
       ads_units_sold: unitsSold,
       ads_revenue: adsRevenue,
       clics,
       cpc,
       roas,
-      total_product_cost: Math.round(unitProductCost * unitsSold),
-      total_fee_cost: Math.round(fee * unitsSold),
-      total_shipping_cost: Math.round(shipping * unitsSold),
-      total_packaging_cost: Math.round(packagingCost * unitsSold),
+      total_product_cost: totalProdCost,
+      total_fee_cost: totalFeeCost,
+      total_shipping_cost: totalShippingCost,
+      total_packaging_cost: totalPackagingCost,
       ads_investment: adsInvestment,
       clean_net_profit: totalCleanProfit,
       clean_net_margin_percent: cleanMarginPercent,
@@ -311,7 +313,6 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
   const averageAcos = totalAdsRevenueCalculated > 0 ? Number(((totalAdsInvestmentCalculated / totalAdsRevenueCalculated) * 100).toFixed(2)) : 0;
   const overallRoas = totalAdsInvestmentCalculated > 0 ? Number((totalAdsRevenueCalculated / totalAdsInvestmentCalculated).toFixed(2)) : 0;
 
-  // Update campaign net_profit dynamically
   if (campaignsList.length > 0) {
     campaignsList[0].net_profit = totalCleanNetProfit;
   }
