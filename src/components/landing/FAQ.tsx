@@ -2,66 +2,70 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, HelpCircle } from "lucide-react";
 
 const faqs = [
   {
-    q: "¿Necesito tarjeta de crédito para empezar?",
-    a: "No, puedes crear tu cuenta y usar los 7 días de prueba gratuitos sin ingresar ninguna tarjeta de crédito."
+    q: "¿Necesito ingresar tarjeta de crédito para la prueba gratis?",
+    a: "No. Podés registrarte y probar Klyvo durante 15 días gratis sin ingresar datos de pago ni tarjeta. Solo pagás si decidís continuar."
   },
   {
-    q: "¿Conecta directamente con Mercado Libre?",
-    a: "Sí, nos integramos de forma oficial a través de la API de Mercado Libre. Toda la información se sincroniza en tiempo real de forma segura."
+    q: "¿Cómo se conecta Klyvo con mi cuenta de Mercado Libre?",
+    a: "Nos conectamos de forma 100% oficial mediante el protocolo OAuth 2.0 de la API de Mercado Libre. No almacenamos tus contraseñas ni datos sensibles."
   },
   {
-    q: "¿Puedo cancelar mi suscripción en cualquier momento?",
-    a: "Absolutamente. No hay contratos de permanencia. Puedes cancelar tu plan cuando quieras desde el panel de configuración."
+    q: "¿Klyvo ejecuta cambios de precios o stock por su cuenta sin mi permiso?",
+    a: "Nunca. Podés configurar Klyvo en modo 'Auditor' (notificaciones y sugerencias de aprobación previa) o en modo 'Piloto Automático' con límites estrictos de margen mínimo que vos mismo definís."
   },
   {
-    q: "¿Cómo funciona el asistente por WhatsApp?",
-    a: "Vinculamos un número de WhatsApp a tu cuenta de Klyvo. Le escribes o envías audios como si fuera un empleado más, y la IA interpreta tus instrucciones y ejecuta cambios en tu cuenta (ej. 'Pausar producto X')."
+    q: "¿Cómo se calcula el dinero o margen que me está haciendo perder Mercado Libre?",
+    a: "Klyvo audita la comisión exacta cobrada por categoría, retenciones impositivas activas (IIBB, Percepciones), envíos Flex y costo de reposición del insumo. Si una publicación está vendiendo por debajo del costo o con una comisión excedente, te alerta de inmediato."
   },
   {
-    q: "¿La IA cambia cosas en mi cuenta por sí sola?",
-    a: "Nunca. La IA detecta problemas u oportunidades y te envía notificaciones con sugerencias. Solo ejecutamos cambios si tú respondes 'Confirmo'."
+    q: "¿Puedo vincular múltiples cuentas de Mercado Libre en una sola suscripción?",
+    a: "Sí, el plan Ultra y Enterprise permiten conectar múltiples cuentas de Mercado Libre para consolidar depósitos físicos y catálogo en un único panel unificado."
   },
   {
-    q: "¿Mis datos financieros son privados?",
-    a: "Tu privacidad y seguridad son nuestra máxima prioridad. Usamos encriptación de nivel bancario y nunca compartimos tus datos de ventas o proveedores con terceros."
-  },
-  {
-    q: "¿Cómo ayuda la IA con los títulos y la sincronización de mis publicaciones?",
-    a: "Nuestra IA analiza tu producto (categoría, marca, atributos) para sugerir títulos optimizados para SEO que incrementan la exposición y las ventas. Además, con la sincronización inteligente de publicaciones hermanas, podés replicar y cambiar títulos o stock de publicaciones Clásica y Premium con el mismo SKU en un solo clic, sin hacerlo de a una."
+    q: "¿Cómo funciona la asistencia por WhatsApp?",
+    a: "Podés enviar mensajes de voz o texto a nuestro número de WhatsApp vinculado para consultar facturación en vivo, pedir que pausemos productos en quiebre o ajustar un lote de precios sin abrir la computadora."
   }
 ];
 
 export function FAQ() {
-  const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const [openIdx, setOpenIdx] = useState<number | null>(0);
 
   return (
-    <section id="faq" className="py-24 bg-white">
+    <section id="faq" className="py-24 bg-slate-950 text-white border-b border-slate-800">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono bg-slate-900 border border-slate-800 text-slate-300 mb-4">
+            <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+            DESPEJÁ TUS DUDAS OPERATIVAS
+          </div>
+          <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white mb-4">
             Preguntas Frecuentes
           </h2>
+          <p className="text-slate-400 text-sm md:text-base">
+            Todo lo que necesitás saber sobre la seguridad, integración y funcionamiento de Klyvo.
+          </p>
         </div>
 
         <div className="space-y-4">
           {faqs.map((faq, idx) => (
             <div 
               key={idx} 
-              className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 transition-colors hover:bg-slate-100/50"
+              className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/60 transition-colors hover:border-slate-700"
             >
               <button
                 onClick={() => setOpenIdx(openIdx === idx ? null : idx)}
                 className="w-full flex items-center justify-between p-6 text-left focus:outline-none"
               >
-                <span className="font-semibold text-slate-900">{faq.q}</span>
+                <span className="font-semibold text-white text-sm md:text-base">{faq.q}</span>
                 <motion.div
                   animate={{ rotate: openIdx === idx ? 180 : 0 }}
                   transition={{ duration: 0.2 }}
-                  className="flex-shrink-0 ml-4 text-slate-400"
+                  className="flex-shrink-0 ml-4 text-amber-400"
                 >
                   <ChevronDown className="w-5 h-5" />
                 </motion.div>
@@ -75,7 +79,7 @@ export function FAQ() {
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <div className="px-6 pb-6 pt-0 text-slate-600">
+                    <div className="px-6 pb-6 pt-0 text-slate-300 text-xs md:text-sm leading-relaxed border-t border-slate-800/60 pt-4">
                       {faq.a}
                     </div>
                   </motion.div>
@@ -84,6 +88,7 @@ export function FAQ() {
             </div>
           ))}
         </div>
+
       </div>
     </section>
   );

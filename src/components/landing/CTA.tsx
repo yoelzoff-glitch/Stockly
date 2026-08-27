@@ -2,34 +2,46 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ArrowRight, Sparkles, ShieldCheck } from "lucide-react";
 
 export function CTA() {
   return (
-    <section className="relative py-24 bg-slate-900 overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-indigo-600/40 via-slate-900 to-slate-900"></div>
+    <section className="relative py-24 bg-slate-950 text-white border-b border-slate-800 overflow-hidden bg-grid-pattern-dark">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-amber-500/10 rounded-full blur-[140px] pointer-events-none"></div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-        <h2 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight tracking-tight">
-          Dejá de ser un esclavo operativo.<br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
-            Empezá a liderar un negocio real con IA.
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+        <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-400 font-mono text-xs font-bold uppercase mb-6">
+          <Sparkles className="w-3.5 h-3.5" /> INSTALACIÓN EN 3 MINUTOS
+        </span>
+
+        <h2 className="text-4xl md:text-6xl font-extrabold text-white mb-6 leading-tight tracking-tight">
+          Dejá de perder dinero en comisiones invisibles.<br />
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-indigo-300">
+            Tomá el control absoluto de tu rentable e-commerce.
           </span>
         </h2>
-        <p className="text-xl text-slate-300 mb-10 max-w-3xl mx-auto leading-relaxed">
-          Conectá tu cuenta en menos de 3 minutos. Sin ingresar tarjetas de crédito, gratis por 7 días con acceso ilimitado y soporte personalizado. Tu competencia ya está optimizando sus márgenes con inteligencia artificial... ¿Te vas a quedar atrás?
+
+        <p className="text-lg md:text-xl text-slate-300 mb-10 max-w-3xl mx-auto leading-relaxed font-light">
+          Vinculá tu cuenta oficial de Mercado Libre en menos de 3 minutos. Proba Klyvo gratis durante 15 días sin ingresar tarjeta de crédito.
         </p>
 
-        <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link href="/register" className="w-full sm:w-auto">
-            <Button className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-8 py-6 text-lg shadow-lg hover:shadow-xl transition-all">
-              Empezar gratis
+            <Button className="w-full sm:w-auto bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold px-8 py-6 rounded-xl text-base shadow-xl shadow-amber-400/20 flex items-center justify-center gap-2">
+              <span>Crear cuenta gratis ahora</span>
+              <ArrowRight className="w-5 h-5" />
             </Button>
           </Link>
-          <Link href="#demo" className="w-full sm:w-auto">
-            <Button variant="outline" className="w-full sm:w-auto rounded-full px-8 py-6 text-lg border-slate-600 text-white hover:bg-slate-800 bg-transparent">
-              Agendar demo
+          <Link href="https://calendly.com/klyvo-demo" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
+            <Button variant="outline" className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white border-slate-800 px-8 py-6 rounded-xl text-base font-semibold">
+              Agendar demostración en vivo
             </Button>
           </Link>
+        </div>
+
+        <div className="mt-8 flex items-center justify-center gap-2 text-xs font-mono text-slate-400">
+          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <span>Conexión oficial OAuth 2.0 MeLi • Cancelá en cualquier momento</span>
         </div>
       </div>
     </section>
