@@ -93,7 +93,16 @@ export async function meliFetch({
     }
   }
 
-  // 5. If it still fails, update status to error (only for 401 authentication errors) and throw controlled error
+  // 5. If 429 Too Many Requests (Rate Limit), back off and retry up to 2 times
+  if (response.status === 429) {
+    console.warn("[meliFetch] Received 429 Rate Limit from Mercado Libre. Backing off...");
+    const retryAfterHeader = response.headers.get("retry-after");
+    const waitMs = retryAfterHeader ? parseInt(retryAfterHeader, 10) * 1000 : 1500;
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    response = await executeRequest(accessToken || "");
+  }
+
+  // 6. If it still fails, update status to error (only for 401 authentication errors) and throw controlled error
   if (!response.ok) {
     const errorText = await response.text();
     let errorData: any = null;
@@ -104,7 +113,6 @@ export async function meliFetch({
     const errorMessage = errorData?.message || `Mercado Libre API failed with status ${response.status}: ${errorText}`;
     
     if (response.status === 401) {
-      // Update meli_accounts status to error since the credentials are dead
       await supabase
         .from("meli_accounts")
         .update({
