@@ -449,7 +449,7 @@ export async function getFinancialData(
       const { year: startYear, month: startMonth } = getYearAndMonthInTimezone(dateFrom, timezone);
       const { year: endYear, month: endMonth } = getYearAndMonthInTimezone(dateTo, timezone);
 
-      const monthsTouched: { key: string; proration: number }[] = [];
+      const monthsTouched: { key: string; proration: number; daysInMonth: number; daysInRange: number }[] = [];
       let currYear = startYear;
       let currMonth = startMonth;
 
@@ -478,7 +478,7 @@ export async function getFinancialData(
         const proration = Math.min(1, daysInRange / daysInMonth);
 
         if (proration > 0) {
-          monthsTouched.push({ key, proration });
+          monthsTouched.push({ key, proration, daysInMonth, daysInRange });
         }
 
         currMonth++;
@@ -487,6 +487,17 @@ export async function getFinancialData(
           currYear++;
         }
       }
+
+      // Obtener la fecha actual del tenant para saber cuántos días han transcurrido en el mes en curso
+      const tenantFullDateFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const tenantTodayStr = tenantFullDateFormatter.format(new Date()); // "YYYY-MM-DD"
+      const tenantCurrentMonthStr = tenantTodayStr.substring(0, 7); // "YYYY-MM"
+      const tenantCurrentDay = parseInt(tenantTodayStr.substring(8, 10), 10);
 
       // Acumulador para agrupar gastos con el mismo nombre y tipo en el breakdown final
       const expenseAccumulator: Record<string, { name: string; amount: number; type: string }> = {};
@@ -524,13 +535,29 @@ export async function getFinancialData(
 
           if (!isValidForMonth) return;
 
-          if (e.type === "fixed_recurring") {
+          if (e.is_daily) {
+            if (disableProration) {
+              let daysToCount = m.daysInMonth;
+              if (m.key === tenantCurrentMonthStr) {
+                daysToCount = Math.min(tenantCurrentDay, m.daysInMonth);
+              } else if (m.key > tenantCurrentMonthStr) {
+                daysToCount = 0;
+              }
+              appliedAmount = Number(e.amount) * daysToCount;
+            } else {
+              appliedAmount = Number(e.amount) * m.daysInRange;
+            }
+          } else if (e.type === "fixed_recurring") {
             appliedAmount = Number(e.amount) * (disableProration ? 1 : m.proration);
           } else if (e.type === "fixed_one_off" && e.target_month) {
             appliedAmount = Number(e.amount) * (disableProration ? 1 : m.proration);
           } else if (e.type === "percent_variable") {
             // Se calcula directo sobre la facturación del mes
             appliedAmount = (Number(e.percentage) * monthRevenue) / 100;
+          }
+
+          if (e.has_iva && appliedAmount > 0) {
+            appliedAmount = appliedAmount * 1.21;
           }
 
           if (appliedAmount > 0) {

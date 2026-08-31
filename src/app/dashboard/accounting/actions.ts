@@ -15,6 +15,8 @@ export interface MonthlyExpense {
   start_month?: string | null;
   end_month?: string | null;
   is_active: boolean;
+  is_daily?: boolean;
+  has_iva?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -74,6 +76,8 @@ export async function createMonthlyExpense(expense: {
   percentage?: number;
   target_month?: string | null;
   start_month?: string | null;
+  is_daily?: boolean;
+  has_iva?: boolean;
 }) {
   const supabase = await createClient();
   try {
@@ -86,6 +90,8 @@ export async function createMonthlyExpense(expense: {
       amount: expense.type === "percent_variable" ? 0 : (expense.amount || 0),
       percentage: expense.type === "percent_variable" ? (expense.percentage || 0) : 0,
       target_month: expense.type === "fixed_one_off" ? expense.target_month : null,
+      is_daily: !!expense.is_daily,
+      has_iva: !!expense.has_iva,
       is_active: true
     };
 
@@ -126,6 +132,8 @@ export async function updateMonthlyExpense(
     start_month?: string | null;
     end_month?: string | null;
     is_active?: boolean;
+    is_daily?: boolean;
+    has_iva?: boolean;
   }
 ) {
   const supabase = await createClient();
@@ -144,12 +152,16 @@ export async function updateMonthlyExpense(
     if (updates.start_month !== undefined) payload.start_month = updates.start_month;
     if (updates.end_month !== undefined) payload.end_month = updates.end_month;
     if (updates.is_active !== undefined) payload.is_active = updates.is_active;
+    if (updates.is_daily !== undefined) payload.is_daily = updates.is_daily;
+    if (updates.has_iva !== undefined) payload.has_iva = updates.has_iva;
 
     // Ajustes de limpieza por tipo si cambia el tipo
     if (updates.type) {
       if (updates.type === "percent_variable") {
         payload.amount = 0;
         payload.target_month = null;
+        payload.is_daily = false;
+        payload.has_iva = false;
       } else if (updates.type === "fixed_recurring") {
         payload.percentage = 0;
         payload.target_month = null;
@@ -191,6 +203,8 @@ export async function updateMonthlyExpenseWithHistory(
     type: "fixed_recurring" | "fixed_one_off" | "percent_variable";
     amount?: number;
     percentage?: number;
+    is_daily?: boolean;
+    has_iva?: boolean;
   },
   effectiveMonth: string // YYYY-MM
 ) {
@@ -236,6 +250,8 @@ export async function updateMonthlyExpenseWithHistory(
       type: original.type,
       amount: original.type === "percent_variable" ? 0 : (updates.amount !== undefined ? updates.amount : original.amount),
       percentage: original.type === "percent_variable" ? (updates.percentage !== undefined ? updates.percentage : original.percentage) : 0,
+      is_daily: updates.is_daily !== undefined ? updates.is_daily : original.is_daily,
+      has_iva: updates.has_iva !== undefined ? updates.has_iva : original.has_iva,
       target_month: null,
       start_month: `${effectiveMonth}-01`,
       end_month: null,

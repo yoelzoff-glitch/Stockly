@@ -62,6 +62,8 @@ export function AccountingClient({
   const [newAmount, setNewAmount] = useState("");
   const [newPercentage, setNewPercentage] = useState("");
   const [newTargetMonth, setNewTargetMonth] = useState(currentMonthStr);
+  const [newIsDaily, setNewIsDaily] = useState(false);
+  const [newHasIva, setNewHasIva] = useState(false);
 
   // Edit Modal state
   const [editingExpense, setEditingExpense] = useState<MonthlyExpense | null>(null);
@@ -70,6 +72,8 @@ export function AccountingClient({
   const [editAmount, setEditAmount] = useState("");
   const [editPercentage, setEditPercentage] = useState("");
   const [editTargetMonth, setEditTargetMonth] = useState("");
+  const [editIsDaily, setEditIsDaily] = useState(false);
+  const [editHasIva, setEditHasIva] = useState(false);
   const [editMode, setEditMode] = useState<"history" | "global">("history");
 
   // Sync Create Modal month when currentMonthStr changes
@@ -81,6 +85,41 @@ export function AccountingClient({
     const params = new URLSearchParams(searchParams);
     params.set("month", newMonth);
     router.push(`${pathname}?${params.toString()}`);
+  };
+
+  // Helper calculation for expenses in the selected month (considering daily accumulation & IVA)
+  const getExpenseCalculatedInfo = (expense: MonthlyExpense, monthStr: string) => {
+    if (expense.type === "percent_variable") {
+      return { totalAmount: 0, elapsedDays: 0, daysInMonth: 0, isCurrentMonth: false };
+    }
+    const baseAmount = Number(expense.amount) || 0;
+    if (!expense.is_daily) {
+      const finalAmount = expense.has_iva ? baseAmount * 1.21 : baseAmount;
+      return { totalAmount: finalAmount, elapsedDays: 0, daysInMonth: 0, isCurrentMonth: false };
+    }
+
+    const [year, month] = monthStr.split("-").map(Number);
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    const now = new Date();
+    const todayYear = now.getFullYear();
+    const todayMonth = now.getMonth() + 1;
+    const todayDay = now.getDate();
+    const todayMonthStr = `${todayYear}-${String(todayMonth).padStart(2, '0')}`;
+
+    let elapsedDays = daysInMonth;
+    let isCurrentMonth = false;
+
+    if (monthStr === todayMonthStr) {
+      elapsedDays = Math.min(todayDay, daysInMonth);
+      isCurrentMonth = true;
+    } else if (monthStr > todayMonthStr) {
+      elapsedDays = 0;
+    }
+
+    const subtotal = baseAmount * elapsedDays;
+    const finalAmount = expense.has_iva ? subtotal * 1.21 : subtotal;
+    return { totalAmount: finalAmount, elapsedDays, daysInMonth, isCurrentMonth };
   };
 
   // Filter expenses valid for the selected month (currentMonthStr)
@@ -107,7 +146,7 @@ export function AccountingClient({
 
   const totalFixedRecurring = activeExpenses
     .filter(e => e.type === "fixed_recurring")
-    .reduce((sum, e) => sum + Number(e.amount), 0);
+    .reduce((sum, e) => sum + getExpenseCalculatedInfo(e, currentMonthStr).totalAmount, 0);
 
   const totalPercentVariable = activeExpenses
     .filter(e => e.type === "percent_variable")
@@ -118,7 +157,7 @@ export function AccountingClient({
       if (e.type !== "fixed_one_off" || !e.target_month) return false;
       return e.target_month.startsWith(currentMonthStr);
     })
-    .reduce((sum, e) => sum + Number(e.amount), 0);
+    .reduce((sum, e) => sum + getExpenseCalculatedInfo(e, currentMonthStr).totalAmount, 0);
 
   // Actual month calculation logic
   const actualVariableExpenses = (totalPercentVariable * actualRevenue) / 100;
@@ -141,7 +180,9 @@ export function AccountingClient({
         amount: newType === "percent_variable" ? 0 : parseFloat(newAmount) || 0,
         percentage: newType === "percent_variable" ? parseFloat(newPercentage) || 0 : 0,
         target_month: formattedMonth,
-        start_month: startMonth
+        start_month: startMonth,
+        is_daily: newType !== "percent_variable" ? newIsDaily : false,
+        has_iva: newType !== "percent_variable" ? newHasIva : false
       });
 
       if (res.success && res.data) {
@@ -152,6 +193,8 @@ export function AccountingClient({
         setNewType("fixed_recurring");
         setNewAmount("");
         setNewPercentage("");
+        setNewIsDaily(false);
+        setNewHasIva(false);
         router.refresh();
       } else {
         alert("Error creando gasto: " + res.error);
@@ -169,6 +212,8 @@ export function AccountingClient({
     setEditType(expense.type);
     setEditAmount((expense.amount || "").toString());
     setEditPercentage((expense.percentage || "").toString());
+    setEditIsDaily(!!expense.is_daily);
+    setEditHasIva(!!expense.has_iva);
     setEditMode("history"); // Default edit mode is preserving history
     
     if (expense.target_month) {
@@ -195,7 +240,9 @@ export function AccountingClient({
             name: editName.trim(),
             type: editType,
             amount: editType === "percent_variable" ? 0 : parseFloat(editAmount) || 0,
-            percentage: editType === "percent_variable" ? parseFloat(editPercentage) || 0 : 0
+            percentage: editType === "percent_variable" ? parseFloat(editPercentage) || 0 : 0,
+            is_daily: editType !== "percent_variable" ? editIsDaily : false,
+            has_iva: editType !== "percent_variable" ? editHasIva : false
           },
           currentMonthStr
         );
@@ -206,7 +253,9 @@ export function AccountingClient({
           type: editType,
           amount: editType === "percent_variable" ? 0 : parseFloat(editAmount) || 0,
           percentage: editType === "percent_variable" ? parseFloat(editPercentage) || 0 : 0,
-          target_month: formattedMonth
+          target_month: formattedMonth,
+          is_daily: editType !== "percent_variable" ? editIsDaily : false,
+          has_iva: editType !== "percent_variable" ? editHasIva : false
         });
       }
 
@@ -411,9 +460,26 @@ export function AccountingClient({
                     </thead>
                     <tbody>
                       {activeExpenses.map((expense) => {
+                        const info = getExpenseCalculatedInfo(expense, currentMonthStr);
                         return (
                           <tr key={expense.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
-                            <td className="p-3 font-semibold text-slate-800">{expense.name}</td>
+                            <td className="p-3 font-semibold text-slate-800">
+                              <div className="flex flex-col">
+                                <span>{expense.name}</span>
+                                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                                  {expense.is_daily && (
+                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-sky-50 text-sky-700 border-sky-200">
+                                      Diario (${Number(expense.amount).toLocaleString("es-AR")}/día)
+                                    </Badge>
+                                  )}
+                                  {expense.has_iva && (
+                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-purple-50 text-purple-700 border-purple-200">
+                                      +21% IVA
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
                             <td className="p-3 font-medium text-slate-650">
                               {expense.type === "fixed_recurring" && (
                                 <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-50">Fijo Recurrente</Badge>
@@ -426,10 +492,18 @@ export function AccountingClient({
                               )}
                             </td>
                             <td className="p-3 text-right font-bold text-slate-900">
-                              {expense.type === "percent_variable" 
-                                ? `${expense.percentage}%` 
-                                : `$${Number(expense.amount).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                              }
+                              {expense.type === "percent_variable" ? (
+                                `${expense.percentage}%`
+                              ) : (
+                                <div className="flex flex-col items-end">
+                                  <span>${info.totalAmount.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                  {expense.is_daily && (
+                                    <span className="text-[10px] text-slate-500 font-normal">
+                                      Acumulado {info.isCurrentMonth ? `al día ${info.elapsedDays}` : `(${info.elapsedDays} días)`}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td className="p-3 text-muted-foreground capitalize">
                               {expense.type === "fixed_one_off" 
@@ -582,24 +656,63 @@ export function AccountingClient({
                 onChange={(e) => setNewType(e.target.value as any)}
                 className="w-full h-9 rounded-md border border-slate-200 px-3 bg-white text-xs"
               >
-                <option value="fixed_recurring">Fijo Recurrente (Ej. Sueldos, Alquiler)</option>
+                <option value="fixed_recurring">Fijo Recurrente (Ej. Sueldos, Alquiler, Publicidad Diario)</option>
                 <option value="fixed_one_off">Fijo Temporal (Ej. Publicidad del mes, Roturas)</option>
                 <option value="percent_variable">Porcentual Variable (Ej. IIBB % facturación)</option>
               </select>
             </div>
 
             {newType !== "percent_variable" ? (
-              <div className="space-y-1">
-                <Label>Monto Mensual ($)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="Ej. 120000"
-                  value={newAmount}
-                  onChange={(e) => setNewAmount(e.target.value)}
-                  required
-                />
-              </div>
+              <>
+                <div className="space-y-1">
+                  <Label>{newIsDaily ? "Monto Diario ($)" : "Monto Mensual ($)"}</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder={newIsDaily ? "Ej. 30000" : "Ej. 120000"}
+                    value={newAmount}
+                    onChange={(e) => setNewAmount(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={newIsDaily}
+                      onChange={(e) => setNewIsDaily(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>Gasto Diario (se acumula día a día)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={newHasIva}
+                      onChange={(e) => setNewHasIva(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>Sumar 21% de IVA</span>
+                  </label>
+
+                  {(newIsDaily || newHasIva) && (
+                    <div className="text-[11px] text-slate-600 pt-1 border-t border-slate-200/60 space-y-0.5">
+                      {newIsDaily && (
+                        <p>
+                          💡 Se multiplicará <strong>${(parseFloat(newAmount) || 0).toLocaleString("es-AR")}/día</strong> por los días transcurridos del mes en curso.
+                        </p>
+                      )}
+                      {newHasIva && (
+                        <p>
+                          🧾 Se agregará un <strong>21% de IVA</strong> al monto acumulado.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
             ) : (
               <div className="space-y-1">
                 <Label>Porcentaje sobre Facturación Bruta (%)</Label>
@@ -669,24 +782,63 @@ export function AccountingClient({
                   onChange={(e) => setEditType(e.target.value as any)}
                   className="w-full h-9 rounded-md border border-slate-200 px-3 bg-white text-xs"
                 >
-                  <option value="fixed_recurring">Fijo Recurrente (Ej. Sueldos, Alquiler)</option>
+                  <option value="fixed_recurring">Fijo Recurrente (Ej. Sueldos, Alquiler, Publicidad Diario)</option>
                   <option value="fixed_one_off">Fijo Temporal (Ej. Publicidad del mes)</option>
                   <option value="percent_variable">Porcentual Variable (Ej. IIBB % facturación)</option>
                 </select>
               </div>
 
               {editType !== "percent_variable" ? (
-                <div className="space-y-1">
-                  <Label>Monto Mensual ($)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="Ej. 120000"
-                    value={editAmount}
-                    onChange={(e) => setEditAmount(e.target.value)}
-                    required
-                  />
-                </div>
+                <>
+                  <div className="space-y-1">
+                    <Label>{editIsDaily ? "Monto Diario ($)" : "Monto Mensual ($)"}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder={editIsDaily ? "Ej. 30000" : "Ej. 120000"}
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                    <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={editIsDaily}
+                        onChange={(e) => setEditIsDaily(e.target.checked)}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>Gasto Diario (se acumula día a día)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={editHasIva}
+                        onChange={(e) => setEditHasIva(e.target.checked)}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>Sumar 21% de IVA</span>
+                    </label>
+
+                    {(editIsDaily || editHasIva) && (
+                      <div className="text-[11px] text-slate-600 pt-1 border-t border-slate-200/60 space-y-0.5">
+                        {editIsDaily && (
+                          <p>
+                            💡 Se multiplicará <strong>${(parseFloat(editAmount) || 0).toLocaleString("es-AR")}/día</strong> por los días transcurridos del mes en curso.
+                          </p>
+                        )}
+                        {editHasIva && (
+                          <p>
+                            🧾 Se agregará un <strong>21% de IVA</strong> al monto acumulado.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : (
                 <div className="space-y-1">
                   <Label>Porcentaje sobre Facturación Bruta (%)</Label>

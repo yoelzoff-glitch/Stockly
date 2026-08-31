@@ -118,6 +118,8 @@ CREATE TABLE IF NOT EXISTS public.monthly_expenses (
     start_month DATE DEFAULT date_trunc('month', CURRENT_DATE),
     end_month DATE,
     is_active BOOLEAN DEFAULT true,
+    is_daily BOOLEAN DEFAULT false,
+    has_iva BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
