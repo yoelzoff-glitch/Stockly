@@ -12,6 +12,8 @@ import { MobileFilterDrawer } from "@/components/ui/mobile-filter-drawer";
 import { toggleIgnoreOrderAction } from "@/actions/orders";
 import { useTransition } from "react";
 
+import { getMidnightInTimezone, getTenantDateString, getPeriodRangeInTimezone, DEFAULT_TIMEZONE } from "@/lib/dates";
+
 export default function SalesClientPage({ 
   initialOrders, 
   allPeriodOrders,
@@ -22,7 +24,8 @@ export default function SalesClientPage({
   currentDays,
   fromDate = "",
   toDate = "",
-  ignoredOrderIds = []
+  ignoredOrderIds = [],
+  timezone = DEFAULT_TIMEZONE
 }: { 
   initialOrders: any[],
   allPeriodOrders: any[],
@@ -33,7 +36,8 @@ export default function SalesClientPage({
   currentDays: string | number,
   fromDate?: string,
   toDate?: string,
-  ignoredOrderIds?: string[]
+  ignoredOrderIds?: string[],
+  timezone?: string
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -69,52 +73,42 @@ export default function SalesClientPage({
   const totalOrdersCount = activePeriodOrders.length;
   const avgTicket = totalOrdersCount > 0 ? totalSales / totalOrdersCount : 0;
 
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  const salesToday = activePeriodOrders.filter(o => new Date(o.date_created) >= today)
+  const todayMidnight = getMidnightInTimezone(new Date(), timezone);
+  const salesToday = activePeriodOrders.filter(o => new Date(o.date_created) >= todayMidnight)
     .reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
   // Chart Data preparation
-  let chartLength = 30;
-  let startForChart = new Date();
+  const { dateFrom: chartStartFrom } = getPeriodRangeInTimezone(currentDays, timezone, fromDate, toDate);
+  const daysDiff = Math.max(1, Math.ceil((new Date().getTime() - chartStartFrom.getTime()) / (1000 * 60 * 60 * 24)));
+  let chartLength = daysDiff;
   if (currentDays === "current_month") {
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
-    chartLength = today.getDate();
-    startForChart = startOfMonth;
+    chartLength = Math.max(1, Math.ceil((todayMidnight.getTime() - chartStartFrom.getTime()) / (1000 * 60 * 60 * 24)) + 1);
   } else if (currentDays === "previous_month") {
-    const startOfPrevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1, 0, 0, 0, 0);
-    const endOfPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0, 0, 0, 0, 0);
-    chartLength = endOfPrevMonth.getDate();
-    startForChart = startOfPrevMonth;
-  } else if (currentDays === "custom") {
-    const startCustom = fromDate ? new Date(fromDate + "T00:00:00") : new Date(today.getFullYear(), today.getMonth(), 1);
-    const endCustom = toDate ? new Date(toDate + "T23:59:59") : new Date();
-    const diffTime = Math.abs(endCustom.getTime() - startCustom.getTime());
-    chartLength = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
-    startForChart = startCustom;
-  } else {
-    chartLength = typeof currentDays === 'number' ? currentDays : parseInt(currentDays as string) || 30;
-    startForChart.setDate(startForChart.getDate() - (chartLength - 1));
+    const { dateTo: chartEndTo } = getPeriodRangeInTimezone("previous_month", timezone);
+    chartLength = Math.max(1, Math.ceil((chartEndTo.getTime() - chartStartFrom.getTime()) / (1000 * 60 * 60 * 24)));
+  } else if (typeof currentDays === "number" || (!isNaN(Number(currentDays)) && currentDays !== "custom")) {
+    chartLength = Number(currentDays);
   }
-  startForChart.setHours(0,0,0,0);
 
   const chartData = Array.from({ length: chartLength }, (_, i) => {
-    const d = new Date(startForChart);
-    d.setDate(d.getDate() + i);
-    d.setHours(0,0,0,0);
+    const dRef = new Date(chartStartFrom.getTime() + i * 24 * 60 * 60 * 1000);
+    const dateStr = getTenantDateString(dRef, timezone); // "YYYY-MM-DD"
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dateObjForLabel = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+    const name = dateObjForLabel.toLocaleDateString("es-AR", { day: "2-digit", month: "short", timeZone: "UTC" });
+
     return {
-      dateObj: d,
-      name: d.toLocaleDateString("es-AR", { day: "2-digit", month: "short" }),
+      dateStr,
+      name,
       total: 0
     };
   });
 
   activePeriodOrders.forEach(o => {
-    const d = new Date(o.date_created);
-    d.setHours(0,0,0,0);
-    const dayIndex = chartData.findIndex(cd => cd.dateObj.getTime() === d.getTime());
-    if (dayIndex !== -1) {
-      chartData[dayIndex].total += (Number(o.total_amount) || 0);
+    const dateStr = getTenantDateString(new Date(o.date_created), timezone);
+    const cd = chartData.find(c => c.dateStr === dateStr);
+    if (cd) {
+      cd.total += (Number(o.total_amount) || 0);
     }
   });
 
@@ -134,12 +128,10 @@ export default function SalesClientPage({
   }
 
   // Dynamic AI Insights
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayMidnight = getMidnightInTimezone(new Date(todayMidnight.getTime() - 24 * 60 * 60 * 1000), timezone);
   const salesYesterday = activePeriodOrders.filter(o => {
     const d = new Date(o.date_created);
-    d.setHours(0,0,0,0);
-    return d.getTime() === yesterday.getTime();
+    return d >= yesterdayMidnight && d < todayMidnight;
   }).reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
   let todayVsYesterdayMsg = "Tus ventas de hoy están igualadas con las de ayer.";

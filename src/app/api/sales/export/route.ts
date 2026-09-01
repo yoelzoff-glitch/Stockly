@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { getPeriodRangeInTimezone } from "@/lib/dates";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -39,10 +40,21 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Tenant not found", { status: 404 });
   }
 
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("timezone")
+    .eq("id", profile.tenant_id)
+    .single();
+
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+  const { dateFrom, dateTo } = getPeriodRangeInTimezone(daysParam, timezone, fromParam || undefined, toParam || undefined);
+
   let query = supabase
     .from("orders")
     .select("*")
     .eq("tenant_id", profile.tenant_id)
+    .gte("date_created", dateFrom.toISOString())
+    .lte("date_created", dateTo.toISOString())
     .order("date_created", { ascending: false });
 
   if (statusFilter !== "all") {
@@ -55,35 +67,13 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Error fetching orders", { status: 500 });
   }
 
-  // Filter by date and search in memory (since date math in supabase JS can be tricky)
-  const today = new Date();
   const filteredOrders = orders.filter((o) => {
-    const orderDate = new Date(o.date_created);
-    
-    let matchesDate = false;
-    if (daysParam === "current_month") {
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
-      matchesDate = orderDate >= startOfMonth;
-    } else if (daysParam === "previous_month") {
-      const startOfPrevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1, 0, 0, 0, 0);
-      const endOfPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
-      matchesDate = orderDate >= startOfPrevMonth && orderDate <= endOfPrevMonth;
-    } else if (daysParam === "custom") {
-      const startCustom = fromParam ? new Date(fromParam + "T00:00:00") : new Date(today.getFullYear(), today.getMonth(), 1);
-      const endCustom = toParam ? new Date(toParam + "T23:59:59.999") : new Date();
-      matchesDate = orderDate >= startCustom && orderDate <= endCustom;
-    } else {
-      const days = parseInt(daysParam) || 30;
-      const diffDays = Math.ceil((today.getTime() - orderDate.getTime()) / (1000 * 3600 * 24));
-      matchesDate = diffDays <= days;
-    }
-
     const matchesSearch = !search || 
                           o.buyer_nickname?.toLowerCase().includes(search.toLowerCase()) || 
                           o.meli_order_id?.toLowerCase().includes(search.toLowerCase()) ||
                           o.product_title?.toLowerCase().includes(search.toLowerCase());
 
-    return matchesDate && matchesSearch;
+    return matchesSearch;
   });
 
   // Generate CSV

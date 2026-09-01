@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import SalesClientPage from "./client-page";
+import { getPeriodRangeInTimezone } from "@/lib/dates";
 
 export default async function SalesPage(props: { searchParams: Promise<{ q?: string, page?: string, status?: string, days?: string, from?: string, to?: string }> }) {
   const searchParams = await props.searchParams;
@@ -17,6 +18,16 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
 
   if (!profile || !profile.tenant_id) redirect("/onboarding");
 
+  // Fetch Tenant timezone and metadata
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("timezone, metadata")
+    .eq("id", profile.tenant_id)
+    .single();
+
+  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+  const ignoredOrderIds = (tenant?.metadata as any)?.ignored_order_ids || [];
+
   const q = searchParams.q || "";
   const page = parseInt(searchParams.page || "1");
   const status = searchParams.status || "all";
@@ -28,28 +39,7 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
-  let dateFrom = new Date();
-  let dateTo = new Date();
-
-  if (days === "current_month") {
-    dateFrom = new Date(dateFrom.getFullYear(), dateFrom.getMonth(), 1, 0, 0, 0, 0);
-  } else if (days === "previous_month") {
-    const now = new Date();
-    dateFrom = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-    dateTo = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-  } else if (days === "custom") {
-    if (fromParam) {
-      dateFrom = new Date(fromParam + "T00:00:00");
-    } else {
-      dateFrom = new Date(dateFrom.getFullYear(), dateFrom.getMonth(), 1, 0, 0, 0, 0);
-    }
-    if (toParam) {
-      dateTo = new Date(toParam + "T23:59:59.999");
-    }
-  } else {
-    const daysNum = parseInt(days) || 30;
-    dateFrom.setDate(dateFrom.getDate() - daysNum);
-  }
+  const { dateFrom, dateTo } = getPeriodRangeInTimezone(days, timezone, fromParam, toParam);
 
   // If search query is provided, find matching order_ids by title first
   let orderIdsMatched: string[] = [];
@@ -85,14 +75,6 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
       query = query.or(`buyer_nickname.ilike.%${q}%,meli_order_id.ilike.%${q}%`);
     }
   }
-
-  // Fetch Tenant metadata to get ignored_order_ids
-  const { data: tenant } = await supabase
-    .from("tenants")
-    .select("metadata")
-    .eq("id", profile.tenant_id)
-    .single();
-  const ignoredOrderIds = (tenant?.metadata as any)?.ignored_order_ids || [];
 
   const { data: orders, count, error } = await query;
 
@@ -139,6 +121,7 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
         fromDate={fromParam}
         toDate={toParam}
         ignoredOrderIds={ignoredOrderIds}
+        timezone={timezone}
       />
     </div>
   );
