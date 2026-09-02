@@ -38,9 +38,40 @@ describe("Sanitizer & Masking Tests", () => {
       assert.ok(!sanitized.includes("44448888"), "Full phone number must not appear in string");
       assert.ok(sanitized.includes("****8888"));
     });
+
+    test("preserves correlation ID UUIDs and ISO timestamps in free text", () => {
+      const uuid = "08baf201-079b-4ef6-8769-9990c6112345";
+      const isoDate = "2026-09-02T18:45:19.477Z";
+      const logLine = `[${isoDate}] [WARN] [AUTH_REQUIRED] [corr:${uuid}] Access denied`;
+
+      const sanitized = sanitizeStringText(logLine);
+      assert.ok(sanitized.includes(uuid), "UUID must not be masked as phone number");
+      assert.ok(sanitized.includes(isoDate), "Timestamp must remain intact");
+    });
   });
 
   describe("sanitizeLogData", () => {
+    test("preserves technical IDs, UUIDs, dates, and order IDs intact", () => {
+      const payload = {
+        correlationId: "306f3113-d348-45b4-a60e-66edffd6f94c",
+        requestId: "req-1234-5678-abcd",
+        userId: "user-123",
+        tenantId: "tenant-xyz",
+        orderId: "2000001234567890",
+        meli_item_id: "MLA123456789",
+        amount: 154500.50,
+        createdAt: "2026-09-02T18:45:19.477Z",
+      };
+
+      const sanitized = sanitizeLogData(payload);
+      assert.equal(sanitized.correlationId, "306f3113-d348-45b4-a60e-66edffd6f94c");
+      assert.equal(sanitized.requestId, "req-1234-5678-abcd");
+      assert.equal(sanitized.orderId, "2000001234567890");
+      assert.equal(sanitized.meli_item_id, "MLA123456789");
+      assert.equal(sanitized.amount, 154500.50);
+      assert.equal(sanitized.createdAt, "2026-09-02T18:45:19.477Z");
+    });
+
     test("redacts sensitive fields recursively", () => {
       const input = {
         user: {
@@ -66,25 +97,25 @@ describe("Sanitizer & Masking Tests", () => {
       assert.ok(sanitized.order.buyer.phone.includes("****"));
     });
 
-    test("masks phones in from, to, sender, and recipient keys", () => {
+    test("masks phones in explicit phone keys", () => {
       const payload = {
-        from: "+5491155556666",
-        to: "+5491177778888",
-        sender: "5491122223333",
-        recipient: "+5491199990000",
+        from_phone: "+5491155556666",
+        to_phone: "+5491177778888",
+        customer_phone: "5491122223333",
+        telefono: "+5491199990000",
       };
 
       const sanitized = sanitizeLogData(payload);
 
-      assert.ok(!sanitized.from.includes("55556666"));
-      assert.ok(!sanitized.to.includes("77778888"));
-      assert.ok(!sanitized.sender.includes("22223333"));
-      assert.ok(!sanitized.recipient.includes("99990000"));
+      assert.ok(!sanitized.from_phone.includes("55556666"));
+      assert.ok(!sanitized.to_phone.includes("77778888"));
+      assert.ok(!sanitized.customer_phone.includes("22223333"));
+      assert.ok(!sanitized.telefono.includes("99990000"));
 
-      assert.ok(sanitized.from.includes("****6666"));
-      assert.ok(sanitized.to.includes("****8888"));
-      assert.ok(sanitized.sender.includes("****3333"));
-      assert.ok(sanitized.recipient.includes("****0000"));
+      assert.ok(sanitized.from_phone.includes("****6666"));
+      assert.ok(sanitized.to_phone.includes("****8888"));
+      assert.ok(sanitized.customer_phone.includes("****3333"));
+      assert.ok(sanitized.telefono.includes("****0000"));
     });
 
     test("redacts raw payload fields", () => {

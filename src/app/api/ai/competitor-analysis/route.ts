@@ -308,11 +308,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
 
   } catch (error: any) {
-    if (error?.name === "TenantAuthError" || error?.statusCode === 401 || error?.statusCode === 403) {
-      return toAuthErrorResponse(error, correlationId);
-    }
-    return NextResponse.json({ 
-      error: `Error interno en el servidor: ${error.message || "Por favor intenta de nuevo."}` 
-    }, { status: 500, headers: correlationId ? { [CORRELATION_ID_HEADER]: correlationId } : {} });
+    return toAuthErrorResponse(error, correlationId);
   }
 }

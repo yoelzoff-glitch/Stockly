@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getListingFees } from "@/services/meli/getListingFees";
 import { getShippingCostEstimate } from "@/services/meli/getShippingCostEstimate";
 import { calculateRealProfitability } from "@/services/profitability/calculateRealProfitability";
-import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { requireTenantRole, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { logger } from "@/lib/errors/logger";
 import * as Sentry from "@sentry/nextjs";
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   let correlationId: string | undefined;
 
   try {
-    const context = await requireTenantContext(req);
+    const context = await requireTenantRole(["owner", "admin"], req);
     correlationId = context.correlationId;
     const adminSupabase = createAdminClient();
     const tenantId = context.tenantId;

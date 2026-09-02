@@ -1,6 +1,7 @@
 /**
- * Static route authorization and endpoint isolation audit script (Sprint 2).
- * Verifies that protected API routes enforce session authentication and derive tenantId from the server.
+ * Static route authorization and endpoint isolation audit script (Sprint 2.1).
+ * Verifies that protected API routes enforce session authentication, derive tenantId from the server,
+ * do not invoke admin clients prior to authentication, and do not trust client-supplied tenant identifiers.
  */
 
 import fs from "fs";
@@ -15,9 +16,9 @@ interface AuditFinding {
 const EXEMPT_ROUTES = new Set([
   "src/app/api/health/live/route.ts", // Public Liveness
   "src/app/api/health/ready/route.ts", // Machine-to-machine HEALTHCHECK_TOKEN
-  "src/app/api/meli/webhook/route.ts", // External Webhook (MeLi HMAC Signature)
-  "src/app/api/mercadopago/webhook/route.ts", // External Webhook (MP Secret)
-  "src/app/api/whatsapp/webhook/route.ts", // External Webhook (Meta HMAC Signature)
+  "src/app/api/meli/webhook/route.ts", // External Webhook (Strict HMAC verification scheduled for Sprint 4)
+  "src/app/api/mercadopago/webhook/route.ts", // External Webhook (Strict Secret verification scheduled for Sprint 4)
+  "src/app/api/whatsapp/webhook/route.ts", // External Webhook (Strict HMAC verification scheduled for Sprint 4)
   "src/app/api/inngest/route.ts", // Inngest runtime Signing Key
   "src/app/api/meli/callback/route.ts", // OAuth callback flow
   "src/app/api/meli/connect/route.ts", // Initiates OAuth redirect
@@ -75,14 +76,8 @@ export function runRouteAuthAudit(rootDir = path.resolve(__dirname, "..")): {
       continue;
     }
 
-    const usesAuthHelper =
-      content.includes("requireTenantContext") ||
-      content.includes("requireAuthenticatedUser") ||
-      content.includes("requireTenantRole");
-
-    const usesRawGetSession = content.includes("auth.getSession(");
-
-    if (usesRawGetSession) {
+    // 1. Check insecure getSession() usage
+    if (content.includes("auth.getSession(")) {
       violations.push({
         routePath: relRoute,
         category: "VIOLATION",
@@ -91,7 +86,12 @@ export function runRouteAuthAudit(rootDir = path.resolve(__dirname, "..")): {
       continue;
     }
 
-    if (!usesAuthHelper) {
+    // 2. Check presence of server auth helpers
+    const authHelperRegex = /\b(requireTenantContext|requireAuthenticatedUser|requireTenantRole)\s*\(/g;
+    const firstAuthMatch = authHelperRegex.exec(content);
+    const authIndex = firstAuthMatch ? firstAuthMatch.index : -1;
+
+    if (authIndex === -1) {
       // Check if critical
       if (CRITICAL_ROUTES.includes(relRoute)) {
         violations.push({
@@ -102,9 +102,8 @@ export function runRouteAuthAudit(rootDir = path.resolve(__dirname, "..")): {
         continue;
       }
 
-      // Check if it creates admin client or queries DB directly without auth
-      const usesAdminWithoutAuth = content.includes("createAdminClient(");
-      if (usesAdminWithoutAuth) {
+      // Check if it creates admin client without auth
+      if (content.includes("createAdminClient(")) {
         violations.push({
           routePath: relRoute,
           category: "VIOLATION",
@@ -114,24 +113,46 @@ export function runRouteAuthAudit(rootDir = path.resolve(__dirname, "..")): {
       }
     }
 
-    // Verify critical routes have tenant assertion if body tenant is accepted
-    if (CRITICAL_ROUTES.includes(relRoute)) {
-      const checksTenantMismatch = content.includes("assertRequestedTenant(");
-      if (!checksTenantMismatch) {
-        violations.push({
-          routePath: relRoute,
-          category: "VIOLATION",
-          reason: "Critical route does not invoke assertRequestedTenant",
-        });
-        continue;
-      }
+    // 3. Structural ordering check: createAdminClient() MUST NOT be called before authentication
+    const adminClientRegex = /\bcreateAdminClient\s*\(/g;
+    const firstAdminMatch = adminClientRegex.exec(content);
+    if (firstAdminMatch && authIndex !== -1 && firstAdminMatch.index < authIndex) {
+      violations.push({
+        routePath: relRoute,
+        category: "VIOLATION",
+        reason: "Insecure Ordering: createAdminClient() is invoked before tenant authentication helper",
+      });
+      continue;
+    }
+
+    // 4. Check for untrusted body tenant parameter passed to administrative services without assertRequestedTenant
+    const extractsBodyTenant = /(?:const|let|var)\s*\{[^}]*?\b(tenant_id|tenantId)\b[^}]*\}\s*=\s*(?:body|await\s+request\.json\(\)|await\s+req\.json\(\))/g.test(content);
+    const usesAssertRequestedTenant = content.includes("assertRequestedTenant(");
+
+    if (extractsBodyTenant && !usesAssertRequestedTenant) {
+      violations.push({
+        routePath: relRoute,
+        category: "VIOLATION",
+        reason: "Unsafe parameter binding: extracts tenantId/tenant_id from body without invoking assertRequestedTenant()",
+      });
+      continue;
+    }
+
+    // 5. Critical routes must assert tenant mismatch
+    if (CRITICAL_ROUTES.includes(relRoute) && !usesAssertRequestedTenant) {
+      violations.push({
+        routePath: relRoute,
+        category: "VIOLATION",
+        reason: "Critical route must assert requested tenant matches authenticated tenant",
+      });
+      continue;
     }
 
     protectedCount++;
     findings.push({
       routePath: relRoute,
       category: "PROTECTED",
-      reason: "Enforces server session and derives tenantId safely",
+      reason: "Enforces server session, correct admin client ordering, and derives tenantId safely",
     });
   }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { requireTenantRole, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { logger } from "@/lib/errors/logger";
 import * as Sentry from "@sentry/nextjs";
@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   let correlationId: string | undefined;
 
   try {
-    const authContext = await requireTenantContext(req);
+    const authContext = await requireTenantRole(["owner", "admin"], req);
     correlationId = authContext.correlationId;
     const tenantId = authContext.tenantId;
 

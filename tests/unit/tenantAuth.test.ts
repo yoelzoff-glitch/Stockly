@@ -302,13 +302,35 @@ describe("Tenant Authentication & Authorization Service Tests", () => {
       assert.equal(json.error, "Access forbidden: Tenant mismatch");
     });
 
-    test("handles JSON SyntaxError as 400 Bad Request", async () => {
-      const syntaxErr = new SyntaxError("Unexpected token in JSON at position 0");
-      const res = toAuthErrorResponse(syntaxErr, "corr-abc");
+    test("handles operational AppError with safe client status codes", async () => {
+      const { AppError } = await import("../../src/lib/errors/AppError");
+      const appErr = new AppError("BAD_REQUEST", "Parámetro inválido", 400);
+      const res = toAuthErrorResponse(appErr, "corr-123");
 
       assert.equal(res.status, 400);
       const json = await res.json();
-      assert.equal(json.error, "Invalid JSON in request payload");
+      assert.equal(json.error, "Parámetro inválido");
+    });
+
+    test("masks non-operational or 500 AppErrors with generic server error", async () => {
+      const { AppError } = await import("../../src/lib/errors/AppError");
+      const internalAppErr = new AppError("INTERNAL_ERROR", "Failed connecting to database cluster host at 10.0.0.1", 500);
+      const res = toAuthErrorResponse(internalAppErr, "corr-456");
+
+      assert.equal(res.status, 500);
+      const json = await res.json();
+      assert.equal(json.error, "Error interno del servidor");
+      assert.ok(!JSON.stringify(json).includes("10.0.0.1"));
+    });
+
+    test("masks unexpected Error instances with generic 500 error", async () => {
+      const unexpectedErr = new Error("Postgres error: relation 'private_keys' does not exist");
+      const res = toAuthErrorResponse(unexpectedErr, "corr-789");
+
+      assert.equal(res.status, 500);
+      const json = await res.json();
+      assert.equal(json.error, "Error interno del servidor");
+      assert.ok(!JSON.stringify(json).includes("private_keys"));
     });
   });
 });

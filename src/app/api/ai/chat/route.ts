@@ -108,9 +108,6 @@ export async function POST(request: Request) {
       error,
       message: error?.message || "Error interno procesando el chat",
     });
-    return NextResponse.json(
-      { error: error.message || "Error interno procesando el chat." }, 
-      { status: 500, headers: correlationId ? { [CORRELATION_ID_HEADER]: correlationId } : {} }
-    );
+    return toAuthErrorResponse(error, correlationId);
   }
 }

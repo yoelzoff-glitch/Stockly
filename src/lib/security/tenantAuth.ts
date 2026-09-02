@@ -216,7 +216,8 @@ export function assertRequestedTenant(
 }
 
 /**
- * Converts authorization errors into standard, sanitized JSON responses.
+ * Converts authorization and internal errors into standard, sanitized JSON responses.
+ * Never leaks raw internal error messages, database queries or API error traces.
  */
 export function toAuthErrorResponse(error: unknown, correlationId?: string): NextResponse {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -234,13 +235,6 @@ export function toAuthErrorResponse(error: unknown, correlationId?: string): Nex
     );
   }
 
-  if (error instanceof AppError) {
-    return NextResponse.json(
-      { error: error.message },
-      { status: error.statusCode, headers }
-    );
-  }
-
   // SyntaxError from invalid JSON body
   if (error instanceof SyntaxError) {
     return NextResponse.json(
@@ -249,9 +243,17 @@ export function toAuthErrorResponse(error: unknown, correlationId?: string): Nex
     );
   }
 
-  // Generic fallback
+  // Controlled AppErrors with safe client status codes (< 500)
+  if (error instanceof AppError && error.isOperational && error.statusCode < 500) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: error.statusCode, headers }
+    );
+  }
+
+  // Generic fallback for all 500s, internal errors, Supabase errors, and unhandled exceptions
   return NextResponse.json(
-    { error: "Internal Server Error" },
+    { error: "Error interno del servidor" },
     { status: 500, headers }
   );
 }

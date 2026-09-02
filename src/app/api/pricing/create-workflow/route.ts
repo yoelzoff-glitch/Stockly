@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPriceAdjustmentWorkflow } from "@/services/pricing/createPriceAdjustmentWorkflow";
-import { requireTenantContext, assertRequestedTenant, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { requireTenantRole, assertRequestedTenant, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { logger } from "@/lib/errors/logger";
 
@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   let correlationId: string | undefined;
 
   try {
-    const context = await requireTenantContext(request);
+    const context = await requireTenantRole(["owner", "admin"], request);
     correlationId = context.correlationId;
 
     let body: any;

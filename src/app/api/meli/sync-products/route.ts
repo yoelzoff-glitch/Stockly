@@ -86,13 +86,6 @@ export async function POST(request: Request) {
       });
     }
 
-    if (error?.name === "TenantAuthError" || error?.statusCode === 401 || error?.statusCode === 403) {
-      return toAuthErrorResponse(error, correlationId);
-    }
-
-    return NextResponse.json(
-      { error: error?.message || "Failed to sync products" },
-      { status: 500, headers: { [CORRELATION_ID_HEADER]: correlationId } }
-    );
+    return toAuthErrorResponse(error, correlationId);
   }
 }

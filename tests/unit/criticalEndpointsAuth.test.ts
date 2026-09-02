@@ -26,12 +26,16 @@ describe("Critical Endpoints Static & Integration Verification", () => {
   ];
 
   for (const ep of criticalEndpoints) {
-    test(`${ep.name} strictly requires tenant context and asserts requested tenant`, () => {
+    test(`${ep.name} strictly requires tenant context/role and asserts requested tenant`, () => {
       const content = fs.readFileSync(path.join(rootDir, ep.file), "utf-8");
 
+      const hasAuth =
+        content.includes("requireTenantContext(") ||
+        content.includes("requireTenantRole(");
+
       assert.ok(
-        content.includes("requireTenantContext("),
-        `${ep.file} must invoke requireTenantContext()`
+        hasAuth,
+        `${ep.file} must invoke requireTenantContext() or requireTenantRole()`
       );
       assert.ok(
         content.includes("assertRequestedTenant("),
@@ -44,6 +48,23 @@ describe("Critical Endpoints Static & Integration Verification", () => {
     });
   }
 
+  test("Sales CSV Export functional schema matches 58211d3 baseline exactly", () => {
+    const content = fs.readFileSync(path.join(rootDir, "src/app/api/sales/export/route.ts"), "utf-8");
+
+    assert.ok(
+      content.includes('const headers = ["Fecha", "Nº Orden", "Comprador", "Producto", "Cantidad", "Total (ARS)", "Estado"];'),
+      "Sales export CSV must retain exact 58211d3 headers in exact order"
+    );
+    assert.ok(
+      content.includes('headers.join(",")'),
+      "Sales export CSV must use comma separator"
+    );
+    assert.ok(
+      content.includes('klyvo_ventas_'),
+      "Sales export CSV filename must start with klyvo_ventas_"
+    );
+  });
+
   test("Exempt routes do not accidentally include session requirements", () => {
     const healthLive = fs.readFileSync(path.join(rootDir, "src/app/api/health/live/route.ts"), "utf-8");
     const healthReady = fs.readFileSync(path.join(rootDir, "src/app/api/health/ready/route.ts"), "utf-8");
@@ -52,7 +73,7 @@ describe("Critical Endpoints Static & Integration Verification", () => {
 
     assert.ok(!healthLive.includes("requireTenantContext"), "health/live must remain public");
     assert.ok(!healthReady.includes("requireTenantContext"), "health/ready uses HEALTHCHECK_TOKEN");
-    assert.ok(!meliWebhook.includes("requireTenantContext"), "meli webhook uses external HMAC");
-    assert.ok(!mpWebhook.includes("requireTenantContext"), "mp webhook uses secret");
+    assert.ok(!meliWebhook.includes("requireTenantContext"), "meli webhook is external");
+    assert.ok(!mpWebhook.includes("requireTenantContext"), "mp webhook is external");
   });
 });

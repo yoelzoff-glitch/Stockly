@@ -209,16 +209,22 @@ export async function confirmCommandCenterAction(actionId: string): Promise<{ su
           f.error?.toLowerCase().includes("cannot update item")
         ).length;
 
-        let message = `Se actualizaron ${succeeded.length} publicaciones correctamente, pero ${failed.length} no pudieron modificarse.`;
+        let reason = "";
         if (catalogFailedCount > 0) {
-          message += ` (${catalogFailedCount} fallaron porque Mercado Libre no permite modificar publicaciones de catálogo).`;
+          reason = ` (${catalogFailedCount} ${catalogFailedCount === 1 ? 'era de catálogo y no permite cambios' : 'eran de catálogo y no permiten cambios'})`;
         }
 
         return {
           success: true,
           partial: true,
-          message,
-          results: res.results
+          message: `${succeeded.length} ${succeeded.length === 1 ? 'publicación modificada' : 'publicaciones modificadas'} exitosamente y ${failed.length} ${failed.length === 1 ? 'falló' : 'fallaron'}${reason}.`
+        };
+      } else if (failed.length > 0 && succeeded.length === 0) {
+        return { success: false, error: failed[0].error || "Error al modificar las publicaciones" };
+      } else if (succeeded.length > 0 && failed.length === 0) {
+        return {
+          success: true,
+          message: `${succeeded.length} ${succeeded.length === 1 ? 'publicación modificada' : 'publicaciones modificadas'} exitosamente.`
         };
       }
     }

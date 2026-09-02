@@ -121,19 +121,12 @@ Atributos: ${JSON.stringify(promptContext.attributes).substring(0, 1000)}`;
       { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
     );
   } catch (error: any) {
-    if (error?.name === "TenantAuthError" || error?.statusCode === 401 || error?.statusCode === 403) {
-      return toAuthErrorResponse(error, correlationId);
-    }
-
     logger.error({
       event: "AI_TITLE_SUGGESTIONS_ERROR",
       correlationId,
       error,
       message: error?.message || "Error interno del servidor",
     });
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500, headers: correlationId ? { [CORRELATION_ID_HEADER]: correlationId } : {} }
-    );
+    return toAuthErrorResponse(error, correlationId);
   }
 }

@@ -1,6 +1,7 @@
 /**
  * Recursive sanitizer for log payloads, metadata, and error details.
- * Prevents leaks of secrets, tokens, PII, and arbitrarily large payloads.
+ * Prevents leaks of secrets, tokens, PII, and arbitrarily large payloads while preserving
+ * technical identifiers (UUIDs, timestamps, order IDs, numeric metrics, correlation IDs).
  */
 
 const SENSITIVE_KEY_PATTERNS = [
@@ -17,14 +18,44 @@ const SENSITIVE_KEY_PATTERNS = [
   /cvv/i,
 ];
 
+const PRESERVED_ID_KEYS = new Set([
+  "id",
+  "correlationid",
+  "correlation_id",
+  "requestid",
+  "request_id",
+  "runid",
+  "run_id",
+  "userid",
+  "user_id",
+  "tenantid",
+  "tenant_id",
+  "productid",
+  "product_id",
+  "orderid",
+  "order_id",
+  "itemid",
+  "item_id",
+  "workflowid",
+  "workflow_id",
+  "actionid",
+  "action_id",
+  "meli_item_id",
+  "meli_order_id",
+  "timestamp",
+  "created_at",
+  "updated_at",
+  "date",
+]);
+
 const PHONE_KEY_PATTERNS = [
   /phone/i,
   /celular/i,
   /telefono/i,
-  /^from$/i,
-  /^to$/i,
-  /^sender$/i,
-  /^recipient$/i,
+  /^from_phone$/i,
+  /^to_phone$/i,
+  /^phone_number$/i,
+  /^customer_phone$/i,
 ];
 
 const RAW_PAYLOAD_KEYS = new Set([
@@ -37,8 +68,14 @@ const RAW_PAYLOAD_KEYS = new Set([
   "webhook_body",
 ]);
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?$/;
 const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-const PHONE_IN_STRING_REGEX = /(?:\+?54\s?9?\s?)?(?:\d[\s-]?){9,14}\d/g;
+
+// Recognizes explicit phone patterns:
+// 1. International E.164 (+54 9 11 1234-5678, +1 415 555 2671)
+// 2. Argentine local phone formats with area code (011 15 1234-5678, 11-1234-5678, 5491112345678)
+const PHONE_IN_STRING_REGEX = /(?:\+54\s?9?\s?\d{2,4}[-\s]?\d{3,4}[-\s]?\d{4}|\+1[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{4}|\b549\d{9,11}\b|\b0?\d{2,4}[-\s]15[-\s]?\d{3,4}[-\s]?\d{4}\b|\b\d{2,4}[-\s]\d{4}[-\s]\d{4}\b)/g;
 
 const DEFAULT_MAX_DEPTH = 6;
 const DEFAULT_MAX_STRING_LENGTH = 500;
@@ -68,8 +105,16 @@ export function maskPhone(phone: string): string {
 
 /**
  * Replaces embedded emails and phone numbers inside free-form text.
+ * Preserves UUIDs, timestamps, order IDs, and monetary values.
  */
 export function sanitizeStringText(text: string): string {
+  if (!text || typeof text !== "string") return text;
+
+  // Short-circuit if string is exactly a UUID or ISO date
+  if (UUID_REGEX.test(text.trim()) || ISO_DATE_REGEX.test(text.trim())) {
+    return text;
+  }
+
   // 1. Redact Bearer / OAuth tokens
   let result = text
     .replace(/bearer\s+[a-z0-9._-]+/gi, "[REDACTED_TOKEN]")
@@ -78,9 +123,9 @@ export function sanitizeStringText(text: string): string {
   // 2. Redact embedded emails
   result = result.replace(EMAIL_REGEX, (match) => maskEmail(match));
 
-  // 3. Redact embedded phone numbers if they look like full numbers (8+ digits)
+  // 3. Redact embedded phone numbers
   result = result.replace(PHONE_IN_STRING_REGEX, (match) => {
-    // Avoid matching simple numbers like timestamps or standard IDs if too short
+    // Check if match is surrounded by hex/UUID/date chars
     const digits = match.replace(/\D/g, "");
     if (digits.length >= 8 && digits.length <= 15) {
       return maskPhone(match);
@@ -152,22 +197,34 @@ export function sanitizeLogData<T = any>(
   // Handle plain objects
   const sanitized: Record<string, any> = {};
   for (const [key, value] of Object.entries(data)) {
+    const lowerKey = key.toLowerCase();
+
+    // Check sensitive keys (tokens, secrets, passwords)
     const isSensitive = SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(key));
     if (isSensitive) {
       sanitized[key] = "[REDACTED]";
       continue;
     }
 
-    if (RAW_PAYLOAD_KEYS.has(key.toLowerCase())) {
+    // Check raw payload keys
+    if (RAW_PAYLOAD_KEYS.has(lowerKey)) {
       sanitized[key] = "[RAW_PAYLOAD_REDACTED]";
       continue;
     }
 
+    // Check explicit preserved technical IDs
+    if (PRESERVED_ID_KEYS.has(lowerKey)) {
+      sanitized[key] = value;
+      continue;
+    }
+
+    // Check emails
     if (/email/i.test(key) && typeof value === "string") {
       sanitized[key] = maskEmail(value);
       continue;
     }
 
+    // Check phone keys (only mask if not a preserved ID key)
     const isPhoneKey = PHONE_KEY_PATTERNS.some((pattern) => pattern.test(key));
     if (isPhoneKey && typeof value === "string" && /\d{6,}/.test(value)) {
       sanitized[key] = maskPhone(value);
