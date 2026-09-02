@@ -1,27 +1,21 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getListingFees } from "@/services/meli/getListingFees";
 import { getShippingCostEstimate } from "@/services/meli/getShippingCostEstimate";
 import { calculateRealProfitability } from "@/services/profitability/calculateRealProfitability";
+import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
+import { logger } from "@/lib/errors/logger";
 import * as Sentry from "@sentry/nextjs";
 
-export async function POST() {
+export async function POST(req: Request) {
+  let correlationId: string | undefined;
+
   try {
-    const supabase = await createClient();
+    const context = await requireTenantContext(req);
+    correlationId = context.correlationId;
     const adminSupabase = createAdminClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("tenant_id")
-      .eq("id", user.id)
-      .single();
-
-    const tenantId = profile?.tenant_id;
-    if (!tenantId) return NextResponse.json({ error: "No tenant assigned" }, { status: 403 });
+    const tenantId = context.tenantId;
 
     // Obtener Meli Account para el token
     const { data: meliAccount } = await adminSupabase
@@ -31,7 +25,10 @@ export async function POST() {
       .single();
 
     if (!meliAccount) {
-      return NextResponse.json({ error: "No Mercado Libre account connected" }, { status: 400 });
+      return NextResponse.json(
+        { error: "No Mercado Libre account connected" },
+        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
     // Obtener costo de embalaje del tenant
@@ -51,7 +48,10 @@ export async function POST() {
       .eq("tenant_id", tenantId);
 
     if (!products || products.length === 0) {
-      return NextResponse.json({ message: "No products to recalculate", updated: 0 });
+      return NextResponse.json(
+        { message: "No products to recalculate", updated: 0 },
+        { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
     let updatedCount = 0;
@@ -97,10 +97,18 @@ export async function POST() {
       updatedCount++;
     }
 
-    return NextResponse.json({ success: true, updated: updatedCount });
-
+    return NextResponse.json(
+      { success: true, updated: updatedCount },
+      { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+    );
   } catch (error: any) {
-    Sentry.captureException(error, { extra: { context: "PROFITABILITY_RECALCULATE" } });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    Sentry.captureException(error, { extra: { context: "PROFITABILITY_RECALCULATE", correlationId } });
+    logger.error({
+      event: "PROFITABILITY_RECALCULATE_ERROR",
+      correlationId,
+      error,
+      message: error?.message || "Error recalculating profitability",
+    });
+    return toAuthErrorResponse(error, correlationId);
   }
 }

@@ -8,6 +8,8 @@
     "test:ci": "node -r ./tests/setup.cjs --import tsx --test tests/**/*.test.ts",
     "typecheck": "tsc --noEmit",
     "verify:sprint1": "npm run typecheck && npm run test",
+    "audit:auth": "tsx scripts/audit-route-auth.ts",
+    "verify:sprint2": "npm run typecheck && npm run test && npm run audit:auth",
     "check:env": "tsx scripts/check-env.ts",
     "dev": "next dev",
     "build": "next build",

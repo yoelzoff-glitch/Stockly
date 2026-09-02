@@ -1,50 +1,71 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { openai } from "@/lib/ai/openai";
 import { preparePriceChangeAction, prepareStockChangeAction, prepareStatusChangeAction } from "@/actions/product-command-actions";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
+import { logger } from "@/lib/errors/logger";
 
 export async function POST(request: Request) {
+  let correlationId: string | undefined;
+
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const context = await requireTenantContext(request);
+    correlationId = context.correlationId;
+    const tenantId = context.tenantId;
 
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
-    if (!profile?.tenant_id) return NextResponse.json({ error: "No tenant ID found" }, { status: 400 });
-
-    const tenantId = profile.tenant_id;
-    const { product_id, message } = await request.json();
-
-    if (!product_id || !message) {
-      return NextResponse.json({ error: "product_id and message are required" }, { status: 400 });
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid JSON payload" },
+        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
-    // Load Product Context
-    const { data: product, error: productError } = await supabase
+    const { product_id, message } = body || {};
+
+    if (!product_id || typeof product_id !== "string" || !message || typeof message !== "string") {
+      return NextResponse.json(
+        { error: "product_id and message are required" },
+        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
+
+    // Load Product Context with strict tenant check (IDOR protection)
+    const adminSupabase = createAdminClient();
+    const { data: product, error: productError } = await adminSupabase
       .from("products")
       .select("*")
-      .eq("id", product_id)
+      .eq("id", product_id.trim())
       .eq("tenant_id", tenantId)
-      .single();
+      .maybeSingle();
 
     if (productError || !product) {
-      return NextResponse.json({ error: "Product not found or access denied" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Product not found" },
+        { status: 404, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
     // Save User Message
-    const adminSupabase = createAdminClient();
     const { error: inboundError } = await adminSupabase.from("messages").insert({
       tenant_id: tenantId,
-      product_id: product_id,
+      product_id: product.id,
       channel: "whatsapp", // Mapped to whatsapp due to database enum constraints
       direction: "inbound",
-      text: message,
+      text: message.trim(),
       intent: "product_context"
     });
     if (inboundError) {
-      console.error("Error inserting product-chat inbound message:", inboundError);
+      logger.error({
+        event: "PRODUCT_CHAT_INBOUND_ERROR",
+        correlationId,
+        tenantId,
+        error: inboundError,
+        message: "Error inserting product-chat inbound message",
+      });
     }
 
     const systemPrompt = `Sos Klyvo, un asistente IA experto en Mercado Libre.
@@ -102,7 +123,7 @@ CONTEXTO DEL PRODUCTO:
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: message }
+        { role: "user", content: message.trim() }
       ],
       functions,
       function_call: "auto",
@@ -142,7 +163,7 @@ CONTEXTO DEL PRODUCTO:
     // Save AI response
     const { error: outboundError } = await adminSupabase.from("messages").insert({
       tenant_id: tenantId,
-      product_id: product_id,
+      product_id: product.id,
       channel: "whatsapp", // Mapped to whatsapp due to database enum constraints
       direction: "outbound",
       text: replyText,
@@ -150,13 +171,27 @@ CONTEXTO DEL PRODUCTO:
       ai_response: true
     });
     if (outboundError) {
-      console.error("Error inserting product-chat outbound message:", outboundError);
+      logger.error({
+        event: "PRODUCT_CHAT_OUTBOUND_ERROR",
+        correlationId,
+        tenantId,
+        error: outboundError,
+        message: "Error inserting product-chat outbound message",
+      });
     }
 
-    return NextResponse.json({ reply: replyText, action_pending: actionPending });
+    return NextResponse.json(
+      { reply: replyText, action_pending: actionPending },
+      { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+    );
 
   } catch (error: any) {
-    console.error("Product Chat Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    logger.error({
+      event: "PRODUCT_CHAT_ERROR",
+      correlationId,
+      error,
+      message: error?.message || "Product Chat Error",
+    });
+    return toAuthErrorResponse(error, correlationId);
   }
 }

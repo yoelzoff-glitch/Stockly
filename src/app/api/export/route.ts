@@ -1,31 +1,27 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import * as xlsx from "xlsx";
 import * as Sentry from "@sentry/nextjs";
+import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 
 export async function GET(req: Request) {
+  let correlationId: string | undefined;
+
   try {
-    const supabase = await createClient();
+    const authContext = await requireTenantContext(req);
+    correlationId = authContext.correlationId;
+    const tenantId = authContext.tenantId;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return new NextResponse("Unauthorized", { status: 401 });
+    const supabase = createAdminClient();
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("tenant_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile?.tenant_id) return new NextResponse("No tenant", { status: 403 });
-    const tenantId = profile.tenant_id;
-
-    // Fetch Products
+    // Fetch Products strictly scoped to tenant
     const { data: products } = await supabase
       .from("products")
       .select("sku, title, price, cost, available_quantity, status")
       .eq("tenant_id", tenantId);
 
-    // Fetch Orders
+    // Fetch Orders strictly scoped to tenant
     const { data: orders } = await supabase
       .from("orders")
       .select("meli_order_id, status, total_amount, date_created, buyer_name")
@@ -52,11 +48,12 @@ export async function GET(req: Request) {
       headers: {
         "Content-Disposition": 'attachment; filename="klyvo_backup.xlsx"',
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        [CORRELATION_ID_HEADER]: correlationId,
       },
     });
 
-  } catch (error) {
-    Sentry.captureException(error, { extra: { context: "EXPORT_BACKUP" } });
-    return new NextResponse("Internal Server Error", { status: 500 });
+  } catch (error: any) {
+    Sentry.captureException(error, { extra: { context: "EXPORT_BACKUP", correlationId } });
+    return toAuthErrorResponse(error, correlationId);
   }
 }

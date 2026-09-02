@@ -1,10 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { syncOrders } from "@/services/meli/syncOrders";
 import { isManualSyncDisabled } from "@/lib/safety/killSwitches";
 import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { logger } from "@/lib/errors/logger";
 import { startOperationRun, completeOperationRun, failOperationRun } from "@/lib/observability/operationRuns";
+import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 
 export async function POST(request: Request) {
   const correlationId = getOrCreateCorrelationId(request);
@@ -30,32 +30,8 @@ export async function POST(request: Request) {
   let tenantId: string | undefined;
 
   try {
-    const supabase = await createClient();
-
-    // 1. Validate auth
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401, headers: { [CORRELATION_ID_HEADER]: correlationId } }
-      );
-    }
-
-    // 2. Get profile and tenant_id
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("tenant_id")
-      .eq("id", user.id)
-      .single();
-
-    if (profileError || !profile?.tenant_id) {
-      return NextResponse.json(
-        { error: "Tenant not found for user" },
-        { status: 404, headers: { [CORRELATION_ID_HEADER]: correlationId } }
-      );
-    }
-
-    tenantId = profile.tenant_id;
+    const context = await requireTenantContext(request);
+    tenantId = context.tenantId;
 
     logger.info({
       event: "SYNC_ORDERS_STARTED",
@@ -73,7 +49,7 @@ export async function POST(request: Request) {
     });
 
     // 3. Sync orders
-    const syncedCount = await syncOrders(profile.tenant_id);
+    const syncedCount = await syncOrders(tenantId);
 
     await completeOperationRun(runId, {
       itemsProcessed: typeof syncedCount === "number" ? syncedCount : 0,
@@ -108,6 +84,10 @@ export async function POST(request: Request) {
         errorCode: error?.code || "SYNC_ORDERS_ERROR",
         errorMessage: error?.message,
       });
+    }
+
+    if (error?.name === "TenantAuthError" || error?.statusCode === 401 || error?.statusCode === 403) {
+      return toAuthErrorResponse(error, correlationId);
     }
 
     return NextResponse.json(

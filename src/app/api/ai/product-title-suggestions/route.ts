@@ -1,48 +1,56 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { openai } from "@/lib/ai/openai";
 import { logger } from "@/lib/errors/logger";
 import { AppError } from "@/lib/errors/AppError";
 import { incrementAIUsage } from "@/services/billing/checkLimits";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 
 export async function POST(req: Request) {
+  let correlationId: string | undefined;
+
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const context = await requireTenantContext(req);
+    correlationId = context.correlationId;
+    const tenantId = context.tenantId;
 
-    if (!user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid JSON payload" },
+        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("tenant_id")
-      .eq("id", user.id)
-      .single();
+    const { product_id } = body || {};
 
-    if (!profile || !profile.tenant_id) {
-      return NextResponse.json({ error: "Tenant no encontrado" }, { status: 400 });
+    if (!product_id || typeof product_id !== "string") {
+      return NextResponse.json(
+        { error: "El ID del producto es requerido" },
+        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
-    const { product_id } = await req.json();
-
-    if (!product_id) {
-      return NextResponse.json({ error: "El ID del producto es requerido" }, { status: 400 });
-    }
-
-    const { data: product, error: productError } = await supabase
+    const adminSupabase = createAdminClient();
+    const { data: product, error: productError } = await adminSupabase
       .from("products")
       .select("title, sku, category_id, price, raw_data")
-      .eq("id", product_id)
-      .eq("tenant_id", profile.tenant_id)
-      .single();
+      .eq("id", product_id.trim())
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
 
     if (productError || !product) {
-      return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Producto no encontrado" },
+        { status: 404, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
     // Extract context for the prompt
-    const context = {
+    const promptContext = {
       title: product.title,
       sku: product.sku,
       category_id: product.category_id,
@@ -70,12 +78,12 @@ Reglas:
 }
 
 Datos del producto:
-Título actual: ${context.title}
-SKU: ${context.sku || 'N/A'}
-Categoría: ${context.category_id || 'N/A'}
-Precio: $${context.price}
-Descripción: ${JSON.stringify(context.description).substring(0, 1000)}
-Atributos: ${JSON.stringify(context.attributes).substring(0, 1000)}`;
+Título actual: ${promptContext.title}
+SKU: ${promptContext.sku || 'N/A'}
+Categoría: ${promptContext.category_id || 'N/A'}
+Precio: $${promptContext.price}
+Descripción: ${JSON.stringify(promptContext.description).substring(0, 1000)}
+Atributos: ${JSON.stringify(promptContext.attributes).substring(0, 1000)}`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -92,17 +100,40 @@ Atributos: ${JSON.stringify(context.attributes).substring(0, 1000)}`;
     
     try {
       resultJson = JSON.parse(resultText);
-    } catch (e) {
-      logger.error("Error parsing OpenAI response for title suggestions", "AI_SUGGESTIONS");
-      return NextResponse.json({ error: "Error procesando las sugerencias de la IA" }, { status: 500 });
+    } catch {
+      logger.error({
+        event: "AI_SUGGESTIONS_PARSE_ERROR",
+        correlationId,
+        tenantId,
+        message: "Error parsing OpenAI response for title suggestions",
+      });
+      return NextResponse.json(
+        { error: "Error procesando las sugerencias de la IA" },
+        { status: 500, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
     // Registrar 5 consultas de IA por generar múltiples sugerencias complejas
-    await incrementAIUsage(profile.tenant_id, 5);
+    await incrementAIUsage(tenantId, 5);
 
-    return NextResponse.json(resultJson, { status: 200 });
+    return NextResponse.json(
+      resultJson,
+      { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+    );
   } catch (error: any) {
-    logger.error(new AppError("OPENAI_ERROR", error.message, 500), "AI_TITLE_SUGGESTIONS");
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    if (error?.name === "TenantAuthError" || error?.statusCode === 401 || error?.statusCode === 403) {
+      return toAuthErrorResponse(error, correlationId);
+    }
+
+    logger.error({
+      event: "AI_TITLE_SUGGESTIONS_ERROR",
+      correlationId,
+      error,
+      message: error?.message || "Error interno del servidor",
+    });
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500, headers: correlationId ? { [CORRELATION_ID_HEADER]: correlationId } : {} }
+    );
   }
 }

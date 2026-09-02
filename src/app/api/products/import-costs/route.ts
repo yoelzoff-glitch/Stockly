@@ -1,37 +1,43 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
+import { logger } from "@/lib/errors/logger";
 import * as Sentry from "@sentry/nextjs";
 
 export async function POST(req: Request) {
+  let correlationId: string | undefined;
+
   try {
-    const supabase = await createClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("tenant_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile?.tenant_id) {
-      return NextResponse.json({ error: "Usuario sin tenant asignado" }, { status: 403 });
-    }
-
-    const tenantId = profile.tenant_id;
+    const authContext = await requireTenantContext(req);
+    correlationId = authContext.correlationId;
+    const tenantId = authContext.tenantId;
 
     const formData = await req.formData();
     const file = formData.get("file") as File;
     if (!file) {
-      return NextResponse.json({ error: "Archivo no recibido" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Archivo no recibido" },
+        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
     const text = await file.text();
     const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
 
     if (lines.length < 2) {
-      return NextResponse.json({ error: "El archivo parece estar vacío o no tiene datos" }, { status: 400 });
+      return NextResponse.json(
+        { error: "El archivo parece estar vacío o no tiene datos" },
+        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
+
+    // Limit maximum lines to prevent denial of service (safe max 2000 items)
+    if (lines.length > 2000) {
+      return NextResponse.json(
+        { error: "El archivo excede el límite máximo permitido de 2000 filas" },
+        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
     const header = lines[0].toLowerCase();
@@ -39,9 +45,13 @@ export async function POST(req: Request) {
     const isMeliId = header.includes("meli_item_id,cost");
 
     if (!isSku && !isMeliId) {
-      return NextResponse.json({ error: "El formato de cabecera es incorrecto. Debe ser 'sku,cost' o 'meli_item_id,cost'." }, { status: 400 });
+      return NextResponse.json(
+        { error: "El formato de cabecera es incorrecto. Debe ser 'sku,cost' o 'meli_item_id,cost'." },
+        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
+    const supabase = createAdminClient();
     let updated = 0;
     let notFound = 0;
     const errors = [];
@@ -59,12 +69,12 @@ export async function POST(req: Request) {
       const costStr = parts[1].trim();
       const costVal = parseFloat(costStr);
 
-      if (isNaN(costVal) || costVal < 0) {
+      if (isNaN(costVal) || costVal < 0 || !Number.isFinite(costVal)) {
         errors.push({ line: i + 1, detail: `Costo inválido: ${costStr}` });
         continue;
       }
 
-      // Update in DB
+      // Update in DB strictly scoped to tenant
       let query = supabase.from("products").update({ cost: costVal }).eq("tenant_id", tenantId);
 
       if (isSku) {
@@ -73,12 +83,12 @@ export async function POST(req: Request) {
         query = query.eq("meli_item_id", identifier);
       }
 
-      const { data, error, count } = await query.select("id");
+      const { data, error } = await query.select("id");
 
       if (error) {
         errors.push({ line: i + 1, detail: error.message });
       } else if (data && data.length > 0) {
-        updated += data.length; // Might update variations if they share SKU
+        updated += data.length;
       } else {
         notFound++;
       }
@@ -91,10 +101,16 @@ export async function POST(req: Request) {
         not_found: notFound,
         errors
       }
-    });
+    }, { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } });
 
   } catch (error: any) {
-    Sentry.captureException(error, { extra: { context: "IMPORT_COSTS" } });
-    return NextResponse.json({ error: error.message || "Error interno" }, { status: 500 });
+    Sentry.captureException(error, { extra: { context: "IMPORT_COSTS", correlationId } });
+    logger.error({
+      event: "IMPORT_COSTS_ERROR",
+      correlationId,
+      error,
+      message: error?.message || "Error importando costos",
+    });
+    return toAuthErrorResponse(error, correlationId);
   }
 }

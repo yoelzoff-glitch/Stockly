@@ -1,38 +1,38 @@
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { runBusinessAgent } from "@/services/ai/agent";
 import { logger } from "@/lib/errors/logger";
 import { AppError } from "@/lib/errors/AppError";
+import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 
 export async function POST(request: Request) {
+  let correlationId: string | undefined;
+
   try {
-    const { message } = await request.json();
+    const context = await requireTenantContext(request);
+    correlationId = context.correlationId;
+
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid JSON payload" },
+        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
+
+    const { message } = body || {};
     
-    if (!message || typeof message !== "string") {
-      return NextResponse.json({ error: "Invalid message" }, { status: 400 });
+    if (!message || typeof message !== "string" || message.trim().length === 0) {
+      return NextResponse.json(
+        { error: "Invalid message: non-empty string is required" },
+        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
-    const supabase = await createClient();
-    
-    // 1. Validate auth
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // 2. Get tenant_id
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("tenant_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile?.tenant_id) {
-      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-    }
-
-    const tenantId = profile.tenant_id;
+    const tenantId = context.tenantId;
     const adminSupabase = createAdminClient();
 
     // 3. Save inbound message
@@ -40,18 +40,24 @@ export async function POST(request: Request) {
       tenant_id: tenantId,
       channel: "whatsapp", // Mapped to whatsapp due to database enum constraints
       direction: "inbound",
-      text: message,
+      text: message.trim(),
       raw_payload: {},
       created_at: new Date().toISOString(),
     });
     if (inboundError) {
-      console.error("Error inserting inbound message:", inboundError);
+      logger.error({
+        event: "AI_CHAT_INBOUND_INSERT_ERROR",
+        correlationId,
+        tenantId,
+        error: inboundError,
+        message: "Error inserting inbound chat message",
+      });
     }
 
     // 4. Run the AI Agent
     const aiResult = await runBusinessAgent({
       tenantId,
-      userMessage: message,
+      userMessage: message.trim(),
       channel: "web"
     });
 
@@ -70,23 +76,41 @@ export async function POST(request: Request) {
       created_at: new Date().toISOString(),
     });
     if (outboundError) {
-      console.error("Error inserting outbound message:", outboundError);
+      logger.error({
+        event: "AI_CHAT_OUTBOUND_INSERT_ERROR",
+        correlationId,
+        tenantId,
+        error: outboundError,
+        message: "Error inserting outbound chat message",
+      });
     }
 
-    return NextResponse.json({ response: aiResponse });
+    return NextResponse.json(
+      { response: aiResponse },
+      { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+    );
   } catch (error: any) {
+    if (error?.name === "TenantAuthError" || error?.statusCode === 401 || error?.statusCode === 403) {
+      return toAuthErrorResponse(error, correlationId);
+    }
+
     if (error?.status === 429 || error?.code === 'insufficient_quota') {
       logger.error(new AppError("OPENAI_QUOTA_EXCEEDED", "Sin saldo en OpenAI", 429, error.message), "AI_CHAT");
       return NextResponse.json(
         { error: "Nos hemos quedado sin saldo en el servicio de Inteligencia Artificial. Por favor, recarga tu cuenta de OpenAI." }, 
-        { status: 429 }
+        { status: 429, headers: correlationId ? { [CORRELATION_ID_HEADER]: correlationId } : {} }
       );
     }
     
-    logger.error(error, "AI_CHAT");
+    logger.error({
+      event: "AI_CHAT_ERROR",
+      correlationId,
+      error,
+      message: error?.message || "Error interno procesando el chat",
+    });
     return NextResponse.json(
       { error: error.message || "Error interno procesando el chat." }, 
-      { status: 500 }
+      { status: 500, headers: correlationId ? { [CORRELATION_ID_HEADER]: correlationId } : {} }
     );
   }
 }

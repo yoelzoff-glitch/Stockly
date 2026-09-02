@@ -1,46 +1,38 @@
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/errors/logger";
+import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  let correlationId: string | undefined;
+
   try {
-    const supabase = await createClient();
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("tenant_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile?.tenant_id) {
-      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
-    }
-
-    const tenantId = profile.tenant_id;
+    const context = await requireTenantContext(req);
+    correlationId = context.correlationId;
     const adminSupabase = createAdminClient();
 
     // Delete all web messages for this tenant (mapped to whatsapp but with null from_phone)
     const { error } = await adminSupabase
       .from("messages")
       .delete()
-      .eq("tenant_id", tenantId)
+      .eq("tenant_id", context.tenantId)
       .eq("channel", "whatsapp")
       .is("from_phone", null);
 
     if (error) throw error;
 
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    logger.error(error, "AI_CHAT_CLEAR");
     return NextResponse.json(
-      { error: "Error eliminando el historial" }, 
-      { status: 500 }
+      { success: true },
+      { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
     );
+  } catch (error: any) {
+    logger.error({
+      event: "AI_CHAT_CLEAR_ERROR",
+      correlationId,
+      error,
+      message: error?.message || "Error eliminando el historial de chat",
+    });
+    return toAuthErrorResponse(error, correlationId);
   }
 }

@@ -1,37 +1,34 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getGeminiModel } from "@/lib/ai/gemini";
 import { meliFetch } from "@/services/meli/client";
+import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 
 export async function POST(request: Request) {
+  let correlationId: string | undefined;
+
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const context = await requireTenantContext(request);
+    correlationId = context.correlationId;
+    const tenantId = context.tenantId;
 
     // Check if Gemini API Key is configured
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json({ 
         error: "La clave de API de Gemini (GEMINI_API_KEY) no está configurada en el servidor. Asegúrate de haberla agregado en las variables de entorno de Vercel y haber redesplegado la aplicación." 
-      }, { status: 500 });
+      }, { status: 500, headers: { [CORRELATION_ID_HEADER]: correlationId } });
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("tenant_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile || !profile.tenant_id) {
-      return NextResponse.json({ error: "No se encontró el inquilino (tenant) para el usuario." }, { status: 400 });
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid JSON payload" },
+        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
-
-    const tenantId = profile.tenant_id;
-
-    const body = await request.json();
-    const { action = "all", url } = body;
+    const { action = "all", url } = body || {};
 
     // --- STEP 1: RESOLVE URL ---
     if (action === "resolve") {
@@ -311,9 +308,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
 
   } catch (error: any) {
-    console.error("Error in competitor analysis:", error);
+    if (error?.name === "TenantAuthError" || error?.statusCode === 401 || error?.statusCode === 403) {
+      return toAuthErrorResponse(error, correlationId);
+    }
     return NextResponse.json({ 
       error: `Error interno en el servidor: ${error.message || "Por favor intenta de nuevo."}` 
-    }, { status: 500 });
+    }, { status: 500, headers: correlationId ? { [CORRELATION_ID_HEADER]: correlationId } : {} });
   }
 }

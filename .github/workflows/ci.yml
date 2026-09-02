@@ -49,6 +49,9 @@ jobs:
       - name: Run Deterministic Unit Tests
         run: npm run test:ci
 
+      - name: Static Route Authorization Audit (Sprint 2)
+        run: npm run audit:auth
+
       - name: Dependency Audit (Informational Report)
         # Informational only for Sprint 1; vulnerability remediation is scheduled for Sprint 8
         run: |

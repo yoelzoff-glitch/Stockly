@@ -4,6 +4,9 @@ import { meliFetch } from "@/services/meli/client";
 import { normalizeSku } from "@/lib/sku";
 import { syncOrders } from "@/services/meli/syncOrders";
 
+import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
+
 // Keep track of the last time we performed a historical orders sync for each tenant to avoid hitting rate limits
 const lastSyncedHistory: Record<string, number> = {};
 
@@ -11,24 +14,21 @@ export async function GET(
   request: Request,
   props: { params: Promise<{ id: string }> }
 ) {
+  let correlationId: string | undefined;
+
   try {
+    const authContext = await requireTenantContext(request);
+    correlationId = authContext.correlationId;
+    const tenantId = authContext.tenantId;
+
     const { id } = await props.params;
+    if (!id || typeof id !== "string") {
+      return NextResponse.json(
+        { error: "Product ID is required" },
+        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("tenant_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile?.tenant_id) {
-      return NextResponse.json({ error: "No se encontró inquilino" }, { status: 403 });
-    }
 
     const url = new URL(request.url);
     const daysParam = url.searchParams.get("days") || "7";
@@ -38,14 +38,14 @@ export async function GET(
 
     // Dynamic historical orders sync if we might be missing data
     const nowMs = Date.now();
-    const lastSync = lastSyncedHistory[profile.tenant_id] || 0;
+    const lastSync = lastSyncedHistory[tenantId] || 0;
     if (nowMs - lastSync > 10 * 60 * 1000) {
       try {
         // Find the oldest order we have in the database for this tenant
         const { data: oldestOrder } = await supabase
           .from("orders")
           .select("date_created")
-          .eq("tenant_id", profile.tenant_id)
+          .eq("tenant_id", tenantId)
           .order("date_created", { ascending: true })
           .limit(1)
           .maybeSingle();
@@ -54,11 +54,11 @@ export async function GET(
         
         // If we have no orders at all, or if our oldest order is more recent than the filterDate, sync older history
         if (!oldestOrderDate || oldestOrderDate > filterDate) {
-          await syncOrders(profile.tenant_id, undefined, filterDate.toISOString());
+          await syncOrders(tenantId, undefined, filterDate.toISOString());
         }
         
         // Mark as synced for this session to throttle requests
-        lastSyncedHistory[profile.tenant_id] = nowMs;
+        lastSyncedHistory[tenantId] = nowMs;
       } catch (err: any) {
         console.error("Error during dynamic historical order sync:", err.message);
       }
@@ -69,7 +69,7 @@ export async function GET(
       .from("products")
       .select("*")
       .eq("id", id)
-      .eq("tenant_id", profile.tenant_id)
+      .eq("tenant_id", tenantId)
       .single();
 
     if (productError || !product) {
@@ -84,7 +84,7 @@ export async function GET(
       let query = supabase
         .from("products")
         .select("*")
-        .eq("tenant_id", profile.tenant_id)
+        .eq("tenant_id", tenantId)
         .not("sku", "is", null);
 
       if (product.meli_account_id) {
@@ -107,7 +107,7 @@ export async function GET(
       if (!p.meli_item_id) return { productId: p.id, visitsData: null };
       try {
         const visitsData = await meliFetch({
-          tenantId: profile.tenant_id,
+          tenantId: tenantId,
           endpoint: `/items/${p.meli_item_id}/visits/time_window?last=${visitsDaysCount}&unit=day`
         });
         return { productId: p.id, visitsData };
@@ -147,7 +147,7 @@ export async function GET(
         )
       `)
       .in("product_id", familyProductIds)
-      .eq("tenant_id", profile.tenant_id);
+      .eq("tenant_id", tenantId);
 
     const salesMap: Record<string, Record<string, number>> = {}; // productId -> dateStr -> sales
     const totalSalesMap: Record<string, number> = {};
@@ -238,7 +238,12 @@ export async function GET(
       siblingStats
     });
   } catch (error: any) {
-    console.error("Error in product stats route:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error?.name === "TenantAuthError" || error?.statusCode === 401 || error?.statusCode === 403) {
+      return toAuthErrorResponse(error, correlationId);
+    }
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500, headers: correlationId ? { [CORRELATION_ID_HEADER]: correlationId } : {} }
+    );
   }
 }
