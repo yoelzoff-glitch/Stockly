@@ -1,3 +1,4 @@
+import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeLogData } from "@/lib/observability/sanitizer";
 
@@ -89,6 +90,39 @@ export async function completeOperationRun(
       .from("operation_runs")
       .update({
         status: "completed",
+        finished_at: new Date().toISOString(),
+        duration_ms: durationMs,
+        items_processed: params.itemsProcessed ?? 0,
+        metadata: sanitizedMeta,
+      })
+      .eq("id", runId);
+  } catch {
+    // Best-effort
+  }
+}
+
+/**
+ * Marks an operation run as partial (e.g. some items succeeded and some failed).
+ */
+export async function partialOperationRun(
+  runId: string | null | undefined,
+  params: CompleteOperationParams = {},
+  customClient?: any
+): Promise<void> {
+  if (!runId) return;
+
+  try {
+    const supabase = customClient || createAdminClient();
+    const startTime = operationStartTimes.get(runId);
+    const durationMs = startTime ? Date.now() - startTime : undefined;
+    operationStartTimes.delete(runId);
+
+    const sanitizedMeta = params.metadata ? sanitizeLogData(params.metadata) : {};
+
+    await supabase
+      .from("operation_runs")
+      .update({
+        status: "partial",
         finished_at: new Date().toISOString(),
         duration_ms: durationMs,
         items_processed: params.itemsProcessed ?? 0,

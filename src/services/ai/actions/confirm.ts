@@ -8,6 +8,8 @@ import { createCoupon } from '@/services/meli/promotions/createCoupon';
 import { logger } from '@/lib/errors/logger';
 import { incrementUsage } from '@/services/billing/checkLimits';
 
+import { isAiWritesDisabled } from '@/lib/safety/killSwitches';
+
 /**
  * Confirma y ejecuta de forma definitiva una acción de actualización de producto pendiente.
  * Valida los límites físicos de seguridad, itera sobre los items de la acción y ejecuta 
@@ -20,6 +22,16 @@ import { incrementUsage } from '@/services/billing/checkLimits';
  * @returns Promesa con estado de éxito y los resultados individuales por producto
  */
 export async function confirmPendingAction(tenantId: string, actionId: string): Promise<{ success: boolean; error?: string; results?: any[] }> {
+  if (isAiWritesDisabled()) {
+    logger.warn({
+      event: "AI_WRITES_DISABLED",
+      tenantId,
+      actionId,
+      message: "AI write actions execution is temporarily disabled via kill switch",
+    });
+    return { success: false, error: "AI write actions are temporarily disabled by system administrator." };
+  }
+
   const supabase = createAdminClient();
 
   const { data: action, error } = await supabase

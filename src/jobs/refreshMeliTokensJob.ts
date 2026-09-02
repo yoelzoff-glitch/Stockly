@@ -2,7 +2,7 @@ import { inngest } from "../inngest/client";
 import { refreshMeliToken } from "../services/meli/refreshToken";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/errors/logger";
-import { startOperationRun, completeOperationRun, failOperationRun } from "@/lib/observability/operationRuns";
+import { startOperationRun, completeOperationRun, partialOperationRun, failOperationRun } from "@/lib/observability/operationRuns";
 
 export const refreshMeliTokensJob = inngest.createFunction(
   { 
@@ -58,10 +58,23 @@ export const refreshMeliTokensJob = inngest.createFunction(
 
       const successCount = results.filter((r) => r.status === "fulfilled").length;
 
-      await completeOperationRun(runId, {
-        itemsProcessed: successCount,
-        metadata: { total: accounts.length, success: successCount },
-      });
+      if (successCount === accounts.length) {
+        await completeOperationRun(runId, {
+          itemsProcessed: successCount,
+          metadata: { total: accounts.length, success: successCount },
+        });
+      } else if (successCount > 0) {
+        await partialOperationRun(runId, {
+          itemsProcessed: successCount,
+          metadata: { total: accounts.length, success: successCount, failed: accounts.length - successCount },
+        });
+      } else {
+        await failOperationRun(runId, {
+          errorCode: "ALL_TOKEN_REFRESHES_FAILED",
+          errorMessage: "Failed to refresh any of the target tokens",
+          metadata: { total: accounts.length, success: 0 },
+        });
+      }
 
       logger.info({
         event: "REFRESH_MELI_TOKENS_JOB_COMPLETED",
@@ -70,6 +83,7 @@ export const refreshMeliTokensJob = inngest.createFunction(
         source: "inngest_cron",
         total: accounts.length,
         refreshed: successCount,
+        status: successCount === accounts.length ? "completed" : (successCount > 0 ? "partial" : "failed"),
       });
 
       return { message: `Attempted to refresh ${accounts.length} tokens`, details: results };

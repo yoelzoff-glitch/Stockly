@@ -21,25 +21,25 @@ Antes de aplicar cualquier script SQL en producción, se debe generar un volcado
 
 ### 3.1 Vía Supabase CLI
 ```bash
-# Exportar solo la estructura del schema
-supabase db dump --db-url "$DATABASE_URL" -f "klyvo_schema_pre_migration_$(date +%Y%m%d_%H%M%S).sql"
+# Exportar solo la estructura del schema a un directorio temporal fuera de git
+supabase db dump --db-url "$DATABASE_URL" -f "dumps/klyvo_schema_pre_migration_$(date +%Y%m%d_%H%M%S).dump"
 
 # Exportar solo los datos (excluyendo schema)
-supabase db dump --db-url "$DATABASE_URL" --data-only -f "klyvo_data_pre_migration_$(date +%Y%m%d_%H%M%S).sql"
+supabase db dump --db-url "$DATABASE_URL" --data-only -f "dumps/klyvo_data_pre_migration_$(date +%Y%m%d_%H%M%S).dump"
 ```
 
 ### 3.2 Vía `pg_dump` Nativo
 ```bash
 pg_dump "$DATABASE_URL" \
   --format=custom \
-  --file="klyvo_backup_pre_migration_$(date +%Y%m%d_%H%M%S).dump" \
+  --file="dumps/klyvo_backup_pre_migration_$(date +%Y%m%d_%H%M%S).dump" \
   --exclude-table-data='public.audit_logs'
 ```
 
 > [!CAUTION]
-> **SEGURIDAD ESTRICTA DE ARCHIVOS DE BACKUP:**
-> * **NUNCA** guardes archivos `.sql`, `.dump` o `.env` en el repositorio Git.
-> * Verifica que `.gitignore` contenga `*.sql`, `*.dump`, `*.tar`, `*.bak`.
+> **SEGURIDAD ESTRICTA DE ARCHIVOS DE BACKUP Y DUMPS:**
+> * **NUNCA** guardes archivos de volcado (`*.dump`, `*.tar`, `*.bak`, carpeta `dumps/`) ni credenciales `.env` en el repositorio Git.
+> * Las migraciones de código en `supabase/migrations/*.sql` **SÍ deben estar versionadas en Git**; **NO** agregues `*.sql` genérico a `.gitignore`.
 > * Almacena los backups temporales en volúmenes cifrados y elimínalos tras 7 días de validación.
 
 ---
@@ -63,7 +63,7 @@ Para verificar la integridad de un backup sin tocar producción:
    ```
 2. Restaurar el dump:
    ```bash
-   pg_restore -d "postgresql://postgres:testpassword@localhost:54322/postgres" -v "klyvo_backup_pre_migration_YYYYMMDD_HHMMSS.dump"
+   pg_restore -d "postgresql://postgres:testpassword@localhost:54322/postgres" -v "dumps/klyvo_backup_pre_migration_YYYYMMDD_HHMMSS.dump"
    ```
 3. Ejecutar consultas de validación de registros:
    ```sql
@@ -77,19 +77,21 @@ Para verificar la integridad de un backup sin tocar producción:
 
 ## 6. Procedimiento de Rollback
 
-### 6.1 Rollback de Código en Producción (Vercel / Next.js)
-1. En el dashboard de despliegues de Vercel (o plataforma host), seleccionar el despliegue previo (*Instant Rollback*).
+### 6.1 Paso 1: Rollback de Código en Producción (Recomendado)
+Ante cualquier anomalía en un despliegue, **el primer paso es revertir únicamente el código en producción**. 
+Dado que las migraciones del Sprint 1 son aditivas (`tenant_feature_flags` y `operation_runs`), las tablas pueden permanecer en la base de datos sin interferir con versiones anteriores del código:
+1. En el dashboard de Vercel (o plataforma de hosting), seleccionar el despliegue previo (*Instant Rollback*).
 2. O bien, revertir el commit en `main`:
    ```bash
    git revert HEAD --no-edit
    git push origin main
    ```
 
-### 6.2 Rollback de Migraciones de Sprint 1
-Dado que las migraciones del Sprint 1 son estrictamente aditivas, su rollback consiste en la eliminación controlada de las dos tablas nuevas (sin alterar ninguna tabla preexistente):
+### 6.2 Paso 2: Eliminación de Tablas Nuevas (Último Recurso Manual)
+**Únicamente como último recurso manual** si existiera un conflicto insalvable en el schema de base de datos, se pueden eliminar las dos tablas nuevas creadas en el Sprint 1:
 
 ```sql
--- ROLLBACK SPRINT 1 (Ejecutar en Supabase SQL Editor solo si es necesario)
+-- ÚLTIMO RECURSO MANUAL (Solo si es estrictamente necesario)
 DROP TABLE IF EXISTS public.operation_runs CASCADE;
 DROP TABLE IF EXISTS public.tenant_feature_flags CASCADE;
 ```
@@ -100,14 +102,14 @@ DROP TABLE IF EXISTS public.tenant_feature_flags CASCADE;
 
 ### Checklist Previo a Migración
 - [ ] Backup automático de Supabase confirmado en últimas 24h.
-- [ ] Dump manual ejecutado y almacenado de forma segura.
+- [ ] Dump manual ejecutado y almacenado de forma segura en ubicación externa/cifrada.
 - [ ] Script `supabase/diagnostics/production_preflight.sql` ejecutado y revisado.
 - [ ] Validación de que la migración utiliza `IF NOT EXISTS` y no modifica datos existentes.
 - [ ] Notificación al equipo sobre el inicio de la ventana de mantenimiento.
 
 ### Checklist Posterior a Migración
 - [ ] Tablas nuevas creadas con permisos correctos para `service_role`.
-- [ ] RLS activo y sin permisos para `anon` / `authenticated`.
+- [ ] RLS activo y sin permisos para `anon` / `authenticated` / `PUBLIC`.
 - [ ] Verificación de endpoints `/api/health/live` y `/api/health/ready`.
 - [ ] Smoke test con usuario real en dashboard.
 - [ ] Verificación de logs de sincronización sin errores 500.

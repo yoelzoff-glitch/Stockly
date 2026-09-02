@@ -3,6 +3,7 @@ import { getSubscription, updateSubscriptionAmount } from '@/integrations/mercad
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/errors/logger';
 import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from '@/lib/observability/correlationId';
+import { startOperationRun, completeOperationRun } from '@/lib/observability/operationRuns';
 
 import * as Sentry from "@sentry/nextjs";
 
@@ -38,6 +39,16 @@ export async function POST(req: Request) {
 
     const topic = body.type || body.action || type;
     const resourceId = body.data?.id || id;
+
+    // Track operation run asynchronously without delaying webhook response
+    startOperationRun({
+      operationType: `mp_webhook_${topic || 'unknown'}`,
+      source: "mercadopago_webhook",
+      correlationId,
+      metadata: { topic, resourceId },
+    }).then((runId) => {
+      if (runId) completeOperationRun(runId, { itemsProcessed: 1 });
+    }).catch(() => {});
 
     logger.info({
       event: "MP_WEBHOOK_RECEIVED",

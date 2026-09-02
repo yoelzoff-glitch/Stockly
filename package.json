@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "tsx --test tests/**/*.test.ts",
-    "test:ci": "tsx --test tests/**/*.test.ts",
+    "test": "node -r ./tests/setup.cjs --import tsx --test tests/**/*.test.ts",
+    "test:ci": "node -r ./tests/setup.cjs --import tsx --test tests/**/*.test.ts",
     "typecheck": "tsc --noEmit",
     "verify:sprint1": "npm run typecheck && npm run test",
     "check:env": "tsx scripts/check-env.ts",
@@ -76,6 +76,7 @@
     "react-dom": "^19.2.6",
     "react-hook-form": "^7.76.0",
     "recharts": "^3.8.1",
+    "server-only": "^0.0.1",
     "tailwind-merge": "^3.6.0",
     "tailwindcss-animate": "^1.0.7",
     "xlsx": "^0.18.5",

@@ -6,6 +6,7 @@ import { syncOrders } from "@/services/meli/syncOrders";
 import { syncProducts } from "@/services/meli/syncProducts";
 import { syncShipments } from "@/services/meli/syncShipments";
 import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
+import { startOperationRun, completeOperationRun } from "@/lib/observability/operationRuns";
 
 import * as Sentry from "@sentry/nextjs";
 
@@ -63,6 +64,19 @@ export async function POST(req: NextRequest) {
     }
 
     const tenantId = account.tenant_id;
+
+    // Track operation run asynchronously without delaying webhook response
+    startOperationRun({
+      tenantId,
+      operationType: `meli_webhook_${topic}`,
+      source: "mercadolibre_webhook",
+      correlationId,
+      metadata: { topic, resource, userId },
+    }).then((runId) => {
+      if (runId) {
+        completeOperationRun(runId, { itemsProcessed: 1 });
+      }
+    }).catch(() => {});
 
     // Depending on the topic, we dispatch an inngest event or handle it directly
     switch (topic) {

@@ -30,6 +30,7 @@ export const ENV_SPECS: EnvVariableSpec[] = [
   { name: "MELI_CLIENT_ID", category: "required", description: "Mercado Libre App ID" },
   { name: "MELI_CLIENT_SECRET", category: "required", description: "Mercado Libre Client Secret" },
   { name: "MELI_REDIRECT_URI", category: "required", description: "Mercado Libre OAuth Redirect URI" },
+  { name: "NEXT_PUBLIC_MELI_APP_ID", category: "optional", description: "Mercado Libre Public App ID" },
 
   // Mercado Pago
   { name: "MERCADOPAGO_ACCESS_TOKEN", category: "optional", description: "Mercado Pago Production Access Token" },
@@ -38,8 +39,13 @@ export const ENV_SPECS: EnvVariableSpec[] = [
   // WhatsApp Cloud API
   { name: "WHATSAPP_PHONE_NUMBER_ID", category: "optional", description: "Meta WhatsApp Business Phone Number ID" },
   { name: "WHATSAPP_ACCESS_TOKEN", category: "optional", description: "Meta WhatsApp Permanent Access Token" },
+  { name: "WHATSAPP_TOKEN", category: "optional", description: "Meta WhatsApp Token fallback" },
   { name: "WHATSAPP_VERIFY_TOKEN", category: "optional", description: "Meta Webhook Verification Token" },
   { name: "WHATSAPP_APP_SECRET", category: "optional", description: "Meta App Secret for HMAC validation" },
+
+  // Auth
+  { name: "NEXTAUTH_SECRET", category: "optional", description: "NextAuth secret key" },
+  { name: "NEXTAUTH_URL", category: "optional", description: "NextAuth base URL" },
 
   // AI & LLM
   { name: "OPENAI_API_KEY", category: "required", description: "OpenAI API Key for business agent and audio" },
@@ -54,6 +60,8 @@ export const ENV_SPECS: EnvVariableSpec[] = [
   { name: "INNGEST_SIGNING_KEY", category: "optional", description: "Inngest Signing Key for webhook verification" },
 
   // Storage & Internal
+  { name: "SUPABASE_BUCKET_AUDIO", category: "optional", description: "Supabase Storage bucket for audio files" },
+  { name: "SUPABASE_BUCKET_FILES", category: "optional", description: "Supabase Storage bucket for general uploads" },
   { name: "DEFAULT_CURRENCY", category: "optional", description: "Base currency (ARS)" },
   { name: "DEFAULT_TIMEZONE", category: "optional", description: "Default timezone (America/Argentina/Buenos_Aires)" },
 ];

@@ -17,6 +17,16 @@ const SENSITIVE_KEY_PATTERNS = [
   /cvv/i,
 ];
 
+const PHONE_KEY_PATTERNS = [
+  /phone/i,
+  /celular/i,
+  /telefono/i,
+  /^from$/i,
+  /^to$/i,
+  /^sender$/i,
+  /^recipient$/i,
+];
+
 const RAW_PAYLOAD_KEYS = new Set([
   "raw_payload",
   "raw_data",
@@ -26,6 +36,9 @@ const RAW_PAYLOAD_KEYS = new Set([
   "rawdata",
   "webhook_body",
 ]);
+
+const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+const PHONE_IN_STRING_REGEX = /(?:\+?54\s?9?\s?)?(?:\d[\s-]?){9,14}\d/g;
 
 const DEFAULT_MAX_DEPTH = 6;
 const DEFAULT_MAX_STRING_LENGTH = 500;
@@ -48,9 +61,34 @@ export function maskEmail(email: string): string {
 export function maskPhone(phone: string): string {
   const digitsOnly = phone.replace(/\D/g, "");
   if (digitsOnly.length < 6) return "[REDACTED_PHONE]";
-  const start = phone.slice(0, 5);
+  const start = phone.slice(0, Math.min(5, Math.floor(phone.length / 2)));
   const end = phone.slice(-4);
   return `${start}****${end}`;
+}
+
+/**
+ * Replaces embedded emails and phone numbers inside free-form text.
+ */
+export function sanitizeStringText(text: string): string {
+  // 1. Redact Bearer / OAuth tokens
+  let result = text
+    .replace(/bearer\s+[a-z0-9._-]+/gi, "[REDACTED_TOKEN]")
+    .replace(/app_usr-[a-z0-9_-]+/gi, "[REDACTED_TOKEN]");
+
+  // 2. Redact embedded emails
+  result = result.replace(EMAIL_REGEX, (match) => maskEmail(match));
+
+  // 3. Redact embedded phone numbers if they look like full numbers (8+ digits)
+  result = result.replace(PHONE_IN_STRING_REGEX, (match) => {
+    // Avoid matching simple numbers like timestamps or standard IDs if too short
+    const digits = match.replace(/\D/g, "");
+    if (digits.length >= 8 && digits.length <= 15) {
+      return maskPhone(match);
+    }
+    return match;
+  });
+
+  return result;
 }
 
 /**
@@ -69,14 +107,11 @@ export function sanitizeLogData<T = any>(
 
   // Primitive types
   if (typeof data === "string") {
-    // Check if looks like a token/bearer
-    if (/^bearer\s+[a-z0-9._-]+$/i.test(data) || /^app_usr-[a-z0-9_-]+$/i.test(data)) {
-      return "[REDACTED_TOKEN]" as unknown as T;
+    let sanitizedStr = sanitizeStringText(data);
+    if (sanitizedStr.length > maxStringLength) {
+      return `${sanitizedStr.slice(0, maxStringLength)}...[TRUNCATED ${sanitizedStr.length - maxStringLength} CHARS]` as unknown as T;
     }
-    if (data.length > maxStringLength) {
-      return `${data.slice(0, maxStringLength)}...[TRUNCATED ${data.length - maxStringLength} CHARS]` as unknown as T;
-    }
-    return data;
+    return sanitizedStr as unknown as T;
   }
 
   if (typeof data !== "object") {
@@ -133,7 +168,8 @@ export function sanitizeLogData<T = any>(
       continue;
     }
 
-    if (/phone|celular|telefono/i.test(key) && typeof value === "string") {
+    const isPhoneKey = PHONE_KEY_PATTERNS.some((pattern) => pattern.test(key));
+    if (isPhoneKey && typeof value === "string" && /\d{6,}/.test(value)) {
       sanitized[key] = maskPhone(value);
       continue;
     }

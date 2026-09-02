@@ -2,12 +2,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { refreshMeliToken } from "./refreshToken";
 import { createAlert } from "../alerts/createAlert";
 import { AppError } from "@/lib/errors/AppError";
+import { isMeliWritesDisabled } from "@/lib/safety/killSwitches";
+import { logger } from "@/lib/errors/logger";
 
 export interface MeliFetchArgs {
   tenantId?: string;
   meliAccountId?: string;
   endpoint: string;
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   body?: any;
 }
 
@@ -18,6 +20,22 @@ export async function meliFetch({
   method = "GET",
   body
 }: MeliFetchArgs): Promise<any> {
+  // Remote write protection via kill switch (does NOT block GET, OAuth or refresh)
+  if (method && method !== "GET" && isMeliWritesDisabled()) {
+    logger.warn({
+      event: "MELI_WRITES_DISABLED",
+      tenantId,
+      endpoint,
+      method,
+      message: "Mercado Libre remote write operations are temporarily disabled via kill switch",
+    });
+    throw new AppError(
+      "OPERATION_BLOCKED",
+      `Mercado Libre write operations are temporarily disabled by system administrator (${method} ${endpoint})`,
+      403
+    );
+  }
+
   const supabase = createAdminClient();
 
   // 1. Fetch current meli account

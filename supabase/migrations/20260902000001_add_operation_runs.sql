@@ -32,6 +32,7 @@ CREATE INDEX IF NOT EXISTS idx_operation_runs_correlation_id ON public.operation
 ALTER TABLE public.operation_runs ENABLE ROW LEVEL SECURITY;
 
 -- Explicit Grants: Revoke public/client access, allow only authorized backend service_role
+REVOKE ALL ON public.operation_runs FROM PUBLIC;
 REVOKE ALL ON public.operation_runs FROM anon, authenticated;
 GRANT ALL ON public.operation_runs TO service_role;
 

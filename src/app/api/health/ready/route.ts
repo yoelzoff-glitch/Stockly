@@ -17,15 +17,12 @@ export async function GET(request: Request) {
     );
   }
 
-  // Check auth header or query param
+  // Check auth header strictly via Bearer or x-healthcheck-token
   const authHeader = request.headers.get("authorization") || "";
   const tokenHeader = request.headers.get("x-healthcheck-token");
-  const url = new URL(request.url);
-  const tokenQuery = url.searchParams.get("token");
 
   const providedToken =
     tokenHeader ||
-    tokenQuery ||
     (authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : null);
 
   if (!providedToken || providedToken !== configuredToken) {

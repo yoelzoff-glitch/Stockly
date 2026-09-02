@@ -40,26 +40,29 @@ function formatLogMessage(
 
   // Legacy string or Error input
   if (input instanceof AppError) {
-    const contextStr = typeof extra === "string" ? ` [${extra}]` : "";
+    const contextStr = typeof extra === "string" ? ` [${sanitizeLogData(extra)}]` : "";
+    const sanitizedMsg = sanitizeLogData(input.message);
     const sanitizedDetails = extra && typeof extra !== "string" ? sanitizeLogData(extra) : (input.details ? sanitizeLogData(input.details) : undefined);
     return {
-      logLine: `[${timestamp}] [${level.toUpperCase()}] [${input.code}]${contextStr} ${input.message}`,
+      logLine: `[${timestamp}] [${level.toUpperCase()}] [${input.code}]${contextStr} ${sanitizedMsg}`,
       rawObject: sanitizedDetails,
     };
   }
 
   if (input instanceof Error) {
-    const contextStr = typeof extra === "string" ? ` [${extra}]` : "";
+    const contextStr = typeof extra === "string" ? ` [${sanitizeLogData(extra)}]` : "";
+    const sanitizedMsg = sanitizeLogData(input.message);
+    const sanitizedStack = input.stack ? sanitizeLogData(input.stack) : undefined;
     const sanitizedExtra = extra && typeof extra !== "string" ? sanitizeLogData(extra) : undefined;
     return {
-      logLine: `[${timestamp}] [${level.toUpperCase()}]${contextStr} ${input.message}`,
-      rawObject: sanitizedExtra || input.stack,
+      logLine: `[${timestamp}] [${level.toUpperCase()}]${contextStr} ${sanitizedMsg}`,
+      rawObject: sanitizedExtra || sanitizedStack,
     };
   }
 
   // Primitive string / message
-  const msg = String(input);
-  const contextStr = typeof extra === "string" ? ` [${extra}]` : "";
+  const msg = sanitizeLogData(String(input));
+  const contextStr = typeof extra === "string" ? ` [${sanitizeLogData(extra)}]` : "";
   const sanitizedDetails = extra && typeof extra !== "string" ? sanitizeLogData(extra) : undefined;
 
   return {
