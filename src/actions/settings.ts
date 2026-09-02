@@ -50,77 +50,85 @@ export async function updateBusinessAction(prevState: any, formData: FormData) {
   return { success: "Negocio actualizado correctamente" };
 }
 
+import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTenantContext } from "@/lib/security/tenantAuth";
+
 export async function updatePreferencesAction(prevState: any, formData: FormData) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const context = await requireTenantContext();
+    const adminSupabase = createAdminClient();
 
-  if (!user) return { error: "No autenticado" };
+    const { data: tenant } = await adminSupabase
+      .from("tenants")
+      .select("metadata")
+      .eq("id", context.tenantId)
+      .single();
 
-  const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
-  if (!profile?.tenant_id) return { error: "Tenant no encontrado" };
+    const minMargin = formData.get("minMargin") as string;
+    const strategy = formData.get("strategy") as string;
+    const autoSuggestions = formData.get("autoSuggestions") === "on";
 
-  // Fetch current metadata to merge
-  const { data: tenant } = await supabase.from("tenants").select("metadata").eq("id", profile.tenant_id).single();
-  
-  const minMargin = formData.get("minMargin") as string;
-  const strategy = formData.get("strategy") as string;
-  const autoSuggestions = formData.get("autoSuggestions") === "on";
+    const newMetadata = {
+      ...(tenant?.metadata as Record<string, any> || {}),
+      ai_min_margin_percent: Number(minMargin),
+      ai_pricing_strategy: strategy,
+      auto_suggestions_enabled: autoSuggestions,
+    };
 
-  const newMetadata = {
-    ...(tenant?.metadata as Record<string, any> || {}),
-    ai_min_margin_percent: Number(minMargin),
-    ai_pricing_strategy: strategy,
-    auto_suggestions_enabled: autoSuggestions,
-  };
+    const { error } = await adminSupabase
+      .from("tenants")
+      .update({ metadata: newMetadata })
+      .eq("id", context.tenantId);
 
-  const { error } = await supabase
-    .from("tenants")
-    .update({ metadata: newMetadata })
-    .eq("id", profile.tenant_id);
+    if (error) return { error: "Error al actualizar preferencias" };
 
-  if (error) return { error: "Error al actualizar preferencias" };
-
-  revalidatePath("/dashboard/settings");
-  return { success: "Preferencias de IA actualizadas correctamente" };
+    revalidatePath("/dashboard/settings");
+    return { success: "Preferencias de IA actualizadas correctamente" };
+  } catch (err: any) {
+    return { error: err.message || "No autenticado" };
+  }
 }
 
 export async function updateOperationalCostsAction(prevState: any, formData: FormData) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const context = await requireTenantContext();
+    const adminSupabase = createAdminClient();
 
-  if (!user) return { error: "No autenticado" };
+    const { data: tenant } = await adminSupabase
+      .from("tenants")
+      .select("metadata")
+      .eq("id", context.tenantId)
+      .single();
 
-  const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
-  if (!profile?.tenant_id) return { error: "Tenant no encontrado" };
+    const packagingCost = formData.get("packagingCost") as string;
 
-  const { data: tenant } = await supabase.from("tenants").select("metadata").eq("id", profile.tenant_id).single();
-  
-  const packagingCost = formData.get("packagingCost") as string;
-  
-  const flexZones = [];
-  for (let i = 1; i <= 4; i++) {
-    const mlPays = formData.get(`flex_ml_${i}`) as string;
-    const motoCosts = formData.get(`flex_moto_${i}`) as string;
-    flexZones.push({
-      zone: i,
-      ml_pays: Number(mlPays) || 0,
-      moto_costs: Number(motoCosts) || 0
-    });
+    const flexZones = [];
+    for (let i = 1; i <= 4; i++) {
+      const mlPays = formData.get(`flex_ml_${i}`) as string;
+      const motoCosts = formData.get(`flex_moto_${i}`) as string;
+      flexZones.push({
+        zone: i,
+        ml_pays: Number(mlPays) || 0,
+        moto_costs: Number(motoCosts) || 0
+      });
+    }
+
+    const newMetadata = {
+      ...(tenant?.metadata as Record<string, any> || {}),
+      packaging_cost: Number(packagingCost) || 0,
+      flex_zones: flexZones,
+    };
+
+    const { error } = await adminSupabase
+      .from("tenants")
+      .update({ metadata: newMetadata })
+      .eq("id", context.tenantId);
+
+    if (error) return { error: "Error al actualizar costos operativos" };
+
+    revalidatePath("/dashboard/settings");
+    return { success: "Costos operativos actualizados correctamente" };
+  } catch (err: any) {
+    return { error: err.message || "No autenticado" };
   }
-
-  const newMetadata = {
-    ...(tenant?.metadata as Record<string, any> || {}),
-    packaging_cost: Number(packagingCost) || 0,
-    flex_zones: flexZones,
-  };
-
-  const { error } = await supabase
-    .from("tenants")
-    .update({ metadata: newMetadata })
-    .eq("id", profile.tenant_id);
-
-  if (error) return { error: "Error al actualizar costos operativos" };
-
-  revalidatePath("/dashboard/settings");
-  return { success: "Costos operativos actualizados correctamente" };
 }

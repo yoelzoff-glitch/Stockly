@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createCoupon } from "@/services/meli/promotions/createCoupon";
 import { createItemPromotion } from "@/services/meli/promotions/createItemPromotion";
 import { updatePrice } from "@/services/meli/actions/updatePrice";
@@ -25,9 +26,10 @@ export async function getCouponsAction() {
 
   if (!profile?.tenant_id) return [];
 
-  // Synchronize coupons & promotions from Mercado Libre live API
+  // Synchronize coupons & promotions from Mercado Libre live API via server-side admin client
   try {
-    const { data: account } = await supabase
+    const adminSupabase = createAdminClient();
+    const { data: account } = await adminSupabase
       .from("meli_accounts")
       .select("meli_user_id, access_token")
       .eq("tenant_id", profile.tenant_id)
@@ -235,7 +237,8 @@ export async function getPromotionsAction() {
 
   // Live Sync Mercado Libre Seller Promotions & Participating Items
   try {
-    const { data: account } = await supabase
+    const adminSupabase = createAdminClient();
+    const { data: account } = await adminSupabase
       .from("meli_accounts")
       .select("meli_user_id, access_token")
       .eq("tenant_id", profile.tenant_id)

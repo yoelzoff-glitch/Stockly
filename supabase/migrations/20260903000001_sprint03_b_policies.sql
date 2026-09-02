@@ -19,6 +19,14 @@ BEGIN
     DROP POLICY IF EXISTS "Anyone can read plans_config" ON public.plans_config;
   END IF;
 
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'subscriptions' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "Users can read their tenant's subscription" ON public.subscriptions;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'subscription_usage' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "Users can read their tenant's usage" ON public.subscription_usage;
+  END IF;
+
   --------------------------------------------------------------------------------
   -- 1. TABLA: PROFILES (Aislamiento y no-escalada)
   --------------------------------------------------------------------------------
@@ -56,7 +64,7 @@ BEGIN
   --------------------------------------------------------------------------------
   -- 3. TABLAS DE CONSULTA EXCLUSIVA PARA AUTHENTICATED (READ-ONLY)
   --------------------------------------------------------------------------------
-  -- Subscriptions (Solo lectura authenticated, escrituras vía webhook service_role)
+  -- Subscriptions
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'subscriptions' AND table_schema = 'public') THEN
     DROP POLICY IF EXISTS "subscriptions_tenant_select" ON public.subscriptions;
     CREATE POLICY "subscriptions_tenant_select" ON public.subscriptions
@@ -64,7 +72,7 @@ BEGIN
       USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
   END IF;
 
-  -- Subscription Usage (Solo lectura authenticated)
+  -- Subscription Usage
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'subscription_usage' AND table_schema = 'public') THEN
     DROP POLICY IF EXISTS "subscription_usage_tenant_select" ON public.subscription_usage;
     CREATE POLICY "subscription_usage_tenant_select" ON public.subscription_usage
@@ -72,7 +80,7 @@ BEGIN
       USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
   END IF;
 
-  -- Meli Accounts (Solo lectura de columnas seguras authenticated, sin escrituras directas)
+  -- Meli Accounts
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'meli_accounts' AND table_schema = 'public') THEN
     DROP POLICY IF EXISTS "meli_accounts_tenant_select" ON public.meli_accounts;
     CREATE POLICY "meli_accounts_tenant_select" ON public.meli_accounts
@@ -80,7 +88,7 @@ BEGIN
       USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
   END IF;
 
-  -- WhatsApp Numbers (Solo lectura de columnas seguras authenticated)
+  -- WhatsApp Numbers
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'whatsapp_numbers' AND table_schema = 'public') THEN
     DROP POLICY IF EXISTS "whatsapp_numbers_tenant_select" ON public.whatsapp_numbers;
     CREATE POLICY "whatsapp_numbers_tenant_select" ON public.whatsapp_numbers
@@ -88,7 +96,7 @@ BEGIN
       USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
   END IF;
 
-  -- Orders & Order Items (Lectura para UI authenticated, escrituras reservadas al backend)
+  -- Orders
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'orders' AND table_schema = 'public') THEN
     DROP POLICY IF EXISTS "orders_tenant_select" ON public.orders;
     CREATE POLICY "orders_tenant_select" ON public.orders
@@ -96,6 +104,7 @@ BEGIN
       USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
   END IF;
 
+  -- Order Items
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'order_items' AND table_schema = 'public') THEN
     DROP POLICY IF EXISTS "order_items_tenant_select" ON public.order_items;
     CREATE POLICY "order_items_tenant_select" ON public.order_items
@@ -103,8 +112,16 @@ BEGIN
       USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
   END IF;
 
-  -- Shipments (Lectura para UI authenticated vía padre order)
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'shipments' AND table_schema = 'public') THEN
+  -- Order Cancellations
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'order_cancellations' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "order_cancellations_tenant_select" ON public.order_cancellations;
+    CREATE POLICY "order_cancellations_tenant_select" ON public.order_cancellations
+      FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
+  -- Shipments (vía orders)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'shipments') THEN
     DROP POLICY IF EXISTS "shipments_tenant_select" ON public.shipments;
     CREATE POLICY "shipments_tenant_select" ON public.shipments
       FOR SELECT TO authenticated
@@ -114,15 +131,7 @@ BEGIN
       ));
   END IF;
 
-  -- Order Cancellations (Lectura authenticated)
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'order_cancellations' AND table_schema = 'public') THEN
-    DROP POLICY IF EXISTS "order_cancellations_tenant_select" ON public.order_cancellations;
-    CREATE POLICY "order_cancellations_tenant_select" ON public.order_cancellations
-      FOR SELECT TO authenticated
-      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
-  END IF;
-
-  -- Audit Logs (SELECT & INSERT authenticated, sin UPDATE ni DELETE)
+  -- Audit Logs
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_logs' AND table_schema = 'public') THEN
     DROP POLICY IF EXISTS "audit_logs_tenant_select" ON public.audit_logs;
     DROP POLICY IF EXISTS "audit_logs_tenant_insert" ON public.audit_logs;
@@ -137,7 +146,7 @@ BEGIN
   END IF;
 
   --------------------------------------------------------------------------------
-  -- 4. TABLAS OPERATIVAS CON CRUD CONTROLADO
+  -- 4. TABLAS OPERATIVAS DIRECTAS
   --------------------------------------------------------------------------------
   -- Products
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'products' AND table_schema = 'public') THEN
@@ -175,6 +184,17 @@ BEGIN
       USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
   END IF;
 
+  -- Inventory Movements
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'inventory_movements' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "inventory_movements_tenant_select" ON public.inventory_movements;
+    DROP POLICY IF EXISTS "inventory_movements_tenant_insert" ON public.inventory_movements;
+
+    CREATE POLICY "inventory_movements_tenant_select" ON public.inventory_movements FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "inventory_movements_tenant_insert" ON public.inventory_movements FOR INSERT TO authenticated
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
   -- Monthly Expenses
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'monthly_expenses' AND table_schema = 'public') THEN
     DROP POLICY IF EXISTS "monthly_expenses_tenant_select" ON public.monthly_expenses;
@@ -193,7 +213,7 @@ BEGIN
       USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
   END IF;
 
-  -- Purchase Orders & Items
+  -- Purchase Orders
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'purchase_orders' AND table_schema = 'public') THEN
     DROP POLICY IF EXISTS "purchase_orders_tenant_select" ON public.purchase_orders;
     DROP POLICY IF EXISTS "purchase_orders_tenant_insert" ON public.purchase_orders;
@@ -211,9 +231,191 @@ BEGIN
       USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
   END IF;
 
+  -- Product Components & SKU Components
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'product_components' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "product_components_tenant_select" ON public.product_components;
+    DROP POLICY IF EXISTS "product_components_tenant_insert" ON public.product_components;
+    DROP POLICY IF EXISTS "product_components_tenant_update" ON public.product_components;
+    DROP POLICY IF EXISTS "product_components_tenant_delete" ON public.product_components;
+
+    CREATE POLICY "product_components_tenant_select" ON public.product_components FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "product_components_tenant_insert" ON public.product_components FOR INSERT TO authenticated
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "product_components_tenant_update" ON public.product_components FOR UPDATE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active())
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "product_components_tenant_delete" ON public.product_components FOR DELETE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'product_sku_components' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "product_sku_components_tenant_select" ON public.product_sku_components;
+    DROP POLICY IF EXISTS "product_sku_components_tenant_insert" ON public.product_sku_components;
+    DROP POLICY IF EXISTS "product_sku_components_tenant_delete" ON public.product_sku_components;
+
+    CREATE POLICY "product_sku_components_tenant_select" ON public.product_sku_components FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "product_sku_components_tenant_insert" ON public.product_sku_components FOR INSERT TO authenticated
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "product_sku_components_tenant_delete" ON public.product_sku_components FOR DELETE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
+  -- Product Extra Costs
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'product_extra_costs' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "product_extra_costs_tenant_select" ON public.product_extra_costs;
+    DROP POLICY IF EXISTS "product_extra_costs_tenant_insert" ON public.product_extra_costs;
+    DROP POLICY IF EXISTS "product_extra_costs_tenant_update" ON public.product_extra_costs;
+    DROP POLICY IF EXISTS "product_extra_costs_tenant_delete" ON public.product_extra_costs;
+
+    CREATE POLICY "product_extra_costs_tenant_select" ON public.product_extra_costs FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "product_extra_costs_tenant_insert" ON public.product_extra_costs FOR INSERT TO authenticated
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "product_extra_costs_tenant_update" ON public.product_extra_costs FOR UPDATE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active())
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "product_extra_costs_tenant_delete" ON public.product_extra_costs FOR DELETE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
+  -- Promotions
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'promotions' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "promotions_tenant_select" ON public.promotions;
+    DROP POLICY IF EXISTS "promotions_tenant_insert" ON public.promotions;
+    DROP POLICY IF EXISTS "promotions_tenant_update" ON public.promotions;
+    DROP POLICY IF EXISTS "promotions_tenant_delete" ON public.promotions;
+
+    CREATE POLICY "promotions_tenant_select" ON public.promotions FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "promotions_tenant_insert" ON public.promotions FOR INSERT TO authenticated
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "promotions_tenant_update" ON public.promotions FOR UPDATE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active())
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "promotions_tenant_delete" ON public.promotions FOR DELETE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
+  -- Messages
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'messages' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "messages_tenant_select" ON public.messages;
+    DROP POLICY IF EXISTS "messages_tenant_insert" ON public.messages;
+    DROP POLICY IF EXISTS "messages_tenant_delete" ON public.messages;
+
+    CREATE POLICY "messages_tenant_select" ON public.messages FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "messages_tenant_insert" ON public.messages FOR INSERT TO authenticated
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "messages_tenant_delete" ON public.messages FOR DELETE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
+  -- Alerts
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alerts' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "alerts_tenant_select" ON public.alerts;
+    DROP POLICY IF EXISTS "alerts_tenant_update" ON public.alerts;
+    DROP POLICY IF EXISTS "alerts_tenant_delete" ON public.alerts;
+
+    CREATE POLICY "alerts_tenant_select" ON public.alerts FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "alerts_tenant_update" ON public.alerts FOR UPDATE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active())
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "alerts_tenant_delete" ON public.alerts FOR DELETE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
+  -- AI Actions
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ai_actions' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "ai_actions_tenant_select" ON public.ai_actions;
+    DROP POLICY IF EXISTS "ai_actions_tenant_insert" ON public.ai_actions;
+    DROP POLICY IF EXISTS "ai_actions_tenant_update" ON public.ai_actions;
+    DROP POLICY IF EXISTS "ai_actions_tenant_delete" ON public.ai_actions;
+
+    CREATE POLICY "ai_actions_tenant_select" ON public.ai_actions FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "ai_actions_tenant_insert" ON public.ai_actions FOR INSERT TO authenticated
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "ai_actions_tenant_update" ON public.ai_actions FOR UPDATE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active())
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "ai_actions_tenant_delete" ON public.ai_actions FOR DELETE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
+  -- Action Workflows
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'action_workflows' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "action_workflows_tenant_select" ON public.action_workflows;
+    DROP POLICY IF EXISTS "action_workflows_tenant_insert" ON public.action_workflows;
+    DROP POLICY IF EXISTS "action_workflows_tenant_update" ON public.action_workflows;
+    DROP POLICY IF EXISTS "action_workflows_tenant_delete" ON public.action_workflows;
+
+    CREATE POLICY "action_workflows_tenant_select" ON public.action_workflows FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "action_workflows_tenant_insert" ON public.action_workflows FOR INSERT TO authenticated
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "action_workflows_tenant_update" ON public.action_workflows FOR UPDATE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active())
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "action_workflows_tenant_delete" ON public.action_workflows FOR DELETE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
+  -- Price Adjustment Workflows
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'price_adjustment_workflows' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "price_adjustment_workflows_tenant_select" ON public.price_adjustment_workflows;
+    DROP POLICY IF EXISTS "price_adjustment_workflows_tenant_insert" ON public.price_adjustment_workflows;
+    DROP POLICY IF EXISTS "price_adjustment_workflows_tenant_update" ON public.price_adjustment_workflows;
+    DROP POLICY IF EXISTS "price_adjustment_workflows_tenant_delete" ON public.price_adjustment_workflows;
+
+    CREATE POLICY "price_adjustment_workflows_tenant_select" ON public.price_adjustment_workflows FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "price_adjustment_workflows_tenant_insert" ON public.price_adjustment_workflows FOR INSERT TO authenticated
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "price_adjustment_workflows_tenant_update" ON public.price_adjustment_workflows FOR UPDATE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active())
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "price_adjustment_workflows_tenant_delete" ON public.price_adjustment_workflows FOR DELETE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
+  -- Tenant Progress & Preferences
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'tenant_progress' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "tenant_progress_tenant_select" ON public.tenant_progress;
+    DROP POLICY IF EXISTS "tenant_progress_tenant_insert" ON public.tenant_progress;
+    DROP POLICY IF EXISTS "tenant_progress_tenant_update" ON public.tenant_progress;
+
+    CREATE POLICY "tenant_progress_tenant_select" ON public.tenant_progress FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "tenant_progress_tenant_insert" ON public.tenant_progress FOR INSERT TO authenticated
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "tenant_progress_tenant_update" ON public.tenant_progress FOR UPDATE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active())
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'tenant_preferences' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "tenant_preferences_tenant_select" ON public.tenant_preferences;
+    DROP POLICY IF EXISTS "tenant_preferences_tenant_insert" ON public.tenant_preferences;
+    DROP POLICY IF EXISTS "tenant_preferences_tenant_update" ON public.tenant_preferences;
+
+    CREATE POLICY "tenant_preferences_tenant_select" ON public.tenant_preferences FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "tenant_preferences_tenant_insert" ON public.tenant_preferences FOR INSERT TO authenticated
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "tenant_preferences_tenant_update" ON public.tenant_preferences FOR UPDATE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active())
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
+  --------------------------------------------------------------------------------
+  -- 5. TABLAS HIJAS MEDIANTE SUBQUERY EXISTS CON EL PADRE
+  --------------------------------------------------------------------------------
+  -- Purchase Order Items -> purchase_orders
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'purchase_order_items' AND table_schema = 'public') THEN
     DROP POLICY IF EXISTS "purchase_order_items_tenant_all" ON public.purchase_order_items;
-
     CREATE POLICY "purchase_order_items_tenant_all" ON public.purchase_order_items
       FOR ALL TO authenticated
       USING (EXISTS (
@@ -226,30 +428,99 @@ BEGIN
       ));
   END IF;
 
-  -- Alerts & AI Actions (SELECT & UPDATE)
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'alerts' AND table_schema = 'public') THEN
-    DROP POLICY IF EXISTS "alerts_tenant_select" ON public.alerts;
-    DROP POLICY IF EXISTS "alerts_tenant_update" ON public.alerts;
-
-    CREATE POLICY "alerts_tenant_select" ON public.alerts FOR SELECT TO authenticated
-      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
-    CREATE POLICY "alerts_tenant_update" ON public.alerts FOR UPDATE TO authenticated
-      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active())
-      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  -- Workflow Steps -> action_workflows
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'workflow_steps' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "workflow_steps_tenant_all" ON public.workflow_steps;
+    CREATE POLICY "workflow_steps_tenant_all" ON public.workflow_steps
+      FOR ALL TO authenticated
+      USING (EXISTS (
+        SELECT 1 FROM public.action_workflows aw
+        WHERE aw.id = workflow_steps.workflow_id AND aw.tenant_id = private.current_tenant_id() AND private.current_profile_is_active()
+      ))
+      WITH CHECK (EXISTS (
+        SELECT 1 FROM public.action_workflows aw
+        WHERE aw.id = workflow_steps.workflow_id AND aw.tenant_id = private.current_tenant_id() AND private.current_profile_is_active()
+      ));
   END IF;
 
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ai_actions' AND table_schema = 'public') THEN
-    DROP POLICY IF EXISTS "ai_actions_tenant_select" ON public.ai_actions;
-    DROP POLICY IF EXISTS "ai_actions_tenant_update" ON public.ai_actions;
-
-    CREATE POLICY "ai_actions_tenant_select" ON public.ai_actions FOR SELECT TO authenticated
-      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
-    CREATE POLICY "ai_actions_tenant_update" ON public.ai_actions FOR UPDATE TO authenticated
-      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active())
-      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  -- Price Adjustment Details -> price_adjustment_workflows
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'price_adjustment_details' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "price_adjustment_details_tenant_all" ON public.price_adjustment_details;
+    CREATE POLICY "price_adjustment_details_tenant_all" ON public.price_adjustment_details
+      FOR ALL TO authenticated
+      USING (EXISTS (
+        SELECT 1 FROM public.price_adjustment_workflows paw
+        WHERE paw.id = price_adjustment_details.workflow_id AND paw.tenant_id = private.current_tenant_id() AND private.current_profile_is_active()
+      ))
+      WITH CHECK (EXISTS (
+        SELECT 1 FROM public.price_adjustment_workflows paw
+        WHERE paw.id = price_adjustment_details.workflow_id AND paw.tenant_id = private.current_tenant_id() AND private.current_profile_is_active()
+      ));
   END IF;
 
-  -- Plans config (Pública intencional)
+  -- Product Price History -> products
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'product_price_history' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "product_price_history_tenant_all" ON public.product_price_history;
+    CREATE POLICY "product_price_history_tenant_all" ON public.product_price_history
+      FOR ALL TO authenticated
+      USING (EXISTS (
+        SELECT 1 FROM public.products p
+        WHERE p.id = product_price_history.product_id AND p.tenant_id = private.current_tenant_id() AND private.current_profile_is_active()
+      ))
+      WITH CHECK (EXISTS (
+        SELECT 1 FROM public.products p
+        WHERE p.id = product_price_history.product_id AND p.tenant_id = private.current_tenant_id() AND private.current_profile_is_active()
+      ));
+  END IF;
+
+  -- Stock Movements -> products
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'stock_movements' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "stock_movements_tenant_all" ON public.stock_movements;
+    CREATE POLICY "stock_movements_tenant_all" ON public.stock_movements
+      FOR ALL TO authenticated
+      USING (EXISTS (
+        SELECT 1 FROM public.products p
+        WHERE p.id = stock_movements.product_id AND p.tenant_id = private.current_tenant_id() AND private.current_profile_is_active()
+      ))
+      WITH CHECK (EXISTS (
+        SELECT 1 FROM public.products p
+        WHERE p.id = stock_movements.product_id AND p.tenant_id = private.current_tenant_id() AND private.current_profile_is_active()
+      ));
+  END IF;
+
+  -- Promotion Items -> promotions
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'promotion_items' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "promotion_items_tenant_all" ON public.promotion_items;
+    CREATE POLICY "promotion_items_tenant_all" ON public.promotion_items
+      FOR ALL TO authenticated
+      USING (EXISTS (
+        SELECT 1 FROM public.promotions prm
+        WHERE prm.id = promotion_items.promotion_id AND prm.tenant_id = private.current_tenant_id() AND private.current_profile_is_active()
+      ))
+      WITH CHECK (EXISTS (
+        SELECT 1 FROM public.promotions prm
+        WHERE prm.id = promotion_items.promotion_id AND prm.tenant_id = private.current_tenant_id() AND private.current_profile_is_active()
+      ));
+  END IF;
+
+  -- Coupons -> meli_accounts
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'coupons' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "coupons_tenant_all" ON public.coupons;
+    CREATE POLICY "coupons_tenant_all" ON public.coupons
+      FOR ALL TO authenticated
+      USING (EXISTS (
+        SELECT 1 FROM public.meli_accounts ma
+        WHERE ma.id = coupons.meli_account_id AND ma.tenant_id = private.current_tenant_id() AND private.current_profile_is_active()
+      ))
+      WITH CHECK (EXISTS (
+        SELECT 1 FROM public.meli_accounts ma
+        WHERE ma.id = coupons.meli_account_id AND ma.tenant_id = private.current_tenant_id() AND private.current_profile_is_active()
+      ));
+  END IF;
+
+  --------------------------------------------------------------------------------
+  -- 6. TABLAS PÚBLICAS
+  --------------------------------------------------------------------------------
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'plans_config' AND table_schema = 'public') THEN
     DROP POLICY IF EXISTS "plans_config_public_read" ON public.plans_config;
     CREATE POLICY "plans_config_public_read" ON public.plans_config

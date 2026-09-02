@@ -9,10 +9,11 @@ interface Violation {
 
 function runRlsAudit() {
   console.log("=================================================");
-  console.log("KLYVO SPRINT 3: ADVANCED STATIC RLS & DATABASE AUDIT");
+  console.log("KLYVO SPRINT 3: ADVANCED STATIC RLS & COVERAGE AUDIT");
   console.log("=================================================");
 
   const migrationsDir = path.resolve(__dirname, "../supabase/migrations");
+  const srcDir = path.resolve(__dirname, "../src");
   const violations: Violation[] = [];
 
   if (!fs.existsSync(migrationsDir)) {
@@ -138,6 +139,51 @@ function runRlsAudit() {
     }
   }
 
+  // 10. COVERAGE AUDIT: 100% of tables activated in Migration C MUST have explicit policies in Migration B
+  const sprint3CMigration = migrationFiles.find((m) => m.name.includes("sprint03_c_activation"))?.content || "";
+  const arrayMatch = /all_tables\s+text\[\]\s*:=\s*ARRAY\[([\s\S]*?)\];/i.exec(sprint3CMigration);
+
+  if (arrayMatch) {
+    const activatedTables = arrayMatch[1]
+      .split(",")
+      .map((t) => t.trim().replace(/['"\r\n\s]/g, ""))
+      .filter(Boolean);
+
+    for (const tbl of activatedTables) {
+      const hasPolicyInB = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${tbl}`, "i").test(sprint3BMigration);
+      if (!hasPolicyInB) {
+        violations.push({
+          file: "supabase/migrations/20260903000001_sprint03_b_policies.sql",
+          category: "MISSING_RLS_POLICY_FOR_ACTIVATED_TABLE",
+          message: `Table '${tbl}' is enabled in Migration C but lacks an explicit RLS policy in Migration B!`,
+        });
+      }
+    }
+    console.log(`Coverage Audit: Verified explicit RLS policies for all ${activatedTables.length} activated tables.`);
+  }
+
+  // 11. Codebase schema coverage: inspect src/ for .from("...") calls
+  function scanDirForTables(dir: string, tableSet: Set<string>) {
+    const files = fs.readdirSync(dir, { withFileTypes: true });
+    for (const f of files) {
+      const fullPath = path.join(dir, f.name);
+      if (f.isDirectory()) {
+        scanDirForTables(fullPath, tableSet);
+      } else if (f.name.endsWith(".ts") || f.name.endsWith(".tsx")) {
+        const content = fs.readFileSync(fullPath, "utf-8");
+        const tableQueryRegex = /\.from\(\s*["']([a-zA-Z0-9_]+)["']\s*\)/g;
+        let tMatch: RegExpExecArray | null;
+        while ((tMatch = tableQueryRegex.exec(content)) !== null) {
+          tableSet.add(tMatch[1]);
+        }
+      }
+    }
+  }
+
+  const queriedTables = new Set<string>();
+  scanDirForTables(srcDir, queriedTables);
+  console.log(`Codebase Query Audit: Scanned ${queriedTables.size} unique tables queried across src/`);
+
   console.log(`Total Migrations Scanned: ${migrationFiles.length}`);
   console.log(`Violations Detected:      ${violations.length}\n`);
 
@@ -149,7 +195,7 @@ function runRlsAudit() {
     process.exit(1);
   }
 
-  console.log("✅ All migrations and database schema policies adhere to Sprint 3.1 RLS & multi-tenant isolation rules.\n");
+  console.log("✅ All migrations and database schema policies adhere to Sprint 3.2 RLS & multi-tenant isolation rules.\n");
 }
 
 runRlsAudit();

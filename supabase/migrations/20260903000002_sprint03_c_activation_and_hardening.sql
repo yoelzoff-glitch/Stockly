@@ -8,12 +8,13 @@ DECLARE
   all_tables text[] := ARRAY[
     'profiles', 'tenants', 'products', 'orders', 'order_items', 'shipments',
     'order_cancellations', 'meli_accounts', 'whatsapp_numbers', 'messages',
-    'alerts', 'ai_actions', 'action_workflows', 'price_adjustment_workflows',
-    'price_adjustment_details', 'audit_logs', 'product_components', 'product_sku_components',
-    'product_extra_costs', 'product_price_history', 'stock_movements',
-    'inventory_items', 'inventory_movements', 'purchase_orders', 'purchase_order_items',
-    'promotions', 'promotion_items', 'coupons', 'monthly_expenses', 'subscriptions',
-    'subscription_usage', 'tenant_progress', 'tenant_preferences', 'plans_config'
+    'alerts', 'ai_actions', 'action_workflows', 'workflow_steps',
+    'price_adjustment_workflows', 'price_adjustment_details', 'audit_logs',
+    'product_components', 'product_sku_components', 'product_extra_costs',
+    'product_price_history', 'stock_movements', 'inventory_items', 'inventory_movements',
+    'purchase_orders', 'purchase_order_items', 'promotions', 'promotion_items',
+    'coupons', 'monthly_expenses', 'subscriptions', 'subscription_usage',
+    'tenant_progress', 'tenant_preferences', 'plans_config'
   ];
 BEGIN
 

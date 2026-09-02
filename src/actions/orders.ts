@@ -1,58 +1,53 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTenantContext } from "@/lib/security/tenantAuth";
 import { revalidatePath } from "next/cache";
 
 export async function toggleIgnoreOrderAction(meliOrderId: string, currentIgnored: boolean) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const context = await requireTenantContext();
+    const adminSupabase = createAdminClient();
 
-  if (!user) return { error: "No autenticado" };
+    // Fetch current metadata to merge
+    const { data: tenant } = await adminSupabase
+      .from("tenants")
+      .select("metadata")
+      .eq("id", context.tenantId)
+      .single();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("tenant_id")
-    .eq("id", user.id)
-    .single();
+    const currentMetadata = (tenant?.metadata as Record<string, any>) || {};
+    let ignoredOrderIds: string[] = currentMetadata.ignored_order_ids || [];
 
-  if (!profile?.tenant_id) return { error: "Tenant no encontrado" };
-
-  // Fetch current metadata to merge
-  const { data: tenant } = await supabase
-    .from("tenants")
-    .select("metadata")
-    .eq("id", profile.tenant_id)
-    .single();
-  
-  const currentMetadata = (tenant?.metadata as Record<string, any>) || {};
-  let ignoredOrderIds: string[] = currentMetadata.ignored_order_ids || [];
-
-  if (currentIgnored) {
-    // Remove from ignored
-    ignoredOrderIds = ignoredOrderIds.filter(id => id !== meliOrderId);
-  } else {
-    // Add to ignored
-    if (!ignoredOrderIds.includes(meliOrderId)) {
-      ignoredOrderIds.push(meliOrderId);
+    if (currentIgnored) {
+      // Remove from ignored
+      ignoredOrderIds = ignoredOrderIds.filter((id) => id !== meliOrderId);
+    } else {
+      // Add to ignored
+      if (!ignoredOrderIds.includes(meliOrderId)) {
+        ignoredOrderIds.push(meliOrderId);
+      }
     }
+
+    const newMetadata = {
+      ...currentMetadata,
+      ignored_order_ids: ignoredOrderIds,
+    };
+
+    const { error } = await adminSupabase
+      .from("tenants")
+      .update({ metadata: newMetadata })
+      .eq("id", context.tenantId);
+
+    if (error) {
+      console.error("Error toggling ignored order:", error);
+      return { error: "Error al actualizar la configuración de la orden" };
+    }
+
+    revalidatePath("/dashboard/sales");
+    revalidatePath("/dashboard/finance");
+    return { success: "Configuración de la orden actualizada correctamente" };
+  } catch (err: any) {
+    return { error: err.message || "No autenticado" };
   }
-
-  const newMetadata = {
-    ...currentMetadata,
-    ignored_order_ids: ignoredOrderIds
-  };
-
-  const { error } = await supabase
-    .from("tenants")
-    .update({ metadata: newMetadata })
-    .eq("id", profile.tenant_id);
-
-  if (error) {
-    console.error("Error toggling ignored order:", error);
-    return { error: "Error al actualizar la configuración de la orden" };
-  }
-
-  revalidatePath("/dashboard/sales");
-  revalidatePath("/dashboard/finance");
-  return { success: "Configuración de la orden actualizada correctamente" };
 }

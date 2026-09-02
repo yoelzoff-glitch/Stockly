@@ -36,10 +36,10 @@ export default async function SettingsPage() {
     .eq("id", profile.tenant_id)
     .single();
 
-  // Fetch ML Account
+  // Fetch ML Account (safe columns only)
   const { data: meliAccount } = await supabase
     .from("meli_accounts")
-    .select("*")
+    .select("id, tenant_id, status, token_expires_at, sync_error, last_success_refresh, seller_id, nickname")
     .eq("tenant_id", profile.tenant_id)
     .single();
 
