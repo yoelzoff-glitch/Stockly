@@ -2,17 +2,28 @@ import { NextResponse } from 'next/server';
 import { getSubscription, updateSubscriptionAmount } from '@/integrations/mercadopago/client';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/errors/logger';
+import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from '@/lib/observability/correlationId';
 
 import * as Sentry from "@sentry/nextjs";
 
 export async function POST(req: Request) {
+  const correlationId = getOrCreateCorrelationId(req);
+
   try {
     const url = new URL(req.url);
 
     // Seguridad: Validar secreto de webhook de Mercado Pago
     const secret = url.searchParams.get("secret");
     if (process.env.MERCADOPAGO_WEBHOOK_SECRET && secret !== process.env.MERCADOPAGO_WEBHOOK_SECRET) {
-      return new NextResponse("Unauthorized", { status: 401 });
+      logger.warn({
+        event: "MP_WEBHOOK_UNAUTHORIZED",
+        correlationId,
+        message: "Invalid or missing Mercado Pago webhook secret",
+      });
+      return new NextResponse("Unauthorized", {
+        status: 401,
+        headers: { [CORRELATION_ID_HEADER]: correlationId },
+      });
     }
 
     const id = url.searchParams.get("id") || url.searchParams.get("data.id");
@@ -21,21 +32,27 @@ export async function POST(req: Request) {
     let body: any = {};
     try {
       body = await req.json();
-    } catch(e) {
+    } catch (e) {
       // Body might be empty
     }
 
     const topic = body.type || body.action || type;
     const resourceId = body.data?.id || id;
 
+    logger.info({
+      event: "MP_WEBHOOK_RECEIVED",
+      correlationId,
+      topic,
+      resourceId,
+    });
+
     if (topic === "subscription_preapproval" && resourceId) {
       const subscription = await getSubscription(resourceId);
       const reason = subscription.reason || "";
       const externalReference = subscription.external_reference || "";
       const [refType, ...refIdParts] = externalReference.split("_");
-      const refId = refIdParts.join("_"); // En caso de que el UUID tenga guiones bajos, aunque no deberia.
+      const refId = refIdParts.join("_");
       
-      // MP Statuses: authorized, paused, cancelled
       const status = subscription.status; 
       const plan = reason.toLowerCase().includes("ultra")
         ? "ultra"
@@ -47,7 +64,6 @@ export async function POST(req: Request) {
         let targetPlan = plan;
         let isExpired = false;
 
-        // Check current subscription in DB to see if expires_at is valid
         const dbTable = refType === 'user' ? 'profiles' : 'tenants';
         let tenantId = refType === 'user' ? null : refId;
         
@@ -65,9 +81,8 @@ export async function POST(req: Request) {
         if (status === 'authorized') {
           targetPlan = plan;
         } else if (status === 'cancelled' || status === 'canceled') {
-          // Si está cancelado, revisamos si tiene un periodo pagado que todavía no expiró
           if (currentSub?.expires_at && new Date(currentSub.expires_at) > new Date()) {
-            targetPlan = currentSub.plan; // Mantenemos el plan actual hasta que expire
+            targetPlan = currentSub.plan;
           } else {
             targetPlan = 'starter';
             isExpired = true;
@@ -107,9 +122,15 @@ export async function POST(req: Request) {
             }).eq("id", tenantId);
           }
 
-          logger.info(`Updated payment status for user ${refId} to ${status} (${targetPlan})`, "MERCADOPAGO_WEBHOOK");
+          logger.info({
+            event: "MP_USER_PAYMENT_STATUS_UPDATED",
+            tenantId: tenantId || undefined,
+            correlationId,
+            userId: refId,
+            status,
+            targetPlan,
+          });
         } else if (refType === 'tenant') {
-          // Calculate expires_at for paid plans
           let expiresAt = currentSub?.expires_at || null;
           if (status === 'authorized') {
             const expirationDate = new Date();
@@ -119,7 +140,6 @@ export async function POST(req: Request) {
             expiresAt = null;
           }
 
-          // Direct tenant upgrade (from dashboard)
           await supabase.from("subscriptions").upsert({
             tenant_id: refId,
             plan: targetPlan,
@@ -132,15 +152,32 @@ export async function POST(req: Request) {
             plan: targetPlan,
           }).eq("id", refId);
 
-          logger.info(`Updated subscription for tenant ${refId} to ${status} (${targetPlan})`, "MERCADOPAGO_WEBHOOK");
+          logger.info({
+            event: "MP_TENANT_SUBSCRIPTION_UPDATED",
+            tenantId: refId,
+            correlationId,
+            status,
+            targetPlan,
+          });
         }
       }
     }
 
-    return new NextResponse("OK", { status: 200 });
+    return new NextResponse("OK", {
+      status: 200,
+      headers: { [CORRELATION_ID_HEADER]: correlationId },
+    });
   } catch (error: any) {
-    Sentry.captureException(error, { extra: { context: "MERCADOPAGO_WEBHOOK" } });
-    logger.error(`Webhook error: ${error.message}`, "MERCADOPAGO_WEBHOOK");
-    return new NextResponse("Error", { status: 500 });
+    Sentry.captureException(error, { extra: { context: "MERCADOPAGO_WEBHOOK", correlationId } });
+    logger.error({
+      event: "MP_WEBHOOK_PROCESSING_FAILED",
+      correlationId,
+      error,
+      message: error?.message,
+    });
+    return new NextResponse("Error", {
+      status: 500,
+      headers: { [CORRELATION_ID_HEADER]: correlationId },
+    });
   }
 }

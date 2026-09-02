@@ -1,0 +1,55 @@
+name: CI Baseline & Safety Checks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify:
+    name: Typecheck, Tests & Safety Audits
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify no committed .env files
+        run: |
+          if git ls-files | grep -E '^\.env(\..+)?$' | grep -v '\.env\.example'; then
+            echo "❌ ERROR: A real .env file is tracked in git!"
+            exit 1
+          else
+            echo "✅ No real .env files tracked."
+          fi
+
+      - name: Scan for accidental hardcoded secret patterns
+        run: |
+          echo "Scanning for accidental token or private key patterns..."
+          if grep -rnE '(BEGIN PRIVATE KEY|ghp_[a-zA-Z0-9]{36}|xox[baprs]-[0-9a-zA-Z]{10,48})' --exclude-dir={.git,node_modules,.next} .; then
+            echo "❌ ERROR: Potential hardcoded secret found!"
+            exit 1
+          else
+            echo "✅ No hardcoded private keys or access tokens detected."
+          fi
+
+      - name: TypeScript Typecheck
+        run: npm run typecheck
+
+      - name: Run Deterministic Unit Tests
+        run: npm run test:ci
+
+      - name: Dependency Audit (Informational Report)
+        # Informational only for Sprint 1; vulnerability remediation is scheduled for Sprint 8
+        run: |
+          npm audit --omit=dev || true

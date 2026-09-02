@@ -4,7 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "tsx --test tests/**/*.test.ts",
+    "test:ci": "tsx --test tests/**/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "verify:sprint1": "npm run typecheck && npm run test",
+    "check:env": "tsx scripts/check-env.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

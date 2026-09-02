@@ -5,22 +5,34 @@ import { logger } from "@/lib/errors/logger";
 import { syncOrders } from "@/services/meli/syncOrders";
 import { syncProducts } from "@/services/meli/syncProducts";
 import { syncShipments } from "@/services/meli/syncShipments";
+import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 
 import * as Sentry from "@sentry/nextjs";
 
 export async function POST(req: NextRequest) {
+  const correlationId = getOrCreateCorrelationId(req);
+
   try {
     // Basic origin/header validation
     const userAgent = req.headers.get("user-agent") || "";
     const signature = req.headers.get("x-signature") || req.headers.get("x-meli-signature");
 
-    logger.info("Mercado Libre webhook request received", { userAgent, hasSignature: !!signature });
+    logger.info({
+      event: "MELI_WEBHOOK_RECEIVED",
+      correlationId,
+      source: "mercadolibre",
+      userAgent,
+      hasSignature: !!signature,
+    });
 
     const payload = await req.json();
 
     // Estructura payload
     if (typeof payload !== "object" || payload === null) {
-      return new NextResponse("Invalid Payload", { status: 400 });
+      return new NextResponse("Invalid Payload", {
+        status: 400,
+        headers: { [CORRELATION_ID_HEADER]: correlationId },
+      });
     }
 
     const topic = payload.topic || payload.type;
@@ -28,7 +40,10 @@ export async function POST(req: NextRequest) {
     const userId = payload.user_id;
 
     if (!topic || !resource || !userId) {
-      return NextResponse.json({ status: "ignored", reason: "missing_fields" }, { status: 200 });
+      return NextResponse.json(
+        { status: "ignored", reason: "missing_fields" },
+        { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
     const supabase = createAdminClient();
@@ -41,7 +56,10 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (!account) {
-      return NextResponse.json({ status: "ignored", reason: "unknown_user" }, { status: 200 });
+      return NextResponse.json(
+        { status: "ignored", reason: "unknown_user" },
+        { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
     }
 
     const tenantId = account.tenant_id;
@@ -55,33 +73,54 @@ export async function POST(req: NextRequest) {
         // Sincronizar la orden directamente de forma asíncrona en el fondo
         if (specificOrderId) {
           syncOrders(tenantId, specificOrderId).catch(err => {
-            console.error(`Immediate syncOrders from webhook failed for tenant ${tenantId} (order ${specificOrderId}):`, err.message || err);
+            logger.error({
+              event: "MELI_WEBHOOK_SYNC_ORDERS_ASYNC_FAILED",
+              tenantId,
+              correlationId,
+              orderId: specificOrderId,
+              error: err,
+            });
           });
         }
 
         try {
           await inngest.send({
             name: "meli/orders.updated",
-            data: { tenantId, resource }
+            data: { tenantId, resource, correlationId }
           });
         } catch (e: any) {
-          console.warn("Failed to send meli/orders.updated event to Inngest:", e.message || e);
+          logger.warn({
+            event: "MELI_WEBHOOK_INNGEST_SEND_FAILED",
+            tenantId,
+            correlationId,
+            message: e?.message,
+          });
         }
         break;
 
       case "items":
         // Sync products directly in the background
         syncProducts(tenantId).catch(err => {
-          console.error(`Immediate syncProducts from webhook failed for tenant ${tenantId}:`, err);
+          logger.error({
+            event: "MELI_WEBHOOK_SYNC_PRODUCTS_ASYNC_FAILED",
+            tenantId,
+            correlationId,
+            error: err,
+          });
         });
 
         try {
           await inngest.send({
             name: "meli/items.updated",
-            data: { tenantId, resource }
+            data: { tenantId, resource, correlationId }
           });
         } catch (e: any) {
-          console.warn("Failed to send meli/items.updated event to Inngest:", e.message || e);
+          logger.warn({
+            event: "MELI_WEBHOOK_INNGEST_SEND_FAILED",
+            tenantId,
+            correlationId,
+            message: e?.message,
+          });
         }
         break;
 
@@ -89,25 +128,40 @@ export async function POST(req: NextRequest) {
         try {
           await inngest.send({
             name: "meli/questions.received",
-            data: { tenantId, resource }
+            data: { tenantId, resource, correlationId }
           });
         } catch (e: any) {
-          console.warn("Failed to send meli/questions.received event to Inngest:", e.message || e);
+          logger.warn({
+            event: "MELI_WEBHOOK_INNGEST_SEND_FAILED",
+            tenantId,
+            correlationId,
+            message: e?.message,
+          });
         }
         break;
 
       case "shipments":
-        // Shipments doesn't seem to have an Inngest event yet, so we keep this one direct, but we don't await it so it's background
         const specificShipmentId = resource ? resource.split("/").pop() : undefined;
         if (specificShipmentId) {
           syncShipments(tenantId, specificShipmentId).catch(err => {
-            console.error(`Immediate syncShipments from webhook failed for tenant ${tenantId} (shipment ${specificShipmentId}):`, err);
+            logger.error({
+              event: "MELI_WEBHOOK_SYNC_SHIPMENTS_ASYNC_FAILED",
+              tenantId,
+              correlationId,
+              shipmentId: specificShipmentId,
+              error: err,
+            });
           });
         }
         break;
 
       default:
-        console.log(`Unhandled topic: ${topic}`);
+        logger.info({
+          event: "MELI_WEBHOOK_UNHANDLED_TOPIC",
+          tenantId,
+          correlationId,
+          topic,
+        });
     }
 
     // Save in audit logs (as requested previously, kept to not break logic)
@@ -121,10 +175,21 @@ export async function POST(req: NextRequest) {
       executed_at: new Date().toISOString()
     });
 
-    return NextResponse.json({ status: "received" }, { status: 200 });
-  } catch (error) {
-    Sentry.captureException(error, { extra: { context: "MELI_WEBHOOK" } });
-    console.error("Webhook processing error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { status: "received" },
+      { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+    );
+  } catch (error: any) {
+    Sentry.captureException(error, { extra: { context: "MELI_WEBHOOK", correlationId } });
+    logger.error({
+      event: "MELI_WEBHOOK_PROCESSING_FAILED",
+      correlationId,
+      error,
+      message: error?.message,
+    });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+    );
   }
 }
