@@ -1,164 +1,110 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import postgres from "postgres";
 
-describe("Multi-Tenant RLS Simulation & Boundary Verification Tests", () => {
-  // Simulated database layer with strict RLS evaluation rules
-  interface DbRow {
-    id: string;
-    tenant_id?: string;
-    [key: string]: any;
+describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
+  const testDbUrl = process.env.DATABASE_URL_TEST;
+
+  if (!testDbUrl) {
+    test("Live PostgreSQL RLS Integration Suite (Skipped when DATABASE_URL_TEST is not configured)", (t) => {
+      console.log(
+        "\n[INFO] DATABASE_URL_TEST not set. To run real PostgreSQL integration tests:\n" +
+        "       1. Start local Supabase / PostgreSQL test container (e.g. postgresql://postgres:postgres@127.0.0.1:54322/postgres)\n" +
+        "       2. Set DATABASE_URL_TEST in your environment\n" +
+        "       3. Run 'npm run test:rls:integration'\n" +
+        "       (Safety guarantee: Test runner will NEVER point to production automatically)\n"
+      );
+      assert.ok(true);
+    });
+    return;
   }
 
-  interface MockUserSession {
-    uid: string;
-    tenantId: string;
-    role: "owner" | "admin" | "user";
-    isActive: boolean;
+  // Ensure testDbUrl is strictly not pointing to production
+  if (testDbUrl.includes("supabase.co") || testDbUrl.includes("pooler.supabase.com")) {
+    throw new Error("SECURITY VIOLATION: DATABASE_URL_TEST must NEVER point to remote Supabase production!");
   }
 
-  class MockRlsEngine {
-    private tables: Record<string, DbRow[]> = {};
+  const sql = postgres(testDbUrl, { max: 1 });
 
-    constructor(initialData: Record<string, DbRow[]>) {
-      this.tables = JSON.parse(JSON.stringify(initialData));
-    }
+  test("Real PostgreSQL RLS isolation between tenant_a and tenant_b with transaction rollback", async () => {
+    await sql.begin(async (tx) => {
+      // 1. Create two test tenants
+      const [tenantA] = await tx`
+        INSERT INTO public.tenants (name, currency) VALUES ('Tenant A Real Test', 'ARS') RETURNING id
+      `;
+      const [tenantB] = await tx`
+        INSERT INTO public.tenants (name, currency) VALUES ('Tenant B Real Test', 'ARS') RETURNING id
+      `;
 
-    // Evaluates RLS for SELECT
-    select(table: string, session: MockUserSession | null): DbRow[] {
-      if (!session || !session.isActive) {
-        // Unauthenticated or inactive users cannot select tenant-scoped rows
-        return [];
-      }
+      // 2. Create users and profiles
+      const userAId = "00000000-0000-0000-0000-000000000001";
+      const userBId = "00000000-0000-0000-0000-000000000002";
 
-      const rows = this.tables[table] || [];
-      return rows.filter((r) => {
-        if (table === "plans_config") return true; // Public table
-        if (r.tenant_id) return r.tenant_id === session.tenantId;
-        return false;
+      await tx`
+        INSERT INTO public.profiles (id, tenant_id, role, is_active, full_name)
+        VALUES (${userAId}, ${tenantA.id}, 'owner', true, 'Owner Tenant A')
+      `;
+      await tx`
+        INSERT INTO public.profiles (id, tenant_id, role, is_active, full_name)
+        VALUES (${userBId}, ${tenantB.id}, 'owner', true, 'Owner Tenant B')
+      `;
+
+      // 3. Create products in each tenant
+      const [prodA] = await tx`
+        INSERT INTO public.products (tenant_id, title, price, cost)
+        VALUES (${tenantA.id}, 'Producto Real Tenant A', 1000, 500)
+        RETURNING id
+      `;
+      const [prodB] = await tx`
+        INSERT INTO public.products (tenant_id, title, price, cost)
+        VALUES (${tenantB.id}, 'Producto Real Tenant B', 2000, 1000)
+        RETURNING id
+      `;
+
+      // 4. Switch context to User A (authenticated)
+      await tx`SET LOCAL ROLE authenticated`;
+      await tx`SELECT set_config('request.jwt.claim.sub', ${userAId}, true)`;
+
+      // User A should see only prodA
+      const visibleProductsUserA = await tx`
+        SELECT id, title, tenant_id FROM public.products
+      `;
+      assert.equal(visibleProductsUserA.length, 1);
+      assert.equal(visibleProductsUserA[0].id, prodA.id);
+
+      // User A attempts to read prodB by direct ID
+      const directReadProdB = await tx`
+        SELECT id FROM public.products WHERE id = ${prodB.id}
+      `;
+      assert.equal(directReadProdB.length, 0);
+
+      // User A attempts to UPDATE prodB
+      const updateProdB = await tx`
+        UPDATE public.products SET title = 'Hacked Title' WHERE id = ${prodB.id} RETURNING id
+      `;
+      assert.equal(updateProdB.length, 0);
+
+      // User A attempts cross-tenant INSERT into tenant B
+      await assert.rejects(async () => {
+        await tx`
+          INSERT INTO public.products (tenant_id, title, price, cost)
+          VALUES (${tenantB.id}, 'Injected Item', 500, 200)
+        `;
       });
-    }
 
-    // Evaluates RLS for INSERT
-    insert(table: string, row: DbRow, session: MockUserSession | null): { success: boolean; error?: string } {
-      if (!session || !session.isActive) {
-        return { success: false, error: "AUTH_REQUIRED" };
+      // User A attempts privilege escalation on profile
+      await assert.rejects(async () => {
+        await tx`
+          UPDATE public.profiles SET role = 'superadmin' WHERE id = ${userAId}
+        `;
+      });
+
+      // Rollback the transaction cleanly
+      throw new Error("ROLLBACK_TEST_TRANSACTION");
+    }).catch((err) => {
+      if (err.message !== "ROLLBACK_TEST_TRANSACTION") {
+        throw err;
       }
-
-      if (row.tenant_id && row.tenant_id !== session.tenantId) {
-        return { success: false, error: "RLS_CROSS_TENANT_INSERT_VIOLATION" };
-      }
-
-      const rows = this.tables[table] || [];
-      rows.push({ ...row, tenant_id: session.tenantId });
-      this.tables[table] = rows;
-      return { success: true };
-    }
-
-    // Evaluates column-level privilege protection for UPDATE
-    updateProfile(
-      targetProfileId: string,
-      updates: Record<string, any>,
-      session: MockUserSession | null
-    ): { success: boolean; error?: string } {
-      if (!session || !session.isActive) {
-        return { success: false, error: "AUTH_REQUIRED" };
-      }
-
-      if (targetProfileId !== session.uid) {
-        return { success: false, error: "RLS_PROFILES_OTHER_USER_UPDATE_DENIED" };
-      }
-
-      const forbiddenColumns = ["tenant_id", "role", "is_active", "id", "email"];
-      for (const col of forbiddenColumns) {
-        if (col in updates) {
-          return { success: false, error: `PRIVILEGE_VIOLATION_COLUMN_${col.toUpperCase()}_REVOKED` };
-        }
-      }
-
-      return { success: true };
-    }
-  }
-
-  const initialDbData = {
-    products: [
-      { id: "prod-a1", tenant_id: "tenant-a", title: "Producto Tenant A" },
-      { id: "prod-b1", tenant_id: "tenant-b", title: "Producto Tenant B" },
-    ],
-    orders: [
-      { id: "order-a1", tenant_id: "tenant-a", total_amount: 1000 },
-      { id: "order-b1", tenant_id: "tenant-b", total_amount: 2000 },
-    ],
-    plans_config: [
-      { id: "plan-1", name: "Starter", price: 29 },
-      { id: "plan-2", name: "Pro", price: 79 },
-    ],
-  };
-
-  const ownerA: MockUserSession = { uid: "user-owner-a", tenantId: "tenant-a", role: "owner", isActive: true };
-  const userA: MockUserSession = { uid: "user-member-a", tenantId: "tenant-a", role: "user", isActive: true };
-  const ownerB: MockUserSession = { uid: "user-owner-b", tenantId: "tenant-b", role: "owner", isActive: true };
-  const inactiveUser: MockUserSession = { uid: "user-inactive", tenantId: "tenant-a", role: "user", isActive: false };
-
-  test("owner_a sees exclusively rows from tenant_a and never tenant_b", () => {
-    const engine = new MockRlsEngine(initialDbData);
-    const productsA = engine.select("products", ownerA);
-
-    assert.equal(productsA.length, 1);
-    assert.equal(productsA[0].id, "prod-a1");
-    assert.equal(productsA[0].tenant_id, "tenant-a");
-
-    const ordersA = engine.select("orders", ownerA);
-    assert.equal(ordersA.length, 1);
-    assert.equal(ordersA[0].id, "order-a1");
-  });
-
-  test("knowing the UUID of a row in tenant_b does not permit reading it for tenant_a", () => {
-    const engine = new MockRlsEngine(initialDbData);
-    const visibleProducts = engine.select("products", ownerA);
-
-    const hasTenantBProduct = visibleProducts.some((p) => p.id === "prod-b1");
-    assert.equal(hasTenantBProduct, false);
-  });
-
-  test("rejects INSERT into tenant_b when authenticated as tenant_a", () => {
-    const engine = new MockRlsEngine(initialDbData);
-    const insertRes = engine.insert(
-      "products",
-      { id: "prod-malicious", tenant_id: "tenant-b", title: "Injected product" },
-      ownerA
-    );
-
-    assert.equal(insertRes.success, false);
-    assert.equal(insertRes.error, "RLS_CROSS_TENANT_INSERT_VIOLATION");
-  });
-
-  test("user_a cannot escalate role or change tenant_id via profile UPDATE", () => {
-    const engine = new MockRlsEngine(initialDbData);
-
-    // Attempt to change role to owner
-    const roleEscalation = engine.updateProfile("user-member-a", { role: "owner" }, userA);
-    assert.equal(roleEscalation.success, false);
-    assert.equal(roleEscalation.error, "PRIVILEGE_VIOLATION_COLUMN_ROLE_REVOKED");
-
-    // Attempt to change tenant_id
-    const tenantChange = engine.updateProfile("user-member-a", { tenant_id: "tenant-b" }, userA);
-    assert.equal(tenantChange.success, false);
-    assert.equal(tenantChange.error, "PRIVILEGE_VIOLATION_COLUMN_TENANT_ID_REVOKED");
-
-    // Safe update succeeds
-    const safeUpdate = engine.updateProfile("user-member-a", { full_name: "Nuevo Nombre" }, userA);
-    assert.equal(safeUpdate.success, true);
-  });
-
-  test("inactive_user is blocked from selecting any tenant-scoped rows", () => {
-    const engine = new MockRlsEngine(initialDbData);
-    const products = engine.select("products", inactiveUser);
-    assert.equal(products.length, 0);
-  });
-
-  test("public tables like plans_config are readable by any user", () => {
-    const engine = new MockRlsEngine(initialDbData);
-    const plans = engine.select("plans_config", ownerA);
-    assert.equal(plans.length, 2);
+    });
   });
 });

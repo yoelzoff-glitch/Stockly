@@ -4,7 +4,12 @@ import fs from "node:fs";
 import path from "node:path";
 
 describe("Sprint 3 RLS Policies & Database Security Unit Tests", () => {
-  const migrationsDir = path.resolve(__dirname, "../../supabase/migrations");
+  const rootDir = path.resolve(__dirname, "../..");
+  const migrationsDir = path.join(rootDir, "supabase/migrations");
+  const rollbackFile = path.join(
+    rootDir,
+    "docs/security/rollback/SPRINT_03_EMERGENCY_ROLLBACK.sql"
+  );
 
   const migrationA = fs.readFileSync(
     path.join(migrationsDir, "20260903000000_sprint03_a_foundations.sql"),
@@ -19,11 +24,11 @@ describe("Sprint 3 RLS Policies & Database Security Unit Tests", () => {
     "utf-8"
   );
   const migrationD = fs.readFileSync(
-    path.join(migrationsDir, "20260903000003_sprint03_d_emergency_rollback.sql"),
+    path.join(migrationsDir, "20260903000003_sprint03_d_indices.sql"),
     "utf-8"
   );
 
-  test("Migration A defines all required private schema helper functions with SECURITY DEFINER and search_path", () => {
+  test("Migration A defines required private schema helper functions with SET search_path = '' and individual grants", () => {
     const requiredFunctions = [
       "private.current_tenant_id",
       "private.current_tenant_role",
@@ -40,16 +45,20 @@ describe("Sprint 3 RLS Policies & Database Security Unit Tests", () => {
     }
 
     assert.ok(
-      migrationA.includes("SET search_path = public, private, pg_temp"),
-      "Helper functions must fix search_path explicitly"
+      migrationA.includes("SET search_path = ''"),
+      "Helper functions must fix search_path to empty string explicitly"
     );
     assert.ok(
       migrationA.includes("REVOKE ALL ON SCHEMA private FROM PUBLIC"),
       "Private schema must revoke public access"
     );
+    assert.ok(
+      !migrationA.includes("GRANT EXECUTE ON ALL FUNCTIONS"),
+      "Must not use broad grant on all functions"
+    );
   });
 
-  test("Migration B creates idempotent RLS policies for direct and child tables", () => {
+  test("Migration B creates idempotent RLS policies per table and drops legacy policies", () => {
     assert.ok(
       migrationB.includes("profiles_select_own_tenant"),
       "Must define profiles select policy"
@@ -63,8 +72,12 @@ describe("Sprint 3 RLS Policies & Database Security Unit Tests", () => {
       "Must define shipments parent relationship policy"
     );
     assert.ok(
-      migrationB.includes("plans_config_public_read"),
-      "Must define public read policy for plans_config"
+      migrationB.includes("subscriptions_tenant_select"),
+      "Must define subscriptions select policy"
+    );
+    assert.ok(
+      migrationB.includes("DROP POLICY IF EXISTS \"Users can read their tenant's monthly expenses\""),
+      "Must explicitly drop insecure legacy monthly expenses policy"
     );
   });
 
@@ -82,8 +95,12 @@ describe("Sprint 3 RLS Policies & Database Security Unit Tests", () => {
       "Must revoke general UPDATE on tenants"
     );
     assert.ok(
-      migrationC.includes("REVOKE SELECT (access_token, refresh_token) ON public.meli_accounts FROM authenticated, anon;"),
-      "Must revoke access_token selection from authenticated"
+      migrationC.includes("REVOKE SELECT ON public.meli_accounts FROM authenticated, anon;"),
+      "Must revoke raw SELECT on meli_accounts"
+    );
+    assert.ok(
+      migrationC.includes("REVOKE SELECT ON public.whatsapp_numbers FROM authenticated, anon;"),
+      "Must revoke raw SELECT on whatsapp_numbers"
     );
     assert.ok(
       migrationC.includes("REVOKE ALL ON public.tenant_feature_flags FROM authenticated, anon, PUBLIC;"),
@@ -91,14 +108,35 @@ describe("Sprint 3 RLS Policies & Database Security Unit Tests", () => {
     );
   });
 
-  test("Migration D provides full emergency rollback restoring previous state", () => {
+  test("Migration D creates B-tree indices for foreign keys and tenant isolation", () => {
     assert.ok(
-      migrationD.includes("DROP SCHEMA IF EXISTS private CASCADE;"),
-      "Rollback must drop private schema"
+      migrationD.includes("idx_products_tenant_id"),
+      "Must define index on products tenant_id"
     );
     assert.ok(
-      migrationD.includes("GRANT SELECT ON public.meli_accounts TO authenticated;"),
-      "Rollback must restore grants"
+      migrationD.includes("idx_orders_tenant_date"),
+      "Must define index on orders tenant_id and date"
+    );
+    assert.ok(
+      migrationD.includes("idx_shipments_order_id"),
+      "Must define index on shipments order_id"
+    );
+  });
+
+  test("Rollback script is safely located in docs/security/rollback and does not drop schema private cascade", () => {
+    assert.ok(
+      fs.existsSync(rollbackFile),
+      "Emergency rollback must be saved in docs/security/rollback/"
+    );
+
+    const rollbackContent = fs.readFileSync(rollbackFile, "utf-8");
+    assert.ok(
+      !rollbackContent.includes("DROP SCHEMA IF EXISTS private CASCADE;"),
+      "Rollback must not perform broad DROP SCHEMA CASCADE"
+    );
+    assert.ok(
+      rollbackContent.includes("DROP POLICY IF EXISTS \"profiles_select_own_tenant\""),
+      "Rollback must drop Sprint 3 policies specifically"
     );
   });
 });

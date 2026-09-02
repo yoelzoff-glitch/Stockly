@@ -42,3 +42,4 @@ next-env.d.ts
 
 # debug files
 auth_debug.json
+supabase/.temp/
