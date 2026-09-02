@@ -3,6 +3,7 @@ import { getPeriodRangeInTimezone } from "@/lib/dates";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
+import { serializeSalesExportCsv } from "@/lib/export/salesCsvSerializer";
 
 export async function GET(request: NextRequest) {
   let correlationId: string | undefined;
@@ -51,50 +52,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Safe in-memory search filtering (preserves 58211d3 behavior without SQL/PostgREST injection risk)
-    const filteredOrders = orders.filter((o) => {
-      const matchesSearch =
-        !search ||
-        o.buyer_nickname?.toLowerCase().includes(search.toLowerCase()) ||
-        o.meli_order_id?.toLowerCase().includes(search.toLowerCase()) ||
-        o.product_title?.toLowerCase().includes(search.toLowerCase());
-
-      return matchesSearch;
-    });
-
-    // Generate CSV exact format from 58211d3
-    const headers = ["Fecha", "Nº Orden", "Comprador", "Producto", "Cantidad", "Total (ARS)", "Estado"];
-    const csvRows = [];
-    csvRows.push(headers.join(","));
-
-    for (const o of filteredOrders) {
-      const date = new Intl.DateTimeFormat("es-AR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date(o.date_created));
-
-      const raw = o.raw_data as any;
-      const titleVal = raw?.order_items?.[0]?.item?.title || o.product_title || "Varios productos";
-      const title = `"${String(titleVal).replace(/"/g, '""')}"`;
-      const buyer = `"${(o.buyer_nickname || "").replace(/"/g, '""')}"`;
-      const quantity = raw?.order_items?.reduce((sum: number, item: any) => sum + (Number(item.quantity) || 1), 0) || 1;
-
-      const row = [
-        date,
-        o.meli_order_id,
-        buyer,
-        title,
-        quantity,
-        o.total_amount,
-        o.status,
-      ];
-      csvRows.push(row.join(","));
-    }
-
-    const csvContent = csvRows.join("\n");
+    const csvContent = serializeSalesExportCsv(orders, search);
 
     return new NextResponse(csvContent, {
       status: 200,

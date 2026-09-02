@@ -48,19 +48,21 @@ describe("Critical Endpoints Static & Integration Verification", () => {
     });
   }
 
-  test("Sales CSV Export functional schema matches 58211d3 baseline exactly", () => {
-    const content = fs.readFileSync(path.join(rootDir, "src/app/api/sales/export/route.ts"), "utf-8");
+  test("Sales CSV Export functional schema matches 58211d3 baseline exactly", async () => {
+    const routeContent = fs.readFileSync(path.join(rootDir, "src/app/api/sales/export/route.ts"), "utf-8");
+    const { serializeSalesExportCsv, SALES_CSV_HEADERS } = await import("../../src/lib/export/salesCsvSerializer");
 
     assert.ok(
-      content.includes('const headers = ["Fecha", "Nº Orden", "Comprador", "Producto", "Cantidad", "Total (ARS)", "Estado"];'),
+      routeContent.includes("serializeSalesExportCsv("),
+      "Sales export route must invoke serializeSalesExportCsv"
+    );
+    assert.deepEqual(
+      SALES_CSV_HEADERS,
+      ["Fecha", "Nº Orden", "Comprador", "Producto", "Cantidad", "Total (ARS)", "Estado"],
       "Sales export CSV must retain exact 58211d3 headers in exact order"
     );
     assert.ok(
-      content.includes('headers.join(",")'),
-      "Sales export CSV must use comma separator"
-    );
-    assert.ok(
-      content.includes('klyvo_ventas_'),
+      routeContent.includes("klyvo_ventas_"),
       "Sales export CSV filename must start with klyvo_ventas_"
     );
   });

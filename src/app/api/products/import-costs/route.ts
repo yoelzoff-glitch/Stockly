@@ -86,7 +86,16 @@ export async function POST(req: Request) {
       const { data, error } = await query.select("id");
 
       if (error) {
-        errors.push({ line: i + 1, detail: error.message });
+        logger.error({
+          event: "IMPORT_COSTS_ROW_UPDATE_ERROR",
+          correlationId,
+          tenantId,
+          error,
+          line: i + 1,
+          identifier,
+          message: "Failed to update product cost for row",
+        });
+        errors.push({ line: i + 1, detail: "No se pudo actualizar esta fila" });
       } else if (data && data.length > 0) {
         updated += data.length;
       } else {
