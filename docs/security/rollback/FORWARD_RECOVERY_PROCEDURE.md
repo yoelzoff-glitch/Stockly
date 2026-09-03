@@ -30,7 +30,8 @@ En entornos de producción donde la base de datos ya haya recibido tráfico con 
 1. **Ajuste de Política RLS sin Bloquear la Base**:
    ```sql
    -- Ejemplo: Actualizar política de lectura
-   CREATE OR REPLACE POLICY "<policy_name>" ON public.<table_name>
+   DROP POLICY IF EXISTS "<policy_name>" ON public.<table_name>;
+   CREATE POLICY "<policy_name>" ON public.<table_name>
      FOR SELECT TO authenticated
      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
    ```

@@ -6,22 +6,30 @@ import postgres from "postgres";
 
 describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
   const testDbUrl = process.env.DATABASE_URL_TEST;
+  const testSentinel = process.env.KLYVO_RLS_TEST_DB;
 
-  if (!testDbUrl) {
-    test("Enforces mandatory DATABASE_URL_TEST configuration", () => {
+  if (!testDbUrl || testSentinel !== "1") {
+    test("Enforces mandatory DATABASE_URL_TEST and KLYVO_RLS_TEST_DB=1 configuration", () => {
       console.error(
-        "\n[GATE ERROR] DATABASE_URL_TEST environment variable is NOT set.\n" +
-        "             A real isolated PostgreSQL database is required for Sprint 3 release gate verification.\n" +
-        "             Example: DATABASE_URL_TEST=postgresql://postgres:postgres@127.0.0.1:54322/postgres\n"
+        "\n[GATE ERROR] DATABASE_URL_TEST and KLYVO_RLS_TEST_DB=1 are REQUIRED.\n" +
+        "             A real isolated local PostgreSQL test database is mandatory for Sprint 3 release gate verification.\n" +
+        "             Example: DATABASE_URL_TEST=postgresql://postgres:postgres@127.0.0.1:54322/postgres KLYVO_RLS_TEST_DB=1 npm run test:rls:integration\n"
       );
-      assert.fail("RELEASE GATE BLOCKED: DATABASE_URL_TEST is mandatory and must point to an isolated test database.");
+      assert.fail("RELEASE GATE BLOCKED: DATABASE_URL_TEST and KLYVO_RLS_TEST_DB=1 are mandatory for integration tests.");
     });
     return;
   }
 
-  // Security Barrier: Ensure testDbUrl is strictly local/isolated and never remote production
-  if (testDbUrl.includes("supabase.co") || testDbUrl.includes("pooler.supabase.com")) {
-    throw new Error("CRITICAL SECURITY VIOLATION: DATABASE_URL_TEST must NEVER point to remote production!");
+  // Security Barrier: Strictly enforce localhost / 127.0.0.1 and reject all remote hosts
+  try {
+    const parsedUrl = new URL(testDbUrl.startsWith("postgres") ? testDbUrl.replace(/^postgresql?:\/\//, "http://") : testDbUrl);
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "0.0.0.0";
+    if (!isLocal) {
+      throw new Error(`CRITICAL SECURITY VIOLATION: DATABASE_URL_TEST host '${hostname}' is NOT a local address! Remote databases are strictly prohibited.`);
+    }
+  } catch (e: any) {
+    if (e.message.includes("CRITICAL SECURITY VIOLATION")) throw e;
   }
 
   const sql = postgres(testDbUrl, { max: 1 });
@@ -32,7 +40,7 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
     await sql.end();
   });
 
-  test("Applies complete test schema fixture and all Sprint 3 migrations", async () => {
+  test("Applies canonical test schema fixture and all Sprint 3 migrations", async () => {
     const schemaSql = fs.readFileSync(path.join(fixturesDir, "testSchema.sql"), "utf-8");
     await sql.unsafe(schemaSql);
 
@@ -111,21 +119,30 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
       `;
 
       const [wfA] = await tx`
-        INSERT INTO public.action_workflows (tenant_id, name, status)
-        VALUES (${tenantA.id}, 'Workflow A', 'active') RETURNING id
+        INSERT INTO public.action_workflows (tenant_id, title, summary, risk_score, status)
+        VALUES (${tenantA.id}, 'Workflow A', 'Ajuste de margen', 'LOW', 'pending') RETURNING id
       `;
       const [wfB] = await tx`
-        INSERT INTO public.action_workflows (tenant_id, name, status)
-        VALUES (${tenantB.id}, 'Workflow B', 'active') RETURNING id
+        INSERT INTO public.action_workflows (tenant_id, title, summary, risk_score, status)
+        VALUES (${tenantB.id}, 'Workflow B', 'Ajuste de stock', 'LOW', 'pending') RETURNING id
+      `;
+
+      const [actionA] = await tx`
+        INSERT INTO public.ai_actions (tenant_id, action_type, title, workflow_id)
+        VALUES (${tenantA.id}, 'update_price', 'Actualizar Precio A', ${wfA.id}) RETURNING id
+      `;
+      const [actionB] = await tx`
+        INSERT INTO public.ai_actions (tenant_id, action_type, title, workflow_id)
+        VALUES (${tenantB.id}, 'update_price', 'Actualizar Precio B', ${wfB.id}) RETURNING id
       `;
 
       const [stepA] = await tx`
-        INSERT INTO public.workflow_steps (workflow_id, step_order, instruction)
-        VALUES (${wfA.id}, 1, 'Step A1') RETURNING id
+        INSERT INTO public.workflow_steps (workflow_id, action_id, step_order)
+        VALUES (${wfA.id}, ${actionA.id}, 1) RETURNING id
       `;
       const [stepB] = await tx`
-        INSERT INTO public.workflow_steps (workflow_id, step_order, instruction)
-        VALUES (${wfB.id}, 1, 'Step B1') RETURNING id
+        INSERT INTO public.workflow_steps (workflow_id, action_id, step_order)
+        VALUES (${wfB.id}, ${actionB.id}, 1) RETURNING id
       `;
 
       const [meliAccA] = await tx`
@@ -138,7 +155,7 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
       `;
 
       await tx`
-        INSERT INTO public.subscriptions (tenant_id, plan_name, status)
+        INSERT INTO public.subscriptions (tenant_id, plan, status)
         VALUES (${tenantA.id}, 'pro', 'active')
       `;
       await tx`
@@ -178,9 +195,9 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
       assert.equal(safeMeliA[0].id, meliAccA.id);
 
       // Test 4.6: Read-Only Table (subscriptions) - Authenticated can SELECT
-      const subsA = await tx`SELECT id, plan_name FROM public.subscriptions`;
+      const subsA = await tx`SELECT id, plan FROM public.subscriptions`;
       assert.equal(subsA.length, 1);
-      assert.equal(subsA[0].plan_name, 'pro');
+      assert.equal(subsA[0].plan, 'pro');
 
       // Test 4.7: Inactive user cannot read any rows
       await tx`SELECT set_config('request.jwt.claim.sub', ${userInactiveId}, true)`;
@@ -204,7 +221,7 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
       await assert.rejects(async () => {
         await tx.savepoint(async (sp) => {
           await sp`
-            INSERT INTO public.subscriptions (tenant_id, plan_name, status)
+            INSERT INTO public.subscriptions (tenant_id, plan, status)
             VALUES (${tenantA.id}, 'enterprise', 'active')
           `;
         });

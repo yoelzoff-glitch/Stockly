@@ -1,50 +1,65 @@
-"use server"
+"use server";
 
 import { createSubscriptionPreference } from "@/integrations/mercadopago/client";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTenantContext, requireTenantRole } from "@/lib/security/tenantAuth";
 
-export async function upgradePlan(plan: 'starter' | 'pro' | 'ultra') {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("No autenticado");
+export async function upgradePlan(plan: "starter" | "pro" | "ultra") {
+  const context = await requireTenantContext();
+  await requireTenantRole(["owner", "admin"]);
 
-  const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
-  if (!profile?.tenant_id) throw new Error("No se encontró tenant");
+  const adminSupabase = createAdminClient();
+  const { data: profile } = await adminSupabase
+    .from("profiles")
+    .select("email, full_name")
+    .eq("id", context.userId)
+    .single();
 
-  const initPoint = await createSubscriptionPreference(profile.tenant_id, plan, user.email || "user@klyvo.com");
+  const email = profile?.email || "user@klyvo.com";
+  const initPoint = await createSubscriptionPreference(context.tenantId, plan, email);
   return initPoint;
 }
 
-export async function scheduleDowngradeAction(targetPlan: 'starter' | 'pro') {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("No autenticado");
+export async function scheduleDowngradeAction(targetPlan: "starter" | "pro") {
+  const context = await requireTenantContext();
+  await requireTenantRole(["owner", "admin"]);
 
-  const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
-  if (!profile?.tenant_id) throw new Error("No se encontró tenant");
+  const adminSupabase = createAdminClient();
 
-  const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_id", profile.tenant_id).single();
-  
-  if (!sub || !sub.mercadopago_subscription_id) {
+  const { data: sub, error: subFetchError } = await adminSupabase
+    .from("subscriptions")
+    .select("*")
+    .eq("tenant_id", context.tenantId)
+    .single();
+
+  if (subFetchError || !sub || !sub.mercadopago_subscription_id) {
     throw new Error("No hay suscripción activa para cancelar");
   }
 
-  // Import dynamically to avoid circular issues or just use the existing import
   const { cancelSubscription } = await import("@/integrations/mercadopago/client");
-  
+
   try {
     await cancelSubscription(sub.mercadopago_subscription_id);
   } catch (error: any) {
     // Si ya estaba cancelada en MP, continuamos
-    if (!error.message.includes("404") && !error.message.includes("already")) {
+    if (!error.message?.includes("404") && !error.message?.includes("already")) {
       throw new Error("Error cancelando la suscripción en Mercado Pago");
     }
   }
 
-  // Update DB to register pending downgrade
-  await supabase.from("subscriptions").update({
-    pending_plan: targetPlan
-  }).eq("id", sub.id);
+  // Update DB via server-side admin client to register pending downgrade
+  const { error: updateError } = await adminSupabase
+    .from("subscriptions")
+    .update({
+      pending_plan: targetPlan,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", sub.id)
+    .eq("tenant_id", context.tenantId);
+
+  if (updateError) {
+    throw new Error(`Error registrando downgrade en base de datos: ${updateError.message}`);
+  }
 
   return { success: true };
 }

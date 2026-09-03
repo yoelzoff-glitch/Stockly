@@ -410,6 +410,42 @@ BEGIN
       WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
   END IF;
 
+  -- Competition Snapshots
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'competition_snapshots' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "competition_snapshots_tenant_select" ON public.competition_snapshots;
+    DROP POLICY IF EXISTS "competition_snapshots_tenant_insert" ON public.competition_snapshots;
+    DROP POLICY IF EXISTS "competition_snapshots_tenant_update" ON public.competition_snapshots;
+    DROP POLICY IF EXISTS "competition_snapshots_tenant_delete" ON public.competition_snapshots;
+
+    CREATE POLICY "competition_snapshots_tenant_select" ON public.competition_snapshots FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "competition_snapshots_tenant_insert" ON public.competition_snapshots FOR INSERT TO authenticated
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "competition_snapshots_tenant_update" ON public.competition_snapshots FOR UPDATE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active())
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "competition_snapshots_tenant_delete" ON public.competition_snapshots FOR DELETE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
+  -- Conversation Sessions
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'conversation_sessions' AND table_schema = 'public') THEN
+    DROP POLICY IF EXISTS "conversation_sessions_tenant_select" ON public.conversation_sessions;
+    DROP POLICY IF EXISTS "conversation_sessions_tenant_insert" ON public.conversation_sessions;
+    DROP POLICY IF EXISTS "conversation_sessions_tenant_update" ON public.conversation_sessions;
+    DROP POLICY IF EXISTS "conversation_sessions_tenant_delete" ON public.conversation_sessions;
+
+    CREATE POLICY "conversation_sessions_tenant_select" ON public.conversation_sessions FOR SELECT TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "conversation_sessions_tenant_insert" ON public.conversation_sessions FOR INSERT TO authenticated
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "conversation_sessions_tenant_update" ON public.conversation_sessions FOR UPDATE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active())
+      WITH CHECK (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+    CREATE POLICY "conversation_sessions_tenant_delete" ON public.conversation_sessions FOR DELETE TO authenticated
+      USING (tenant_id = private.current_tenant_id() AND private.current_profile_is_active());
+  END IF;
+
   --------------------------------------------------------------------------------
   -- 5. TABLAS HIJAS MEDIANTE SUBQUERY EXISTS CON EL PADRE
   --------------------------------------------------------------------------------

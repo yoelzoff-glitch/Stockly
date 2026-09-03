@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 
 export async function updateProductCost(productId: string, cost: number) {
@@ -360,15 +361,17 @@ export async function reprocessProductOrdersStock(productId: string) {
     "@/services/inventory/decrementInternalStockFromOrder"
   );
 
+  const adminSupabase = createAdminClient();
   let successCount = 0;
   for (const orderId of ordersToReprocess) {
-    await supabase
+    await adminSupabase
       .from("orders")
       .update({
         internal_stock_processed: false,
         internal_stock_processed_at: null
       })
-      .eq("id", orderId);
+      .eq("id", orderId)
+      .eq("tenant_id", tenantId);
 
     const result = await decrementInternalStockFromOrder(tenantId, orderId);
     if (result.success) {

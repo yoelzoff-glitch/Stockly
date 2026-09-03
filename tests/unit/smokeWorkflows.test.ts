@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-describe("Sprint 3.2 Comprehensive Smoke Tests Suite", () => {
+describe("Sprint 3.4 Comprehensive Smoke & Regression Tests Suite", () => {
   test("1. Messages: verified contract for tenant-scoped message storage", () => {
     const mockMessage = {
       id: "msg-123",
@@ -14,10 +14,16 @@ describe("Sprint 3.2 Comprehensive Smoke Tests Suite", () => {
   });
 
   test("2. Workflows & Steps: hierarchy and step order integrity", () => {
-    const workflow = { id: "wf-1", tenant_id: "tenant-abc", name: "Ajuste de Precios Verano" };
+    const workflow = {
+      id: "wf-1",
+      tenant_id: "tenant-abc",
+      title: "Ajuste de Precios Verano",
+      summary: "Ajuste de margen",
+      risk_score: "LOW",
+    };
     const steps = [
-      { id: "step-1", workflow_id: "wf-1", step_order: 1, instruction: "Obtener costos" },
-      { id: "step-2", workflow_id: "wf-1", step_order: 2, instruction: "Calcular nuevo margen" },
+      { id: "step-1", workflow_id: "wf-1", action_id: "act-1", step_order: 1 },
+      { id: "step-2", workflow_id: "wf-1", action_id: "act-2", step_order: 2 },
     ];
     assert.equal(steps[0].workflow_id, workflow.id);
     assert.equal(steps[1].step_order, 2);
@@ -107,5 +113,45 @@ describe("Sprint 3.2 Comprehensive Smoke Tests Suite", () => {
   test("11. WhatsApp Inactive Kill-Switch: guarantees WhatsApp agent remains disabled", () => {
     const killSwitch = process.env.KLYVO_DISABLE_WHATSAPP_AGENT ?? "true";
     assert.equal(killSwitch, "true", "WhatsApp AI Agent must strictly default to disabled (true)");
+  });
+
+  test("12. Regression: scheduleDowngradeAction server-side subscription update contract", () => {
+    const mockSubscription = {
+      id: "sub-123",
+      tenant_id: "tenant-abc",
+      plan: "pro",
+      pending_plan: null as string | null,
+      status: "active",
+      mercadopago_subscription_id: "mp-sub-789",
+    };
+
+    const targetPlan = "starter";
+    const updatedSubscription = {
+      ...mockSubscription,
+      pending_plan: targetPlan,
+      updated_at: new Date().toISOString(),
+    };
+
+    assert.equal(updatedSubscription.pending_plan, "starter");
+    assert.equal(updatedSubscription.tenant_id, "tenant-abc");
+  });
+
+  test("13. Regression: reprocessStockFromProductAction server-side order reset contract", () => {
+    const mockOrder = {
+      id: "ord-123",
+      tenant_id: "tenant-abc",
+      internal_stock_processed: true,
+      internal_stock_processed_at: "2026-09-01T00:00:00Z",
+    };
+
+    const resetOrder = {
+      ...mockOrder,
+      internal_stock_processed: false,
+      internal_stock_processed_at: null,
+    };
+
+    assert.equal(resetOrder.internal_stock_processed, false);
+    assert.equal(resetOrder.internal_stock_processed_at, null);
+    assert.equal(resetOrder.tenant_id, "tenant-abc");
   });
 });

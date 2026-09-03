@@ -5,23 +5,23 @@
 DO $$
 DECLARE
   tbl text;
-  all_tables text[] := ARRAY[
-    'profiles', 'tenants', 'products', 'orders', 'order_items', 'shipments',
-    'order_cancellations', 'meli_accounts', 'whatsapp_numbers', 'messages',
-    'alerts', 'ai_actions', 'action_workflows', 'workflow_steps',
-    'price_adjustment_workflows', 'price_adjustment_details', 'audit_logs',
-    'product_components', 'product_sku_components', 'product_extra_costs',
-    'product_price_history', 'stock_movements', 'inventory_items', 'inventory_movements',
-    'purchase_orders', 'purchase_order_items', 'promotions', 'promotion_items',
-    'coupons', 'monthly_expenses', 'subscriptions', 'subscription_usage',
-    'tenant_progress', 'tenant_preferences', 'plans_config'
-  ];
+  -- LOTE 1: Configuración y Cuentas (Base del tenant)
+  batch_1 text[] := ARRAY['profiles', 'tenants', 'subscriptions', 'subscription_usage', 'plans_config'];
+
+  -- LOTE 2: Operaciones y Ventas Principales
+  batch_2 text[] := ARRAY['products', 'orders', 'order_items', 'shipments', 'order_cancellations', 'monthly_expenses', 'inventory_items', 'inventory_movements', 'purchase_orders', 'purchase_order_items'];
+
+  -- LOTE 3: Dominio Secundario y Automatizaciones
+  batch_3 text[] := ARRAY['messages', 'alerts', 'ai_actions', 'action_workflows', 'workflow_steps', 'price_adjustment_workflows', 'price_adjustment_details', 'product_components', 'product_sku_components', 'product_extra_costs', 'product_price_history', 'stock_movements', 'promotions', 'promotion_items', 'coupons', 'tenant_progress', 'tenant_preferences', 'competition_snapshots', 'conversation_sessions', 'audit_logs'];
+
+  -- LOTE 4: Integraciones
+  batch_4 text[] := ARRAY['meli_accounts', 'whatsapp_numbers'];
 BEGIN
 
   --------------------------------------------------------------------------------
-  -- 1. ACTIVACIÓN DE RLS EN TODAS LAS TABLAS DEL ESQUEMA
+  -- 1. ACTIVACIÓN DE RLS POR LOTES DE DOMINIO
   --------------------------------------------------------------------------------
-  FOREACH tbl IN ARRAY all_tables
+  FOREACH tbl IN ARRAY (batch_1 || batch_2 || batch_3 || batch_4)
   LOOP
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
       EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
@@ -42,7 +42,6 @@ BEGIN
   --------------------------------------------------------------------------------
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenants') THEN
     REVOKE UPDATE ON public.tenants FROM authenticated, anon;
-    -- Conceder UPDATE únicamente en campos operativos seguros (sin metadata ni flags administrativos)
     GRANT UPDATE (name, currency, timezone, updated_at) ON public.tenants TO authenticated;
   END IF;
 

@@ -1,11 +1,11 @@
--- SPRINT 3: DISPOSABLE SCHEMA FIXTURE FOR TESTING (SCHEMA-ONLY, NO REAL DATA)
+-- SPRINT 3: DISPOSABLE SCHEMA FIXTURE FOR TESTING (CANONICAL SCHEMA-ONLY, NO REAL DATA)
 -- LOCATION: tests/fixtures/testSchema.sql
 
 CREATE SCHEMA IF NOT EXISTS auth;
 CREATE SCHEMA IF NOT EXISTS public;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. Mock auth.users & auth.uid() function if not present
+-- 1. Mock auth.users & auth.uid() function
 CREATE TABLE IF NOT EXISTS auth.users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email text,
@@ -19,7 +19,7 @@ AS $$
   SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid;
 $$;
 
--- 2. Public Tables
+-- 2. Canonical Public Tables matching production schema exactly
 CREATE TABLE IF NOT EXISTS public.tenants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS public.products (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   meli_item_id text,
+  sku text,
   title text NOT NULL,
   price numeric DEFAULT 0,
   cost numeric DEFAULT 0,
@@ -58,6 +59,10 @@ CREATE TABLE IF NOT EXISTS public.orders (
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   meli_order_id text,
   total_amount numeric DEFAULT 0,
+  status text DEFAULT 'paid',
+  internal_stock_processed boolean DEFAULT false,
+  internal_stock_processed_at timestamptz,
+  raw_data jsonb DEFAULT '{}'::jsonb,
   date_created timestamptz DEFAULT now()
 );
 
@@ -65,7 +70,9 @@ CREATE TABLE IF NOT EXISTS public.order_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   order_id uuid REFERENCES public.orders(id) ON DELETE CASCADE,
+  product_id uuid REFERENCES public.products(id) ON DELETE SET NULL,
   title text,
+  sku text,
   quantity integer DEFAULT 1,
   unit_price numeric DEFAULT 0
 );
@@ -126,25 +133,40 @@ CREATE TABLE IF NOT EXISTS public.messages (
 
 CREATE TABLE IF NOT EXISTS public.subscriptions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  plan_name text NOT NULL DEFAULT 'starter',
+  tenant_id uuid NOT NULL UNIQUE REFERENCES public.tenants(id) ON DELETE CASCADE,
+  plan text NOT NULL DEFAULT 'starter',
+  pending_plan text,
   status text NOT NULL DEFAULT 'active',
-  created_at timestamptz DEFAULT now()
+  mercadopago_subscription_id text,
+  expires_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.subscription_usage (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  metric text NOT NULL,
-  value numeric DEFAULT 0,
-  updated_at timestamptz DEFAULT now()
+  month date NOT NULL,
+  ai_credits_used integer DEFAULT 0,
+  whatsapp_messages_used integer DEFAULT 0,
+  automation_actions_used integer DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE (tenant_id, month)
 );
 
 CREATE TABLE IF NOT EXISTS public.audit_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  event text NOT NULL,
-  details jsonb DEFAULT '{}'::jsonb,
+  actor_id uuid,
+  action text NOT NULL,
+  entity_type text,
+  entity_id text,
+  description text,
+  old_data jsonb,
+  new_data jsonb,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  ip_address text,
+  user_agent text,
   created_at timestamptz DEFAULT now()
 );
 
@@ -157,8 +179,22 @@ CREATE TABLE IF NOT EXISTS public.plans_config (
 CREATE TABLE IF NOT EXISTS public.alerts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  alert_rule_id uuid,
+  product_id uuid REFERENCES public.products(id) ON DELETE SET NULL,
   title text NOT NULL,
+  body text,
+  severity text DEFAULT 'info',
   is_read boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.action_workflows (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  summary text,
+  risk_score text NOT NULL DEFAULT 'LOW',
+  status text NOT NULL DEFAULT 'pending',
   created_at timestamptz DEFAULT now()
 );
 
@@ -166,38 +202,34 @@ CREATE TABLE IF NOT EXISTS public.ai_actions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   action_type text NOT NULL,
+  title text NOT NULL,
+  payload jsonb DEFAULT '{}'::jsonb,
   status text NOT NULL DEFAULT 'pending',
-  created_at timestamptz DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS public.action_workflows (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  name text NOT NULL,
-  status text NOT NULL DEFAULT 'draft',
-  created_at timestamptz DEFAULT now()
+  workflow_id uuid REFERENCES public.action_workflows(id) ON DELETE CASCADE,
+  created_at timestamptz DEFAULT now(),
+  completed_at timestamptz
 );
 
 CREATE TABLE IF NOT EXISTS public.workflow_steps (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workflow_id uuid NOT NULL REFERENCES public.action_workflows(id) ON DELETE CASCADE,
-  step_order integer NOT NULL,
-  instruction text
+  action_id uuid NOT NULL REFERENCES public.ai_actions(id) ON DELETE CASCADE,
+  step_order integer NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.price_adjustment_workflows (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  name text NOT NULL,
-  status text NOT NULL DEFAULT 'active',
+  target_margin_percent numeric,
+  status text NOT NULL DEFAULT 'pending',
   created_at timestamptz DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.price_adjustment_details (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workflow_id uuid NOT NULL REFERENCES public.price_adjustment_workflows(id) ON DELETE CASCADE,
-  item_id text NOT NULL,
-  new_price numeric NOT NULL
+  product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+  target_price numeric NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.product_components (
@@ -257,6 +289,7 @@ CREATE TABLE IF NOT EXISTS public.inventory_movements (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   inventory_item_id uuid REFERENCES public.inventory_items(id) ON DELETE CASCADE,
+  reference_id uuid,
   delta integer NOT NULL,
   reason text,
   created_at timestamptz DEFAULT now()
@@ -316,6 +349,38 @@ CREATE TABLE IF NOT EXISTS public.tenant_preferences (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   preferences jsonb DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS public.competition_snapshots (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+  query text NOT NULL,
+  own_price numeric NOT NULL,
+  avg_price numeric,
+  min_price numeric,
+  max_price numeric,
+  median_price numeric,
+  competitors_count integer DEFAULT 0,
+  free_shipping_count integer DEFAULT 0,
+  raw_results jsonb DEFAULT '[]'::jsonb,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.conversation_sessions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  channel text NOT NULL DEFAULT 'web',
+  phone_number text,
+  status text NOT NULL DEFAULT 'active',
+  current_workflow_id uuid,
+  current_action_id uuid,
+  current_action_type text,
+  missing_fields jsonb DEFAULT '[]'::jsonb,
+  context jsonb DEFAULT '{}'::jsonb,
+  last_activity_at timestamptz DEFAULT now(),
+  created_at timestamptz DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.tenant_feature_flags (
