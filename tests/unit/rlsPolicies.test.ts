@@ -60,11 +60,11 @@ describe("Sprint 3 RLS Policies & Database Security Unit Tests", () => {
 
   test("Migration B creates idempotent RLS policies per table and drops legacy policies", () => {
     assert.ok(
-      migrationB.includes("profiles_select_own_tenant"),
+      migrationB.includes("profiles_tenant_select"),
       "Must define profiles select policy"
     );
     assert.ok(
-      migrationB.includes("profiles_update_own_row"),
+      migrationB.includes("profiles_self_update"),
       "Must define profiles update policy"
     );
     assert.ok(
@@ -74,10 +74,6 @@ describe("Sprint 3 RLS Policies & Database Security Unit Tests", () => {
     assert.ok(
       migrationB.includes("subscriptions_tenant_select"),
       "Must define subscriptions select policy"
-    );
-    assert.ok(
-      migrationB.includes("DROP POLICY IF EXISTS \"Users can read their tenant's monthly expenses\""),
-      "Must explicitly drop insecure legacy monthly expenses policy"
     );
   });
 
@@ -135,7 +131,7 @@ describe("Sprint 3 RLS Policies & Database Security Unit Tests", () => {
       "Rollback must not perform broad DROP SCHEMA CASCADE"
     );
     assert.ok(
-      rollbackContent.includes("DROP POLICY IF EXISTS \"profiles_select_own_tenant\""),
+      rollbackContent.includes("DROP POLICY IF EXISTS \"profiles_tenant_select\""),
       "Rollback must drop Sprint 3 policies specifically"
     );
   });

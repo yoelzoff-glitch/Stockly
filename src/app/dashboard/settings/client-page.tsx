@@ -221,7 +221,7 @@ export default function SettingsClientPage({ profile, tenant, meliAccount }: { p
                   </div>
                   <div className="text-xs text-muted-foreground space-y-1">
                     <p>Última sincronización: {meliAccount.last_sync_at ? new Date(meliAccount.last_sync_at).toLocaleString('es-AR') : 'Nunca'}</p>
-                    <p>ID Vendedor: {meliAccount.seller_id}</p>
+                    <p>ID Vendedor: {meliAccount.meli_user_id}</p>
                   </div>
                 </div>
               ) : (

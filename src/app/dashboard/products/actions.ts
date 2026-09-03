@@ -364,7 +364,7 @@ export async function reprocessProductOrdersStock(productId: string) {
   const adminSupabase = createAdminClient();
   let successCount = 0;
   for (const orderId of ordersToReprocess) {
-    await adminSupabase
+    const { error: resetError } = await adminSupabase
       .from("orders")
       .update({
         internal_stock_processed: false,
@@ -372,6 +372,11 @@ export async function reprocessProductOrdersStock(productId: string) {
       })
       .eq("id", orderId)
       .eq("tenant_id", tenantId);
+
+    if (resetError) {
+      console.error(`Failed to reset internal_stock_processed for order ${orderId}: ${resetError.message}`);
+      continue;
+    }
 
     const result = await decrementInternalStockFromOrder(tenantId, orderId);
     if (result.success) {

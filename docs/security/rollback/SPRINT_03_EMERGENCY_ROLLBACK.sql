@@ -1,7 +1,7 @@
 -- SPRINT 3 — MANUAL EMERGENCY ROLLBACK SCRIPT
 -- LOCATION: docs/security/rollback/SPRINT_03_EMERGENCY_ROLLBACK.sql
 -- PREFLIGHT CHECK & REVERSION:
--- Reverts exclusively Sprint 3 RLS policies and schema structures in case of rollback.
+-- Reverts exclusively Sprint 3 RLS policies and schema structures in case of emergency rollback.
 
 DO $$
 BEGIN
@@ -17,19 +17,18 @@ BEGIN
   --------------------------------------------------------------------------------
   -- 1. ELIMINAR POLÍTICAS ESPECÍFICAS DE SPRINT 3
   --------------------------------------------------------------------------------
-  -- Profiles
+  -- Profiles & Tenants
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'profiles') THEN
-    DROP POLICY IF EXISTS "profiles_select_own_tenant" ON public.profiles;
-    DROP POLICY IF EXISTS "profiles_update_own_row" ON public.profiles;
+    DROP POLICY IF EXISTS "profiles_tenant_select" ON public.profiles;
+    DROP POLICY IF EXISTS "profiles_self_update" ON public.profiles;
   END IF;
 
-  -- Tenants
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenants') THEN
-    DROP POLICY IF EXISTS "tenants_select_own" ON public.tenants;
-    DROP POLICY IF EXISTS "tenants_update_own" ON public.tenants;
+    DROP POLICY IF EXISTS "tenants_member_select" ON public.tenants;
+    DROP POLICY IF EXISTS "tenants_owner_update" ON public.tenants;
   END IF;
 
-  -- Direct operational tables
+  -- Operational & Automation Tables
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'products') THEN
     DROP POLICY IF EXISTS "products_tenant_select" ON public.products;
     DROP POLICY IF EXISTS "products_tenant_insert" ON public.products;
@@ -57,6 +56,27 @@ BEGIN
     DROP POLICY IF EXISTS "whatsapp_numbers_tenant_select" ON public.whatsapp_numbers;
   END IF;
 
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'alert_rules') THEN
+    DROP POLICY IF EXISTS "alert_rules_tenant_select" ON public.alert_rules;
+    DROP POLICY IF EXISTS "alert_rules_tenant_insert" ON public.alert_rules;
+    DROP POLICY IF EXISTS "alert_rules_tenant_update" ON public.alert_rules;
+    DROP POLICY IF EXISTS "alert_rules_tenant_delete" ON public.alert_rules;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'alerts') THEN
+    DROP POLICY IF EXISTS "alerts_tenant_select" ON public.alerts;
+    DROP POLICY IF EXISTS "alerts_tenant_insert" ON public.alerts;
+    DROP POLICY IF EXISTS "alerts_tenant_update" ON public.alerts;
+    DROP POLICY IF EXISTS "alerts_tenant_delete" ON public.alerts;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'coupons') THEN
+    DROP POLICY IF EXISTS "coupons_tenant_select" ON public.coupons;
+    DROP POLICY IF EXISTS "coupons_tenant_insert" ON public.coupons;
+    DROP POLICY IF EXISTS "coupons_tenant_update" ON public.coupons;
+    DROP POLICY IF EXISTS "coupons_tenant_delete" ON public.coupons;
+  END IF;
+
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'subscriptions') THEN
     DROP POLICY IF EXISTS "subscriptions_tenant_select" ON public.subscriptions;
   END IF;
@@ -71,13 +91,18 @@ BEGIN
   END IF;
 
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'plans_config') THEN
-    DROP POLICY IF EXISTS "plans_config_public_read" ON public.plans_config;
+    DROP POLICY IF EXISTS "plans_config_select_authenticated" ON public.plans_config;
   END IF;
 
   --------------------------------------------------------------------------------
   -- 2. RESTAURAR POLÍTICAS PREVIAS DEL SNAPSHOT REAL
   --------------------------------------------------------------------------------
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'monthly_expenses') THEN
+    DROP POLICY IF EXISTS "monthly_expenses_tenant_select" ON public.monthly_expenses;
+    DROP POLICY IF EXISTS "monthly_expenses_tenant_insert" ON public.monthly_expenses;
+    DROP POLICY IF EXISTS "monthly_expenses_tenant_update" ON public.monthly_expenses;
+    DROP POLICY IF EXISTS "monthly_expenses_tenant_delete" ON public.monthly_expenses;
+
     CREATE POLICY "Users can read their tenant's monthly expenses"
       ON public.monthly_expenses FOR SELECT
       USING (tenant_id IN (SELECT tenant_id FROM public.profiles WHERE id = auth.uid()));

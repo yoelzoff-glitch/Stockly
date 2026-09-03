@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import postgres from "postgres";
 
-describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
+describe("Sprint 3.5 Multi-Tenant PostgreSQL Real Integration Tests (40 Canonical Tables)", () => {
   const testDbUrl = process.env.DATABASE_URL_TEST;
   const testSentinel = process.env.KLYVO_RLS_TEST_DB;
 
@@ -12,7 +12,7 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
     test("Enforces mandatory DATABASE_URL_TEST and KLYVO_RLS_TEST_DB=1 configuration", () => {
       console.error(
         "\n[GATE ERROR] DATABASE_URL_TEST and KLYVO_RLS_TEST_DB=1 are REQUIRED.\n" +
-        "             A real isolated local PostgreSQL test database is mandatory for Sprint 3 release gate verification.\n" +
+        "             A real isolated local PostgreSQL test database is mandatory for Sprint 3.5 release gate verification.\n" +
         "             Example: DATABASE_URL_TEST=postgresql://postgres:postgres@127.0.0.1:54322/postgres KLYVO_RLS_TEST_DB=1 npm run test:rls:integration\n"
       );
       assert.fail("RELEASE GATE BLOCKED: DATABASE_URL_TEST and KLYVO_RLS_TEST_DB=1 are mandatory for integration tests.");
@@ -40,7 +40,7 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
     await sql.end();
   });
 
-  test("Applies canonical test schema fixture and all Sprint 3 migrations", async () => {
+  test("Applies canonical production schema fixture and all Sprint 3 migrations", async () => {
     const schemaSql = fs.readFileSync(path.join(fixturesDir, "testSchema.sql"), "utf-8");
     await sql.unsafe(schemaSql);
 
@@ -54,17 +54,17 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
     await sql.unsafe(migrationC);
     await sql.unsafe(migrationD);
 
-    assert.ok(true, "All migrations executed successfully");
+    assert.ok(true, "All migrations executed successfully against canonical schema");
   });
 
-  test("Executes comprehensive multi-tenant isolation, child table RLS, token protection, and service_role tests", async () => {
+  test("Executes comprehensive multi-tenant isolation, cross-tenant FK rejection, and token protection", async () => {
     await sql.begin(async (tx) => {
       // 1. Setup Two Tenants
       const [tenantA] = await tx`
-        INSERT INTO public.tenants (name, currency) VALUES ('Tenant A Corp', 'ARS') RETURNING id
+        INSERT INTO public.tenants (name, slug, currency) VALUES ('Tenant A Corp', 'tenant-a-corp', 'ARS') RETURNING id
       `;
       const [tenantB] = await tx`
-        INSERT INTO public.tenants (name, currency) VALUES ('Tenant B Corp', 'ARS') RETURNING id
+        INSERT INTO public.tenants (name, slug, currency) VALUES ('Tenant B Corp', 'tenant-b-corp', 'ARS') RETURNING id
       `;
 
       // 2. Setup Users
@@ -92,14 +92,14 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
         ON CONFLICT (id) DO UPDATE SET tenant_id = ${tenantA.id}, role = 'user', is_active = false
       `;
 
-      // 3. Seed Direct, Child, Read-Only & Backend Data
+      // 3. Seed Canonical Data for Both Tenants
       const [prodA] = await tx`
-        INSERT INTO public.products (tenant_id, title, price, cost)
-        VALUES (${tenantA.id}, 'Producto A', 1000, 500) RETURNING id
+        INSERT INTO public.products (tenant_id, meli_item_id, title, price, cost)
+        VALUES (${tenantA.id}, 'MLA-ITEM-A', 'Producto A', 1000, 500) RETURNING id
       `;
       const [prodB] = await tx`
-        INSERT INTO public.products (tenant_id, title, price, cost)
-        VALUES (${tenantB.id}, 'Producto B', 2000, 1000) RETURNING id
+        INSERT INTO public.products (tenant_id, meli_item_id, title, price, cost)
+        VALUES (${tenantB.id}, 'MLA-ITEM-B', 'Producto B', 2000, 1000) RETURNING id
       `;
 
       const [orderA] = await tx`
@@ -112,10 +112,15 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
       `;
 
       const [shipmentA] = await tx`
-        INSERT INTO public.shipments (order_id, status) VALUES (${orderA.id}, 'shipped') RETURNING id
+        INSERT INTO public.shipments (tenant_id, order_id, status) VALUES (${tenantA.id}, ${orderA.id}, 'shipped') RETURNING id
       `;
       const [shipmentB] = await tx`
-        INSERT INTO public.shipments (order_id, status) VALUES (${orderB.id}, 'shipped') RETURNING id
+        INSERT INTO public.shipments (tenant_id, order_id, status) VALUES (${tenantB.id}, ${orderB.id}, 'shipped') RETURNING id
+      `;
+
+      const [orderItemA] = await tx`
+        INSERT INTO public.order_items (tenant_id, order_id, product_id, title, unit_price)
+        VALUES (${tenantA.id}, ${orderA.id}, ${prodA.id}, 'Item A', 1000) RETURNING id
       `;
 
       const [wfA] = await tx`
@@ -128,30 +133,42 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
       `;
 
       const [actionA] = await tx`
-        INSERT INTO public.ai_actions (tenant_id, action_type, title, workflow_id)
-        VALUES (${tenantA.id}, 'update_price', 'Actualizar Precio A', ${wfA.id}) RETURNING id
-      `;
-      const [actionB] = await tx`
-        INSERT INTO public.ai_actions (tenant_id, action_type, title, workflow_id)
-        VALUES (${tenantB.id}, 'update_price', 'Actualizar Precio B', ${wfB.id}) RETURNING id
+        INSERT INTO public.ai_actions (tenant_id, action_type, title)
+        VALUES (${tenantA.id}, 'update_price', 'Actualizar Precio A') RETURNING id
       `;
 
       const [stepA] = await tx`
         INSERT INTO public.workflow_steps (workflow_id, action_id, step_order)
         VALUES (${wfA.id}, ${actionA.id}, 1) RETURNING id
       `;
-      const [stepB] = await tx`
-        INSERT INTO public.workflow_steps (workflow_id, action_id, step_order)
-        VALUES (${wfB.id}, ${actionB.id}, 1) RETURNING id
+
+      const [alertRuleA] = await tx`
+        INSERT INTO public.alert_rules (tenant_id, name, rule_type, is_active)
+        VALUES (${tenantA.id}, 'Regla Margen Bajo', 'low_margin', true) RETURNING id
+      `;
+
+      const [alertA] = await tx`
+        INSERT INTO public.alerts (tenant_id, alert_rule_id, product_id, title)
+        VALUES (${tenantA.id}, ${alertRuleA.id}, ${prodA.id}, 'Alerta Margen A') RETURNING id
+      `;
+
+      const [couponA] = await tx`
+        INSERT INTO public.coupons (tenant_id, title, code, coupon_type)
+        VALUES (${tenantA.id}, 'Cupon Descuento', 'DESC10', 'percent') RETURNING id
       `;
 
       const [meliAccA] = await tx`
-        INSERT INTO public.meli_accounts (tenant_id, meli_user_id, nickname, seller_id, access_token, refresh_token, status)
-        VALUES (${tenantA.id}, 'USR-A', 'Shop A', 'SELL-A', 'SECRET-TOKEN-A', 'REFRESH-A', 'connected') RETURNING id
+        INSERT INTO public.meli_accounts (tenant_id, meli_user_id, nickname, access_token, refresh_token, status)
+        VALUES (${tenantA.id}, 'USR-A', 'Shop A', 'SECRET-TOKEN-A', 'REFRESH-A', 'connected') RETURNING id
       `;
       const [meliAccB] = await tx`
-        INSERT INTO public.meli_accounts (tenant_id, meli_user_id, nickname, seller_id, access_token, refresh_token, status)
-        VALUES (${tenantB.id}, 'USR-B', 'Shop B', 'SELL-B', 'SECRET-TOKEN-B', 'REFRESH-B', 'connected') RETURNING id
+        INSERT INTO public.meli_accounts (tenant_id, meli_user_id, nickname, access_token, refresh_token, status)
+        VALUES (${tenantB.id}, 'USR-B', 'Shop B', 'SECRET-TOKEN-B', 'REFRESH-B', 'connected') RETURNING id
+      `;
+
+      const [waNumA] = await tx`
+        INSERT INTO public.whatsapp_numbers (tenant_id, phone_number, access_token, status)
+        VALUES (${tenantA.id}, '+5491100001111', 'WA-SECRET-TOKEN', 'connected') RETURNING id
       `;
 
       await tx`
@@ -159,7 +176,7 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
         VALUES (${tenantA.id}, 'pro', 'active')
       `;
       await tx`
-        INSERT INTO public.tenant_feature_flags (tenant_id, flag_name, is_enabled)
+        INSERT INTO public.tenant_feature_flags (tenant_id, flag_key, enabled)
         VALUES (${tenantA.id}, 'strict_tenant_authorization', false)
       `;
 
@@ -187,19 +204,41 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
       assert.equal(stepsUserA.length, 1);
       assert.equal(stepsUserA[0].id, stepA.id);
 
-      // Test 4.5: Integration Safe Column Access (meli_accounts safe columns only)
+      // Test 4.5: Alert Rules & Alerts Isolation
+      const alertRulesUserA = await tx`SELECT id, name FROM public.alert_rules`;
+      assert.equal(alertRulesUserA.length, 1);
+      assert.equal(alertRulesUserA[0].id, alertRuleA.id);
+
+      const alertsUserA = await tx`SELECT id, title FROM public.alerts`;
+      assert.equal(alertsUserA.length, 1);
+      assert.equal(alertsUserA[0].id, alertA.id);
+
+      // Test 4.6: Coupons Direct Tenant Isolation
+      const couponsUserA = await tx`SELECT id, code FROM public.coupons`;
+      assert.equal(couponsUserA.length, 1);
+      assert.equal(couponsUserA[0].id, couponA.id);
+
+      // Test 4.7: Integration Safe Column Access (meli_accounts safe columns only, NO seller_id)
       const safeMeliA = await tx`
-        SELECT id, tenant_id, meli_user_id, nickname, seller_id, status FROM public.meli_accounts
+        SELECT id, tenant_id, meli_user_id, nickname, status FROM public.meli_accounts
       `;
       assert.equal(safeMeliA.length, 1);
       assert.equal(safeMeliA[0].id, meliAccA.id);
+      assert.equal(safeMeliA[0].meli_user_id, 'USR-A');
 
-      // Test 4.6: Read-Only Table (subscriptions) - Authenticated can SELECT
+      // Test 4.8: Integration Safe Column Access (whatsapp_numbers safe columns only, NO display_name)
+      const safeWaA = await tx`
+        SELECT id, tenant_id, phone_number, status FROM public.whatsapp_numbers
+      `;
+      assert.equal(safeWaA.length, 1);
+      assert.equal(safeWaA[0].id, waNumA.id);
+
+      // Test 4.9: Read-Only Table (subscriptions) - Authenticated can SELECT
       const subsA = await tx`SELECT id, plan FROM public.subscriptions`;
       assert.equal(subsA.length, 1);
       assert.equal(subsA[0].plan, 'pro');
 
-      // Test 4.7: Inactive user cannot read any rows
+      // Test 4.10: Inactive user cannot read any rows
       await tx`SELECT set_config('request.jwt.claim.sub', ${userInactiveId}, true)`;
       const inactiveProducts = await tx`SELECT id FROM public.products`;
       assert.equal(inactiveProducts.length, 0);
@@ -207,59 +246,77 @@ describe("Sprint 3 Multi-Tenant PostgreSQL Real Integration Tests", () => {
       // Switch back to User A
       await tx`SELECT set_config('request.jwt.claim.sub', ${userAId}, true)`;
 
-      // Test 4.8: Negative test - Cross-tenant INSERT into Tenant B rejected
+      // Test 4.11: Negative test - Cross-tenant INSERT into Tenant B rejected
       await assert.rejects(async () => {
         await tx.savepoint(async (sp) => {
           await sp`
-            INSERT INTO public.products (tenant_id, title, price, cost)
-            VALUES (${tenantB.id}, 'Injected Cross Product', 999, 100)
+            INSERT INTO public.products (tenant_id, meli_item_id, title, price, cost)
+            VALUES (${tenantB.id}, 'MLA-INJECTED', 'Injected Cross Product', 999, 100)
           `;
         });
       }, "Must reject cross-tenant insert");
 
-      // Test 4.9: Negative test - Direct write to Read-Only table (subscriptions) rejected
+      // Test 4.12: Negative test - Cross-tenant Parent/Child Reference rejected
+      // (Attempting to insert a shipment for Tenant A pointing to Order B of Tenant B)
+      await assert.rejects(async () => {
+        await tx.savepoint(async (sp) => {
+          await sp`
+            INSERT INTO public.shipments (tenant_id, order_id, status)
+            VALUES (${tenantA.id}, ${orderB.id}, 'injected_cross_shipment')
+          `;
+        });
+      }, "Must reject child record referencing parent of a different tenant");
+
+      // Test 4.13: Negative test - Direct write to Read-Only table (subscriptions) rejected
       await assert.rejects(async () => {
         await tx.savepoint(async (sp) => {
           await sp`
             INSERT INTO public.subscriptions (tenant_id, plan, status)
-            VALUES (${tenantA.id}, 'enterprise', 'active')
+            VALUES (${tenantA.id}, 'ultra', 'active')
           `;
         });
       }, "Must reject direct insert into subscriptions for authenticated");
 
-      // Test 4.10: Negative test - Column privilege escalation (profiles.role) rejected
+      // Test 4.14: Negative test - Column privilege escalation (profiles.role) rejected
       await assert.rejects(async () => {
         await tx.savepoint(async (sp) => {
-          await sp`UPDATE public.profiles SET role = 'superadmin' WHERE id = ${userAId}`;
+          await sp`UPDATE public.profiles SET role = 'owner'::public.user_role WHERE id = ${userAId}`;
         });
       }, "Must reject update to revoked column 'role' on profiles");
 
-      // Test 4.11: Negative test - Column privilege escalation (tenants.metadata) rejected
+      // Test 4.15: Negative test - Column privilege escalation (tenants.metadata) rejected
       await assert.rejects(async () => {
         await tx.savepoint(async (sp) => {
           await sp`UPDATE public.tenants SET metadata = '{"admin": true}'::jsonb WHERE id = ${tenantA.id}`;
         });
       }, "Must reject direct update to metadata on tenants");
 
-      // Test 4.12: Negative test - Token column reading on meli_accounts rejected
+      // Test 4.16: Negative test - Token column reading on meli_accounts rejected
       await assert.rejects(async () => {
         await tx.savepoint(async (sp) => {
           await sp`SELECT access_token FROM public.meli_accounts`;
         });
       }, "Must reject SELECT access_token from meli_accounts for authenticated");
 
-      // Test 4.13: Negative test - Accessing backend-only table (tenant_feature_flags) rejected
+      // Test 4.17: Negative test - Token column reading on whatsapp_numbers rejected
+      await assert.rejects(async () => {
+        await tx.savepoint(async (sp) => {
+          await sp`SELECT access_token FROM public.whatsapp_numbers`;
+        });
+      }, "Must reject SELECT access_token from whatsapp_numbers for authenticated");
+
+      // Test 4.18: Negative test - Accessing backend-only table (tenant_feature_flags) rejected
       await assert.rejects(async () => {
         await tx.savepoint(async (sp) => {
           await sp`SELECT * FROM public.tenant_feature_flags`;
         });
       }, "Must reject SELECT from backend-only table tenant_feature_flags");
 
-      // Test 4.14: Switch to service_role - Bypasses RLS and can access backend tables
+      // Test 4.19: Switch to service_role - Bypasses RLS and can access backend tables
       await tx`SET LOCAL ROLE service_role`;
-      const flagsAdmin = await tx`SELECT id, flag_name FROM public.tenant_feature_flags`;
+      const flagsAdmin = await tx`SELECT id, flag_key, enabled FROM public.tenant_feature_flags`;
       assert.equal(flagsAdmin.length, 1);
-      assert.equal(flagsAdmin[0].flag_name, 'strict_tenant_authorization');
+      assert.equal(flagsAdmin[0].flag_key, 'strict_tenant_authorization');
 
       // Throw rollback so integration tests leave zero residue
       throw new Error("ROLLBACK_TEST_TRANSACTION");

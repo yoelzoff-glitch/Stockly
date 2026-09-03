@@ -1,36 +1,53 @@
--- SPRINT 3 — MIGRACIÓN C: ACTIVACIÓN DE RLS, PRIVILEGIOS DE COLUMNAS Y HARDENING
--- PREFLIGHT:
--- Requiere haber ejecutado las migraciones A y B.
+-- SPRINT 3 — MIGRACIÓN C: ACTIVACIÓN DE RLS Y PRIVILEGIOS DE COLUMNAS POR LOTES
+-- PREFLIGHT: Requiere haber ejecutado 20260903000000_sprint03_a_foundations.sql y 20260903000001_sprint03_b_policies.sql
 
 DO $$
 DECLARE
   tbl text;
-  -- LOTE 1: Configuración y Cuentas (Base del tenant)
-  batch_1 text[] := ARRAY['profiles', 'tenants', 'subscriptions', 'subscription_usage', 'plans_config'];
-
-  -- LOTE 2: Operaciones y Ventas Principales
-  batch_2 text[] := ARRAY['products', 'orders', 'order_items', 'shipments', 'order_cancellations', 'monthly_expenses', 'inventory_items', 'inventory_movements', 'purchase_orders', 'purchase_order_items'];
-
-  -- LOTE 3: Dominio Secundario y Automatizaciones
-  batch_3 text[] := ARRAY['messages', 'alerts', 'ai_actions', 'action_workflows', 'workflow_steps', 'price_adjustment_workflows', 'price_adjustment_details', 'product_components', 'product_sku_components', 'product_extra_costs', 'product_price_history', 'stock_movements', 'promotions', 'promotion_items', 'coupons', 'tenant_progress', 'tenant_preferences', 'competition_snapshots', 'conversation_sessions', 'audit_logs'];
-
-  -- LOTE 4: Integraciones
-  batch_4 text[] := ARRAY['meli_accounts', 'whatsapp_numbers'];
 BEGIN
 
   --------------------------------------------------------------------------------
-  -- 1. ACTIVACIÓN DE RLS POR LOTES DE DOMINIO
+  -- LOTE 1: CONFIGURACIÓN, CUENTAS Y BILLING (5 Tablas)
   --------------------------------------------------------------------------------
-  FOREACH tbl IN ARRAY (batch_1 || batch_2 || batch_3 || batch_4)
+  FOREACH tbl IN ARRAY ARRAY['profiles', 'tenants', 'subscriptions', 'subscription_usage', 'plans_config']
   LOOP
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
       EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
-      EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', tbl);
     END IF;
   END LOOP;
 
   --------------------------------------------------------------------------------
-  -- 2. HARDENING DE PROFILES: BLOQUEO DE ESCALADA DE PRIVILEGIOS
+  -- LOTE 2: OPERACIONES, VENTAS Y CATÁLOGO (10 Tablas)
+  --------------------------------------------------------------------------------
+  FOREACH tbl IN ARRAY ARRAY['products', 'orders', 'order_items', 'shipments', 'order_cancellations', 'monthly_expenses', 'inventory_items', 'inventory_movements', 'purchase_orders', 'purchase_order_items']
+  LOOP
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
+    END IF;
+  END LOOP;
+
+  --------------------------------------------------------------------------------
+  -- LOTE 3: AUTOMATIZACIONES, ALERTAS Y DOMINIO SECUNDARIO (21 Tablas)
+  --------------------------------------------------------------------------------
+  FOREACH tbl IN ARRAY ARRAY['messages', 'alert_rules', 'alerts', 'ai_actions', 'action_workflows', 'workflow_steps', 'price_adjustment_workflows', 'price_adjustment_details', 'product_components', 'product_sku_components', 'product_extra_costs', 'product_price_history', 'stock_movements', 'promotions', 'promotion_items', 'coupons', 'tenant_progress', 'tenant_preferences', 'competition_snapshots', 'conversation_sessions', 'audit_logs']
+  LOOP
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
+    END IF;
+  END LOOP;
+
+  --------------------------------------------------------------------------------
+  -- LOTE 4: INTEGRACIONES Y HARDENING DE SECRETOS (2 Tablas)
+  --------------------------------------------------------------------------------
+  FOREACH tbl IN ARRAY ARRAY['meli_accounts', 'whatsapp_numbers']
+  LOOP
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
+    END IF;
+  END LOOP;
+
+  --------------------------------------------------------------------------------
+  -- 5. HARDENING DE PROFILES: BLOQUEO DE ESCALADA DE PRIVILEGIOS
   --------------------------------------------------------------------------------
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'profiles') THEN
     REVOKE UPDATE ON public.profiles FROM authenticated, anon;
@@ -38,7 +55,7 @@ BEGIN
   END IF;
 
   --------------------------------------------------------------------------------
-  -- 3. HARDENING DE TENANTS: BLOQUEO DE CAMPOS ADMINISTRATIVOS Y METADATA
+  -- 6. HARDENING DE TENANTS: BLOQUEO DE CAMPOS ADMINISTRATIVOS Y METADATA
   --------------------------------------------------------------------------------
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenants') THEN
     REVOKE UPDATE ON public.tenants FROM authenticated, anon;
@@ -46,22 +63,22 @@ BEGIN
   END IF;
 
   --------------------------------------------------------------------------------
-  -- 4. HARDENING DE TOKENS Y SECRETOS EN INTEGRACIONES
+  -- 7. HARDENING DE TOKENS Y SECRETOS EN INTEGRACIONES
   --------------------------------------------------------------------------------
-  -- Mercado Libre: Revocar SELECT general y conceder únicamente columnas seguras
+  -- Mercado Libre: Revocar SELECT general y conceder únicamente columnas canónicas seguras
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'meli_accounts') THEN
     REVOKE SELECT ON public.meli_accounts FROM authenticated, anon;
-    GRANT SELECT (id, tenant_id, meli_user_id, nickname, seller_id, status, token_expires_at, sync_error, last_success_refresh, created_at, updated_at) ON public.meli_accounts TO authenticated;
+    GRANT SELECT (id, tenant_id, meli_user_id, nickname, site_id, status, token_expires_at, sync_error, last_success_refresh, last_sync_at, metadata, created_at, updated_at) ON public.meli_accounts TO authenticated;
   END IF;
 
-  -- WhatsApp: Revocar SELECT general y conceder únicamente columnas seguras (sin access_token ni secretos)
+  -- WhatsApp: Revocar SELECT general y conceder únicamente columnas canónicas seguras
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'whatsapp_numbers') THEN
     REVOKE SELECT ON public.whatsapp_numbers FROM authenticated, anon;
-    GRANT SELECT (id, tenant_id, phone_number, status, display_name, created_at, updated_at) ON public.whatsapp_numbers TO authenticated;
+    GRANT SELECT (id, tenant_id, phone_number, provider, provider_phone_id, status, metadata, created_at, updated_at) ON public.whatsapp_numbers TO authenticated;
   END IF;
 
   --------------------------------------------------------------------------------
-  -- 5. TABLAS BACKEND-ONLY / INFRAESTRUCTURA (CATEGORÍA C)
+  -- 8. TABLAS BACKEND-ONLY / INFRAESTRUCTURA (2 Tablas)
   --------------------------------------------------------------------------------
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenant_feature_flags') THEN
     ALTER TABLE public.tenant_feature_flags ENABLE ROW LEVEL SECURITY;

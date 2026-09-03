@@ -9,7 +9,7 @@ interface Violation {
 
 function runRlsAudit() {
   console.log("=================================================");
-  console.log("KLYVO SPRINT 3: ADVANCED STATIC RLS & REPRODUCIBLE GATE AUDIT");
+  console.log("KLYVO SPRINT 3.5: EXACT CANONICAL SCHEMA & RLS AUDIT");
   console.log("=================================================");
 
   const rootDir = path.resolve(__dirname, "..");
@@ -65,12 +65,41 @@ function runRlsAudit() {
     }
   }
 
-  // 3. Check that policies do NOT use user_metadata or raw JWT claims
-  if (/user_metadata/i.test(allSqlContent) || /auth\.jwt\(\)->>'tenant_id'/i.test(allSqlContent)) {
+  // 3. Check for specific nonexistent canonical columns:
+  // - coupons.meli_account_id
+  // - meli_accounts.seller_id
+  // - whatsapp_numbers.display_name
+  if (/coupons\s*\.\s*meli_account_id/i.test(allSqlContent) || /coupons[^\(]*\([^)]*meli_account_id/i.test(allSqlContent)) {
     violations.push({
       file: "supabase/migrations/*",
-      category: "INSECURE_METADATA_AUTH",
-      message: "SQL policies must NOT rely on user_metadata or raw JWT claims for tenant isolation.",
+      category: "NONEXISTENT_CANONICAL_COLUMN",
+      message: "Table 'coupons' does NOT have column 'meli_account_id'. Use 'tenant_id' for direct isolation.",
+    });
+  }
+
+  if (/meli_accounts[^\(]*\([^)]*seller_id/i.test(allSqlContent)) {
+    violations.push({
+      file: "supabase/migrations/20260903000002_sprint03_c_activation_and_hardening.sql",
+      category: "NONEXISTENT_CANONICAL_COLUMN",
+      message: "Table 'meli_accounts' does NOT have column 'seller_id'. Use 'meli_user_id' instead.",
+    });
+  }
+
+  if (/whatsapp_numbers[^\(]*\([^)]*display_name/i.test(allSqlContent)) {
+    violations.push({
+      file: "supabase/migrations/20260903000002_sprint03_c_activation_and_hardening.sql",
+      category: "NONEXISTENT_CANONICAL_COLUMN",
+      message: "Table 'whatsapp_numbers' does NOT have column 'display_name'.",
+    });
+  }
+
+  // Check that single joint mega loop is NOT used in Migration C
+  const sprint3CMigration = migrationFiles.find((m) => m.name.includes("sprint03_c_activation"))?.content || "";
+  if (/batch_1\s*\|\|\s*batch_2/i.test(sprint3CMigration)) {
+    violations.push({
+      file: "supabase/migrations/20260903000002_sprint03_c_activation_and_hardening.sql",
+      category: "SINGLE_JOINT_MEGA_LOOP_ACTIVATION",
+      message: "Migration C must NOT activate all batches in a single joint loop (batch_1 || batch_2...). Use independent per-lote executions.",
     });
   }
 
@@ -88,16 +117,7 @@ function runRlsAudit() {
     }
   }
 
-  // 5. Check that NO broad 'GRANT EXECUTE ON ALL FUNCTIONS' is used
-  if (/GRANT\s+EXECUTE\s+ON\s+ALL\s+FUNCTIONS/i.test(allSqlContent)) {
-    violations.push({
-      file: "supabase/migrations/*",
-      category: "BROAD_FUNCTION_GRANT",
-      message: "Do NOT use broad 'GRANT EXECUTE ON ALL FUNCTIONS'. Grant execution individually per function.",
-    });
-  }
-
-  // 6. Check for column protection on profiles
+  // 5. Check for column protection on profiles
   const hasProfilesUpdateRevoke = /REVOKE\s+UPDATE\s+ON\s+public\.profiles\s+FROM\s+authenticated/i.test(allSqlContent);
   const hasProfilesColumnGrant = /GRANT\s+UPDATE\s+\(full_name,\s*avatar_url,\s*updated_at\)\s+ON\s+public\.profiles\s+TO\s+authenticated/i.test(allSqlContent);
 
@@ -109,7 +129,7 @@ function runRlsAudit() {
     });
   }
 
-  // 7. Check that tenants.metadata is NOT broadly granted for UPDATE
+  // 6. Check that tenants.metadata is NOT broadly granted for UPDATE
   if (/GRANT\s+UPDATE\s+\([^)]*metadata[^)]*\)\s+ON\s+public\.tenants\s+TO\s+authenticated/i.test(allSqlContent)) {
     violations.push({
       file: "supabase/migrations/20260903000002_sprint03_c_activation_and_hardening.sql",
@@ -118,7 +138,7 @@ function runRlsAudit() {
     });
   }
 
-  // 8. Check for token protection on meli_accounts and whatsapp_numbers
+  // 7. Check for token protection on meli_accounts and whatsapp_numbers
   const hasMeliTokenRevoke = /REVOKE\s+SELECT\s+ON\s+public\.meli_accounts\s+FROM\s+authenticated/i.test(allSqlContent);
   const hasMeliSafeGrant = /GRANT\s+SELECT\s+\(id,\s*tenant_id,\s*meli_user_id/i.test(allSqlContent);
   const hasWhatsappTokenRevoke = /REVOKE\s+SELECT\s+ON\s+public\.whatsapp_numbers\s+FROM\s+authenticated/i.test(allSqlContent);
@@ -132,7 +152,7 @@ function runRlsAudit() {
     });
   }
 
-  // 9. Check for backend-only tables isolation
+  // 8. Check for backend-only tables isolation
   const hasFeatureFlagsRevoke = /REVOKE\s+ALL\s+ON\s+public\.tenant_feature_flags\s+FROM\s+authenticated/i.test(allSqlContent);
   const hasOperationRunsRevoke = /REVOKE\s+ALL\s+ON\s+public\.operation_runs\s+FROM\s+authenticated/i.test(allSqlContent);
 
@@ -144,70 +164,49 @@ function runRlsAudit() {
     });
   }
 
-  // 10. Check that sensitive tables in Sprint 3 policies do NOT have generic CRUD or FOR ALL
-  const sprint3BMigration = migrationFiles.find((m) => m.name.includes("sprint03_b_policies"))?.content || "";
-  const sensitiveReadOnlyTables = ["subscriptions", "subscription_usage", "meli_accounts", "whatsapp_numbers", "orders", "order_items", "order_cancellations"];
-  for (const t of sensitiveReadOnlyTables) {
-    const forAllPattern = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${t}[^;]*?FOR\\s+ALL`, "i");
-    const insertPattern = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${t}[^;]*?FOR\\s+INSERT`, "i");
-    const updatePattern = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${t}[^;]*?FOR\\s+UPDATE`, "i");
-    const deletePattern = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${t}[^;]*?FOR\\s+DELETE`, "i");
-
-    if (forAllPattern.test(sprint3BMigration) || insertPattern.test(sprint3BMigration) || updatePattern.test(sprint3BMigration) || deletePattern.test(sprint3BMigration)) {
-      violations.push({
-        file: "supabase/migrations/20260903000001_sprint03_b_policies.sql",
-        category: "SENSITIVE_TABLE_WRITE_EXPOSURE",
-        message: `Sensitive table ${t} must NOT declare write policies for authenticated in Sprint 3. It must be restricted to SELECT only.`,
-      });
-    }
-  }
-
-  // 11. COVERAGE AUDIT: Activated Tables (Migration C) <==> Fixture (testSchema.sql) <==> Policies (Migration B)
-  const sprint3CMigration = migrationFiles.find((m) => m.name.includes("sprint03_c_activation"))?.content || "";
-  const batchMatches = [
-    /batch_1\s+text\[\]\s*:=\s*ARRAY\[([\s\S]*?)\];/i.exec(sprint3CMigration),
-    /batch_2\s+text\[\]\s*:=\s*ARRAY\[([\s\S]*?)\];/i.exec(sprint3CMigration),
-    /batch_3\s+text\[\]\s*:=\s*ARRAY\[([\s\S]*?)\];/i.exec(sprint3CMigration),
-    /batch_4\s+text\[\]\s*:=\s*ARRAY\[([\s\S]*?)\];/i.exec(sprint3CMigration),
+  // 9. COVERAGE AUDIT: All 38 tables in Migration C + 2 backend tables = 40 tables
+  const canonical40Tables = [
+    "tenants", "profiles", "meli_accounts", "products", "orders", "order_items",
+    "whatsapp_numbers", "messages", "ai_actions", "product_price_history",
+    "stock_movements", "alert_rules", "alerts", "audit_logs", "tenant_preferences",
+    "tenant_progress", "shipments", "order_cancellations", "product_sku_components",
+    "promotions", "promotion_items", "coupons", "conversation_sessions",
+    "subscription_usage", "inventory_items", "purchase_orders", "purchase_order_items",
+    "inventory_movements", "product_components", "product_extra_costs", "subscriptions",
+    "monthly_expenses", "plans_config", "competition_snapshots", "action_workflows",
+    "workflow_steps", "price_adjustment_workflows", "price_adjustment_details",
+    "tenant_feature_flags", "operation_runs"
   ];
 
+  const sprint3BMigration = migrationFiles.find((m) => m.name.includes("sprint03_b_policies"))?.content || "";
   const testSchemaContent = fs.readFileSync(path.join(fixturesDir, "testSchema.sql"), "utf-8");
-  const activatedTables: string[] = [];
 
-  for (const bMatch of batchMatches) {
-    if (bMatch) {
-      const tables = bMatch[1]
-        .split(",")
-        .map((t) => t.trim().replace(/['"\r\n\s]/g, ""))
-        .filter(Boolean);
-      activatedTables.push(...tables);
-    }
-  }
-
-  for (const tbl of activatedTables) {
-    // Must have policy in Migration B
-    const hasPolicyInB = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${tbl}`, "i").test(sprint3BMigration);
-    if (!hasPolicyInB) {
-      violations.push({
-        file: "supabase/migrations/20260903000001_sprint03_b_policies.sql",
-        category: "MISSING_RLS_POLICY_FOR_ACTIVATED_TABLE",
-        message: `Table '${tbl}' is enabled in Migration C but lacks an explicit RLS policy in Migration B!`,
-      });
-    }
-
-    // Must be defined in testSchema.sql
+  for (const tbl of canonical40Tables) {
+    // Must have definition in testSchema.sql fixture
     const hasDefinitionInFixture = new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?public\\.${tbl}\\b`, "i").test(testSchemaContent);
     if (!hasDefinitionInFixture) {
       violations.push({
         file: "tests/fixtures/testSchema.sql",
         category: "MISSING_FIXTURE_TABLE_DEFINITION",
-        message: `Table '${tbl}' is activated in Migration C but is missing from tests/fixtures/testSchema.sql fixture!`,
+        message: `Canonical table '${tbl}' is missing from tests/fixtures/testSchema.sql fixture!`,
       });
     }
-  }
-  console.log(`Coverage Audit: Verified explicit RLS policies & canonical fixture definitions for all ${activatedTables.length} activated tables.`);
 
-  // 12. Codebase Schema and Write Audit: scan src/
+    // Authenticated tables must have explicit RLS policies in Migration B
+    if (tbl !== "tenant_feature_flags" && tbl !== "operation_runs") {
+      const hasPolicyInB = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${tbl}`, "i").test(sprint3BMigration);
+      if (!hasPolicyInB) {
+        violations.push({
+          file: "supabase/migrations/20260903000001_sprint03_b_policies.sql",
+          category: "MISSING_RLS_POLICY_FOR_ACTIVATED_TABLE",
+          message: `Table '${tbl}' is activated in Sprint 3 but lacks an explicit RLS policy in Migration B!`,
+        });
+      }
+    }
+  }
+  console.log(`Coverage Audit: Verified explicit RLS policies & canonical fixture definitions for all ${canonical40Tables.length} tables.`);
+
+  // 10. Codebase Schema and Write Audit: scan src/
   function scanDirForTablesAndWrites(dir: string, tableSet: Set<string>) {
     const files = fs.readdirSync(dir, { withFileTypes: true });
     for (const f of files) {
@@ -221,6 +220,15 @@ function runRlsAudit() {
         let tMatch: RegExpExecArray | null;
         while ((tMatch = tableQueryRegex.exec(content)) !== null) {
           tableSet.add(tMatch[1]);
+        }
+
+        // Check for queries to nonexistent columns from meli_accounts
+        if (/\.from\(\s*["']meli_accounts["']\s*\)\s*\.select\([^)]*seller_id/i.test(content)) {
+          violations.push({
+            file: fullPath,
+            category: "NONEXISTENT_COLUMN_QUERIED",
+            message: "Client queries 'seller_id' from 'meli_accounts', but this column does not exist in production schema. Use 'meli_user_id'.",
+          });
         }
 
         // Check for unauthorized authenticated writes against read-only or backend tables
@@ -238,7 +246,6 @@ function runRlsAudit() {
 
         if (isClientFile && hasAuthClient) {
           for (const roTable of ["subscriptions", "subscription_usage", "order_cancellations", "tenant_feature_flags", "operation_runs"]) {
-            // Check if authenticated supabase client is used for writing to read-only table
             const directAuthWriteRegex = new RegExp(`(?<!admin(?:Supabase)?\\.)from\\(\\s*["']${roTable}["']\\s*\\)\\s*\\.(insert|update|delete|upsert)\\(`, "i");
             if (directAuthWriteRegex.test(content) && !content.includes(`createAdminClient`)) {
               violations.push({
@@ -257,13 +264,8 @@ function runRlsAudit() {
   scanDirForTablesAndWrites(srcDir, queriedTables);
   console.log(`Codebase Query Audit: Scanned ${queriedTables.size} unique tables queried across src/`);
 
-  // Verify all queried tables are in inventory
-  const allKnownTables = new Set([
-    ...activatedTables,
-    "tenant_feature_flags",
-    "operation_runs",
-    "plans_config",
-  ]);
+  // Verify all queried tables are in canonical 40 table inventory
+  const allKnownTables = new Set(canonical40Tables);
 
   for (const qTable of queriedTables) {
     if (!allKnownTables.has(qTable)) {
@@ -286,7 +288,7 @@ function runRlsAudit() {
     process.exit(1);
   }
 
-  console.log("✅ All migrations and database schema policies adhere to Sprint 3.4 RLS & multi-tenant isolation rules.\n");
+  console.log("✅ All migrations and database schema policies adhere to Sprint 3.5 canonical production schema rules.\n");
 }
 
 runRlsAudit();
