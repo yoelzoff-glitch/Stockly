@@ -12,7 +12,7 @@
     "audit:rls": "tsx scripts/audit-rls.ts",
     "test:rls:integration": "node -r ./tests/setup.cjs --import tsx --test tests/integration/multiTenantRls.test.ts",
     "verify:sprint2": "npm run typecheck && npm run test && npm run audit:auth",
-    "verify:sprint3": "npm run typecheck && npm run test && npm run audit:auth && npm run audit:rls && npm run build",
+    "verify:sprint3": "npm run typecheck && npm run test && npm run audit:auth && npm run audit:rls && npm run test:rls:integration && npm run build",
     "check:env": "tsx scripts/check-env.ts",
     "dev": "next dev",
     "build": "next build",

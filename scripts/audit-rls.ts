@@ -12,9 +12,23 @@ function runRlsAudit() {
   console.log("KLYVO SPRINT 3: ADVANCED STATIC RLS & COVERAGE AUDIT");
   console.log("=================================================");
 
-  const migrationsDir = path.resolve(__dirname, "../supabase/migrations");
-  const srcDir = path.resolve(__dirname, "../src");
+  const rootDir = path.resolve(__dirname, "..");
+  const migrationsDir = path.join(rootDir, "supabase/migrations");
+  const fixturesDir = path.join(rootDir, "tests/fixtures");
+  const srcDir = path.join(rootDir, "src");
+  const pkgJsonPath = path.join(rootDir, "package.json");
+
   const violations: Violation[] = [];
+
+  // 0. Verify package.json release gate scripts
+  const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, "utf-8"));
+  if (!pkg.scripts?.["verify:sprint3"]?.includes("test:rls:integration")) {
+    violations.push({
+      file: "package.json",
+      category: "RELEASE_GATE_MISSING_INTEGRATION_TEST",
+      message: "package.json 'verify:sprint3' script MUST execute 'npm run test:rls:integration' as a mandatory pre-deploy gate.",
+    });
+  }
 
   if (!fs.existsSync(migrationsDir)) {
     console.error("Migrations directory not found.");
@@ -97,7 +111,7 @@ function runRlsAudit() {
 
   // 7. Check for token protection on meli_accounts and whatsapp_numbers
   const hasMeliTokenRevoke = /REVOKE\s+SELECT\s+ON\s+public\.meli_accounts\s+FROM\s+authenticated/i.test(allSqlContent);
-  const hasMeliSafeGrant = /GRANT\s+SELECT\s+\(id,\s*tenant_id,\s*status/i.test(allSqlContent);
+  const hasMeliSafeGrant = /GRANT\s+SELECT\s+\(id,\s*tenant_id,\s*meli_user_id/i.test(allSqlContent);
   const hasWhatsappTokenRevoke = /REVOKE\s+SELECT\s+ON\s+public\.whatsapp_numbers\s+FROM\s+authenticated/i.test(allSqlContent);
   const hasWhatsappSafeGrant = /GRANT\s+SELECT\s+\(id,\s*tenant_id,\s*phone_number/i.test(allSqlContent);
 
@@ -139,9 +153,10 @@ function runRlsAudit() {
     }
   }
 
-  // 10. COVERAGE AUDIT: 100% of tables activated in Migration C MUST have explicit policies in Migration B
+  // 10. COVERAGE AUDIT: Activated Tables (Migration C) <==> Fixture (testSchema.sql) <==> Policies (Migration B)
   const sprint3CMigration = migrationFiles.find((m) => m.name.includes("sprint03_c_activation"))?.content || "";
   const arrayMatch = /all_tables\s+text\[\]\s*:=\s*ARRAY\[([\s\S]*?)\];/i.exec(sprint3CMigration);
+  const testSchemaContent = fs.readFileSync(path.join(fixturesDir, "testSchema.sql"), "utf-8");
 
   if (arrayMatch) {
     const activatedTables = arrayMatch[1]
@@ -150,6 +165,7 @@ function runRlsAudit() {
       .filter(Boolean);
 
     for (const tbl of activatedTables) {
+      // Must have policy in Migration B
       const hasPolicyInB = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${tbl}`, "i").test(sprint3BMigration);
       if (!hasPolicyInB) {
         violations.push({
@@ -158,17 +174,28 @@ function runRlsAudit() {
           message: `Table '${tbl}' is enabled in Migration C but lacks an explicit RLS policy in Migration B!`,
         });
       }
+
+      // Must be defined in testSchema.sql
+      const hasDefinitionInFixture = new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?public\\.${tbl}\\b`, "i").test(testSchemaContent);
+      if (!hasDefinitionInFixture) {
+        violations.push({
+          file: "tests/fixtures/testSchema.sql",
+          category: "MISSING_FIXTURE_TABLE_DEFINITION",
+          message: `Table '${tbl}' is activated in Migration C but is missing from tests/fixtures/testSchema.sql fixture!`,
+        });
+      }
     }
-    console.log(`Coverage Audit: Verified explicit RLS policies for all ${activatedTables.length} activated tables.`);
+    console.log(`Coverage Audit: Verified explicit RLS policies & test fixture definitions for all ${activatedTables.length} activated tables.`);
   }
 
-  // 11. Codebase schema coverage: inspect src/ for .from("...") calls
-  function scanDirForTables(dir: string, tableSet: Set<string>) {
+  // 11. Codebase Schema and Token Grant Audit: scan src/
+  function scanDirForTablesAndTokens(dir: string, tableSet: Set<string>) {
     const files = fs.readdirSync(dir, { withFileTypes: true });
     for (const f of files) {
       const fullPath = path.join(dir, f.name);
+      const normalizedPath = fullPath.replace(/\\/g, "/");
       if (f.isDirectory()) {
-        scanDirForTables(fullPath, tableSet);
+        scanDirForTablesAndTokens(fullPath, tableSet);
       } else if (f.name.endsWith(".ts") || f.name.endsWith(".tsx")) {
         const content = fs.readFileSync(fullPath, "utf-8");
         const tableQueryRegex = /\.from\(\s*["']([a-zA-Z0-9_]+)["']\s*\)/g;
@@ -176,12 +203,30 @@ function runRlsAudit() {
         while ((tMatch = tableQueryRegex.exec(content)) !== null) {
           tableSet.add(tMatch[1]);
         }
+
+        // Check for unauthorized select of tokens via authenticated client
+        if (
+          !normalizedPath.includes("/admin") &&
+          !normalizedPath.includes("/api/") &&
+          !normalizedPath.includes("actions/promotions") &&
+          !normalizedPath.includes("actions.ts") &&
+          !normalizedPath.includes("/services/") &&
+          !normalizedPath.includes("/jobs/")
+        ) {
+          if (/\.from\(\s*["']meli_accounts["']\s*\)\s*\.select\([^)]*access_token/i.test(content)) {
+            violations.push({
+              file: fullPath,
+              category: "UNAUTHORIZED_TOKEN_QUERY",
+              message: "Client-facing code must not attempt to SELECT revoked column 'access_token' on meli_accounts.",
+            });
+          }
+        }
       }
     }
   }
 
   const queriedTables = new Set<string>();
-  scanDirForTables(srcDir, queriedTables);
+  scanDirForTablesAndTokens(srcDir, queriedTables);
   console.log(`Codebase Query Audit: Scanned ${queriedTables.size} unique tables queried across src/`);
 
   console.log(`Total Migrations Scanned: ${migrationFiles.length}`);
@@ -195,7 +240,7 @@ function runRlsAudit() {
     process.exit(1);
   }
 
-  console.log("✅ All migrations and database schema policies adhere to Sprint 3.2 RLS & multi-tenant isolation rules.\n");
+  console.log("✅ All migrations and database schema policies adhere to Sprint 3.3 RLS & multi-tenant isolation rules.\n");
 }
 
 runRlsAudit();

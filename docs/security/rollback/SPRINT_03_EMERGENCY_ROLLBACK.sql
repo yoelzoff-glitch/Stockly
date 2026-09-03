@@ -75,7 +75,7 @@ BEGIN
   END IF;
 
   --------------------------------------------------------------------------------
-  -- 2. RESTAURAR POLÍTICAS PREVIAS DE MONTHLY EXPENSES Y PLANS CONFIG
+  -- 2. RESTAURAR POLÍTICAS PREVIAS DEL SNAPSHOT REAL
   --------------------------------------------------------------------------------
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'monthly_expenses') THEN
     CREATE POLICY "Users can read their tenant's monthly expenses"
@@ -87,6 +87,18 @@ BEGIN
     CREATE POLICY "Anyone can read plans_config"
       ON public.plans_config FOR SELECT
       USING (true);
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'subscriptions') THEN
+    CREATE POLICY "Users can read their tenant's subscription"
+      ON public.subscriptions FOR SELECT
+      USING (tenant_id IN (SELECT tenant_id FROM public.profiles WHERE id = auth.uid()));
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'subscription_usage') THEN
+    CREATE POLICY "Users can read their tenant's usage"
+      ON public.subscription_usage FOR SELECT
+      USING (tenant_id IN (SELECT tenant_id FROM public.profiles WHERE id = auth.uid()));
   END IF;
 
   --------------------------------------------------------------------------------

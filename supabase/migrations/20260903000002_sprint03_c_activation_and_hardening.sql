@@ -52,7 +52,7 @@ BEGIN
   -- Mercado Libre: Revocar SELECT general y conceder únicamente columnas seguras
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'meli_accounts') THEN
     REVOKE SELECT ON public.meli_accounts FROM authenticated, anon;
-    GRANT SELECT (id, tenant_id, status, token_expires_at, sync_error, last_success_refresh) ON public.meli_accounts TO authenticated;
+    GRANT SELECT (id, tenant_id, meli_user_id, nickname, seller_id, status, token_expires_at, sync_error, last_success_refresh, created_at, updated_at) ON public.meli_accounts TO authenticated;
   END IF;
 
   -- WhatsApp: Revocar SELECT general y conceder únicamente columnas seguras (sin access_token ni secretos)

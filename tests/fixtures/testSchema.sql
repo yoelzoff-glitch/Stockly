@@ -44,9 +44,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 CREATE TABLE IF NOT EXISTS public.products (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  meli_item_id text,
   title text NOT NULL,
   price numeric DEFAULT 0,
   cost numeric DEFAULT 0,
+  stock integer DEFAULT 0,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
@@ -95,7 +97,9 @@ CREATE TABLE IF NOT EXISTS public.meli_accounts (
   token_expires_at timestamptz,
   sync_error text,
   last_success_refresh timestamptz,
-  created_at timestamptz DEFAULT now()
+  last_sync_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.whatsapp_numbers (
@@ -110,6 +114,14 @@ CREATE TABLE IF NOT EXISTS public.whatsapp_numbers (
   app_secret text,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  text text NOT NULL,
+  sender text,
+  created_at timestamptz DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.subscriptions (
@@ -186,6 +198,85 @@ CREATE TABLE IF NOT EXISTS public.price_adjustment_details (
   workflow_id uuid NOT NULL REFERENCES public.price_adjustment_workflows(id) ON DELETE CASCADE,
   item_id text NOT NULL,
   new_price numeric NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.product_components (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  parent_product_id uuid REFERENCES public.products(id) ON DELETE CASCADE,
+  component_id uuid REFERENCES public.products(id) ON DELETE CASCADE,
+  quantity numeric DEFAULT 1,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.product_sku_components (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  parent_sku text NOT NULL,
+  component_sku text NOT NULL,
+  quantity numeric DEFAULT 1,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.product_extra_costs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  product_id uuid REFERENCES public.products(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  amount numeric DEFAULT 0,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.product_price_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+  old_price numeric NOT NULL,
+  new_price numeric NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.stock_movements (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+  delta integer NOT NULL,
+  reason text,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.inventory_items (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  sku text,
+  quantity integer DEFAULT 0,
+  unit_cost numeric DEFAULT 0,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.inventory_movements (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  inventory_item_id uuid REFERENCES public.inventory_items(id) ON DELETE CASCADE,
+  delta integer NOT NULL,
+  reason text,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.purchase_orders (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  supplier text,
+  total_amount numeric DEFAULT 0,
+  status text DEFAULT 'draft',
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.purchase_order_items (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  purchase_order_id uuid NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
+  item_name text NOT NULL,
+  quantity integer DEFAULT 1,
+  unit_cost numeric DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS public.promotions (
