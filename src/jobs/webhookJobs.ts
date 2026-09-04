@@ -173,21 +173,30 @@ export const mercadopagoWebhookJob = inngest.createFunction(
         }
 
         const mappedStatus = status === "authorized" ? "active" : status === "cancelled" || status === "canceled" ? "cancelled" : "active";
+        const eventTimestamp = (subscription as any).last_modified || (subscription as any).date_created || new Date().toISOString();
 
-        // Atomic update of subscriptions and tenants.plan
-        await supabase.from("subscriptions").upsert({
-          tenant_id: tenantId,
-          plan: targetPlan,
-          status: mappedStatus,
-          mercadopago_subscription_id: subscription.id,
-          expires_at: expiresAt,
-          updated_at: new Date().toISOString(),
+        // Atomic update of subscriptions and tenants.plan via SECURITY DEFINER RPC
+        const { data: syncResult, error: syncError } = await supabase.rpc("sync_tenant_subscription", {
+          p_tenant_id: tenantId,
+          p_plan: targetPlan,
+          p_status: mappedStatus,
+          p_mercadopago_subscription_id: subscription.id,
+          p_expires_at: expiresAt,
+          p_event_timestamp: eventTimestamp,
         });
 
-        await supabase
-          .from("tenants")
-          .update({ plan: targetPlan })
-          .eq("id", tenantId);
+        if (syncError) {
+          throw new Error(`Failed to atomically sync tenant subscription: ${syncError.message}`);
+        }
+
+        if (syncResult && (syncResult as any).reason === "stale_event") {
+          logger.info({
+            event: "MP_WEBHOOK_STALE_EVENT_SKIPPED",
+            tenantId,
+            resourceId,
+            eventTimestamp,
+          });
+        }
       });
 
       if (eventId) {

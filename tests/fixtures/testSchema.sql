@@ -819,39 +819,9 @@ DECLARE
   v_current_usage integer;
   v_new_usage integer;
   v_existing_event record;
-  v_sub record;
   v_cfg record;
 BEGIN
   v_current_month := date_trunc('month', timezone('utc', now()))::date;
-
-  IF p_idempotency_key IS NOT NULL AND p_idempotency_key <> '' THEN
-    SELECT * INTO v_existing_event
-    FROM public.usage_events
-    WHERE tenant_id = p_tenant_id
-      AND metric = p_metric
-      AND idempotency_key = p_idempotency_key;
-
-    IF FOUND THEN
-      SELECT COALESCE(
-        CASE
-          WHEN p_metric = 'ai_credits_used' THEN ai_credits_used
-          WHEN p_metric = 'whatsapp_messages_used' THEN whatsapp_messages_used
-          WHEN p_metric = 'automation_actions_used' THEN automation_actions_used
-          ELSE 0
-        END, 0
-      ) INTO v_current_usage
-      FROM public.subscription_usage
-      WHERE tenant_id = p_tenant_id AND month = v_current_month;
-
-      RETURN jsonb_build_object(
-        'allowed', (v_existing_event.status = 'applied'),
-        'current_usage', COALESCE(v_current_usage, 0),
-        'limit', NULL,
-        'remaining', NULL,
-        'duplicate', true
-      );
-    END IF;
-  END IF;
 
   SELECT plan INTO v_plan
   FROM public.subscriptions
@@ -884,6 +854,37 @@ BEGIN
       ELSE
         CASE WHEN p_metric = 'ai_credits_used' THEN 500 WHEN p_metric = 'whatsapp_messages_used' THEN 300 ELSE 250 END
     END;
+  END IF;
+
+  IF p_idempotency_key IS NOT NULL AND p_idempotency_key <> '' THEN
+    SELECT * INTO v_existing_event
+    FROM public.usage_events
+    WHERE tenant_id = p_tenant_id
+      AND metric = p_metric
+      AND idempotency_key = p_idempotency_key;
+
+    IF FOUND THEN
+      SELECT COALESCE(
+        CASE
+          WHEN p_metric = 'ai_credits_used' THEN ai_credits_used
+          WHEN p_metric = 'whatsapp_messages_used' THEN whatsapp_messages_used
+          WHEN p_metric = 'automation_actions_used' THEN automation_actions_used
+          ELSE 0
+        END, 0
+      ) INTO v_current_usage
+      FROM public.subscription_usage
+      WHERE tenant_id = p_tenant_id AND month = v_current_month;
+
+      v_current_usage := COALESCE(v_current_usage, 0);
+
+      RETURN jsonb_build_object(
+        'allowed', (v_existing_event.status = 'applied'),
+        'current_usage', v_current_usage,
+        'limit', v_limit,
+        'remaining', GREATEST(0, v_limit - v_current_usage),
+        'duplicate', true
+      );
+    END IF;
   END IF;
 
   INSERT INTO public.subscription_usage (tenant_id, month, ai_credits_used, whatsapp_messages_used, automation_actions_used)
@@ -950,5 +951,116 @@ BEGIN
   );
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.consume_tenant_quota(uuid, text, integer, text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.consume_tenant_quota(uuid, text, integer, text, text, text) FROM anon;
+REVOKE ALL ON FUNCTION public.consume_tenant_quota(uuid, text, integer, text, text, text) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.consume_tenant_quota(uuid, text, integer, text, text, text) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.sync_tenant_subscription(
+  p_tenant_id uuid,
+  p_plan text,
+  p_status text,
+  p_mercadopago_subscription_id text DEFAULT NULL,
+  p_expires_at timestamp with time zone DEFAULT NULL,
+  p_event_timestamp timestamp with time zone DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_current_sub record;
+  v_tenant record;
+  v_effective_expires_at timestamp with time zone;
+  v_updated_at timestamp with time zone;
+  v_norm_plan text;
+BEGIN
+  SELECT * INTO v_tenant
+  FROM public.tenants
+  WHERE id = p_tenant_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Tenant % does not exist', p_tenant_id;
+  END IF;
+
+  v_norm_plan := p_plan;
+  IF v_norm_plan = 'business' THEN v_norm_plan := 'ultra'; END IF;
+  IF v_norm_plan = 'free' THEN v_norm_plan := 'starter'; END IF;
+
+  SELECT * INTO v_current_sub
+  FROM public.subscriptions
+  WHERE tenant_id = p_tenant_id
+  FOR UPDATE;
+
+  IF v_current_sub.id IS NOT NULL AND p_event_timestamp IS NOT NULL AND v_current_sub.updated_at IS NOT NULL THEN
+    IF p_event_timestamp < v_current_sub.updated_at THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'reason', 'stale_event',
+        'current_plan', v_current_sub.plan,
+        'current_status', v_current_sub.status,
+        'expires_at', v_current_sub.expires_at,
+        'updated_at', v_current_sub.updated_at
+      );
+    END IF;
+  END IF;
+
+  v_effective_expires_at := p_expires_at;
+  IF v_current_sub.id IS NOT NULL AND v_current_sub.mercadopago_subscription_id = p_mercadopago_subscription_id AND v_current_sub.plan = v_norm_plan AND v_current_sub.status = p_status THEN
+    IF v_current_sub.expires_at IS NOT NULL AND (p_expires_at IS NULL OR p_expires_at = v_current_sub.expires_at) THEN
+      v_effective_expires_at := v_current_sub.expires_at;
+    END IF;
+  END IF;
+
+  v_updated_at := COALESCE(p_event_timestamp, timezone('utc', now()));
+
+  INSERT INTO public.subscriptions (
+    tenant_id,
+    plan,
+    status,
+    mercadopago_subscription_id,
+    expires_at,
+    updated_at
+  )
+  VALUES (
+    p_tenant_id,
+    v_norm_plan,
+    p_status,
+    p_mercadopago_subscription_id,
+    v_effective_expires_at,
+    v_updated_at
+  )
+  ON CONFLICT (tenant_id) DO UPDATE SET
+    plan = EXCLUDED.plan,
+    status = EXCLUDED.status,
+    mercadopago_subscription_id = EXCLUDED.mercadopago_subscription_id,
+    expires_at = EXCLUDED.expires_at,
+    updated_at = EXCLUDED.updated_at;
+
+  UPDATE public.tenants
+  SET plan = v_norm_plan::public.tenant_plan,
+      updated_at = timezone('utc', now())
+  WHERE id = p_tenant_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'tenant_id', p_tenant_id,
+    'plan', v_norm_plan,
+    'status', p_status,
+    'mercadopago_subscription_id', p_mercadopago_subscription_id,
+    'expires_at', v_effective_expires_at,
+    'updated_at', v_updated_at
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.sync_tenant_subscription(uuid, text, text, text, timestamptz, timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.sync_tenant_subscription(uuid, text, text, text, timestamptz, timestamptz) FROM anon;
+REVOKE ALL ON FUNCTION public.sync_tenant_subscription(uuid, text, text, text, timestamptz, timestamptz) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.sync_tenant_subscription(uuid, text, text, text, timestamptz, timestamptz) TO service_role;
+
 
 

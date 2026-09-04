@@ -148,6 +148,36 @@ describe("Sprint 5: Billing Entitlements, Event Keys & Access Modes Unit Tests",
       assert.notEqual(key1, key2);
     });
 
+    test("Mercado Libre fallback without sent: varying attempts and received does not alter event key", () => {
+      const payloadRetry1 = {
+        user_id: "123456",
+        topic: "items",
+        resource: "/items/MLA12345678",
+        attempts: 1,
+        received: "2026-09-04T12:00:00.000Z",
+      };
+      const payloadRetry2 = {
+        user_id: "123456",
+        topic: "items",
+        resource: "/items/MLA12345678",
+        attempts: 2,
+        received: "2026-09-04T12:01:00.000Z",
+      };
+
+      const getMeliEventKey = (payload: any) => {
+        const resourceClean = payload.resource.replace(/\//g, "_");
+        const deliveryIdentifier = payload.sent
+          ? payload.sent
+          : hashWebhookPayload({ userId: payload.user_id, topic: payload.topic, resource: payload.resource }).slice(0, 16);
+        return `meli_${payload.user_id}_${payload.topic}_${resourceClean}_${deliveryIdentifier}`;
+      };
+
+      const key1 = getMeliEventKey(payloadRetry1);
+      const key2 = getMeliEventKey(payloadRetry2);
+
+      assert.equal(key1, key2, "Retries with different attempts/received must generate the exact same invariant event key");
+    });
+
     test("Mercado Pago: prioritized unique notification ID deduplicates exact notification", () => {
       const payload = {
         id: "1099887766",
@@ -183,3 +213,5 @@ describe("Sprint 5: Billing Entitlements, Event Keys & Access Modes Unit Tests",
     });
   });
 });
+
+

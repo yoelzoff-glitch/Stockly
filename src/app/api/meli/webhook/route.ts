@@ -116,12 +116,12 @@ export async function POST(req: NextRequest) {
 
     const tenantId = account.tenant_id;
 
-    // 5. Atomic Idempotency Claim with Delivery Identification
+    // 5. Atomic Idempotency Claim with Invariant Delivery Identification
     const resourceClean = resource.replace(/\//g, "_");
-    const deliveryTimestamp = payload.sent || payload.received;
-    const deliveryIdentifier = deliveryTimestamp
-      ? deliveryTimestamp
-      : hashWebhookPayload({ userId, topic, resource, attempts: payload.attempts }).slice(0, 16);
+    // Use `sent` if provided (stable per notification emission); otherwise hash invariant fields (excluding volatile attempts/received)
+    const deliveryIdentifier = payload.sent
+      ? payload.sent
+      : hashWebhookPayload({ userId, topic, resource }).slice(0, 16);
     const eventKey = `meli_${userId}_${topic}_${resourceClean}_${deliveryIdentifier}`;
 
     const claim = await claimWebhookEvent({
