@@ -124,6 +124,15 @@ export async function runBusinessAgent({
     return {
       response: "Alcanzaste el límite mensual de consultas de Inteligencia Artificial. Por favor, actualiza tu plan en la sección de Facturación para seguir operando.",
       product_id: null,
+      duplicate: false,
+    };
+  }
+
+  if (quotaReservation.duplicate) {
+    return {
+      response: "Solicitud duplicada: la consulta ya fue procesada anteriormente.",
+      product_id: null,
+      duplicate: true,
     };
   }
 

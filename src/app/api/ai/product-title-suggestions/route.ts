@@ -6,6 +6,7 @@ import { consumeQuota } from "@/lib/billing/quotaService";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
+import { createScopedIdempotencyKey } from "@/lib/security/idempotency";
 
 export async function POST(req: Request) {
   let correlationId: string | undefined;
@@ -50,7 +51,14 @@ export async function POST(req: Request) {
     }
 
     // Atomic quota reservation for 5 AI credits
-    const idempotencyKey = `ai_title_sug_${product.id}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const customKey = req.headers.get("x-idempotency-key") || body?.idempotencyKey;
+    const idempotencyKey = createScopedIdempotencyKey({
+      prefix: "ai_title_sug",
+      tenantId,
+      userId: context.userId,
+      payload: { product_id: product.id },
+      customKey,
+    });
     const quotaReservation = await consumeQuota({
       tenantId,
       metric: "ai_credits_used",
@@ -64,6 +72,13 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "Límite mensual de consultas de Inteligencia Artificial alcanzado para tu plan." },
         { status: 429, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
+
+    if (quotaReservation.duplicate) {
+      return NextResponse.json(
+        { suggestions: [], duplicate: true },
+        { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
       );
     }
 

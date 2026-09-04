@@ -4,6 +4,7 @@ import { preparePriceChangeAction, prepareStockChangeAction, prepareStatusChange
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { consumeQuota } from "@/lib/billing/quotaService";
+import { createScopedIdempotencyKey } from "@/lib/security/idempotency";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { logger } from "@/lib/errors/logger";
 
@@ -120,7 +121,14 @@ CONTEXTO DEL PRODUCTO:
       }
     ];
 
-    const idempotencyKey = `ai_product_chat_${product.id}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const customKey = request.headers.get("x-idempotency-key") || body?.idempotencyKey;
+    const idempotencyKey = createScopedIdempotencyKey({
+      prefix: "ai_prod_chat",
+      tenantId,
+      userId: context.userId,
+      payload: { product_id: product.id, message: message.trim() },
+      customKey,
+    });
     const quotaReservation = await consumeQuota({
       tenantId,
       metric: "ai_credits_used",
@@ -134,6 +142,13 @@ CONTEXTO DEL PRODUCTO:
       return NextResponse.json(
         { error: "Límite mensual de consultas de Inteligencia Artificial alcanzado para tu plan." },
         { status: 429, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
+
+    if (quotaReservation.duplicate) {
+      return NextResponse.json(
+        { response: "Solicitud duplicada: la consulta ya fue procesada anteriormente.", duplicate: true },
+        { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
       );
     }
 

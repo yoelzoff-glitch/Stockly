@@ -6,6 +6,7 @@ import { logger } from "@/lib/errors/logger";
 import { AppError } from "@/lib/errors/AppError";
 import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
+import { createScopedIdempotencyKey } from "@/lib/security/idempotency";
 
 export async function POST(request: Request) {
   let correlationId: string | undefined;
@@ -56,7 +57,15 @@ export async function POST(request: Request) {
     }
 
     // 4. Run the AI Agent with correlationId and idempotencyKey
-    const idempotencyKey = `ai_chat_${tenantId}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const customKey = request.headers.get("x-idempotency-key") || body?.idempotencyKey;
+    const idempotencyKey = createScopedIdempotencyKey({
+      prefix: "ai_chat",
+      tenantId,
+      userId: context.userId,
+      payload: message.trim(),
+      customKey,
+    });
+
     const aiResult = await runBusinessAgent({
       tenantId,
       userMessage: message.trim(),
@@ -68,29 +77,32 @@ export async function POST(request: Request) {
     // Handle string fallback just in case some logic still returns a string
     const aiResponse = typeof aiResult === "string" ? aiResult : aiResult.response;
     const productId = typeof aiResult === "string" ? null : aiResult.product_id;
+    const isDuplicate = typeof aiResult === "string" ? false : aiResult.duplicate === true;
 
-    // 5. Save outbound message
-    const { error: outboundError } = await adminSupabase.from("messages").insert({
-      tenant_id: tenantId,
-      channel: "whatsapp", // Mapped to whatsapp due to database enum constraints
-      direction: "outbound",
-      text: aiResponse,
-      product_id: productId,
-      raw_payload: {},
-      created_at: new Date().toISOString(),
-    });
-    if (outboundError) {
-      logger.error({
-        event: "AI_CHAT_OUTBOUND_INSERT_ERROR",
-        correlationId,
-        tenantId,
-        error: outboundError,
-        message: "Error inserting outbound chat message",
+    // 5. Save outbound message (only if not duplicate)
+    if (!isDuplicate) {
+      const { error: outboundError } = await adminSupabase.from("messages").insert({
+        tenant_id: tenantId,
+        channel: "whatsapp", // Mapped to whatsapp due to database enum constraints
+        direction: "outbound",
+        text: aiResponse,
+        product_id: productId,
+        raw_payload: {},
+        created_at: new Date().toISOString(),
       });
+      if (outboundError) {
+        logger.error({
+          event: "AI_CHAT_OUTBOUND_INSERT_ERROR",
+          correlationId,
+          tenantId,
+          error: outboundError,
+          message: "Error inserting outbound chat message",
+        });
+      }
     }
 
     return NextResponse.json(
-      { response: aiResponse },
+      { response: aiResponse, duplicate: isDuplicate },
       { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
     );
   } catch (error: any) {

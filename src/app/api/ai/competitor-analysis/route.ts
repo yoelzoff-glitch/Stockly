@@ -3,6 +3,7 @@ import { getGeminiModel } from "@/lib/ai/gemini";
 import { meliFetch } from "@/services/meli/client";
 import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { consumeQuota } from "@/lib/billing/quotaService";
+import { createScopedIdempotencyKey } from "@/lib/security/idempotency";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 
 export async function POST(request: Request) {
@@ -248,7 +249,14 @@ export async function POST(request: Request) {
       };
 
       // Atomic quota reservation before invoking Gemini
-      const idempotencyKey = `ai_comp_analysis_${successfulId}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const customKey = request.headers.get("x-idempotency-key") || body?.idempotencyKey;
+      const idempotencyKey = createScopedIdempotencyKey({
+        prefix: "ai_comp_analysis",
+        tenantId,
+        userId: context.userId,
+        payload: { item_id: successfulId, url },
+        customKey,
+      });
       const quotaReservation = await consumeQuota({
         tenantId,
         metric: "ai_credits_used",
@@ -262,6 +270,13 @@ export async function POST(request: Request) {
         return NextResponse.json(
           { error: "Límite mensual de consultas de Inteligencia Artificial alcanzado para tu plan." },
           { status: 429, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+        );
+      }
+
+      if (quotaReservation.duplicate) {
+        return NextResponse.json(
+          { analysis: { duplicate: true, message: "Solicitud duplicada ya procesada" }, duplicate: true },
+          { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
         );
       }
 

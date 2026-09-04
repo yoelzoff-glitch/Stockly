@@ -63,7 +63,40 @@ export async function runSyntheticPilotSoakTest(profileArg?: "ci" | "full", dura
 
   const startTime = Date.now();
   const targetEndTime = startTime + targetDurationMinutes * 60 * 1000;
-  const latencies: number[] = [];
+  
+  // Bounded Histogram & Reservoir Sampling for O(1) memory overhead
+  const MAX_HISTOGRAM_MS = 5000;
+  const latencyHistogram = new Uint32Array(MAX_HISTOGRAM_MS + 1);
+  const RESERVOIR_CAPACITY = 10000;
+  const latencyReservoir = new Uint32Array(RESERVOIR_CAPACITY);
+  let reservoirCount = 0;
+
+  function recordLatency(ms: number) {
+    const bounded = Math.min(Math.max(0, Math.round(ms)), MAX_HISTOGRAM_MS);
+    latencyHistogram[bounded]++;
+
+    if (reservoirCount < RESERVOIR_CAPACITY) {
+      latencyReservoir[reservoirCount] = bounded;
+    } else {
+      const j = Math.floor(Math.random() * (reservoirCount + 1));
+      if (j < RESERVOIR_CAPACITY) {
+        latencyReservoir[j] = bounded;
+      }
+    }
+    reservoirCount++;
+  }
+
+  function calculatePercentiles(): { p50: number; p95: number; p99: number } {
+    if (reservoirCount === 0) return { p50: 0, p95: 0, p99: 0 };
+    const sampleSize = Math.min(reservoirCount, RESERVOIR_CAPACITY);
+    const sorted = Array.from(latencyReservoir.subarray(0, sampleSize)).sort((a, b) => a - b);
+    return {
+      p50: sorted[Math.floor(sampleSize * 0.5)] || 0,
+      p95: sorted[Math.floor(sampleSize * 0.95)] || 0,
+      p99: sorted[Math.floor(sampleSize * 0.99)] || 0,
+    };
+  }
+
   let totalRequests = 0;
   let successfulRequests = 0;
   let failedRequests = 0;
@@ -191,7 +224,7 @@ export async function runSyntheticPilotSoakTest(profileArg?: "ci" | "full", dura
             } catch {
               failedRequests++;
             } finally {
-              latencies.push(Date.now() - tStart);
+              recordLatency(Date.now() - tStart);
             }
           })()
         );
@@ -217,7 +250,7 @@ export async function runSyntheticPilotSoakTest(profileArg?: "ci" | "full", dura
             } catch {
               failedRequests++;
             } finally {
-              latencies.push(Date.now() - tStart);
+              recordLatency(Date.now() - tStart);
             }
           })()
         );
@@ -245,7 +278,7 @@ export async function runSyntheticPilotSoakTest(profileArg?: "ci" | "full", dura
             } catch {
               failedRequests++;
             } finally {
-              latencies.push(Date.now() - tStart);
+              recordLatency(Date.now() - tStart);
             }
           })()
         );
@@ -266,7 +299,7 @@ export async function runSyntheticPilotSoakTest(profileArg?: "ci" | "full", dura
           } catch {
             failedRequests++;
           } finally {
-            latencies.push(Date.now() - tStart);
+            recordLatency(Date.now() - tStart);
           }
         })()
       );
@@ -288,7 +321,7 @@ export async function runSyntheticPilotSoakTest(profileArg?: "ci" | "full", dura
           } catch {
             failedRequests++;
           } finally {
-            latencies.push(Date.now() - tStart);
+            recordLatency(Date.now() - tStart);
           }
         })()
       );
@@ -344,12 +377,9 @@ export async function runSyntheticPilotSoakTest(profileArg?: "ci" | "full", dura
       WHERE status = 'queued'
     `;
 
-    latencies.sort((a, b) => a - b);
+    const { p50, p95, p99 } = calculatePercentiles();
     const durationSeconds = Math.round((Date.now() - startTime) / 1000);
     const throughputReqSec = durationSeconds > 0 ? Math.round((totalRequests / durationSeconds) * 10) / 10 : totalRequests;
-    const p50 = latencies[Math.floor(latencies.length * 0.5)] || 0;
-    const p95 = latencies[Math.floor(latencies.length * 0.95)] || 0;
-    const p99 = latencies[Math.floor(latencies.length * 0.99)] || 0;
     const memoryRssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
 
     const metrics: SoakMetrics = {
