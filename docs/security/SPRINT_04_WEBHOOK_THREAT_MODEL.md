@@ -60,11 +60,20 @@ This document defines the security threat model, cryptographic verification stan
   - Event Key Strategy: `mp_${topic}_${resourceId}_${ts || Date.now()}`.
 
 ### 3.3 Mercado Libre Webhook
-- **POST (Event Notification):**
-  - Payload: `{ topic, resource, user_id, application_id, attempts, sent, received }`
-  - Tenant Resolution: `user_id` mapped to `meli_accounts.meli_user_id`.
-  - Verification: Signature verification when configured (`x-signature` / `x-meli-signature`) + authenticated resource verification via `meliFetch`.
-  - Event Key Strategy: `meli_${topic}_${resource.replace(/\//g, '_')}_${received || sent || Date.now()}`.
+- **Official Documentation:** [Mercado Libre Notificaciones](https://developers.mercadolibre.com.ar/es_ar/notificaciones)
+- **Technical Contract & Payload:**
+  - Method: `POST`
+  - Payload schema: `{ topic: string, resource: string, user_id: number | string, application_id?: number | string, attempts?: number, sent?: string, received?: string }`
+  - Example: `{"resource": "/orders/20000000000", "user_id": 123456789, "topic": "orders_v2", "application_id": 987654321, "attempts": 1, "sent": "2026-09-04T12:00:00.000Z", "received": "2026-09-04T12:00:00.050Z"}`
+- **Cryptographic Signature Status:**
+  - Mercado Libre's official notification API does NOT send a cryptographic HMAC signature header in notification callbacks.
+  - No unofficial/invented HMAC algorithm is presented as an official signature. The signature validator explicitly flags `unsupported: true`.
+- **Authenticity & Security Strategy:**
+  1. The webhook handler enforces body size limits (512 KB), validates payload with Zod schema, resolves the tenant from `user_id`, and registers the event with atomic idempotency in `webhook_events`.
+  2. The webhook dispatches an asynchronous event to Inngest and returns an immediate `200 OK`.
+  3. The asynchronous worker performs an authenticated API request to `https://api.mercadolibre.com{resource}` using the tenant's valid OAuth `access_token` via `meliFetch`.
+  4. The worker validates that the fetched resource belongs to the tenant before executing any domain state modifications.
+- **Event Key Strategy:** `meli_${topic}_${resource.replace(/\//g, '_')}_${received || sent || Date.now()}`.
 
 ---
 

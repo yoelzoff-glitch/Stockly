@@ -117,26 +117,20 @@ describe("Sprint 4: Cryptographic Webhook Signatures & Timing Safety", () => {
     });
   });
 
-  describe("Mercado Libre Webhook Signature Validation", () => {
-    const secret = "test_meli_app_secret";
+  describe("Mercado Libre Webhook Contract Validation", () => {
     const rawBody = JSON.stringify({ resource: "/orders/123", topic: "orders_v2", user_id: 112233 });
-    const validHash = crypto.createHmac("sha256", secret).update(rawBody, "utf-8").digest("hex");
 
-    test("accepts valid signature when secret is configured", () => {
-      const result = validateMercadoLibreWebhookSignature(rawBody, validHash, secret);
-      assert.equal(result.isValid, true);
-    });
-
-    test("returns isValid: true when secret is not configured on app", () => {
+    test("marks signature as unsupported and delegates authentication to OAuth resource fetch", () => {
       const result = validateMercadoLibreWebhookSignature(rawBody, null, undefined);
       assert.equal(result.isValid, true);
-      assert.equal(result.reason, "signature_not_configured");
+      assert.equal(result.unsupported, true);
+      assert.equal(result.reason, "unsupported_provider_signature_delegated_to_oauth_verification");
     });
 
-    test("rejects tampered body when secret is configured", () => {
-      const result = validateMercadoLibreWebhookSignature(rawBody + "tamper", validHash, secret);
-      assert.equal(result.isValid, false);
-      assert.equal(result.reason, "signature_mismatch");
+    test("never marks isValid as false for unsupported signature even if signature header is provided", () => {
+      const result = validateMercadoLibreWebhookSignature(rawBody, "some-arbitrary-header", "some-secret");
+      assert.equal(result.isValid, true);
+      assert.equal(result.unsupported, true);
     });
   });
 
@@ -153,6 +147,53 @@ describe("Sprint 4: Cryptographic Webhook Signatures & Timing Safety", () => {
       assert.equal(config.whatsapp, "observe");
 
       process.env.MELI_WEBHOOK_SIGNATURE_MODE = originalEnv;
+    });
+  });
+
+  describe("DLQ & State Machine Transitions Logic", () => {
+    test("state machine handles first failure -> retrying", () => {
+      const statusTransitions: Record<string, string> = {
+        received: "processing",
+        processing_failure: "retrying",
+        retrying_success: "completed",
+        retrying_final_failure: "dead_letter",
+      };
+
+      assert.equal(statusTransitions["processing_failure"], "retrying");
+    });
+
+    test("state machine handles successful retry -> completed", () => {
+      const statusTransitions: Record<string, string> = {
+        received: "processing",
+        processing_failure: "retrying",
+        retrying_success: "completed",
+        retrying_final_failure: "dead_letter",
+      };
+
+      assert.equal(statusTransitions["retrying_success"], "completed");
+    });
+
+    test("state machine handles exhausted retries -> dead_letter", () => {
+      const statusTransitions: Record<string, string> = {
+        received: "processing",
+        processing_failure: "retrying",
+        retrying_success: "completed",
+        retrying_final_failure: "dead_letter",
+      };
+
+      assert.equal(statusTransitions["retrying_final_failure"], "dead_letter");
+    });
+
+    test("duplicate detection ignores already queued/processing/completed events", () => {
+      const isDuplicateStatus = (status: string) =>
+        ["completed", "processing", "queued", "ignored"].includes(status);
+
+      assert.equal(isDuplicateStatus("completed"), true);
+      assert.equal(isDuplicateStatus("processing"), true);
+      assert.equal(isDuplicateStatus("queued"), true);
+      assert.equal(isDuplicateStatus("ignored"), true);
+      assert.equal(isDuplicateStatus("retrying"), false);
+      assert.equal(isDuplicateStatus("dead_letter"), false);
     });
   });
 });

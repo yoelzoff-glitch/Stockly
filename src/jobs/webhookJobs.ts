@@ -17,6 +17,21 @@ export const meliShipmentsJob = inngest.createFunction(
   {
     id: "meli-shipments-webhook",
     triggers: [{ event: "meli/shipments.updated" as any }],
+    retries: 3,
+    concurrency: {
+      limit: 2,
+      key: "event.data.tenantId",
+    },
+    onFailure: async ({ event, error }: any) => {
+      const originalData = event?.data?.event?.data || event?.data;
+      const eventId = originalData?.eventId;
+      if (eventId) {
+        await updateWebhookEventStatus(eventId, "dead_letter", {
+          lastErrorCode: error?.name || "MAX_RETRIES_EXCEEDED",
+          lastErrorMessage: error?.message || "Exhausted all Inngest retries",
+        });
+      }
+    },
   },
   async ({ event, step }: any) => {
     const { tenantId, resource, eventId } = event?.data || {};
@@ -59,6 +74,21 @@ export const mercadopagoWebhookJob = inngest.createFunction(
   {
     id: "mercadopago-webhook-processor",
     triggers: [{ event: "mercadopago/subscription.updated" as any }],
+    retries: 3,
+    concurrency: {
+      limit: 2,
+      key: "event.data.tenantId",
+    },
+    onFailure: async ({ event, error }: any) => {
+      const originalData = event?.data?.event?.data || event?.data;
+      const eventId = originalData?.eventId;
+      if (eventId) {
+        await updateWebhookEventStatus(eventId, "dead_letter", {
+          lastErrorCode: error?.name || "MAX_RETRIES_EXCEEDED",
+          lastErrorMessage: error?.message || "Exhausted all Inngest retries",
+        });
+      }
+    },
   },
   async ({ event, step }: any) => {
     const { resourceId, eventId } = event?.data || {};
@@ -192,6 +222,21 @@ export const whatsappWebhookJob = inngest.createFunction(
   {
     id: "whatsapp-webhook-processor",
     triggers: [{ event: "whatsapp/message.received" as any }],
+    retries: 3,
+    concurrency: {
+      limit: 2,
+      key: "event.data.tenantId",
+    },
+    onFailure: async ({ event, error }: any) => {
+      const originalData = event?.data?.event?.data || event?.data;
+      const eventId = originalData?.eventId;
+      if (eventId) {
+        await updateWebhookEventStatus(eventId, "dead_letter", {
+          lastErrorCode: error?.name || "MAX_RETRIES_EXCEEDED",
+          lastErrorMessage: error?.message || "Exhausted all Inngest retries",
+        });
+      }
+    },
   },
   async ({ event, step }: any) => {
     const {

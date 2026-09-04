@@ -1,6 +1,18 @@
 -- SPRINT 3.5: CANONICAL PRODUCTION SCHEMA FIXTURE FOR TESTING
 -- Exact 1:1 match with production database schema definition.
 
+DO $$ BEGIN
+  CREATE ROLE anon;
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE ROLE authenticated;
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE ROLE service_role;
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
 CREATE SCHEMA IF NOT EXISTS auth;
 CREATE SCHEMA IF NOT EXISTS public;
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;

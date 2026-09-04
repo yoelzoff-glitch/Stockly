@@ -109,29 +109,43 @@ export function validateMercadoPagoWebhookSignature(params: {
 }
 
 /**
- * Validates Mercado Libre Webhook signature if x-signature header is provided.
+ * Mercado Libre Webhook Verification Contract:
+ * 
+ * Official Documentation: https://developers.mercadolibre.com.ar/es_ar/notificaciones
+ * 
+ * Technical Contract:
+ * Mercado Libre delivers notification callbacks via HTTP POST with JSON body:
+ * {
+ *   "resource": "/orders/20000000000",
+ *   "user_id": 123456789,
+ *   "topic": "orders_v2",
+ *   "application_id": 987654321,
+ *   "attempts": 1,
+ *   "sent": "2026-09-04T12:00:00.000Z",
+ *   "received": "2026-09-04T12:00:00.050Z"
+ * }
+ * 
+ * Signature Status:
+ * Mercado Libre does NOT provide or document a cryptographic webhook HMAC signature header
+ * for standard application notification callbacks.
+ * 
+ * Official Verification Mechanism:
+ * To verify authenticity and prevent spoofed notifications:
+ * 1. Webhook endpoint parses notification schema, creates idempotent event, and enqueues to Inngest.
+ * 2. Background worker fetches official resource directly via `meliFetch(resource, { tenantId })` using tenant's OAuth access token.
+ * 3. Worker verifies resource belongs to tenant's user_id before executing any domain updates.
  */
 export function validateMercadoLibreWebhookSignature(
   rawBody: string,
-  signatureHeader: string | null | undefined,
+  signatureHeader?: string | null,
   secret?: string
-): { isValid: boolean; reason?: string } {
-  if (!secret) {
-    // If no secret configured, signature verification is not enabled on app
-    return { isValid: true, reason: "signature_not_configured" };
-  }
-  if (!signatureHeader) {
-    return { isValid: false, reason: "missing_signature_header" };
-  }
-
-  // Handle standard sha256 hex or prefix
-  const cleanSignature = signatureHeader.replace(/^sha256=/i, "").trim().toLowerCase();
-  const calculatedSignature = crypto
-    .createHmac("sha256", secret)
-    .update(rawBody, "utf-8")
-    .digest("hex")
-    .toLowerCase();
-
-  const matches = timingSafeStringCompare(cleanSignature, calculatedSignature);
-  return { isValid: matches, reason: matches ? undefined : "signature_mismatch" };
+): { isValid: boolean; reason?: string; unsupported: boolean } {
+  // Signature is not supported by Mercado Libre official API.
+  // We do not invent an unofficial HMAC algorithm.
+  return {
+    isValid: true,
+    reason: "unsupported_provider_signature_delegated_to_oauth_verification",
+    unsupported: true,
+  };
 }
+
