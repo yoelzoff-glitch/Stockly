@@ -28,9 +28,6 @@ export interface SkipOperationParams {
   metadata?: Record<string, any>;
 }
 
-// In-memory tracking of start times to calculate duration_ms reliably
-const operationStartTimes = new Map<string, number>();
-
 /**
  * Records the start of an operation run in `operation_runs`.
  * Non-blocking: returns the created run ID or null on failure.
@@ -61,11 +58,32 @@ export async function startOperationRun(
       return null;
     }
 
-    operationStartTimes.set(data.id, Date.now());
     return data.id;
   } catch {
     return null;
   }
+}
+
+/**
+ * Calculates duration in milliseconds between a database started_at timestamp and now.
+ */
+async function getDurationFromStartedAt(supabase: any, runId: string, nowIso: string): Promise<number | undefined> {
+  try {
+    const { data } = await supabase
+      .from("operation_runs")
+      .select("started_at")
+      .eq("id", runId)
+      .maybeSingle();
+
+    if (data?.started_at) {
+      const startMs = new Date(data.started_at).getTime();
+      const endMs = new Date(nowIso).getTime();
+      return Math.max(0, endMs - startMs);
+    }
+  } catch {
+    // Non-blocking fallback
+  }
+  return undefined;
 }
 
 /**
@@ -80,17 +98,15 @@ export async function completeOperationRun(
 
   try {
     const supabase = customClient || createAdminClient();
-    const startTime = operationStartTimes.get(runId);
-    const durationMs = startTime ? Date.now() - startTime : undefined;
-    operationStartTimes.delete(runId);
-
+    const finishedAt = new Date().toISOString();
+    const durationMs = await getDurationFromStartedAt(supabase, runId, finishedAt);
     const sanitizedMeta = params.metadata ? sanitizeLogData(params.metadata) : {};
 
     await supabase
       .from("operation_runs")
       .update({
         status: "completed",
-        finished_at: new Date().toISOString(),
+        finished_at: finishedAt,
         duration_ms: durationMs,
         items_processed: params.itemsProcessed ?? 0,
         metadata: sanitizedMeta,
@@ -113,17 +129,15 @@ export async function partialOperationRun(
 
   try {
     const supabase = customClient || createAdminClient();
-    const startTime = operationStartTimes.get(runId);
-    const durationMs = startTime ? Date.now() - startTime : undefined;
-    operationStartTimes.delete(runId);
-
+    const finishedAt = new Date().toISOString();
+    const durationMs = await getDurationFromStartedAt(supabase, runId, finishedAt);
     const sanitizedMeta = params.metadata ? sanitizeLogData(params.metadata) : {};
 
     await supabase
       .from("operation_runs")
       .update({
         status: "partial",
-        finished_at: new Date().toISOString(),
+        finished_at: finishedAt,
         duration_ms: durationMs,
         items_processed: params.itemsProcessed ?? 0,
         metadata: sanitizedMeta,
@@ -146,17 +160,15 @@ export async function failOperationRun(
 
   try {
     const supabase = customClient || createAdminClient();
-    const startTime = operationStartTimes.get(runId);
-    const durationMs = startTime ? Date.now() - startTime : undefined;
-    operationStartTimes.delete(runId);
-
+    const finishedAt = new Date().toISOString();
+    const durationMs = await getDurationFromStartedAt(supabase, runId, finishedAt);
     const sanitizedMeta = params.metadata ? sanitizeLogData(params.metadata) : {};
 
     await supabase
       .from("operation_runs")
       .update({
         status: "failed",
-        finished_at: new Date().toISOString(),
+        finished_at: finishedAt,
         duration_ms: durationMs,
         error_code: params.errorCode || "UNKNOWN_ERROR",
         error_message: params.errorMessage ? sanitizeLogData(params.errorMessage) : null,
@@ -180,9 +192,8 @@ export async function skipOperationRun(
 
   try {
     const supabase = customClient || createAdminClient();
-    const startTime = operationStartTimes.get(runId);
-    const durationMs = startTime ? Date.now() - startTime : undefined;
-    operationStartTimes.delete(runId);
+    const finishedAt = new Date().toISOString();
+    const durationMs = await getDurationFromStartedAt(supabase, runId, finishedAt);
 
     const sanitizedMeta = {
       ...(params.metadata ? sanitizeLogData(params.metadata) : {}),
@@ -193,12 +204,41 @@ export async function skipOperationRun(
       .from("operation_runs")
       .update({
         status: "skipped",
-        finished_at: new Date().toISOString(),
+        finished_at: finishedAt,
         duration_ms: durationMs,
         metadata: sanitizedMeta,
       })
       .eq("id", runId);
   } catch {
     // Best-effort
+  }
+}
+
+/**
+ * Cleans up zombie operations (stuck in 'started' state for more than maxAgeMinutes).
+ */
+export async function cleanupZombieOperationRuns(
+  maxAgeMinutes: number = 60,
+  customClient?: any
+): Promise<number> {
+  try {
+    const supabase = customClient || createAdminClient();
+    const threshold = new Date(Date.now() - maxAgeMinutes * 60 * 1000).toISOString();
+
+    const { data } = await supabase
+      .from("operation_runs")
+      .update({
+        status: "failed",
+        finished_at: new Date().toISOString(),
+        error_code: "ZOMBIE_OPERATION_TIMEOUT",
+        error_message: `Operation was automatically marked as failed after remaining in started status for > ${maxAgeMinutes} minutes`,
+      })
+      .eq("status", "started")
+      .lt("started_at", threshold)
+      .select("id");
+
+    return data?.length || 0;
+  } catch {
+    return 0;
   }
 }

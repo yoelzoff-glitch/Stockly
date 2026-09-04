@@ -1062,5 +1062,339 @@ REVOKE ALL ON FUNCTION public.sync_tenant_subscription(uuid, text, text, text, t
 REVOKE ALL ON FUNCTION public.sync_tenant_subscription(uuid, text, text, text, timestamptz, timestamptz) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.sync_tenant_subscription(uuid, text, text, text, timestamptz, timestamptz) TO service_role;
 
+CREATE TABLE IF NOT EXISTS public.operation_leases (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  operation_type text NOT NULL,
+  lease_owner text NOT NULL,
+  acquired_at timestamp with time zone NOT NULL DEFAULT now(),
+  expires_at timestamp with time zone NOT NULL,
+  heartbeat_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT operation_leases_tenant_op_key UNIQUE (tenant_id, operation_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_operation_leases_tenant_op
+  ON public.operation_leases (tenant_id, operation_type);
+
+CREATE INDEX IF NOT EXISTS idx_operation_leases_expires
+  ON public.operation_leases (expires_at);
+
+ALTER TABLE public.operation_leases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.operation_leases FORCE ROW LEVEL SECURITY;
+
+REVOKE ALL PRIVILEGES ON TABLE public.operation_leases FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.acquire_operation_lease(
+  p_tenant_id uuid,
+  p_operation_type text,
+  p_lease_owner text,
+  p_ttl_seconds integer DEFAULT 300
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_now timestamp with time zone;
+  v_expires timestamp with time zone;
+  v_current_lease record;
+BEGIN
+  v_now := timezone('utc', now());
+  v_expires := v_now + (p_ttl_seconds || ' seconds')::interval;
+
+  -- 1. Ensure a row exists atomically
+  INSERT INTO public.operation_leases (tenant_id, operation_type, lease_owner, acquired_at, expires_at, heartbeat_at)
+  VALUES (p_tenant_id, p_operation_type, p_lease_owner, v_now, v_expires, v_now)
+  ON CONFLICT (tenant_id, operation_type) DO NOTHING;
+
+  -- 2. Lock the row exclusively
+  SELECT * INTO v_current_lease
+  FROM public.operation_leases
+  WHERE tenant_id = p_tenant_id AND operation_type = p_operation_type
+  FOR UPDATE;
+
+  -- 3. Check if we own it or if it is expired
+  IF v_current_lease.lease_owner = p_lease_owner OR v_current_lease.expires_at <= v_now THEN
+    UPDATE public.operation_leases
+    SET lease_owner = p_lease_owner,
+        acquired_at = v_now,
+        expires_at = v_expires,
+        heartbeat_at = v_now
+    WHERE tenant_id = p_tenant_id AND operation_type = p_operation_type;
+
+    RETURN jsonb_build_object(
+      'acquired', true,
+      'tenant_id', p_tenant_id,
+      'operation_type', p_operation_type,
+      'lease_owner', p_lease_owner,
+      'expires_at', v_expires
+    );
+  ELSE
+    RETURN jsonb_build_object(
+      'acquired', false,
+      'reason', 'lease_held_by_other',
+      'current_owner', v_current_lease.lease_owner,
+      'expires_at', v_current_lease.expires_at
+    );
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.renew_operation_lease(
+  p_tenant_id uuid,
+  p_operation_type text,
+  p_lease_owner text,
+  p_ttl_seconds integer DEFAULT 300
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_now timestamp with time zone;
+  v_expires timestamp with time zone;
+BEGIN
+  v_now := timezone('utc', now());
+  v_expires := v_now + (p_ttl_seconds || ' seconds')::interval;
+
+  UPDATE public.operation_leases
+  SET expires_at = v_expires,
+      heartbeat_at = v_now
+  WHERE tenant_id = p_tenant_id
+    AND operation_type = p_operation_type
+    AND lease_owner = p_lease_owner;
+
+  IF FOUND THEN
+    RETURN jsonb_build_object('renewed', true, 'expires_at', v_expires);
+  ELSE
+    RETURN jsonb_build_object('renewed', false, 'reason', 'lease_not_found_or_lost');
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.release_operation_lease(
+  p_tenant_id uuid,
+  p_operation_type text,
+  p_lease_owner text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  DELETE FROM public.operation_leases
+  WHERE tenant_id = p_tenant_id
+    AND operation_type = p_operation_type
+    AND lease_owner = p_lease_owner;
+
+  IF FOUND THEN
+    RETURN jsonb_build_object('released', true);
+  ELSE
+    RETURN jsonb_build_object('released', false, 'reason', 'lease_not_found_or_not_owner');
+  END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.acquire_operation_lease(uuid, text, text, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.acquire_operation_lease(uuid, text, text, integer) TO service_role;
+
+REVOKE ALL ON FUNCTION public.renew_operation_lease(uuid, text, text, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.renew_operation_lease(uuid, text, text, integer) TO service_role;
+
+REVOKE ALL ON FUNCTION public.release_operation_lease(uuid, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.release_operation_lease(uuid, text, text) TO service_role;
+
+CREATE TABLE IF NOT EXISTS public.rate_limit_buckets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  bucket_key text NOT NULL,
+  window_start timestamp with time zone NOT NULL,
+  request_count integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT rate_limit_buckets_tenant_key_window UNIQUE (tenant_id, bucket_key, window_start)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rate_limit_buckets_window
+  ON public.rate_limit_buckets (window_start);
+
+ALTER TABLE public.rate_limit_buckets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rate_limit_buckets FORCE ROW LEVEL SECURITY;
+
+REVOKE ALL PRIVILEGES ON TABLE public.rate_limit_buckets FROM PUBLIC;
+REVOKE ALL PRIVILEGES ON TABLE public.rate_limit_buckets FROM anon;
+REVOKE ALL PRIVILEGES ON TABLE public.rate_limit_buckets FROM authenticated;
+
+CREATE OR REPLACE FUNCTION public.check_rate_limit_bucket(
+  p_tenant_id uuid,
+  p_bucket_key text,
+  p_max_requests integer,
+  p_window_seconds integer DEFAULT 60,
+  p_cost integer DEFAULT 1
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_now timestamp with time zone;
+  v_window_start timestamp with time zone;
+  v_current_count integer;
+  v_reset_seconds integer;
+BEGIN
+  v_now := timezone('utc', now());
+  v_window_start := to_timestamp(
+    floor(extract(epoch from v_now) / p_window_seconds) * p_window_seconds
+  );
+  v_reset_seconds := p_window_seconds - (extract(epoch from v_now)::integer % p_window_seconds);
+
+  INSERT INTO public.rate_limit_buckets (tenant_id, bucket_key, window_start, request_count)
+  VALUES (p_tenant_id, p_bucket_key, v_window_start, 0)
+  ON CONFLICT (tenant_id, bucket_key, window_start) DO NOTHING;
+
+  SELECT request_count INTO v_current_count
+  FROM public.rate_limit_buckets
+  WHERE tenant_id = p_tenant_id
+    AND bucket_key = p_bucket_key
+    AND window_start = v_window_start
+  FOR UPDATE;
+
+  v_current_count := COALESCE(v_current_count, 0);
+
+  IF (v_current_count + p_cost) > p_max_requests THEN
+    RETURN jsonb_build_object(
+      'allowed', false,
+      'current', v_current_count,
+      'limit', p_max_requests,
+      'remaining', GREATEST(0, p_max_requests - v_current_count),
+      'retry_after', v_reset_seconds,
+      'reset_in_seconds', v_reset_seconds
+    );
+  END IF;
+
+  UPDATE public.rate_limit_buckets
+  SET request_count = v_current_count + p_cost
+  WHERE tenant_id = p_tenant_id
+    AND bucket_key = p_bucket_key
+    AND window_start = v_window_start;
+
+  RETURN jsonb_build_object(
+    'allowed', true,
+    'current', v_current_count + p_cost,
+    'limit', p_max_requests,
+    'remaining', GREATEST(0, p_max_requests - (v_current_count + p_cost)),
+    'retry_after', 0,
+    'reset_in_seconds', v_reset_seconds
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.check_rate_limit_bucket(uuid, text, integer, integer, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.check_rate_limit_bucket(uuid, text, integer, integer, integer) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.get_dashboard_aggregates_v2(
+  p_tenant_id uuid,
+  p_days integer DEFAULT 30
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_now timestamp with time zone;
+  v_start_date timestamp with time zone;
+  v_today_start timestamp with time zone;
+  v_total_revenue numeric;
+  v_total_orders integer;
+  v_today_revenue numeric;
+  v_today_orders integer;
+  v_critical_stock_count integer;
+  v_total_products integer;
+  v_products_without_cost integer;
+  v_active_alerts_count integer;
+BEGIN
+  v_now := timezone('utc', now());
+  v_start_date := v_now - (p_days || ' days')::interval;
+  v_today_start := date_trunc('day', v_now);
+
+  SELECT
+    COALESCE(SUM(total_amount), 0),
+    COALESCE(COUNT(*), 0)
+  INTO v_total_revenue, v_total_orders
+  FROM public.orders
+  WHERE tenant_id = p_tenant_id
+    AND date_created >= v_start_date
+    AND status <> 'cancelled';
+
+  SELECT
+    COALESCE(SUM(total_amount), 0),
+    COALESCE(COUNT(*), 0)
+  INTO v_today_revenue, v_today_orders
+  FROM public.orders
+  WHERE tenant_id = p_tenant_id
+    AND date_created >= v_today_start
+    AND status <> 'cancelled';
+
+  SELECT
+    COALESCE(COUNT(*), 0),
+    COALESCE(COUNT(*) FILTER (WHERE available_quantity <= 5 AND available_quantity > 0), 0),
+    COALESCE(COUNT(*) FILTER (WHERE cost IS NULL OR cost = 0), 0)
+  INTO v_total_products, v_critical_stock_count, v_products_without_cost
+  FROM public.products
+  WHERE tenant_id = p_tenant_id
+    AND status = 'active';
+
+  SELECT COALESCE(COUNT(*), 0)
+  INTO v_active_alerts_count
+  FROM public.alerts
+  WHERE tenant_id = p_tenant_id
+    AND is_read = false;
+
+  RETURN jsonb_build_object(
+    'tenant_id', p_tenant_id,
+    'period_days', p_days,
+    'total_revenue', v_total_revenue,
+    'total_orders', v_total_orders,
+    'average_ticket', CASE WHEN v_total_orders > 0 THEN round(v_total_revenue / v_total_orders, 2) ELSE 0 END,
+    'today_revenue', v_today_revenue,
+    'today_orders', v_today_orders,
+    'total_products', v_total_products,
+    'critical_stock_count', v_critical_stock_count,
+    'products_without_cost', v_products_without_cost,
+    'active_alerts_count', v_active_alerts_count
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_dashboard_aggregates_v2(uuid, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_dashboard_aggregates_v2(uuid, integer) TO service_role;
+
+CREATE INDEX IF NOT EXISTS idx_orders_tenant_date_created
+  ON public.orders (tenant_id, date_created DESC);
+
+CREATE INDEX IF NOT EXISTS idx_orders_tenant_status_date_created
+  ON public.orders (tenant_id, status, date_created DESC);
+
+CREATE INDEX IF NOT EXISTS idx_order_items_tenant_meli_item
+  ON public.order_items (tenant_id, meli_item_id);
+
+CREATE INDEX IF NOT EXISTS idx_stock_movements_tenant_created
+  ON public.stock_movements (tenant_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_products_tenant_status_updated
+  ON public.products (tenant_id, status, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_alerts_tenant_unread_created
+  ON public.alerts (tenant_id, is_read, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_operation_runs_tenant_op_started
+  ON public.operation_runs (tenant_id, operation_type, started_at DESC);
+
+
 
 

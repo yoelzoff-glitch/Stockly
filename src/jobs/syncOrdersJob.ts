@@ -1,57 +1,121 @@
 import { inngest } from "../inngest/client";
 import { syncOrders } from "../services/meli/syncOrders";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { withOperationLease } from "@/lib/security/leases";
+import { logger } from "@/lib/errors/logger";
 
-export const syncOrdersJob = inngest.createFunction(
-  { 
-    id: "sync-orders",
+const BATCH_PAGE_SIZE = 50;
+
+/**
+ * Inngest Cron Dispatcher: Paginates active connected tenants and dispatches individual Inngest events.
+ * Eliminates serverless timeout and unconstrained Promise.all execution.
+ */
+export const syncOrdersDispatcherJob = inngest.createFunction(
+  {
+    id: "sync-orders-dispatcher",
+    triggers: [{ cron: "*/5 * * * *" }],
+  },
+  async ({ step }) => {
+    const supabase = createAdminClient();
+    let offset = 0;
+    let hasMore = true;
+    let totalDispatched = 0;
+
+    while (hasMore) {
+      const { data: accounts, error } = await supabase
+        .from("meli_accounts")
+        .select("tenant_id")
+        .eq("status", "connected")
+        .range(offset, offset + BATCH_PAGE_SIZE - 1);
+
+      if (error || !accounts || accounts.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      const tenantIds = Array.from(new Set(accounts.map((a) => a.tenant_id)));
+
+      if (tenantIds.length > 0) {
+        const events = tenantIds.map((tenantId) => ({
+          name: "meli/tenant.sync-orders.requested" as any,
+          data: { tenantId, source: "cron_dispatcher" },
+        }));
+
+        await step.sendEvent(`dispatch-orders-batch-${offset}`, events);
+        totalDispatched += tenantIds.length;
+      }
+
+      if (accounts.length < BATCH_PAGE_SIZE) {
+        hasMore = false;
+      } else {
+        offset += BATCH_PAGE_SIZE;
+      }
+    }
+
+    return { dispatched: totalDispatched };
+  }
+);
+
+/**
+ * Inngest Per-Tenant Sync Worker:
+ * - Concurrency limit of 1 per tenant
+ * - Distributed lease protection to prevent overlap between webhook, cron and manual sync
+ * - Errors isolated to the specific tenant and re-thrown for Inngest retry handling
+ */
+export const syncOrdersTenantJob = inngest.createFunction(
+  {
+    id: "sync-orders-tenant-worker",
     triggers: [
-      { cron: "*/5 * * * *" },
-      { event: "meli/orders.updated" as any }
-    ]
+      { event: "meli/tenant.sync-orders.requested" as any },
+      { event: "meli/orders.updated" as any },
+    ],
+    retries: 3,
+    concurrency: {
+      key: "event.data.tenantId",
+      limit: 1,
+    },
   },
   async ({ event, step }) => {
-    const supabase = createAdminClient();
+    const tenantId = event.data?.tenantId;
+    if (!tenantId) {
+      return { status: "ignored", reason: "missing_tenant_id" };
+    }
 
-    // If triggered by a webhook event, sync only for that tenant/order
-    if (event?.name === "meli/orders.updated") {
-      const tenantId = event.data?.tenantId;
-      const resource = event.data?.resource;
-      if (!tenantId) {
-        return { message: "No tenantId provided in event data" };
-      }
-      const specificOrderId = resource ? resource.split("/").pop() : undefined;
-      const result = await step.run("sync-orders-single-tenant", async () => {
-        try {
+    const resource = event.data?.resource;
+    const specificOrderId = resource ? resource.split("/").pop() : undefined;
+    const workerId = `sync-orders-${tenantId}-${Date.now()}`;
+
+    return await step.run("execute-tenant-orders-sync", async () => {
+      const leaseResult = await withOperationLease(
+        {
+          tenantId,
+          operationType: "sync_orders",
+          leaseOwner: workerId,
+          ttlSeconds: 180,
+        },
+        async () => {
+          logger.info({
+            event: "SYNC_ORDERS_TENANT_STARTED",
+            tenantId,
+            specificOrderId,
+            source: event.data?.source || event.name,
+          });
+
           const syncedCount = await syncOrders(tenantId, specificOrderId);
-          return { tenantId, status: "fulfilled", syncedCount };
-        } catch (error: any) {
-          return { tenantId, status: "rejected", reason: error.message };
+          return { tenantId, status: "completed", syncedCount };
         }
-      });
-      return { message: `Synced orders for tenant ${tenantId}`, details: [result] };
-    }
-
-    const { data: accounts } = await supabase.from("meli_accounts").select("tenant_id");
-
-    if (!accounts || accounts.length === 0) {
-      return { message: "No accounts to sync" };
-    }
-
-    const tenantIds = Array.from(new Set(accounts.map((a) => a.tenant_id)));
-
-    const results = await step.run("sync-orders-all-tenants", async () => {
-      const settled = await Promise.allSettled(
-        tenantIds.map((tenantId) => syncOrders(tenantId))
       );
-      
-      return settled.map((result, index) => ({
-        tenantId: tenantIds[index],
-        status: result.status,
-        reason: result.status === "rejected" ? result.reason : null
-      }));
-    });
 
-    return { message: `Synced orders for ${tenantIds.length} tenants`, details: results };
+      if (!leaseResult.executed) {
+        logger.info({
+          event: "SYNC_ORDERS_TENANT_SKIPPED_ACTIVE_LEASE",
+          tenantId,
+          reason: leaseResult.skipReason,
+        });
+        return { tenantId, status: "skipped", reason: leaseResult.skipReason };
+      }
+
+      return leaseResult.result;
+    });
   }
 );

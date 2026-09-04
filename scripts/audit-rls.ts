@@ -157,17 +157,19 @@ function runRlsAudit() {
   const hasOperationRunsRevoke = /REVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+(?:TABLE\s+)?public\.operation_runs\s+FROM\s+authenticated/i.test(allSqlContent);
   const hasWebhookEventsRevoke = /REVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+(?:TABLE\s+)?public\.webhook_events\s+FROM\s+authenticated/i.test(allSqlContent);
   const hasUsageEventsRevoke = /REVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+(?:TABLE\s+)?public\.usage_events\s+FROM\s+authenticated/i.test(allSqlContent);
+  const hasOperationLeasesRevoke = /REVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+(?:TABLE\s+)?public\.operation_leases\s+FROM\s+authenticated/i.test(allSqlContent);
+  const hasRateLimitBucketsRevoke = /REVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+(?:TABLE\s+)?public\.rate_limit_buckets\s+FROM\s+authenticated/i.test(allSqlContent);
 
-  if (!hasFeatureFlagsRevoke || !hasOperationRunsRevoke || !hasWebhookEventsRevoke || !hasUsageEventsRevoke) {
+  if (!hasFeatureFlagsRevoke || !hasOperationRunsRevoke || !hasWebhookEventsRevoke || !hasUsageEventsRevoke || !hasOperationLeasesRevoke || !hasRateLimitBucketsRevoke) {
     violations.push({
       file: "supabase/migrations/*",
       category: "BACKEND_ONLY_EXPOSURE",
-      message: "Backend-only tables (tenant_feature_flags, operation_runs, webhook_events, usage_events) must revoke ALL permissions from authenticated and anon.",
+      message: "Backend-only tables (tenant_feature_flags, operation_runs, webhook_events, usage_events, operation_leases, rate_limit_buckets) must revoke ALL permissions from authenticated and anon.",
     });
   }
 
-  // 9. COVERAGE AUDIT: All 38 tables in Migration C + 4 backend tables = 42 tables
-  const canonical42Tables = [
+  // 9. COVERAGE AUDIT: All 38 tables in Migration C + 6 backend tables = 44 tables
+  const canonical44Tables = [
     "tenants", "profiles", "meli_accounts", "products", "orders", "order_items",
     "whatsapp_numbers", "messages", "ai_actions", "product_price_history",
     "stock_movements", "alert_rules", "alerts", "audit_logs", "tenant_preferences",
@@ -177,13 +179,14 @@ function runRlsAudit() {
     "inventory_movements", "product_components", "product_extra_costs", "subscriptions",
     "monthly_expenses", "plans_config", "competition_snapshots", "action_workflows",
     "workflow_steps", "price_adjustment_workflows", "price_adjustment_details",
-    "tenant_feature_flags", "operation_runs", "webhook_events", "usage_events"
+    "tenant_feature_flags", "operation_runs", "webhook_events", "usage_events",
+    "operation_leases", "rate_limit_buckets"
   ];
 
   const sprint3BMigration = migrationFiles.find((m) => m.name.includes("sprint03_b_policies"))?.content || "";
   const testSchemaContent = fs.readFileSync(path.join(fixturesDir, "testSchema.sql"), "utf-8");
 
-  for (const tbl of canonical42Tables) {
+  for (const tbl of canonical44Tables) {
     // Must have definition in testSchema.sql fixture
     const hasDefinitionInFixture = new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?public\\.${tbl}\\b`, "i").test(testSchemaContent);
     if (!hasDefinitionInFixture) {
@@ -195,7 +198,8 @@ function runRlsAudit() {
     }
 
     // Authenticated tables must have explicit RLS policies in Migration B
-    if (tbl !== "tenant_feature_flags" && tbl !== "operation_runs" && tbl !== "webhook_events" && tbl !== "usage_events") {
+    const backendOnlyTables = ["tenant_feature_flags", "operation_runs", "webhook_events", "usage_events", "operation_leases", "rate_limit_buckets"];
+    if (!backendOnlyTables.includes(tbl)) {
       const hasPolicyInB = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${tbl}`, "i").test(sprint3BMigration);
       if (!hasPolicyInB) {
         violations.push({
@@ -206,7 +210,7 @@ function runRlsAudit() {
       }
     }
   }
-  console.log(`Coverage Audit: Verified explicit RLS policies & canonical fixture definitions for all ${canonical42Tables.length} tables.`);
+  console.log(`Coverage Audit: Verified explicit RLS policies & canonical fixture definitions for all ${canonical44Tables.length} tables.`);
 
   // 10. Codebase Schema and Write Audit: scan src/
   function scanDirForTablesAndWrites(dir: string, tableSet: Set<string>) {
@@ -267,7 +271,7 @@ function runRlsAudit() {
   console.log(`Codebase Query Audit: Scanned ${queriedTables.size} unique tables queried across src/`);
 
   // Verify all queried tables are in canonical table inventory
-  const allKnownTables = new Set(canonical42Tables);
+  const allKnownTables = new Set(canonical44Tables);
 
   for (const qTable of queriedTables) {
     if (!allKnownTables.has(qTable)) {

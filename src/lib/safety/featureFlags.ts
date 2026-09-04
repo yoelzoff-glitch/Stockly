@@ -7,7 +7,9 @@ export type FeatureFlagKey =
   | "meli_webhook_queue_only"
   | "inventory_atomic_v2"
   | "strict_webhook_validation"
-  | "billing_webhook_v2";
+  | "billing_webhook_v2"
+  | "api_rate_limits_v2"
+  | "dashboard_aggregates_v2";
 
 interface CachedFlagEntry {
   enabled: boolean;

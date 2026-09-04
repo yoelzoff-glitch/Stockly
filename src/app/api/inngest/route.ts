@@ -1,7 +1,7 @@
 import { serve } from "inngest/next";
 import { inngest } from "../../../inngest/client";
-import { syncProductsJob } from "../../../jobs/syncProductsJob";
-import { syncOrdersJob } from "../../../jobs/syncOrdersJob";
+import { syncProductsDispatcherJob, syncProductsTenantJob } from "../../../jobs/syncProductsJob";
+import { syncOrdersDispatcherJob, syncOrdersTenantJob } from "../../../jobs/syncOrdersJob";
 import { questionsJob } from "../../../jobs/questionsJob";
 import { refreshMeliTokensJob } from "../../../jobs/refreshMeliTokensJob";
 import { massPromotionsJob } from "../../../jobs/massPromotionsJob";
@@ -13,8 +13,10 @@ import { meliShipmentsJob, mercadopagoWebhookJob, whatsappWebhookJob } from "../
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
-    syncProductsJob,
-    syncOrdersJob,
+    syncProductsDispatcherJob,
+    syncProductsTenantJob,
+    syncOrdersDispatcherJob,
+    syncOrdersTenantJob,
     questionsJob,
     refreshMeliTokensJob,
     massPromotionsJob,
