@@ -115,10 +115,12 @@ export function sanitizeStringText(text: string): string {
     return text;
   }
 
-  // 1. Redact Bearer / OAuth tokens
+  // 1. Redact Bearer / OAuth tokens and embedded secrets
   let result = text
     .replace(/bearer\s+[a-z0-9._-]+/gi, "[REDACTED_TOKEN]")
-    .replace(/app_usr-[a-z0-9_-]+/gi, "[REDACTED_TOKEN]");
+    .replace(/app_usr-[a-z0-9_-]+/gi, "[REDACTED_TOKEN]")
+    .replace(/secret:\s*[a-z0-9._-]+/gi, "secret: [REDACTED_SECRET]")
+    .replace(/client_secret=[a-z0-9._-]+/gi, "client_secret=[REDACTED]");
 
   // 2. Redact embedded emails
   result = result.replace(EMAIL_REGEX, (match) => maskEmail(match));

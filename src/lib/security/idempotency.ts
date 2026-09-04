@@ -39,6 +39,32 @@ export function hashWebhookPayload(payload: any): string {
 }
 
 /**
+ * Creates a deterministic, payload-bound idempotency key that binds tenant, user, prompt/payload
+ * and an optional custom client key.
+ * This guarantees that the same key cannot be reused with a different prompt/payload.
+ */
+export function createScopedIdempotencyKey(params: {
+  prefix?: string;
+  tenantId: string;
+  userId?: string | null;
+  payload: any;
+  customKey?: string | null;
+}): string {
+  const { prefix = "ai_op", tenantId, userId, payload, customKey } = params;
+  const content = typeof payload === "string" ? payload.trim().toLowerCase() : JSON.stringify(payload || {});
+  const payloadHash = crypto
+    .createHash("sha256")
+    .update(`${tenantId}:${userId || ""}:${content}`, "utf-8")
+    .digest("hex")
+    .substring(0, 24);
+
+  if (customKey && customKey.trim().length > 0) {
+    return `${prefix}:${customKey.trim()}:${payloadHash}`;
+  }
+  return `${prefix}:${tenantId}:${payloadHash}`;
+}
+
+/**
  * Atomically records and claims a webhook event in the database.
  * If the event already exists and is completed or processing, marks it as duplicate.
  */

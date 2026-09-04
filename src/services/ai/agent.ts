@@ -1,7 +1,7 @@
 import { openai } from "@/lib/ai/openai";
 import * as tools from "./tools";
 
-import { checkAILimit, incrementAIUsage } from "../billing/checkLimits";
+import { consumeQuota } from "@/lib/billing/quotaService";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -17,6 +17,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * @param params.userMessage Mensaje en texto plano ingresado por el usuario
  * @param params.channel Canal de comunicación de origen ('web' | 'whatsapp')
  * @param params.fromPhone Número telefónico de origen (requerido para WhatsApp)
+ * @param params.idempotencyKey Clave de idempotencia única para la reserva de cuota
+ * @param params.correlationId Identificador de correlación para observabilidad
  * @returns Promesa que resuelve un objeto con la respuesta textual de la IA y el id de producto enfocado (opcional)
  */
 export async function runBusinessAgent({
@@ -24,17 +26,16 @@ export async function runBusinessAgent({
   userMessage,
   channel = "web",
   fromPhone,
+  idempotencyKey,
+  correlationId,
 }: {
   tenantId: string;
   userMessage: string;
   channel?: string;
   fromPhone?: string;
+  idempotencyKey?: string;
+  correlationId?: string;
 }) {
-  const isAllowed = await checkAILimit(tenantId);
-  if (!isAllowed) {
-    return { response: "Alcanzaste el límite mensual de consultas de Inteligencia Artificial. Por favor, actualiza tu plan en la sección de Facturación para seguir operando.", product_id: null };
-  }
-
   const { getActiveSession, createSession, updateSessionState, clearSessionState } = await import('@/services/ai/session');
   
   let session = await getActiveSession({ tenantId, channel, fromPhone });
@@ -107,6 +108,32 @@ export async function runBusinessAgent({
       await clearSessionState(session.id);
       return { response: "Operación cancelada.", product_id: null };
     }
+  }
+
+  // Atomic quota reservation via consume_tenant_quota RPC
+  const quotaReservation = await consumeQuota({
+    tenantId,
+    metric: "ai_credits_used",
+    amount: 1,
+    idempotencyKey,
+    source: "ai_business_agent",
+    correlationId,
+  });
+
+  if (!quotaReservation.allowed) {
+    return {
+      response: "Alcanzaste el límite mensual de consultas de Inteligencia Artificial. Por favor, actualiza tu plan en la sección de Facturación para seguir operando.",
+      product_id: null,
+      duplicate: false,
+    };
+  }
+
+  if (quotaReservation.duplicate) {
+    return {
+      response: "Solicitud duplicada: la consulta ya fue procesada anteriormente.",
+      product_id: null,
+      duplicate: true,
+    };
   }
 
   // Intercept if session is waiting for fields
@@ -687,10 +714,6 @@ ${chatHistory}
   });
 
   const finalContent = await runner.finalContent();
-  
-  if (finalContent) {
-    await incrementAIUsage(tenantId);
-  }
 
   let foundProductId = null;
   for (const m of runner.messages) {

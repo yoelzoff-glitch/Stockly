@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { openai } from "@/lib/ai/openai";
 import { logger } from "@/lib/errors/logger";
 import { AppError } from "@/lib/errors/AppError";
-import { incrementAIUsage } from "@/services/billing/checkLimits";
+import { consumeQuota } from "@/lib/billing/quotaService";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
+import { createScopedIdempotencyKey } from "@/lib/security/idempotency";
 
 export async function POST(req: Request) {
   let correlationId: string | undefined;
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
     const adminSupabase = createAdminClient();
     const { data: product, error: productError } = await adminSupabase
       .from("products")
-      .select("title, sku, category_id, price, raw_data")
+      .select("id, title, sku, category_id, price, raw_data")
       .eq("id", product_id.trim())
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -46,6 +47,38 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "Producto no encontrado" },
         { status: 404, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
+
+    // Atomic quota reservation for 5 AI credits
+    const customKey = req.headers.get("x-idempotency-key") || body?.idempotencyKey;
+    const idempotencyKey = createScopedIdempotencyKey({
+      prefix: "ai_title_sug",
+      tenantId,
+      userId: context.userId,
+      payload: { product_id: product.id },
+      customKey,
+    });
+    const quotaReservation = await consumeQuota({
+      tenantId,
+      metric: "ai_credits_used",
+      amount: 5,
+      idempotencyKey,
+      source: "ai_product_title_suggestions",
+      correlationId,
+    });
+
+    if (!quotaReservation.allowed) {
+      return NextResponse.json(
+        { error: "Límite mensual de consultas de Inteligencia Artificial alcanzado para tu plan." },
+        { status: 429, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
+
+    if (quotaReservation.duplicate) {
+      return NextResponse.json(
+        { suggestions: [], duplicate: true },
+        { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
       );
     }
 
@@ -112,9 +145,6 @@ Atributos: ${JSON.stringify(promptContext.attributes).substring(0, 1000)}`;
         { status: 500, headers: { [CORRELATION_ID_HEADER]: correlationId } }
       );
     }
-
-    // Registrar 5 consultas de IA por generar múltiples sugerencias complejas
-    await incrementAIUsage(tenantId, 5);
 
     return NextResponse.json(
       resultJson,

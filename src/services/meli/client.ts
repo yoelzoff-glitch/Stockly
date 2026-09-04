@@ -4,6 +4,7 @@ import { createAlert } from "../alerts/createAlert";
 import { AppError } from "@/lib/errors/AppError";
 import { isMeliWritesDisabled } from "@/lib/safety/killSwitches";
 import { logger } from "@/lib/errors/logger";
+import { classifyExternalError } from "@/lib/errors/externalErrorClassification";
 
 export interface MeliFetchArgs {
   tenantId?: string;
@@ -140,8 +141,13 @@ export async function meliFetch({
     try {
       response = await executeRequest(accessToken || "");
 
-      // Handle 401 Unauthorized with single token refresh
-      if (response.status === 401 && !refreshedTokenOnce) {
+      const classification = classifyExternalError({
+        status: response.status,
+        headers: response.headers,
+      });
+
+      // Handle 401 Unauthorized with single controlled token refresh
+      if (classification.isPermanentAuth && response.status === 401 && !refreshedTokenOnce) {
         refreshedTokenOnce = true;
         logger.warn({
           event: "MELI_FETCH_401_REFRESH",
@@ -151,12 +157,18 @@ export async function meliFetch({
         try {
           accessToken = await refreshMeliToken(account.id);
           response = await executeRequest(accessToken || "");
+          if (response.ok) break;
+          const postRefreshClassification = classifyExternalError({ status: response.status });
+          if (!postRefreshClassification.isRetryable) {
+            break; // Fail fast on permanent error after single refresh attempt
+          }
         } catch (refreshErr) {
           logger.error({
             event: "MELI_FETCH_REFRESH_FAILED",
             tenantId: finalTenantId,
             error: refreshErr,
           });
+          break; // Refresh failed, fail fast
         }
       }
 
@@ -164,8 +176,8 @@ export async function meliFetch({
         break;
       }
 
-      // If transient error and read operation with remaining retries, backoff
-      if (isTransientError(response.status) && isReadOperation && attempt < allowedAttempts) {
+      // If retryable (408, 429, 500, 502, 503, 504) and read operation with remaining retries, backoff
+      if (classification.isRetryable && isReadOperation && attempt < allowedAttempts) {
         const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
         const jitter = Math.random() * 200;
         const backoffMs = retryAfterMs || Math.pow(2, attempt) * 400 + jitter;
@@ -183,11 +195,11 @@ export async function meliFetch({
         continue;
       }
 
-      // Non-recoverable or max retries reached
+      // Non-retryable (400, 403, validation) or max retries reached: break immediately (fail-fast)
       break;
     } catch (err: any) {
-      // Abort / Timeout / Network error
-      if (isReadOperation && attempt < allowedAttempts) {
+      const networkClassification = classifyExternalError(err);
+      if (networkClassification.isRetryable && isReadOperation && attempt < allowedAttempts) {
         const backoffMs = Math.pow(2, attempt) * 400 + Math.random() * 200;
         logger.warn({
           event: "MELI_FETCH_NETWORK_RETRY",
