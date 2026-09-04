@@ -1,26 +1,26 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { 
-  ChevronLeft, 
-  DollarSign, 
-  Percent, 
-  Package, 
-  Truck, 
-  CreditCard, 
-  Tag, 
-  User, 
-  Calendar, 
-  AlertCircle, 
-  TrendingUp, 
-  TrendingDown, 
-  CheckCircle2, 
-  ExternalLink 
+import {
+  DollarSign,
+  Percent,
+  Package,
+  Truck,
+  CreditCard,
+  Tag,
+  User,
+  Calendar,
+  AlertCircle,
+  TrendingUp,
+  TrendingDown,
+  CheckCircle2,
+  ExternalLink
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+
 import { StatusBadge } from "@/components/ui/status-badge";
+import { OperationalPageHeader } from "@/components/operational/page-header";
+import { OperationalPanel } from "@/components/operational/panel";
+import { MetricStrip, MetricItem } from "@/components/operational/metric-strip";
 
 export default async function SaleDetailPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
@@ -39,7 +39,7 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
 
   // Support both DB UUID and Meli Order ID in URL
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-  
+
   let orderQuery = supabase
     .from("orders")
     .select("*")
@@ -76,12 +76,18 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
 
   // Financial calculations
   const totalAmount = Number(order.total_amount) || 0;
-  
+
   // Sum up Mercado Libre fees from items
-  const totalMeliFees = items?.reduce((sum, item) => sum + ((Number(item.estimated_fee) || 0) * (Number(item.quantity) || 1)), 0) || 0;
-  
+  const totalMeliFees = items?.reduce(
+    (sum, item) => sum + ((Number(item.estimated_fee) || 0) * (Number(item.quantity) || 1)),
+    0
+  ) || 0;
+
   // Sum up product costs from items
-  const totalProductCost = items?.reduce((sum, item) => sum + ((Number(item.unit_cost) || 0) * (Number(item.quantity) || 1)), 0) || 0;
+  const totalProductCost = items?.reduce(
+    (sum, item) => sum + ((Number(item.unit_cost) || 0) * (Number(item.quantity) || 1)),
+    0
+  ) || 0;
 
   // Logistics costs
   const shippingCost = Number(shipment?.shipping_cost) || 0;
@@ -108,368 +114,354 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
     minute: "2-digit"
   });
 
+  const financialMetrics: MetricItem[] = [
+    {
+      label: "Ingreso de Venta",
+      value: `$${totalAmount.toLocaleString("es-AR")}`,
+      subtext: "Precio bruto cobrado",
+      icon: <DollarSign className="w-4 h-4" />
+    },
+    {
+      label: "Comisión ML",
+      value: `-$${totalMeliFees.toLocaleString("es-AR")}`,
+      subtext: totalAmount > 0 ? `${((totalMeliFees / totalAmount) * 100).toFixed(1)}% de la venta` : "0%",
+      icon: <Percent className="w-4 h-4" />
+    },
+    {
+      label: "Costo Logístico",
+      value: `-$${totalLogisticsCost.toLocaleString("es-AR")}`,
+      subtext: "Envío + Embalaje",
+      icon: <Truck className="w-4 h-4" />
+    },
+    {
+      label: "Costo Producto",
+      value: `-$${totalProductCost.toLocaleString("es-AR")}`,
+      subtext: "Costo de compra/stock",
+      icon: <Package className="w-4 h-4" />
+    },
+    {
+      label: "Resultado Neto",
+      value: `$${netProfit.toLocaleString("es-AR")}`,
+      subtext: `Margen: ${marginPercent.toFixed(1)}%`,
+      icon: netProfit >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />,
+      highlight: netProfit >= 0 ? "positive" : "critical"
+    }
+  ];
+
   return (
-    <div className="flex-1 p-8 pt-6 max-w-7xl mx-auto space-y-6">
-      {/* Back Button */}
-      <div className="flex items-center justify-between">
-        <Link href="/dashboard/sales">
-          <Button variant="ghost" size="sm" className="flex items-center gap-1 hover:bg-slate-100">
-            <ChevronLeft className="w-4 h-4" />
-            Volver a Ventas
-          </Button>
-        </Link>
-        <Badge variant="outline" className="text-xs font-mono text-slate-500">
-          ID Interno: {order.id}
-        </Badge>
-      </div>
-
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-bold tracking-tight">Orden #{order.meli_order_id}</h1>
-            <StatusBadge variant={order.status === 'paid' ? 'success' : order.status === 'cancelled' ? 'neutral' : 'info'}>
-              {order.status === 'paid' ? 'Pagado' : order.status}
-            </StatusBadge>
-          </div>
-          <p className="text-muted-foreground flex items-center gap-2 text-sm mt-1">
-            <Calendar className="w-4 h-4" />
-            Creada el {orderDate}
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-2 bg-slate-50 border p-3 rounded-lg">
-          <User className="w-5 h-5 text-slate-400" />
-          <div>
-            <p className="text-xs text-slate-400 font-medium">Comprador</p>
-            <p className="text-sm font-semibold text-slate-700">{order.buyer_nickname || "Anónimo"}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Financial KPI Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-medium text-slate-500 uppercase tracking-wider">Ingreso de Venta</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">${totalAmount.toLocaleString("es-AR")}</div>
-            <p className="text-xs text-muted-foreground mt-1">Precio abonado</p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-medium text-slate-500 uppercase tracking-wider">Comisión ML</CardTitle>
-            <Percent className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">${totalMeliFees.toLocaleString("es-AR")}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {totalAmount > 0 ? `${((totalMeliFees / totalAmount) * 100).toFixed(1)}%` : "0%"} del total
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-medium text-slate-500 uppercase tracking-wider">Costo Logístico</CardTitle>
-            <Truck className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">${totalLogisticsCost.toLocaleString("es-AR")}</div>
-            <p className="text-xs text-muted-foreground mt-1">Envío + Embalaje</p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-medium text-slate-500 uppercase tracking-wider">Costo de Producto</CardTitle>
-            <Package className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">${totalProductCost.toLocaleString("es-AR")}</div>
-            <p className="text-xs text-muted-foreground mt-1">Costo de compra/stock</p>
-          </CardContent>
-        </Card>
-
-        <Card className={`shadow-sm border-2 ${netProfit >= 0 ? "border-emerald-200 bg-emerald-50/20" : "border-red-200 bg-red-50/20"}`}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-medium text-slate-500 uppercase tracking-wider">Resultado Neto</CardTitle>
-            {netProfit >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-emerald-600" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-red-600" />
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${netProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>
-              ${netProfit.toLocaleString("es-AR")}
+    <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6">
+      {/* Header Operativo */}
+      <OperationalPageHeader
+        backLink={{
+          href: "/dashboard/sales",
+          label: "Volver a Ventas"
+        }}
+        eyebrow="Detalle de operación comercial"
+        title={`Orden #${order.meli_order_id}`}
+        description={`Registrada el ${orderDate} en Mercado Libre.`}
+        status={
+          <StatusBadge variant={order.status === 'paid' ? 'success' : order.status === 'cancelled' ? 'danger' : 'neutral'}>
+            {order.status === 'paid' ? 'Pagado' : order.status === 'cancelled' ? 'Cancelado' : order.status}
+          </StatusBadge>
+        }
+        actions={
+          <div className="flex items-center gap-2 bg-white border border-[#DCDAD4] px-3 py-1.5 rounded-lg shadow-sm">
+            <User className="w-3.5 h-3.5 text-[#5F6875]" />
+            <div className="text-xs">
+              <span className="text-[#5F6875]">Comprador: </span>
+              <strong className="text-[#101828] font-semibold">{order.buyer_nickname || "Anónimo"}</strong>
             </div>
-            <p className={`text-xs font-semibold mt-1 ${netProfit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-              Margen: {marginPercent.toFixed(1)}%
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        }
+      />
 
-      {/* Main Content Sections */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Left 2 Columns: Items & Financial Summary */}
-        <div className="md:col-span-2 space-y-6">
-          {/* Items Table */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <Package className="w-5 h-5 text-slate-400" />
-                Detalle del Contenido
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs uppercase bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
+      {/* Franja de Indicadores Financieros */}
+      <MetricStrip metrics={financialMetrics} columns={5} />
+
+      {/* Grilla Principal: Productos y Desglose Financiero */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Columna Izquierda: Detalle de Ítems y Análisis Unitario */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Tabla de Productos */}
+          <OperationalPanel
+            title="Productos en la orden"
+            description="Detalle de cantidades, comisiones y márgenes unitarios calculados."
+            bodyClassName="p-0"
+          >
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead className="text-[11px] uppercase bg-[#FCFCFA] text-[#5F6875] font-bold border-b border-[#DCDAD4]">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Producto</th>
+                    <th className="px-4 py-3 font-semibold text-center">Cant.</th>
+                    <th className="px-4 py-3 font-semibold text-right">Precio Unit.</th>
+                    <th className="px-4 py-3 font-semibold text-right">Comisión ML</th>
+                    <th className="px-4 py-3 font-semibold text-right">Costo Unit.</th>
+                    <th className="px-4 py-3 font-semibold text-right">Utilidad Neta</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E2E8F0]">
+                  {items && items.length > 0 ? (
+                    items.map((item) => {
+                      const unitPrice = Number(item.unit_price) || 0;
+                      const qty = Number(item.quantity) || 1;
+                      const subtotal = unitPrice * qty;
+                      const fee = (Number(item.estimated_fee) || 0) * qty;
+                      const cost = Number(item.unit_cost) || 0;
+                      const itemNetProfit = subtotal - fee - (cost * qty);
+
+                      return (
+                        <tr key={item.id} className="hover:bg-[#F5F3EE]/30 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="space-y-0.5 max-w-[260px]">
+                              <p className="font-semibold text-[#101828] leading-tight truncate" title={item.title}>
+                                {item.title}
+                              </p>
+                              <p className="text-[11px] font-mono text-[#5F6875]">
+                                SKU: {item.sku || "Sin asignar"}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center font-bold text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            {qty}
+                          </td>
+                          <td className="px-4 py-3 text-right text-[#101828] font-medium tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            ${unitPrice.toLocaleString("es-AR")}
+                          </td>
+                          <td className="px-4 py-3 text-right text-[#B54708] font-medium tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            -${fee.toLocaleString("es-AR")}
+                          </td>
+                          <td className="px-4 py-3 text-right text-[#5F6875] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            {cost > 0 ? `$${cost.toLocaleString("es-AR")}` : "—"}
+                          </td>
+                          <td
+                            className={`px-4 py-3 text-right font-bold tabular-nums ${itemNetProfit >= 0 ? "text-[#198754]" : "text-[#D92D20]"}`}
+                            style={{ fontVariantNumeric: "tabular-nums" }}
+                          >
+                            ${itemNetProfit.toLocaleString("es-AR")}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
                     <tr>
-                      <th className="px-4 py-3">Producto</th>
-                      <th className="px-4 py-3 text-center">Cant.</th>
-                      <th className="px-4 py-3 text-right">Precio Unit.</th>
-                      <th className="px-4 py-3 text-right">Comisión ML</th>
-                      <th className="px-4 py-3 text-right">Costo Unit.</th>
-                      <th className="px-4 py-3 text-right">Utilidad Neta</th>
+                      <td colSpan={6} className="px-4 py-8 text-center text-[#5F6875]">
+                        No se encontraron detalles de productos en esta orden.
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {items && items.length > 0 ? (
-                      items.map((item) => {
-                        const unitPrice = Number(item.unit_price) || 0;
-                        const qty = Number(item.quantity) || 1;
-                        const subtotal = unitPrice * qty;
-                        const fee = (Number(item.estimated_fee) || 0) * qty;
-                        const cost = Number(item.unit_cost) || 0;
-                        const itemNetProfit = subtotal - fee - (cost * qty);
-                        
-                        return (
-                          <tr key={item.id} className="hover:bg-slate-50/50">
-                            <td className="px-4 py-4">
-                              <div className="space-y-1 max-w-[280px]">
-                                <p className="font-medium text-slate-900 leading-tight">{item.title}</p>
-                                <p className="text-xs font-mono text-slate-400">SKU: {item.sku || "N/A"}</p>
-                              </div>
-                            </td>
-                            <td className="px-4 py-4 text-center font-semibold text-slate-700">{qty}</td>
-                            <td className="px-4 py-4 text-right text-slate-900 font-medium">${unitPrice.toLocaleString("es-AR")}</td>
-                            <td className="px-4 py-4 text-right text-orange-600">${fee.toLocaleString("es-AR")}</td>
-                            <td className="px-4 py-4 text-right text-slate-500">
-                              {cost > 0 ? `$${cost.toLocaleString("es-AR")}` : "-"}
-                            </td>
-                            <td className={`px-4 py-4 text-right font-semibold ${itemNetProfit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                              ${itemNetProfit.toLocaleString("es-AR")}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                          No se encontraron detalles de los productos.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </OperationalPanel>
 
-          {/* Unit Economics Analysis */}
-          <Card className="shadow-sm bg-slate-50/40">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                Análisis de Rentabilidad Unitaria
-              </CardTitle>
-              <CardDescription>Desglose de la contribución marginal de esta orden.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Progress bar */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs font-semibold text-slate-500">
-                  <span>Porcentaje de Margen Neto</span>
-                  <span className={netProfit >= 0 ? "text-emerald-600" : "text-red-600"}>{marginPercent.toFixed(1)}%</span>
+          {/* Análisis de Rentabilidad Unitaria */}
+          <OperationalPanel
+            title="Contribución marginal y rentabilidad"
+            description="Evaluación del margen neto resultante después de comisiones, logística y reposición."
+          >
+            <div className="space-y-4">
+              {/* Barra de Progreso Lineal */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs font-semibold text-[#5F6875]">
+                  <span>Margen Neto sobre Venta</span>
+                  <span className={netProfit >= 0 ? "text-[#198754] font-bold" : "text-[#D92D20] font-bold"}>
+                    {marginPercent.toFixed(1)}%
+                  </span>
                 </div>
-                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      marginPercent >= 20 
-                        ? "bg-emerald-500" 
-                        : marginPercent >= 10 
-                          ? "bg-blue-500" 
-                          : marginPercent >= 0 
-                            ? "bg-amber-500" 
-                            : "bg-red-500"
+                <div className="w-full h-2.5 bg-[#F5F3EE] rounded-full overflow-hidden border border-[#DCDAD4]">
+                  <div
+                    className={`h-full transition-all duration-500 rounded-full ${
+                      marginPercent >= 20
+                        ? "bg-[#198754]"
+                        : marginPercent >= 10
+                          ? "bg-[#102A56]"
+                          : marginPercent >= 0
+                            ? "bg-[#F2C94C]"
+                            : "bg-[#D92D20]"
                     }`}
                     style={{ width: `${Math.max(0, Math.min(100, marginPercent))}%` }}
                   />
                 </div>
               </div>
 
-              {/* Feedback Advice */}
-              <div className="border p-4 rounded-lg bg-white flex gap-3 items-start">
-                <AlertCircle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
-                  marginPercent >= 20 
-                    ? "text-emerald-500" 
-                    : marginPercent >= 10 
-                      ? "text-blue-500" 
-                      : "text-amber-500"
+              {/* Mensaje de Diagnóstico */}
+              <div className="border border-[#DCDAD4] p-3.5 rounded-lg bg-[#FCFCFA] flex items-start gap-3">
+                <AlertCircle className={`w-4 h-4 mt-0.5 shrink-0 ${
+                  marginPercent >= 20
+                    ? "text-[#198754]"
+                    : marginPercent >= 10
+                      ? "text-[#102A56]"
+                      : marginPercent >= 0
+                        ? "text-[#B54708]"
+                        : "text-[#D92D20]"
                 }`} />
                 <div className="text-xs space-y-1">
-                  <h5 className="font-semibold text-slate-800">
-                    {marginPercent >= 20 
-                      ? "¡Excelente rentabilidad!" 
-                      : marginPercent >= 10 
-                        ? "Rentabilidad aceptable" 
-                        : marginPercent >= 0 
-                          ? "Margen muy ajustado" 
+                  <h4 className="font-bold text-[#101828]">
+                    {marginPercent >= 20
+                      ? "Rentabilidad óptima (supera el 20%)"
+                      : marginPercent >= 10
+                        ? "Margen operativo aceptable"
+                        : marginPercent >= 0
+                          ? "Margen reducido"
                           : "Venta a pérdida"}
-                  </h5>
-                  <p className="text-slate-500 leading-relaxed">
-                    {marginPercent >= 20 
-                      ? "Esta venta supera el objetivo de margen recomendado del 20%. Los costos de logística y el costo del producto están perfectamente equilibrados." 
-                      : marginPercent >= 10 
-                        ? "La venta arroja saldo positivo. Si es un producto de alta rotación, es aceptable, pero considera revisar si puedes reducir costos de embalaje o ajustar levemente el precio." 
-                        : marginPercent >= 0 
-                          ? "Cuidado: el margen neto es muy bajo. El peso de las comisiones de Mercado Libre y la logística están absorbiendo la mayor parte de tu ganancia." 
-                          : "Alerta: Estás perdiendo dinero con esta transacción. Revisa de inmediato el costo del producto, las comisiones aplicadas o si el subsidio de envío gratis te está perjudicando."}
+                  </h4>
+                  <p className="text-[#5F6875] leading-relaxed">
+                    {marginPercent >= 20
+                      ? "Esta operación deja una contribución sólida. Los costos logísticos y de producto están equilibrados frente al precio de venta."
+                      : marginPercent >= 10
+                        ? "La venta genera resultado positivo. En productos de alta rotación es admisible; para catálogo general considerá optimizar embalaje o ajustar el precio."
+                        : marginPercent >= 0
+                          ? "El margen es estrecho. El peso combinado de comisiones de Mercado Libre y flete absorbe la mayor parte del ingreso bruto."
+                          : "Esta transacción genera pérdida económica neta. Verificá si el costo cargado es correcto o si el subsidio de envío gratuito compromete el margen."}
                   </p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </OperationalPanel>
         </div>
 
-        {/* Right Column: Financial Ledger & Payment/Shipping details */}
+        {/* Columna Derecha: Estructura de Costos y Datos de Transacción */}
         <div className="space-y-6">
-          {/* Financial Ledger */}
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="pb-3 border-b">
-              <CardTitle className="text-base font-bold text-slate-800">Estructura de Costos</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-3.5 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Ventas Brutas</span>
-                <span className="font-semibold text-slate-900">${totalAmount.toLocaleString("es-AR")}</span>
+          {/* Libro de Estructura de Costos */}
+          <OperationalPanel
+            title="Estructura de costos"
+            description="Desglose contable de la orden."
+          >
+            <div className="space-y-3 text-xs">
+              <div className="flex justify-between items-center py-1">
+                <span className="text-[#5F6875]">Venta Bruta</span>
+                <span className="font-bold text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                  ${totalAmount.toLocaleString("es-AR")}
+                </span>
               </div>
-              
+
               {couponAmount > 0 && (
-                <div className="flex justify-between text-amber-600">
+                <div className="flex justify-between items-center py-1 text-[#B54708]">
                   <span className="flex items-center gap-1">
-                    <Tag className="w-3.5 h-3.5" />
-                    Descuento Cupón
+                    <Tag className="w-3 h-3" />
+                    Cupón aplicado
                   </span>
-                  <span>-${couponAmount.toLocaleString("es-AR")}</span>
+                  <span className="font-semibold tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    -${couponAmount.toLocaleString("es-AR")}
+                  </span>
                 </div>
               )}
 
-              <div className="flex justify-between border-b pb-3 text-slate-500">
-                <span>Comisión Mercado Libre</span>
-                <span className="font-semibold text-orange-600">-${totalMeliFees.toLocaleString("es-AR")}</span>
+              <div className="flex justify-between items-center py-1 border-b border-[#E2E8F0]">
+                <span className="text-[#5F6875]">Comisión Mercado Libre</span>
+                <span className="font-bold text-[#B54708] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                  -${totalMeliFees.toLocaleString("es-AR")}
+                </span>
               </div>
 
               {shippingCost > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Costo de Envío (Vendedor)</span>
-                  <span className="font-medium text-slate-700">-${shippingCost.toLocaleString("es-AR")}</span>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-[#5F6875]">Envío (a cargo del vendedor)</span>
+                  <span className="font-medium text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    -${shippingCost.toLocaleString("es-AR")}
+                  </span>
                 </div>
               )}
 
               {packagingCost > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Costo de Embalaje</span>
-                  <span className="font-medium text-slate-700">-${packagingCost.toLocaleString("es-AR")}</span>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-[#5F6875]">Embalaje estimado</span>
+                  <span className="font-medium text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    -${packagingCost.toLocaleString("es-AR")}
+                  </span>
                 </div>
               )}
 
-              <div className="flex justify-between border-b pb-3 text-slate-500">
-                <span>Costo Total de Logística</span>
-                <span className="font-semibold text-slate-700">-${totalLogisticsCost.toLocaleString("es-AR")}</span>
+              <div className="flex justify-between items-center py-1 border-b border-[#E2E8F0]">
+                <span className="text-[#5F6875]">Costo Total Logístico</span>
+                <span className="font-bold text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                  -${totalLogisticsCost.toLocaleString("es-AR")}
+                </span>
               </div>
 
-              <div className="flex justify-between border-b pb-3 text-slate-500">
-                <span>Costo del Producto</span>
-                <span className="font-semibold text-purple-600">-${totalProductCost.toLocaleString("es-AR")}</span>
+              <div className="flex justify-between items-center py-1 border-b border-[#DCDAD4]">
+                <span className="text-[#5F6875]">Costo de Reposición</span>
+                <span className="font-bold text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                  -${totalProductCost.toLocaleString("es-AR")}
+                </span>
               </div>
 
-              <div className="flex justify-between pt-2 text-base font-bold">
-                <span className="text-slate-800">Ganancia Neta</span>
-                <span className={netProfit >= 0 ? "text-emerald-600" : "text-red-600"}>
+              <div className="flex justify-between items-center pt-2 text-sm">
+                <span className="font-bold text-[#101828]">Ganancia Neta</span>
+                <span
+                  className={`font-bold tabular-nums ${netProfit >= 0 ? "text-[#198754]" : "text-[#D92D20]"}`}
+                  style={{ fontVariantNumeric: "tabular-nums" }}
+                >
                   ${netProfit.toLocaleString("es-AR")}
                 </span>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </OperationalPanel>
 
-          {/* Payment & Logistics details */}
-          <Card className="shadow-sm border-slate-200">
-            <CardHeader className="pb-3 border-b">
-              <CardTitle className="text-base font-bold text-slate-800">Detalles de la Transacción</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4 text-xs">
-              {/* Payment info */}
-              <div className="space-y-2">
-                <h4 className="font-semibold text-slate-500 uppercase tracking-wider text-[10px] flex items-center gap-1">
-                  <CreditCard className="w-3.5 h-3.5" /> Pago
-                </h4>
-                <div className="bg-slate-50 p-2.5 rounded border space-y-1.5">
+          {/* Información de Transacción */}
+          <OperationalPanel
+            title="Pago y logística"
+            description="Medio de cobro y despacho asociado."
+          >
+            <div className="space-y-4 text-xs">
+              {/* Pago */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#5F6875]">
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Cobro</span>
+                </div>
+                <div className="p-2.5 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Método:</span>
-                    <span className="font-semibold text-slate-700 uppercase">{paymentMethod.replace(/_/g, " ")}</span>
+                    <span className="text-[#5F6875]">Método:</span>
+                    <span className="font-semibold text-[#101828] uppercase">{paymentMethod.replace(/_/g, " ")}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Financiación:</span>
-                    <span className="font-semibold text-slate-700">
+                    <span className="text-[#5F6875]">Financiación:</span>
+                    <span className="font-semibold text-[#101828]">
                       {installments === 1 ? "1 pago" : `${installments} cuotas`}
                     </span>
                   </div>
                   {couponId && (
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Cupón Meli:</span>
-                      <span className="font-mono text-amber-600 font-semibold">{couponId}</span>
+                      <span className="text-[#5F6875]">Cupón:</span>
+                      <span className="font-mono text-[#B54708] font-bold">{couponId}</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Shipping info */}
-              <div className="space-y-2">
-                <h4 className="font-semibold text-slate-500 uppercase tracking-wider text-[10px] flex items-center gap-1">
-                  <Truck className="w-3.5 h-3.5" /> Logística
-                </h4>
-                <div className="bg-slate-50 p-2.5 rounded border space-y-1.5">
+              {/* Logística */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#5F6875]">
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>Despacho</span>
+                </div>
+                <div className="p-2.5 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] space-y-1">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Tipo de Envío:</span>
-                    <span className="font-semibold text-slate-700 capitalize">
-                      {shipment?.logistic_type?.replace(/_/g, " ") || "No especificado"}
+                    <span className="text-[#5F6875]">Modalidad:</span>
+                    <span className="font-semibold text-[#101828] capitalize">
+                      {shipment?.logistic_type?.replace(/_/g, " ") || "No especificada"}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Destino:</span>
-                    <span className="font-semibold text-slate-700">
+                    <span className="text-[#5F6875]">Destino:</span>
+                    <span className="font-semibold text-[#101828] truncate max-w-[140px]" title={shipment?.receiver_city ? `${shipment.receiver_city}, ${shipment.receiver_state || ""}` : "No especificado"}>
                       {shipment?.receiver_city ? `${shipment.receiver_city}, ${shipment.receiver_state || ""}` : "No especificado"}
                     </span>
                   </div>
                   {shipment?.tracking_number && (
-                    <div className="space-y-1 pt-1 border-t">
-                      <span className="text-slate-400 block">Número de Tracking:</span>
-                      <div className="flex items-center justify-between bg-white px-2 py-1 rounded border font-mono text-[11px] text-slate-700">
+                    <div className="pt-1.5 border-t border-[#E2E8F0] space-y-1">
+                      <span className="text-[#5F6875] text-[11px]">Tracking:</span>
+                      <div className="flex items-center justify-between bg-white px-2 py-1 rounded border border-[#DCDAD4] font-mono text-[11px] text-[#101828]">
                         <span>{shipment.tracking_number}</span>
                         {shipment.tracking_number.startsWith("MEL") && (
-                          <a 
-                            href={`https://www.mercadolibre.com.ar/envios/seguimiento/${shipment.tracking_number}`} 
-                            target="_blank" 
+                          <a
+                            href={`https://www.mercadolibre.com.ar/envios/seguimiento/${shipment.tracking_number}`}
+                            target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-500 hover:text-blue-700"
+                            className="text-[#102A56] hover:underline"
+                            title="Rastrear en Mercado Libre"
                           >
                             <ExternalLink className="w-3 h-3" />
                           </a>
@@ -479,8 +471,8 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
                   )}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </OperationalPanel>
         </div>
       </div>
     </div>

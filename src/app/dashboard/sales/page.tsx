@@ -34,7 +34,7 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
   const days = searchParams.days || "current_month";
   const fromParam = searchParams.from || "";
   const toParam = searchParams.to || "";
-  
+
   const limit = 50;
   const from = (page - 1) * limit;
   const to = from + limit - 1;
@@ -109,9 +109,9 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
   });
 
   return (
-    <div className="flex-1 p-8 pt-6">
-      <SalesClientPage 
-        initialOrders={mappedOrders} 
+    <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
+      <SalesClientPage
+        initialOrders={mappedOrders}
         allPeriodOrders={allPeriodOrders}
         totalCount={count || 0}
         currentPage={page}

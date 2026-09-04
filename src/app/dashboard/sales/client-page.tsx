@@ -1,21 +1,41 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { Button } from "@/components/ui/button";
-import { Download, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Package, Activity, Eye, EyeOff } from "lucide-react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Pie, PieChart, Cell, Legend } from "recharts";
-import { SearchInput } from "@/components/ui/search-input";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { MobileFilterDrawer } from "@/components/ui/mobile-filter-drawer";
-import { toggleIgnoreOrderAction } from "@/actions/orders";
+import * as React from "react";
 import { useTransition } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import {
+  Download,
+  DollarSign,
+  ShoppingBag,
+  Package,
+  TrendingUp,
+  TrendingDown,
+  Activity,
+  Eye,
+  EyeOff,
+  Calendar
+} from "lucide-react";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Pie, PieChart, Cell, Legend } from "recharts";
 
-import { getMidnightInTimezone, getTenantDateString, getPeriodRangeInTimezone, DEFAULT_TIMEZONE } from "@/lib/dates";
+import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { SearchInput } from "@/components/ui/search-input";
+import { OperationalPageHeader } from "@/components/operational/page-header";
+import { OperationalToolbar } from "@/components/operational/toolbar";
+import { OperationalPanel } from "@/components/operational/panel";
+import { OperationalEmptyState } from "@/components/operational/empty-state";
+import { DataTableShell } from "@/components/operational/data-table-shell";
+import { MetricStrip, MetricItem } from "@/components/operational/metric-strip";
+import { toggleIgnoreOrderAction } from "@/actions/orders";
+import {
+  getMidnightInTimezone,
+  getTenantDateString,
+  getPeriodRangeInTimezone,
+  DEFAULT_TIMEZONE
+} from "@/lib/dates";
 
-export default function SalesClientPage({ 
-  initialOrders, 
+export default function SalesClientPage({
+  initialOrders,
   allPeriodOrders,
   totalCount,
   currentPage,
@@ -26,7 +46,7 @@ export default function SalesClientPage({
   toDate = "",
   ignoredOrderIds = [],
   timezone = DEFAULT_TIMEZONE
-}: { 
+}: {
   initialOrders: any[],
   allPeriodOrders: any[],
   totalCount: number,
@@ -47,7 +67,7 @@ export default function SalesClientPage({
   const handleFilterChange = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams);
     params.set(key, value);
-    params.delete("page"); // Reset page
+    params.delete("page");
     router.push(`${pathname}?${params.toString()}`);
   };
 
@@ -66,15 +86,17 @@ export default function SalesClientPage({
     });
   };
 
-  // KPIs use allPeriodOrders to be accurate regardless of pagination
-  // Exclude ignored orders
-  const activePeriodOrders = allPeriodOrders.filter(o => !ignoredOrderIds.includes(o.meli_order_id) && o.status !== "cancelled");
+  // Exclude ignored & cancelled orders from main revenue KPI
+  const activePeriodOrders = allPeriodOrders.filter(
+    o => !ignoredOrderIds.includes(o.meli_order_id) && o.status !== "cancelled"
+  );
   const totalSales = activePeriodOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
   const totalOrdersCount = activePeriodOrders.length;
   const avgTicket = totalOrdersCount > 0 ? totalSales / totalOrdersCount : 0;
 
   const todayMidnight = getMidnightInTimezone(new Date(), timezone);
-  const salesToday = activePeriodOrders.filter(o => new Date(o.date_created) >= todayMidnight)
+  const salesToday = activePeriodOrders
+    .filter(o => new Date(o.date_created) >= todayMidnight)
     .reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
   // Chart Data preparation
@@ -92,7 +114,7 @@ export default function SalesClientPage({
 
   const chartData = Array.from({ length: chartLength }, (_, i) => {
     const dRef = new Date(chartStartFrom.getTime() + i * 24 * 60 * 60 * 1000);
-    const dateStr = getTenantDateString(dRef, timezone); // "YYYY-MM-DD"
+    const dateStr = getTenantDateString(dRef, timezone);
     const [y, m, d] = dateStr.split('-').map(Number);
     const dateObjForLabel = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
     const name = dateObjForLabel.toLocaleDateString("es-AR", { day: "2-digit", month: "short", timeZone: "UTC" });
@@ -117,340 +139,403 @@ export default function SalesClientPage({
     const title = o.product_title || "Varios / Otros";
     productSales[title] = (productSales[title] || 0) + (Number(o.total_amount) || 0);
   });
-  
+
   const categoryData = Object.entries(productSales)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
-    .map(entry => ({ name: entry[0].length > 20 ? entry[0].substring(0, 20) + "..." : entry[0], value: entry[1] }));
-    
+    .map(entry => ({
+      name: entry[0].length > 22 ? entry[0].substring(0, 22) + "..." : entry[0],
+      value: entry[1]
+    }));
+
   if (categoryData.length === 0) {
     categoryData.push({ name: "Sin datos", value: 1 });
   }
 
-  // Dynamic AI Insights
+  // Daily performance comparison
   const yesterdayMidnight = getMidnightInTimezone(new Date(todayMidnight.getTime() - 24 * 60 * 60 * 1000), timezone);
   const salesYesterday = activePeriodOrders.filter(o => {
     const d = new Date(o.date_created);
     return d >= yesterdayMidnight && d < todayMidnight;
   }).reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
 
-  let todayVsYesterdayMsg = "Tus ventas de hoy están igualadas con las de ayer.";
-  let todayVsYesterdayColor = "text-blue-500";
-  let todayVsYesterdayIcon = Activity;
+  let todayVsYesterdayMsg = "Ventas de hoy igualadas con las de ayer.";
+  let todayVsYesterdayHighlight: "neutral" | "positive" | "warning" = "neutral";
+  let TodayIcon = Activity;
 
   if (salesToday > salesYesterday) {
     const increase = salesYesterday > 0 ? ((salesToday - salesYesterday) / salesYesterday) * 100 : 100;
-    todayVsYesterdayMsg = `Tus ventas de hoy superan las de ayer en un ${increase.toFixed(1)}%.`;
-    todayVsYesterdayColor = "text-emerald-500";
-    todayVsYesterdayIcon = TrendingUp;
+    todayVsYesterdayMsg = `Ventas de hoy superan ayer en un +${increase.toFixed(1)}%.`;
+    todayVsYesterdayHighlight = "positive";
+    TodayIcon = TrendingUp;
   } else if (salesToday < salesYesterday && salesToday > 0) {
     const decrease = salesYesterday > 0 ? ((salesYesterday - salesToday) / salesYesterday) * 100 : 0;
-    todayVsYesterdayMsg = `Tus ventas de hoy están un ${decrease.toFixed(1)}% por debajo de las de ayer.`;
-    todayVsYesterdayColor = "text-orange-500";
-    todayVsYesterdayIcon = TrendingDown;
+    todayVsYesterdayMsg = `Ventas de hoy ${decrease.toFixed(1)}% debajo de ayer.`;
+    todayVsYesterdayHighlight = "warning";
+    TodayIcon = TrendingDown;
   }
 
   const topProduct = Object.entries(productSales).sort((a,b) => b[1] - a[1])[0];
-  const topProductMsg = topProduct ? `Tu producto líder es '${topProduct[0]}' generó $${topProduct[1].toLocaleString('es-AR')} en este periodo.` : "Sin suficientes datos.";
+  const topProductMsg = topProduct
+    ? `${topProduct[0]} ($${topProduct[1].toLocaleString('es-AR')})`
+    : "Sin ventas en este período.";
 
-  const insights = [
-    { title: "Rendimiento Diario", desc: todayVsYesterdayMsg, icon: todayVsYesterdayIcon, color: todayVsYesterdayColor },
-    { title: "Producto Estrella", desc: topProductMsg, icon: ShoppingBag, color: "text-blue-500" },
-    { title: "Ticket Promedio", desc: `Tu ticket promedio actual es de $${avgTicket.toLocaleString('es-AR', { maximumFractionDigits: 0 })} por orden.`, icon: DollarSign, color: "text-indigo-500" }
+  const observations = [
+    {
+      title: "Rendimiento diario",
+      text: todayVsYesterdayMsg,
+      icon: TodayIcon,
+      highlight: todayVsYesterdayHighlight
+    },
+    {
+      title: "Producto con mayor facturación",
+      text: topProductMsg,
+      icon: ShoppingBag,
+      highlight: "neutral" as const
+    },
+    {
+      title: "Ticket promedio del período",
+      text: `$${avgTicket.toLocaleString('es-AR', { maximumFractionDigits: 0 })} por orden`,
+      icon: DollarSign,
+      highlight: "neutral" as const
+    }
   ];
 
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
+  const CHART_COLORS = ['#102A56', '#2563EB', '#F2C94C', '#198754'];
+
+  const periodLabel =
+    currentDays === "current_month" ? "Mes actual" :
+    currentDays === "previous_month" ? "Mes anterior" :
+    currentDays === "custom" ? `${fromDate || "..."} a ${toDate || "..."}` :
+    `Últimos ${currentDays} días`;
+
+  const metrics: MetricItem[] = [
+    {
+      label: "Ventas de hoy",
+      value: `$${salesToday.toLocaleString("es-AR")}`,
+      subtext: "Facturado desde 00:00 hs",
+      icon: <DollarSign className="w-4 h-4" />
+    },
+    {
+      label: `Ventas (${periodLabel})`,
+      value: `$${totalSales.toLocaleString("es-AR")}`,
+      subtext: "Total acumulado en el período",
+      icon: <TrendingUp className="w-4 h-4" />
+    },
+    {
+      label: "Ticket Promedio",
+      value: `$${avgTicket.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`,
+      subtext: "Promedio neto por transacción",
+      icon: <ShoppingBag className="w-4 h-4" />
+    },
+    {
+      label: "Órdenes Totales",
+      value: totalOrdersCount.toLocaleString("es-AR"),
+      subtext: `${initialOrders.length} visibles en esta página`,
+      icon: <Package className="w-4 h-4" />
+    }
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-2 border-b border-border/40">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Ventas y Analíticas</h2>
-          <p className="text-muted-foreground mt-1">Monitorea el rendimiento de tu negocio en tiempo real.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          {/* Selector de estado */}
-          <select 
-            value={currentStatus} 
-            onChange={(e) => handleFilterChange("status", e.target.value)}
-            className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+      {/* Header Operativo */}
+      <OperationalPageHeader
+        eyebrow="Operación comercial"
+        title="Ventas y facturación"
+        description="Seguimiento de pedidos, volumen facturado y rendimiento de transacciones en Mercado Libre."
+        actions={
+          <Button
+            onClick={handleExport}
+            variant="outline"
+            className="h-9 px-3 text-xs font-semibold border-[#DCDAD4] hover:bg-[#F5F3EE] text-[#101828] flex items-center gap-1.5 shadow-sm"
           >
-            <option value="all">Todos los estados</option>
-            <option value="paid">Pagados</option>
-            <option value="cancelled">Cancelados</option>
-          </select>
+            <Download className="w-3.5 h-3.5 text-[#5F6875]" />
+            <span>Exportar CSV</span>
+          </Button>
+        }
+      />
+
+      {/* Barra de Filtros y Controles Operativos */}
+      <OperationalToolbar>
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+          {/* Selector de estado */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875]">Estado:</span>
+            <select
+              value={currentStatus}
+              onChange={(e) => handleFilterChange("status", e.target.value)}
+              className="h-8 rounded-md border border-[#DCDAD4] bg-white px-2.5 text-xs text-[#101828] font-medium shadow-none focus:outline-none focus:ring-1 focus:ring-[#102A56]"
+            >
+              <option value="all">Todos los estados</option>
+              <option value="paid">Pagados</option>
+              <option value="cancelled">Cancelados</option>
+            </select>
+          </div>
 
           {/* Selector de periodo */}
-          <select 
-            value={currentDays} 
-            onChange={(e) => handleFilterChange("days", e.target.value)}
-            className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="current_month">Mes actual</option>
-            <option value="previous_month">Mes anterior</option>
-            <option value="7">Últimos 7 días</option>
-            <option value="30">Últimos 30 días</option>
-            <option value="90">Últimos 3 meses</option>
-            <option value="custom">Personalizado...</option>
-          </select>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875]">Período:</span>
+            <select
+              value={currentDays}
+              onChange={(e) => handleFilterChange("days", e.target.value)}
+              className="h-8 rounded-md border border-[#DCDAD4] bg-white px-2.5 text-xs text-[#101828] font-medium shadow-none focus:outline-none focus:ring-1 focus:ring-[#102A56]"
+            >
+              <option value="current_month">Mes actual</option>
+              <option value="previous_month">Mes anterior</option>
+              <option value="7">Últimos 7 días</option>
+              <option value="30">Últimos 30 días</option>
+              <option value="90">Últimos 3 meses</option>
+              <option value="custom">Personalizado...</option>
+            </select>
+          </div>
 
           {/* Rango de fechas para Personalizado */}
           {currentDays === "custom" && (
-            <div className="flex items-center gap-2 bg-slate-50 border border-input rounded-md px-2 py-1 shadow-sm">
+            <div className="flex items-center gap-2 bg-[#F5F3EE] border border-[#DCDAD4] rounded-md px-2.5 py-1 text-xs">
+              <Calendar className="w-3.5 h-3.5 text-[#5F6875]" />
               <input
                 type="date"
                 value={fromDate}
                 onChange={(e) => handleFilterChange("from", e.target.value)}
-                className="bg-transparent border-0 text-sm focus:outline-none p-0 text-slate-700"
+                className="bg-transparent border-0 text-xs focus:outline-none p-0 text-[#101828] font-medium"
               />
-              <span className="text-muted-foreground text-xs font-semibold">a</span>
+              <span className="text-[#5F6875] font-semibold text-[11px]">a</span>
               <input
                 type="date"
                 value={toDate}
                 onChange={(e) => handleFilterChange("to", e.target.value)}
-                className="bg-transparent border-0 text-sm focus:outline-none p-0 text-slate-700"
+                className="bg-transparent border-0 text-xs focus:outline-none p-0 text-[#101828] font-medium"
               />
             </div>
           )}
-
-          <Button onClick={handleExport} variant="outline" className="flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            Exportar CSV
-          </Button>
         </div>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ventas Hoy</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${salesToday.toLocaleString("es-AR")}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ventas Periodo</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalSales.toLocaleString("es-AR")}</div>
-            <p className="text-xs text-muted-foreground">
-              {currentDays === "current_month" && "Mes actual"}
-              {currentDays === "previous_month" && "Mes anterior"}
-              {currentDays === "custom" && `Desde ${fromDate} hasta ${toDate}`}
-              {typeof currentDays === "string" && !["current_month", "previous_month", "custom"].includes(currentDays) && `Últimos ${currentDays} días`}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ticket Promedio</CardTitle>
-            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${avgTicket.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Órdenes Totales</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalOrdersCount}</div>
-          </CardContent>
-        </Card>
-      </div>
+        {/* Buscador de órdenes */}
+        <div className="w-full sm:w-72">
+          <SearchInput placeholder="Buscar orden, comprador, producto..." />
+        </div>
+      </OperationalToolbar>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {insights.map((insight, idx) => (
-          <Card key={idx} className="bg-primary/5 border-primary/10">
-            <CardContent className="p-4 flex items-start gap-4">
-              <div className={`p-2 rounded-full bg-background ${insight.color}`}>
-                <insight.icon className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-sm">{insight.title}</h4>
-                <p className="text-xs text-muted-foreground mt-1">{insight.desc}</p>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Franja de Indicadores Operativos */}
+      <MetricStrip metrics={metrics} columns={4} />
+
+      {/* Observaciones Operativas Compactas */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        {observations.map((obs, idx) => (
+          <div
+            key={idx}
+            className="p-3 bg-white border border-[#DCDAD4] rounded-lg shadow-sm flex items-start gap-3 text-xs"
+          >
+            <div className="p-1.5 rounded bg-[#F5F3EE] border border-[#DCDAD4] text-[#5F6875] shrink-0 mt-0.5">
+              <obs.icon className="w-4 h-4" />
+            </div>
+            <div className="space-y-0.5 min-w-0">
+              <p className="font-bold text-[11px] uppercase tracking-wider text-[#5F6875]">
+                {obs.title}
+              </p>
+              <p className="text-xs font-semibold text-[#101828] truncate leading-tight" title={obs.text}>
+                {obs.text}
+              </p>
+            </div>
+          </div>
         ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Ingresos en el tiempo</CardTitle>
-          </CardHeader>
-          <CardContent className="pl-0 h-[300px]">
+      {/* Paneles de Análisis Gráfico */}
+      <div className="grid gap-6 lg:grid-cols-7">
+        <OperationalPanel
+          title="Evolución de ingresos"
+          description={`Facturación bruta acumulada (${periodLabel})`}
+          className="lg:col-span-4"
+        >
+          <div className="h-[280px] w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  <linearGradient id="colorSalesTotal" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#102A56" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#102A56" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
-                <Tooltip />
-                <Area type="monotone" dataKey="total" stroke="#3b82f6" fillOpacity={1} fill="url(#colorTotal)" />
+                <XAxis
+                  dataKey="name"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={{ stroke: '#E2E8F0' }}
+                  stroke="#5F6875"
+                />
+                <YAxis
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  stroke="#5F6875"
+                  tickFormatter={(val) => `$${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#FFFFFF',
+                    borderColor: '#DCDAD4',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
+                  }}
+                  formatter={(value: any) => [`$${Number(value).toLocaleString('es-AR')}`, "Facturación"]}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="total"
+                  stroke="#102A56"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorSalesTotal)"
+                />
               </AreaChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          </div>
+        </OperationalPanel>
 
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Top Productos Vendidos</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[300px] pb-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        <OperationalPanel
+          title="Distribución por producto"
+          description="Participación en la facturación del período"
+          className="lg:col-span-3"
+        >
+          <div className="h-[280px] w-full flex items-center justify-center">
+            {activePeriodOrders.length === 0 ? (
+              <p className="text-xs text-[#5F6875]">No hay ventas registradas para este período.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    cx="50%"
+                    cy="45%"
+                    innerRadius={50}
+                    outerRadius={75}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#FFFFFF',
+                      borderColor: '#DCDAD4',
+                      borderRadius: '8px',
+                      fontSize: '12px'
+                    }}
+                    formatter={(value: any) => [`$${Number(value).toLocaleString('es-AR')}`, "Total"]}
+                  />
+                  <Legend
+                    wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </OperationalPanel>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3 border-b">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <CardTitle>Historial de Órdenes</CardTitle>
-              <CardDescription>Detalle de todas tus ventas.</CardDescription>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-              <div className="w-full sm:w-64">
-                <SearchInput placeholder="Buscar orden, comprador, producto..." />
-              </div>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs uppercase bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Fecha</th>
-                  <th className="px-4 py-3 font-medium">Nº Orden</th>
-                  <th className="px-4 py-3 font-medium">Comprador</th>
-                  <th className="px-4 py-3 font-medium">Producto</th>
-                  <th className="px-4 py-3 font-medium text-right">Cant.</th>
-                  <th className="px-4 py-3 font-medium text-right">Total</th>
-                  <th className="px-4 py-3 font-medium">Estado</th>
-                  <th className="px-4 py-3 font-medium text-center">Acción</th>
+      {/* Tabla de Órdenes */}
+      <DataTableShell
+        isEmpty={initialOrders.length === 0}
+        emptyState={
+          <OperationalEmptyState
+            icon={ShoppingBag}
+            title="No hay ventas en este período"
+            description="No encontramos transacciones registradas con los filtros seleccionados. Probá ampliar el rango de fechas o sincronizar con Mercado Libre."
+          />
+        }
+        pagination={{
+          currentPage,
+          totalCount,
+          pageSize: 50,
+          onPageChange: (newPage) => handleFilterChange("page", newPage.toString()),
+          label: (
+            <span>
+              Mostrando <strong className="text-[#101828] font-semibold">{initialOrders.length}</strong> de{" "}
+              <strong className="text-[#101828] font-semibold">{totalCount}</strong> órdenes registradas
+            </span>
+          )
+        }}
+      >
+        <table className="w-full text-xs text-left border-collapse">
+          <thead className="text-[11px] uppercase bg-[#FCFCFA] text-[#5F6875] font-bold border-b border-[#DCDAD4]">
+            <tr>
+              <th className="px-4 py-3 font-semibold">Fecha</th>
+              <th className="px-4 py-3 font-semibold">Nº Orden</th>
+              <th className="px-4 py-3 font-semibold">Comprador</th>
+              <th className="px-4 py-3 font-semibold">Producto</th>
+              <th className="px-4 py-3 font-semibold text-right">Cant.</th>
+              <th className="px-4 py-3 font-semibold text-right">Total</th>
+              <th className="px-4 py-3 font-semibold">Estado</th>
+              <th className="px-4 py-3 font-semibold text-center">Acción</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#E2E8F0]">
+            {initialOrders.map((o) => {
+              const isIgnored = ignoredOrderIds.includes(o.meli_order_id);
+              return (
+                <tr
+                  key={o.id}
+                  onClick={() => router.push(`/dashboard/sales/${o.id}`)}
+                  className={`hover:bg-[#F5F3EE]/40 transition-colors cursor-pointer ${
+                    isIgnored ? 'opacity-50 bg-[#F8FAFC] line-through decoration-slate-400' : ''
+                  }`}
+                >
+                  <td className="px-4 py-3 text-[#5F6875] whitespace-nowrap">
+                    {new Date(o.date_created).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-[#101828] font-mono">
+                    #{o.meli_order_id}
+                  </td>
+                  <td className="px-4 py-3 text-[#101828] font-medium truncate max-w-[140px]" title={o.buyer_nickname || "Anónimo"}>
+                    {o.buyer_nickname || "Anónimo"}
+                  </td>
+                  <td className="px-4 py-3 max-w-[240px] truncate text-[#101828]" title={o.product_title || ""}>
+                    {o.product_title || "Varios productos"}
+                  </td>
+                  <td className="px-4 py-3 text-right text-[#101828] font-semibold tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {o.total_quantity || 1}
+                  </td>
+                  <td className="px-4 py-3 font-bold text-right text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    ${Number(o.total_amount).toLocaleString("es-AR")}
+                  </td>
+                  <td className="px-4 py-3">
+                    {isIgnored ? (
+                      <StatusBadge variant="neutral">Omitido</StatusBadge>
+                    ) : (
+                      <StatusBadge variant={o.status === 'paid' ? 'success' : o.status === 'cancelled' ? 'danger' : 'neutral'}>
+                        {o.status === 'paid' ? 'Pagado' : o.status === 'cancelled' ? 'Cancelado' : o.status}
+                      </StatusBadge>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={isPending}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleIgnore(o.meli_order_id, isIgnored);
+                      }}
+                      title={isIgnored ? "Incluir en reportes" : "Omitir de reportes"}
+                      className="h-7 w-7 p-0 text-[#5F6875] hover:text-[#101828] hover:bg-[#F5F3EE]"
+                    >
+                      {isIgnored ? (
+                        <Eye className="h-3.5 w-3.5 text-[#198754]" />
+                      ) : (
+                        <EyeOff className="h-3.5 w-3.5 text-[#5F6875]" />
+                      )}
+                    </Button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {initialOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-16 text-center">
-                      <div className="flex flex-col items-center justify-center">
-                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-4">
-                          <ShoppingBag className="h-8 w-8 text-slate-400" />
-                        </div>
-                        <h3 className="text-lg font-medium text-slate-900">No hay ventas en este período</h3>
-                        <p className="text-sm text-slate-500 mt-1">Probá sincronizar órdenes o cambiar el filtro de fechas.</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  initialOrders.map((o) => {
-                    const isIgnored = ignoredOrderIds.includes(o.meli_order_id);
-                    return (
-                      <tr 
-                        key={o.id} 
-                        onClick={() => router.push(`/dashboard/sales/${o.id}`)}
-                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${isIgnored ? 'opacity-50 bg-slate-100/50 line-through decoration-slate-400' : ''}`}
-                      >
-                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                          {new Date(o.date_created).toLocaleDateString("es-AR")}
-                        </td>
-                        <td className="px-4 py-3 font-medium">#{o.meli_order_id}</td>
-                        <td className="px-4 py-3">{o.buyer_nickname || "Anónimo"}</td>
-                        <td className="px-4 py-3 max-w-[200px] truncate" title={o.product_title || ""}>
-                          {o.product_title || "Varios productos"}
-                        </td>
-                        <td className="px-4 py-3 text-right">{o.total_quantity || 1}</td>
-                        <td className="px-4 py-3 font-medium text-right">
-                          ${Number(o.total_amount).toLocaleString("es-AR")}
-                        </td>
-                        <td className="px-4 py-3">
-                          {isIgnored ? (
-                            <StatusBadge variant="neutral">Omitido (Prueba)</StatusBadge>
-                          ) : (
-                            <StatusBadge variant={o.status === 'paid' ? 'success' : 'neutral'}>
-                               {o.status === 'paid' ? 'Pagado' : o.status}
-                            </StatusBadge>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={isPending}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleIgnore(o.meli_order_id, isIgnored);
-                            }}
-                            title={isIgnored ? "Incluir en reportes" : "Omitir de reportes"}
-                            className="h-8 w-8 p-0"
-                          >
-                            {isIgnored ? (
-                              <Eye className="h-4 w-4 text-emerald-600" />
-                            ) : (
-                              <EyeOff className="h-4 w-4 text-slate-500" />
-                            )}
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-          
-          {totalCount > 50 && (
-            <div className="flex items-center justify-between px-4 py-4 border-t bg-muted/10">
-              <div className="text-sm text-muted-foreground">
-                Mostrando {initialOrders.length} de {totalCount} órdenes
-              </div>
-              <div className="flex space-x-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={currentPage <= 1}
-                  onClick={() => handleFilterChange("page", (currentPage - 1).toString())}
-                >
-                  Anterior
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={currentPage * 50 >= totalCount}
-                  onClick={() => handleFilterChange("page", (currentPage + 1).toString())}
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              );
+            })}
+          </tbody>
+        </table>
+      </DataTableShell>
     </div>
   );
 }

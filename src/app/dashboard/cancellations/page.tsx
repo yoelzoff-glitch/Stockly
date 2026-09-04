@@ -1,7 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MetricCard } from "@/components/dashboard/metric-card";
 import { Ban, DollarSign, TrendingDown, Users } from "lucide-react";
+
+import { StatusBadge } from "@/components/ui/status-badge";
+import { OperationalPageHeader } from "@/components/operational/page-header";
+import { MetricStrip, MetricItem } from "@/components/operational/metric-strip";
+import { DataTableShell } from "@/components/operational/data-table-shell";
+import { OperationalEmptyState } from "@/components/operational/empty-state";
 import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 import PeriodSelector from "./period-selector";
 
@@ -39,11 +43,11 @@ export default async function CancellationsPage(props: { searchParams: Promise<{
     month: '2-digit',
     day: '2-digit',
   });
-  const tenantDateStr = tenantDateFormatter.format(new Date()); // "YYYY-MM-DD"
+  const tenantDateStr = tenantDateFormatter.format(new Date());
   const [tenantYear, tenantMonth, tenantDay] = tenantDateStr.split('-').map(Number);
 
   let dateFrom: Date;
-  let dateTo = new Date(); // now
+  let dateTo = new Date();
 
   if (period === "current_month") {
     dateFrom = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 1, 1, 12, 0, 0)), timezone);
@@ -55,7 +59,7 @@ export default async function CancellationsPage(props: { searchParams: Promise<{
     const tempDate = new Date(tenantYear, tenantMonth - 1, tenantDay, 12, 0, 0);
     tempDate.setDate(tempDate.getDate() - 30);
     dateFrom = getMidnightInTimezone(new Date(Date.UTC(tempDate.getFullYear(), tempDate.getMonth(), tempDate.getDate(), 12, 0, 0)), timezone);
-  } else { // "all"
+  } else {
     dateFrom = new Date(2000, 0, 1);
   }
 
@@ -83,7 +87,7 @@ export default async function CancellationsPage(props: { searchParams: Promise<{
     .gte("date_created", dateFrom.toISOString())
     .lte("date_created", dateTo.toISOString());
 
-  const totalOrders = allOrders?.length || 1; // avoid division by zero
+  const totalOrders = allOrders?.length || 1;
   const totalCancellations = cancellations.length;
   const rate = ((totalCancellations / totalOrders) * 100).toFixed(1);
 
@@ -99,76 +103,112 @@ export default async function CancellationsPage(props: { searchParams: Promise<{
     montoPerdido += Number(c.refund_amount) || 0;
   });
 
-  const periodLabel = period === "current_month" 
-    ? "Este Mes" 
-    : period === "last_month" 
-    ? "Mes Anterior" 
-    : period === "last_30" 
-    ? "Últimos 30 días" 
+  const periodLabel = period === "current_month"
+    ? "Este Mes"
+    : period === "last_month"
+    ? "Mes Anterior"
+    : period === "last_30"
+    ? "Últimos 30 días"
     : "Total Período";
 
+  const rateNum = Number(rate);
+
+  const cancellationMetrics: MetricItem[] = [
+    {
+      label: "Canceladas Hoy",
+      value: hoy.toString(),
+      subtext: "Registradas desde 00:00 hs",
+      icon: <Ban className="w-4 h-4" />,
+      highlight: hoy > 0 ? "critical" : "neutral"
+    },
+    {
+      label: `Total (${periodLabel})`,
+      value: totalCancellations.toString(),
+      subtext: `De ${totalOrders} órdenes totales`,
+      icon: <Users className="w-4 h-4" />
+    },
+    {
+      label: "Monto Devuelto",
+      value: `$${montoPerdido.toLocaleString('es-AR')}`,
+      subtext: "Reembolsado a compradores",
+      icon: <DollarSign className="w-4 h-4" />,
+      highlight: montoPerdido > 0 ? "critical" : "neutral"
+    },
+    {
+      label: "Tasa de Cancelación",
+      value: `${rate}%`,
+      subtext: "Sobre el total de ventas",
+      icon: <TrendingDown className="w-4 h-4" />,
+      highlight: rateNum > 5 ? "critical" : rateNum > 2 ? "warning" : "neutral"
+    }
+  ];
+
   return (
-    <div className="flex-1 space-y-6 p-8 pt-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Ventas Canceladas</h2>
-          <p className="text-muted-foreground mt-1">Analiza los motivos y el impacto de las cancelaciones.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <PeriodSelector currentPeriod={period} />
-        </div>
-      </div>
+    <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6">
+      {/* Header Operativo */}
+      <OperationalPageHeader
+        eyebrow="Operación comercial"
+        title="Cancelaciones y devoluciones"
+        description="Seguimiento de pedidos anulados, impacto económico de los reembolsos y motivos reportados."
+        actions={<PeriodSelector currentPeriod={period} />}
+      />
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <MetricCard title="Canceladas Hoy" value={hoy} icon={<Ban className="w-5 h-5" />} variant="red" />
-        <MetricCard title={periodLabel} value={totalCancellations} icon={<Users className="w-5 h-5" />} variant="slate" />
-        <MetricCard title="Monto Devuelto" value={`$${montoPerdido.toLocaleString('es-AR')}`} icon={<DollarSign className="w-5 h-5" />} variant="amber" />
-        <MetricCard title="Tasa de Cancelación" value={`${rate}%`} icon={<TrendingDown className="w-5 h-5" />} variant="purple" />
-      </div>
+      {/* Franja de Indicadores */}
+      <MetricStrip metrics={cancellationMetrics} columns={4} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Historial de Cancelaciones</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {cancellations && cancellations.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs uppercase bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3">Fecha</th>
-                    <th className="px-4 py-3">Orden</th>
-                    <th className="px-4 py-3">Comprador</th>
-                    <th className="px-4 py-3">Motivo</th>
-                    <th className="px-4 py-3">Cancelado Por</th>
-                    <th className="px-4 py-3">Devolución</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {cancellations.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3">{new Date(c.date_cancelled).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 font-medium">{c.orders?.meli_order_id || 'N/A'}</td>
-                      <td className="px-4 py-3">{c.orders?.buyer_nickname || 'N/A'}</td>
-                      <td className="px-4 py-3 truncate max-w-[200px]" title={c.reason}>{c.reason}</td>
-                      <td className="px-4 py-3 capitalize">{c.cancelled_by}</td>
-                      <td className="px-4 py-3 font-medium text-red-600">${c.refund_amount}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-4">
-                <Ban className="h-8 w-8 text-slate-400" />
-              </div>
-              <h3 className="text-lg font-medium text-slate-900">No hay cancelaciones registradas</h3>
-              <p className="text-sm text-slate-500 mt-1">Aún no se ha detectado ninguna cancelación de orden para este período.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Tabla de Cancelaciones */}
+      <DataTableShell
+        isEmpty={!cancellations || cancellations.length === 0}
+        emptyState={
+          <OperationalEmptyState
+            icon={Ban}
+            title="Sin cancelaciones registradas"
+            description="Excelente: no se registraron órdenes canceladas ni reembolsos en el período seleccionado."
+          />
+        }
+      >
+        <table className="w-full text-xs text-left border-collapse">
+          <thead className="text-[11px] uppercase bg-[#FCFCFA] text-[#5F6875] font-bold border-b border-[#DCDAD4]">
+            <tr>
+              <th className="px-4 py-3 font-semibold">Fecha</th>
+              <th className="px-4 py-3 font-semibold">Nº Orden</th>
+              <th className="px-4 py-3 font-semibold">Comprador</th>
+              <th className="px-4 py-3 font-semibold">Motivo</th>
+              <th className="px-4 py-3 font-semibold">Cancelado Por</th>
+              <th className="px-4 py-3 font-semibold text-right">Devolución</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#E2E8F0]">
+            {cancellations.map((c) => (
+              <tr key={c.id} className="hover:bg-[#F5F3EE]/30 transition-colors">
+                <td className="px-4 py-3 text-[#5F6875] whitespace-nowrap">
+                  {new Date(c.date_cancelled).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                </td>
+                <td className="px-4 py-3 font-semibold text-[#101828] font-mono">
+                  #{c.orders?.meli_order_id || '—'}
+                </td>
+                <td className="px-4 py-3 text-[#101828] font-medium truncate max-w-[150px]" title={c.orders?.buyer_nickname || "—"}>
+                  {c.orders?.buyer_nickname || '—'}
+                </td>
+                <td className="px-4 py-3 text-[#101828] truncate max-w-[220px]" title={c.reason || "Sin especificar"}>
+                  {c.reason || "Sin especificar"}
+                </td>
+                <td className="px-4 py-3">
+                  <StatusBadge variant={c.cancelled_by?.toLowerCase() === 'seller' ? 'warning' : 'neutral'}>
+                    {c.cancelled_by || 'Comprador'}
+                  </StatusBadge>
+                </td>
+                <td
+                  className="px-4 py-3 font-bold text-right text-[#D92D20] tabular-nums"
+                  style={{ fontVariantNumeric: "tabular-nums" }}
+                >
+                  ${Number(c.refund_amount || 0).toLocaleString("es-AR")}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </DataTableShell>
     </div>
   );
 }

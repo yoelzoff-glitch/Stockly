@@ -14,15 +14,18 @@ export default function PeriodSelector({ currentPeriod }: { currentPeriod: strin
   };
 
   return (
-    <select
-      value={currentPeriod}
-      onChange={handlePeriodChange}
-      className="flex h-10 w-full sm:w-[180px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-    >
-      <option value="current_month">Mes Actual</option>
-      <option value="last_month">Mes Anterior</option>
-      <option value="last_30">Últimos 30 días</option>
-      <option value="all">Todo el historial</option>
-    </select>
+    <div className="flex items-center gap-1.5">
+      <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875]">Período:</span>
+      <select
+        value={currentPeriod}
+        onChange={handlePeriodChange}
+        className="h-8 rounded-md border border-[#DCDAD4] bg-white px-2.5 text-xs text-[#101828] font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-[#102A56]"
+      >
+        <option value="current_month">Mes Actual</option>
+        <option value="last_month">Mes Anterior</option>
+        <option value="last_30">Últimos 30 días</option>
+        <option value="all">Todo el historial</option>
+      </select>
+    </div>
   );
 }

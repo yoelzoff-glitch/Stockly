@@ -1,8 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MetricCard } from "@/components/dashboard/metric-card";
+import { Truck, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Truck, AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { OperationalPageHeader } from "@/components/operational/page-header";
+import { MetricStrip, MetricItem } from "@/components/operational/metric-strip";
+import { DataTableShell } from "@/components/operational/data-table-shell";
+import { OperationalEmptyState } from "@/components/operational/empty-state";
 import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 import PeriodSelector from "./period-selector";
 
@@ -40,11 +43,11 @@ export default async function ShipmentsPage(props: { searchParams: Promise<{ per
     month: '2-digit',
     day: '2-digit',
   });
-  const tenantDateStr = tenantDateFormatter.format(new Date()); // "YYYY-MM-DD"
+  const tenantDateStr = tenantDateFormatter.format(new Date());
   const [tenantYear, tenantMonth, tenantDay] = tenantDateStr.split('-').map(Number);
 
   let dateFrom: Date;
-  let dateTo = new Date(); // now
+  let dateTo = new Date();
 
   if (period === "current_month") {
     dateFrom = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 1, 1, 12, 0, 0)), timezone);
@@ -56,7 +59,7 @@ export default async function ShipmentsPage(props: { searchParams: Promise<{ per
     const tempDate = new Date(tenantYear, tenantMonth - 1, tenantDay, 12, 0, 0);
     tempDate.setDate(tempDate.getDate() - 30);
     dateFrom = getMidnightInTimezone(new Date(Date.UTC(tempDate.getFullYear(), tempDate.getMonth(), tempDate.getDate(), 12, 0, 0)), timezone);
-  } else { // "all"
+  } else {
     dateFrom = new Date(2000, 0, 1);
   }
 
@@ -94,88 +97,124 @@ export default async function ShipmentsPage(props: { searchParams: Promise<{ per
     } else if (status === "delivered") {
       entregados++;
     }
-    
+
     if (substatus === "delayed" || substatus?.includes("delayed") || substatus?.includes("late")) {
       demorados++;
     }
   });
 
+  const shipmentMetrics: MetricItem[] = [
+    {
+      label: "Pendientes",
+      value: pendientes.toString(),
+      subtext: "Por empaquetar o despachar",
+      icon: <Clock className="w-4 h-4" />
+    },
+    {
+      label: "En Camino",
+      value: enCamino.toString(),
+      subtext: "En tránsito con colecta o correo",
+      icon: <Truck className="w-4 h-4" />
+    },
+    {
+      label: "Demorados",
+      value: demorados.toString(),
+      subtext: "Con alertas de entrega tardía",
+      icon: <AlertTriangle className="w-4 h-4" />,
+      highlight: demorados > 0 ? "warning" : "neutral"
+    },
+    {
+      label: "Entregados",
+      value: entregados.toString(),
+      subtext: "Completados en destino",
+      icon: <CheckCircle2 className="w-4 h-4" />,
+      highlight: "positive"
+    }
+  ];
+
   return (
-    <div className="flex-1 space-y-6 p-8 pt-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Envíos</h2>
-          <p className="text-muted-foreground mt-1">Controla el estado de tu logística y despachos.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <PeriodSelector currentPeriod={period} />
-        </div>
-      </div>
+    <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6">
+      {/* Header Operativo */}
+      <OperationalPageHeader
+        eyebrow="Operación logística"
+        title="Envíos y logística"
+        description="Control de paquetes en tránsito, entregas demoradas y estados reportados por Mercado Envíos."
+        actions={<PeriodSelector currentPeriod={period} />}
+      />
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <MetricCard title="Pendientes" value={pendientes} icon={<Clock className="w-5 h-5" />} variant="slate" />
-        <MetricCard title="En Camino" value={enCamino} icon={<Truck className="w-5 h-5" />} variant="blue" />
-        <MetricCard title="Demorados" value={demorados} icon={<AlertCircle className="w-5 h-5" />} variant="red" />
-        <MetricCard title="Entregados" value={entregados} icon={<CheckCircle2 className="w-5 h-5" />} variant="green" />
-      </div>
+      {/* Franja de Indicadores */}
+      <MetricStrip metrics={shipmentMetrics} columns={4} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Historial de Envíos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {shipments && shipments.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs uppercase bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3">Fecha</th>
-                    <th className="px-4 py-3">Orden</th>
-                    <th className="px-4 py-3">Comprador</th>
-                    <th className="px-4 py-3">Estado</th>
-                    <th className="px-4 py-3">Subestado</th>
-                    <th className="px-4 py-3">Logística</th>
-                    <th className="px-4 py-3">Tracking</th>
-                    <th className="px-4 py-3">Costo</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {shipments.map((s) => (
-                    <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3">{new Date(s.date_created).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 font-medium">{s.orders?.meli_order_id || 'N/A'}</td>
-                      <td className="px-4 py-3">{s.orders?.buyer_nickname || 'N/A'}</td>
-                      <td className="px-4 py-3">
-                        <StatusBadge variant={s.status === 'delivered' ? 'success' : s.status === 'shipped' ? 'info' : 'neutral'}>
-                          {s.status}
-                        </StatusBadge>
-                      </td>
-                      <td className="px-4 py-3">
-                        {s.substatus ? (
-                          <StatusBadge variant={s.substatus === 'delayed' ? 'danger' : 'neutral'}>
-                            {s.substatus === 'delayed' ? 'Demorado' : s.substatus}
-                          </StatusBadge>
-                        ) : '-'}
-                      </td>
-                      <td className="px-4 py-3">{s.logistic_type}</td>
-                      <td className="px-4 py-3">{s.tracking_number}</td>
-                      <td className="px-4 py-3">${s.shipping_cost}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-4">
-                <Truck className="h-8 w-8 text-slate-400" />
-              </div>
-              <h3 className="text-lg font-medium text-slate-900">No hay envíos registrados</h3>
-              <p className="text-sm text-slate-500 mt-1">Aún no procesamos información de logística para este período.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Tabla de Envíos */}
+      <DataTableShell
+        isEmpty={!shipments || shipments.length === 0}
+        emptyState={
+          <OperationalEmptyState
+            icon={Truck}
+            title="No hay envíos registrados"
+            description="No encontramos operaciones logísticas registradas para este período. Probá cambiando el filtro temporal."
+          />
+        }
+      >
+        <table className="w-full text-xs text-left border-collapse">
+          <thead className="text-[11px] uppercase bg-[#FCFCFA] text-[#5F6875] font-bold border-b border-[#DCDAD4]">
+            <tr>
+              <th className="px-4 py-3 font-semibold">Fecha</th>
+              <th className="px-4 py-3 font-semibold">Orden</th>
+              <th className="px-4 py-3 font-semibold">Comprador</th>
+              <th className="px-4 py-3 font-semibold">Estado</th>
+              <th className="px-4 py-3 font-semibold">Subestado</th>
+              <th className="px-4 py-3 font-semibold">Modalidad</th>
+              <th className="px-4 py-3 font-semibold">Tracking</th>
+              <th className="px-4 py-3 font-semibold text-right">Costo</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#E2E8F0]">
+            {shipments?.map((s) => {
+              const isDelivered = s.status?.toLowerCase() === 'delivered';
+              const isShipped = s.status?.toLowerCase() === 'shipped';
+              const isDelayed = s.substatus?.toLowerCase() === 'delayed' || s.substatus?.toLowerCase()?.includes('delayed');
+
+              return (
+                <tr key={s.id} className="hover:bg-[#F5F3EE]/30 transition-colors">
+                  <td className="px-4 py-3 text-[#5F6875] whitespace-nowrap">
+                    {new Date(s.date_created).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-[#101828] font-mono">
+                    #{s.orders?.meli_order_id || '—'}
+                  </td>
+                  <td className="px-4 py-3 text-[#101828] font-medium truncate max-w-[150px]" title={s.orders?.buyer_nickname || "—"}>
+                    {s.orders?.buyer_nickname || '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusBadge variant={isDelivered ? 'success' : isShipped ? 'info' : 'neutral'}>
+                      {s.status}
+                    </StatusBadge>
+                  </td>
+                  <td className="px-4 py-3">
+                    {isDelayed ? (
+                      <StatusBadge variant="warning">Demorado</StatusBadge>
+                    ) : s.substatus ? (
+                      <span className="text-[#5F6875] capitalize">{s.substatus}</span>
+                    ) : (
+                      <span className="text-[#5F6875]">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-[#101828] capitalize">
+                    {s.logistic_type?.replace(/_/g, " ") || '—'}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-[11px] text-[#5F6875]">
+                    {s.tracking_number || '—'}
+                  </td>
+                  <td className="px-4 py-3 font-bold text-right text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    ${Number(s.shipping_cost || 0).toLocaleString("es-AR")}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </DataTableShell>
     </div>
   );
 }
