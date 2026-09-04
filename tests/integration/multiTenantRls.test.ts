@@ -48,11 +48,13 @@ describe("Sprint 3.5 Multi-Tenant PostgreSQL Real Integration Tests (40 Canonica
     const migrationB = fs.readFileSync(path.join(migrationsDir, "20260903000001_sprint03_b_policies.sql"), "utf-8");
     const migrationC = fs.readFileSync(path.join(migrationsDir, "20260903000002_sprint03_c_activation_and_hardening.sql"), "utf-8");
     const migrationD = fs.readFileSync(path.join(migrationsDir, "20260903000003_sprint03_d_indices.sql"), "utf-8");
+    const migrationE = fs.readFileSync(path.join(migrationsDir, "20260903000004_sprint03_e_production_consolidation.sql"), "utf-8");
 
     await sql.unsafe(migrationA);
     await sql.unsafe(migrationB);
     await sql.unsafe(migrationC);
     await sql.unsafe(migrationD);
+    await sql.unsafe(migrationE);
 
     assert.ok(true, "All migrations executed successfully against canonical schema");
   });

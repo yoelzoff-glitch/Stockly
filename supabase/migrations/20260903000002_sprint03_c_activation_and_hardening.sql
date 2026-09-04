@@ -1,4 +1,4 @@
--- SPRINT 3 — MIGRACIÓN C: ACTIVACIÓN DE RLS Y PRIVILEGIOS DE COLUMNAS POR LOTES
+-- SPRINT 3 — MIGRACIÓN C: ACTIVACIÓN CONDICIONAL DE RLS Y PRIVILEGIOS DE COLUMNAS
 -- PREFLIGHT: Requiere haber ejecutado 20260903000000_sprint03_a_foundations.sql y 20260903000001_sprint03_b_policies.sql
 
 DO $$
@@ -11,7 +11,13 @@ BEGIN
   --------------------------------------------------------------------------------
   FOREACH tbl IN ARRAY ARRAY['profiles', 'tenants', 'subscriptions', 'subscription_usage', 'plans_config']
   LOOP
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = tbl
+        AND c.relkind = 'r' AND NOT c.relrowsecurity
+    ) THEN
       EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
     END IF;
   END LOOP;
@@ -21,7 +27,13 @@ BEGIN
   --------------------------------------------------------------------------------
   FOREACH tbl IN ARRAY ARRAY['products', 'orders', 'order_items', 'shipments', 'order_cancellations', 'monthly_expenses', 'inventory_items', 'inventory_movements', 'purchase_orders', 'purchase_order_items']
   LOOP
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = tbl
+        AND c.relkind = 'r' AND NOT c.relrowsecurity
+    ) THEN
       EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
     END IF;
   END LOOP;
@@ -31,7 +43,13 @@ BEGIN
   --------------------------------------------------------------------------------
   FOREACH tbl IN ARRAY ARRAY['messages', 'alert_rules', 'alerts', 'ai_actions', 'action_workflows', 'workflow_steps', 'price_adjustment_workflows', 'price_adjustment_details', 'product_components', 'product_sku_components', 'product_extra_costs', 'product_price_history', 'stock_movements', 'promotions', 'promotion_items', 'coupons', 'tenant_progress', 'tenant_preferences', 'competition_snapshots', 'conversation_sessions', 'audit_logs']
   LOOP
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = tbl
+        AND c.relkind = 'r' AND NOT c.relrowsecurity
+    ) THEN
       EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
     END IF;
   END LOOP;
@@ -41,7 +59,13 @@ BEGIN
   --------------------------------------------------------------------------------
   FOREACH tbl IN ARRAY ARRAY['meli_accounts', 'whatsapp_numbers']
   LOOP
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = tbl
+        AND c.relkind = 'r' AND NOT c.relrowsecurity
+    ) THEN
       EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
     END IF;
   END LOOP;
@@ -68,26 +92,36 @@ BEGIN
   -- Mercado Libre: Revocar SELECT general y conceder únicamente columnas canónicas seguras
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'meli_accounts') THEN
     REVOKE SELECT ON public.meli_accounts FROM authenticated, anon;
-    GRANT SELECT (id, tenant_id, meli_user_id, nickname, site_id, status, token_expires_at, sync_error, last_success_refresh, last_sync_at, metadata, created_at, updated_at) ON public.meli_accounts TO authenticated;
+    GRANT SELECT (id, tenant_id, meli_user_id, nickname, site_id, status, token_expires_at, sync_error, last_success_refresh, last_sync_at, created_at, updated_at) ON public.meli_accounts TO authenticated;
   END IF;
 
   -- WhatsApp: Revocar SELECT general y conceder únicamente columnas canónicas seguras
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'whatsapp_numbers') THEN
     REVOKE SELECT ON public.whatsapp_numbers FROM authenticated, anon;
-    GRANT SELECT (id, tenant_id, phone_number, provider, provider_phone_id, status, metadata, created_at, updated_at) ON public.whatsapp_numbers TO authenticated;
+    GRANT SELECT (id, tenant_id, phone_number, provider, provider_phone_id, status, created_at, updated_at) ON public.whatsapp_numbers TO authenticated;
   END IF;
 
   --------------------------------------------------------------------------------
   -- 8. TABLAS BACKEND-ONLY / INFRAESTRUCTURA (2 Tablas)
   --------------------------------------------------------------------------------
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenant_feature_flags') THEN
-    ALTER TABLE public.tenant_feature_flags ENABLE ROW LEVEL SECURITY;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = 'tenant_feature_flags' AND c.relrowsecurity
+    ) THEN
+      ALTER TABLE public.tenant_feature_flags ENABLE ROW LEVEL SECURITY;
+    END IF;
     REVOKE ALL ON public.tenant_feature_flags FROM authenticated, anon, PUBLIC;
     GRANT ALL ON public.tenant_feature_flags TO service_role;
   END IF;
 
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'operation_runs') THEN
-    ALTER TABLE public.operation_runs ENABLE ROW LEVEL SECURITY;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = 'operation_runs' AND c.relrowsecurity
+    ) THEN
+      ALTER TABLE public.operation_runs ENABLE ROW LEVEL SECURITY;
+    END IF;
     REVOKE ALL ON public.operation_runs FROM authenticated, anon, PUBLIC;
     GRANT ALL ON public.operation_runs TO service_role;
   END IF;

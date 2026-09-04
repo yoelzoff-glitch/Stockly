@@ -13,7 +13,7 @@ BEGIN
     DROP POLICY IF EXISTS "profiles_self_update" ON public.profiles;
 
     CREATE POLICY "profiles_tenant_select" ON public.profiles FOR SELECT TO authenticated
-      USING (tenant_id = private.current_tenant_id() OR id = auth.uid());
+      USING (private.current_profile_is_active() AND tenant_id = private.current_tenant_id());
     CREATE POLICY "profiles_self_update" ON public.profiles FOR UPDATE TO authenticated
       USING (id = auth.uid() AND private.current_profile_is_active())
       WITH CHECK (id = auth.uid() AND private.current_profile_is_active());
@@ -48,7 +48,8 @@ BEGIN
   -- Plans Config (Public read)
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'plans_config' AND table_schema = 'public') THEN
     DROP POLICY IF EXISTS "plans_config_select_authenticated" ON public.plans_config;
-    CREATE POLICY "plans_config_select_authenticated" ON public.plans_config FOR SELECT TO authenticated
+    DROP POLICY IF EXISTS "plans_config_public_read" ON public.plans_config;
+    CREATE POLICY "plans_config_public_read" ON public.plans_config FOR SELECT TO anon, authenticated
       USING (true);
   END IF;
 
