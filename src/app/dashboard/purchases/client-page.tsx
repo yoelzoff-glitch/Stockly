@@ -1,15 +1,33 @@
-// src/app/dashboard/purchases/client-page.tsx
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  ShoppingBag,
+  Plus,
+  Upload,
+  Trash2,
+  Calendar,
+  FileSpreadsheet,
+  User,
+  FileText,
+  CheckCircle2,
+  DollarSign,
+  Truck,
+  Eye,
+  Ban
+} from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ShoppingBag, Plus, Upload, Trash2, Calendar, AlertTriangle, FileSpreadsheet, Sparkles, User, FileText, CheckCircle2 } from "lucide-react";
+import { OperationalPageHeader } from "@/components/operational/page-header";
+import { OperationalToolbar } from "@/components/operational/toolbar";
+import { MetricStrip, MetricItem } from "@/components/operational/metric-strip";
+import { DataTableShell } from "@/components/operational/data-table-shell";
+import { OperationalEmptyState } from "@/components/operational/empty-state";
 import { createManualPurchase, voidPurchase } from "./actions";
 
 export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] }) {
@@ -17,7 +35,7 @@ export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedPO, setSelectedPO] = useState<any | null>(null);
-  
+
   // Modals state
   const [isNewPOOpen, setIsNewPOOpen] = useState(false);
   const [isImportCSVOpen, setIsImportCSVOpen] = useState(false);
@@ -70,7 +88,6 @@ export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] 
     e.preventDefault();
     setIsProcessing(true);
     try {
-      // Validate items
       const validItems = items
         .filter(it => it.sku.trim() !== "")
         .map(it => ({
@@ -101,7 +118,6 @@ export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] 
     }
   };
 
-  // Void PO Handler
   const handleVoidPO = async (poId: string) => {
     if (!confirm("¿Estás seguro de que deseas ANULAR esta compra? Se revertirá todo el stock de depósito ingresado y se recalcularán los costos de tus publicaciones asociadas.")) return;
     setIsProcessing(true);
@@ -117,7 +133,6 @@ export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] 
     }
   };
 
-  // CSV Import handler
   const handleImportCSVSubmit = async () => {
     if (!csvText.trim()) {
       alert("Por favor, pega el contenido CSV.");
@@ -137,7 +152,6 @@ export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] 
           const quantity = parseFloat(parts[1].trim());
           const unit_cost = parts[2] ? parseFloat(parts[2].trim()) : undefined;
 
-          // Skip header
           if (sku.toLowerCase() === "sku") continue;
 
           if (sku && !isNaN(quantity)) {
@@ -166,384 +180,419 @@ export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] 
     }
   };
 
+  const metrics: MetricItem[] = [
+    {
+      label: "Inversión Total Real",
+      value: `$${totalSpend.toLocaleString("es-AR")}`,
+      subtext: "Compras efectivas no anuladas",
+      icon: <DollarSign className="w-4 h-4" />
+    },
+    {
+      label: "Fletes y Costos Extras",
+      value: `$${totalExtraCosts.toLocaleString("es-AR")}`,
+      subtext: "Logística y aranceles prorrateados",
+      icon: <Truck className="w-4 h-4" />
+    },
+    {
+      label: "Órdenes Registradas",
+      value: activePurchases.length.toString(),
+      subtext: `${purchases.length} totales en historial`,
+      icon: <ShoppingBag className="w-4 h-4" />
+    }
+  ];
+
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      {/* Header */}
-      <div className="flex items-center justify-between space-y-2">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-bold tracking-tight">Compras Internas</h2>
-          <p className="text-sm text-muted-foreground">
-            Ingresa mercadería a tu depósito real, carga costos de insumos y gatilla el recálculo automático de combos.
-          </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" onClick={() => setIsImportCSVOpen(true)}>
-            <Upload className="mr-2 h-4 w-4" />
-            Importar CSV
-          </Button>
-          <Button onClick={() => setIsNewPOOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Plus className="mr-2 h-4 w-4" />
-            Registrar Compra
-          </Button>
-        </div>
-      </div>
-
-      {/* Analytics widgets */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Inversión Total Real</CardTitle>
-            <ShoppingBag className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalSpend.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">Excluyendo compras anuladas</p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Órdenes de Compra</CardTitle>
-            <FileText className="h-4 w-4 text-indigo-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activePurchases.length} órdenes</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Con {purchases.filter(p => p.status === "voided").length} anuladas
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Costos de Logística y Envío de Insumo</CardTitle>
-            <Sparkles className="h-4 w-4 text-emerald-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalExtraCosts.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">Suma de costos extra asociados</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Table Card */}
-      <Card className="shadow-sm">
-        <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-          <div>
-            <CardTitle>Historial de Compras</CardTitle>
-            <CardDescription>Visualiza y administra tus ingresos de mercadería física.</CardDescription>
-          </div>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Buscar por proveedor, SKU..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-[250px]"
-            />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-md border border-slate-200 text-xs px-2 bg-white"
+    <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6">
+      {/* Header Operativo */}
+      <OperationalPageHeader
+        eyebrow="Abastecimiento y compras"
+        title="Compras internas"
+        description="Ingreso de mercadería física a depósito, costeo de insumos y recálculo automático de costos de reposición."
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={() => setIsImportCSVOpen(true)}
+              className="h-9 px-3 text-xs font-semibold border-[#DCDAD4] hover:bg-[#F5F3EE] text-[#101828] shadow-sm"
             >
-              <option value="all">Todos los Estados</option>
-              <option value="completed">Completadas</option>
-              <option value="voided">Anuladas</option>
-            </select>
+              <Upload className="mr-1.5 h-3.5 w-3.5 text-[#5F6875]" />
+              Importar CSV
+            </Button>
+            <Button
+              onClick={() => setIsNewPOOpen(true)}
+              className="h-9 px-3 text-xs font-semibold bg-[#102A56] hover:bg-[#102A56]/90 text-white shadow-sm"
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Registrar Compra
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          {filteredPurchases.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground text-sm">
-              No se encontraron registros de compra.
-            </div>
-          ) : (
-            <div className="rounded-xl border border-slate-200 overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="border-b bg-slate-50 font-medium text-slate-600">
-                  <tr>
-                    <th className="p-3">Código PO</th>
-                    <th className="p-3">Proveedor</th>
-                    <th className="p-3">Fecha</th>
-                    <th className="p-3 text-right">Items</th>
-                    <th className="p-3 text-right">Monto Total</th>
-                    <th className="p-3 text-center">Estado</th>
-                    <th className="p-3 text-center">Origen</th>
-                    <th className="p-3 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPurchases.map((po) => {
-                    const isVoided = po.status === "voided";
-                    return (
-                      <tr key={po.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
-                        <td className="p-3 font-semibold text-blue-600 shrink-0">#{po.id.slice(0, 8)}</td>
-                        <td className="p-3 font-medium flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-muted-foreground" />
-                          {po.supplier_name || "S/D"}
-                        </td>
-                        <td className="p-3 text-muted-foreground">
-                          {new Date(po.purchase_date).toLocaleString()}
-                        </td>
-                        <td className="p-3 text-right font-medium">{po.purchase_order_items?.length || 0} items</td>
-                        <td className="p-3 text-right font-semibold">${po.total_amount?.toLocaleString() || 0}</td>
-                        <td className="p-3 text-center">
-                          <Badge variant={isVoided ? "destructive" : "default"}>
-                            {isVoided ? "Anulada" : "Completada"}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-center">
-                          <Badge variant="outline" className={po.source === "ai" ? "border-indigo-300 text-indigo-700 bg-indigo-50" : "border-slate-350 text-slate-700 bg-slate-50"}>
-                            {po.source === "ai" ? "🤖 IA Chat" : "💻 Dashboard"}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-right space-x-2">
-                          <Button variant="outline" size="sm" className="text-[10px] px-2 py-0.5 h-7" onClick={() => setSelectedPO(po)}>
-                            Ver Detalle
-                          </Button>
-                          {!isVoided && (
-                            <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50 text-[10px] px-2 py-0.5 h-7" onClick={() => handleVoidPO(po.id)} disabled={isProcessing}>
-                              <Trash2 className="w-3.5 h-3.5 mr-1 inline" /> Anular
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        }
+      />
 
-      {/* View Detail Modal */}
+      {/* Franja de Indicadores */}
+      <MetricStrip metrics={metrics} columns={3} />
+
+      {/* Barra de Filtros Operativos */}
+      <OperationalToolbar>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875]">Estado:</span>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-8 rounded-md border border-[#DCDAD4] bg-white px-2.5 text-xs text-[#101828] font-medium shadow-none focus:outline-none focus:ring-1 focus:ring-[#102A56]"
+          >
+            <option value="all">Todas las compras</option>
+            <option value="received">Recibidas / Activas</option>
+            <option value="voided">Anuladas</option>
+          </select>
+        </div>
+
+        <div className="w-full sm:w-72">
+          <Input
+            type="text"
+            placeholder="Buscar por proveedor, SKU o ID..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="h-8 text-xs bg-white border-[#DCDAD4] focus-visible:ring-[#102A56]"
+          />
+        </div>
+      </OperationalToolbar>
+
+      {/* Tabla de Compras */}
+      <DataTableShell
+        isEmpty={filteredPurchases.length === 0}
+        emptyState={
+          <OperationalEmptyState
+            icon={ShoppingBag}
+            title="No hay compras registradas"
+            description="Registrá tu primera orden de compra manual o importá un CSV para ingresar existencias y actualizar tus costos."
+            actionLabel="Registrar Compra"
+            onAction={() => setIsNewPOOpen(true)}
+          />
+        }
+      >
+        <table className="w-full text-xs text-left border-collapse">
+          <thead className="text-[11px] uppercase bg-[#FCFCFA] text-[#5F6875] font-bold border-b border-[#DCDAD4]">
+            <tr>
+              <th className="px-4 py-3 font-semibold">Fecha / ID</th>
+              <th className="px-3 py-3 font-semibold">Proveedor</th>
+              <th className="px-3 py-3 font-semibold">Componentes Comprados</th>
+              <th className="px-3 py-3 font-semibold text-right">Flete / Extras</th>
+              <th className="px-3 py-3 font-semibold text-right">Total Abonado</th>
+              <th className="px-3 py-3 font-semibold text-center">Estado</th>
+              <th className="px-4 py-3 font-semibold text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#E2E8F0]">
+            {filteredPurchases.map((po) => {
+              const isVoided = po.status === "voided";
+
+              return (
+                <tr
+                  key={po.id}
+                  className={`hover:bg-[#F5F3EE]/30 transition-colors ${
+                    isVoided ? 'opacity-60 bg-[#F8FAFC]' : ''
+                  }`}
+                >
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="space-y-0.5">
+                      <p className="font-semibold text-[#101828]">
+                        {new Date(po.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                      </p>
+                      <p className="text-[10px] font-mono text-[#5F6875]">
+                        #{po.id.substring(0, 8)}
+                      </p>
+                    </div>
+                  </td>
+
+                  <td className="px-3 py-3 font-medium text-[#101828]">
+                    {po.supplier_name || "Proveedor sin nombre"}
+                  </td>
+
+                  <td className="px-3 py-3">
+                    <div className="flex flex-wrap gap-1 max-w-[280px]">
+                      {po.purchase_order_items?.map((item: any, idx: number) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-[#F5F3EE] border border-[#DCDAD4] text-[#101828]"
+                        >
+                          {item.sku_normalized}: {item.quantity_purchased} u.
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+
+                  <td className="px-3 py-3 text-right font-medium text-[#5F6875] tabular-nums whitespace-nowrap" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    ${Number(po.extra_costs || 0).toLocaleString("es-AR")}
+                  </td>
+
+                  <td className="px-3 py-3 text-right font-bold text-[#101828] tabular-nums whitespace-nowrap" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    ${Number(po.total_amount || 0).toLocaleString("es-AR")}
+                  </td>
+
+                  <td className="px-3 py-3 text-center">
+                    <StatusBadge variant={isVoided ? 'neutral' : 'success'}>
+                      {isVoided ? 'Anulada' : 'Recibida'}
+                    </StatusBadge>
+                  </td>
+
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedPO(po)}
+                        className="h-7 px-2 text-xs font-semibold text-[#102A56] hover:bg-[#F5F3EE]"
+                      >
+                        <Eye className="w-3.5 h-3.5 mr-1 text-[#5F6875]" />
+                        Detalle
+                      </Button>
+                      {!isVoided && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleVoidPO(po.id)}
+                          disabled={isProcessing}
+                          className="h-7 w-7 p-0 text-[#D92D20] hover:bg-[#FEF3F2]"
+                          title="Anular compra"
+                        >
+                          <Ban className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </DataTableShell>
+
+      {/* Modal: Detalle de Orden */}
       {selectedPO && (
-        <Dialog open={selectedPO !== null} onOpenChange={(open) => !open && setSelectedPO(null)}>
-          <DialogContent className="max-w-md">
+        <Dialog open={!!selectedPO} onOpenChange={(open) => !open && setSelectedPO(null)}>
+          <DialogContent className="sm:max-w-lg bg-white border border-[#DCDAD4] shadow-lg">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-1.5 text-lg">
-                Detalle de Compra <Badge variant="outline">#{selectedPO.id.slice(0, 8)}</Badge>
+              <DialogTitle className="text-base font-bold text-[#101828]">
+                Orden de compra #{selectedPO.id.substring(0, 8)}
               </DialogTitle>
-              <DialogDescription>
-                Resumen de artículos ingresados y costos asociados.
+              <DialogDescription className="text-xs text-[#5F6875]">
+                Emitida el {new Date(selectedPO.created_at).toLocaleDateString("es-AR")} para {selectedPO.supplier_name}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 my-2 text-xs">
-              <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-lg">
+
+            <div className="space-y-4 py-2 text-xs">
+              <div className="grid grid-cols-2 gap-2 p-3 bg-[#FCFCFA] border border-[#DCDAD4] rounded-lg">
                 <div>
-                  <span className="text-muted-foreground">Proveedor:</span>
-                  <p className="font-semibold">{selectedPO.supplier_name || "Sin Especificar"}</p>
+                  <span className="text-[#5F6875] text-[11px] block">Proveedor</span>
+                  <span className="font-bold text-[#101828] text-sm">{selectedPO.supplier_name}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Fecha:</span>
-                  <p className="font-semibold">{new Date(selectedPO.purchase_date).toLocaleString()}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Origen:</span>
-                  <p className="font-semibold capitalize">{selectedPO.source}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Estado:</span>
-                  <p className={`font-semibold ${selectedPO.status === "voided" ? "text-red-500" : "text-green-600"}`}>
-                    {selectedPO.status === "voided" ? "Anulada" : "Completada"}
-                  </p>
+                  <span className="text-[#5F6875] text-[11px] block">Estado</span>
+                  <span className="font-bold text-[#101828] text-sm capitalize">{selectedPO.status === 'received' ? 'Recibida' : selectedPO.status}</span>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <h4 className="font-semibold">Artículos Comprados</h4>
-                <div className="rounded-lg border max-h-[200px] overflow-y-auto">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-50 font-medium border-b">
-                      <tr>
-                        <th className="p-2">Componente SKU</th>
-                        <th className="p-2 text-right">Cant.</th>
-                        <th className="p-2 text-right">Unit.</th>
-                        <th className="p-2 text-right">Total</th>
+              <div className="border border-[#DCDAD4] rounded-lg overflow-hidden">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-[#FCFCFA] text-[#5F6875] font-bold border-b border-[#DCDAD4]">
+                    <tr>
+                      <th className="px-3 py-2">Componente (SKU)</th>
+                      <th className="px-3 py-2 text-right">Cant.</th>
+                      <th className="px-3 py-2 text-right">Costo Unit.</th>
+                      <th className="px-3 py-2 text-right">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E2E8F0]">
+                    {selectedPO.purchase_order_items?.map((it: any, i: number) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 font-mono font-medium text-[#101828]">{it.sku_normalized}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{it.quantity_purchased}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">${Number(it.unit_cost || 0).toLocaleString("es-AR")}</td>
+                        <td className="px-3 py-2 text-right font-semibold tabular-nums text-[#101828]">
+                          ${(it.quantity_purchased * (it.unit_cost || 0)).toLocaleString("es-AR")}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {selectedPO.purchase_order_items?.map((item: any) => (
-                        <tr key={item.id} className="border-b last:border-0">
-                          <td className="p-2 font-medium">{item.sku_normalized}</td>
-                          <td className="p-2 text-right font-semibold">{item.quantity}</td>
-                          <td className="p-2 text-right">${item.unit_cost?.toLocaleString() || "N/A"}</td>
-                          <td className="p-2 text-right">${item.total_cost?.toLocaleString() || "N/A"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
-              <div className="space-y-1.5 border-t pt-3">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Gastos de Flete / Logística:</span>
-                  <span className="font-medium">${selectedPO.extra_costs?.toLocaleString() || 0}</span>
-                </div>
-                <div className="flex justify-between font-bold text-sm">
-                  <span>Monto Total:</span>
-                  <span>${selectedPO.total_amount?.toLocaleString() || 0}</span>
-                </div>
+              <div className="space-y-1 pt-1 text-right text-xs">
+                {selectedPO.extra_costs > 0 && (
+                  <p className="text-[#5F6875]">
+                    Fletes y costos extra: <strong className="text-[#101828] tabular-nums">${Number(selectedPO.extra_costs).toLocaleString("es-AR")}</strong>
+                  </p>
+                )}
+                <p className="text-sm font-bold text-[#101828]">
+                  Total abonado: <span className="text-[#102A56] tabular-nums">${Number(selectedPO.total_amount).toLocaleString("es-AR")}</span>
+                </p>
               </div>
             </div>
+
             <DialogFooter>
-              <Button onClick={() => setSelectedPO(null)} className="w-full">Cerrar</Button>
+              <Button variant="outline" onClick={() => setSelectedPO(null)} className="h-8 text-xs border-[#DCDAD4]">
+                Cerrar
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
 
-      {/* New Purchase Modal */}
-      {isNewPOOpen && (
-        <Dialog open={isNewPOOpen} onOpenChange={(open) => !open && setIsNewPOOpen(false)}>
-          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-1.5">
-                <ShoppingBag className="w-5 h-5 text-blue-600" /> Registrar Compra Física
-              </DialogTitle>
-              <DialogDescription>
-                Suma stock a tu depósito físico y recalcula el costo promedio de insumos automáticamente.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmitNewPO} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label>Nombre de Proveedor</Label>
-                  <Input
-                    placeholder="Ej. Distribuidor Metales"
-                    value={supplierName}
-                    onChange={(e) => setSupplierName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Costos Adicionales de Flete/Bolsas</Label>
-                  <Input
-                    type="number"
-                    placeholder="Ej. 1500"
-                    value={extraCosts}
-                    onChange={(e) => setExtraCosts(e.target.value)}
-                  />
-                </div>
+      {/* Modal: Registrar Compra */}
+      <Dialog open={isNewPOOpen} onOpenChange={setIsNewPOOpen}>
+        <DialogContent className="sm:max-w-xl bg-white border border-[#DCDAD4] shadow-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-[#101828]">
+              Registrar nueva orden de compra
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#5F6875]">
+              Ingresá mercadería a tu depósito. El costo se prorrateará y actualizará el costo promedio ponderado de tus publicaciones.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmitNewPO} className="space-y-4 py-2 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="supplier_name" className="text-xs font-semibold text-[#101828]">Proveedor</Label>
+                <Input
+                  id="supplier_name"
+                  placeholder="Ej: Distribuidora Norte"
+                  value={supplierName}
+                  onChange={(e) => setSupplierName(e.target.value)}
+                  required
+                  className="h-8 text-xs border-[#DCDAD4]"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="extra_costs" className="text-xs font-semibold text-[#101828]">Flete / Costos Extra ($)</Label>
+                <Input
+                  id="extra_costs"
+                  type="number"
+                  step="0.01"
+                  value={extraCosts}
+                  onChange={(e) => setExtraCosts(e.target.value)}
+                  className="h-8 text-xs border-[#DCDAD4]"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2 border border-[#DCDAD4] rounded-lg p-3 bg-[#FCFCFA]">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-[#101828] text-xs">Componentes a ingresar</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddItemRow}
+                  className="h-7 text-xs border-[#DCDAD4]"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Agregar componente
+                </Button>
               </div>
 
-              <Separator />
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold">Artículos y Componentes</h4>
-                  <Button type="button" variant="outline" size="sm" onClick={handleAddItemRow} className="h-7 text-[10px]">
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Añadir componente
-                  </Button>
-                </div>
-
-                <div className="space-y-2">
-                  {items.map((item, idx) => (
-                    <div key={idx} className="flex gap-2 items-end">
-                      <div className="flex-1 space-y-1">
-                        <Label>SKU Componente</Label>
-                        <Input
-                          placeholder="Ej. C 144"
-                          value={item.sku}
-                          onChange={(e) => handleItemChange(idx, "sku", e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="w-20 space-y-1">
-                        <Label>Cantidad</Label>
-                        <Input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => handleItemChange(idx, "quantity", e.target.value)}
-                          required
-                          min="1"
-                        />
-                      </div>
-                      <div className="w-28 space-y-1">
-                        <Label>Costo Unitario (opcional)</Label>
-                        <Input
-                          type="number"
-                          placeholder="Ej. 3000"
-                          value={item.unit_cost}
-                          onChange={(e) => handleItemChange(idx, "unit_cost", e.target.value)}
-                        />
-                      </div>
+              <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                {items.map((row, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <Input
+                      placeholder="SKU componente"
+                      value={row.sku}
+                      onChange={(e) => handleItemChange(idx, "sku", e.target.value)}
+                      required
+                      className="h-8 text-xs flex-1 border-[#DCDAD4]"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Cantidad"
+                      min="1"
+                      value={row.quantity}
+                      onChange={(e) => handleItemChange(idx, "quantity", e.target.value)}
+                      required
+                      className="h-8 text-xs w-24 border-[#DCDAD4]"
+                    />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Costo unitario"
+                      value={row.unit_cost}
+                      onChange={(e) => handleItemChange(idx, "unit_cost", e.target.value)}
+                      className="h-8 text-xs w-28 border-[#DCDAD4]"
+                    />
+                    {items.length > 1 && (
                       <Button
                         type="button"
                         variant="ghost"
-                        size="icon"
-                        className="text-red-500 h-9 w-9 shrink-0 hover:bg-red-50 hover:text-red-700"
+                        size="sm"
                         onClick={() => handleRemoveItemRow(idx)}
-                        disabled={items.length === 1}
+                        className="h-8 w-8 p-0 text-[#D92D20]"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <DialogFooter className="pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => setIsNewPOOpen(false)} disabled={isProcessing}>
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={isProcessing} className="bg-blue-600 hover:bg-blue-700 text-white">
-                  {isProcessing ? "Procesando..." : "Ingresar Compra"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* CSV Import Modal */}
-      {isImportCSVOpen && (
-        <Dialog open={isImportCSVOpen} onOpenChange={(open) => !open && setIsImportCSVOpen(false)}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-1.5">
-                <FileSpreadsheet className="w-5 h-5 text-emerald-600" /> Importar Lista de Compras (CSV)
-              </DialogTitle>
-              <DialogDescription>
-                Pega tus datos separados por coma. Formato requerido:
-                <code className="block bg-slate-100 p-2 rounded text-xs mt-2 text-indigo-700">
-                  sku,cantidad,costo_unitario_opcional<br />
-                  C 144,10,3000<br />
-                  D 163,5,2000
-                </code>
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 my-2 text-xs">
-              <div className="space-y-1">
-                <Label>Nombre Proveedor (opcional)</Label>
-                <Input
-                  placeholder="Ej. Importador Metales CSV"
-                  value={csvImportSupplier}
-                  onChange={(e) => setCsvImportSupplier(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label>Contenido CSV</Label>
-                <textarea
-                  placeholder="sku,cantidad,costo&#10;C 144,10,3000&#10;D 163,5,2000"
-                  value={csvText}
-                  onChange={(e) => setCsvText(e.target.value)}
-                  className="w-full h-40 rounded-md border border-slate-200 p-3 bg-white font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-slate-350"
-                />
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsImportCSVOpen(false)} disabled={isProcessing}>
+
+            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsNewPOOpen(false)} className="h-8 text-xs border-[#DCDAD4]">
                 Cancelar
               </Button>
-              <Button onClick={handleImportCSVSubmit} disabled={isProcessing} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                {isProcessing ? "Importando..." : "Comenzar Importación"}
+              <Button type="submit" disabled={isProcessing} className="h-8 text-xs bg-[#102A56] hover:bg-[#102A56]/90 text-white">
+                Registrar Ingreso
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Importar CSV */}
+      <Dialog open={isImportCSVOpen} onOpenChange={setIsImportCSVOpen}>
+        <DialogContent className="sm:max-w-lg bg-white border border-[#DCDAD4] shadow-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-[#101828]">
+              Importar compras desde CSV
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#5F6875]">
+              Formato esperado por línea: <code>SKU,CANTIDAD,COSTO_UNITARIO</code>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <Label htmlFor="csv_supplier" className="text-xs font-semibold text-[#101828]">Proveedor (Opcional)</Label>
+              <Input
+                id="csv_supplier"
+                placeholder="Nombre del proveedor o factura"
+                value={csvImportSupplier}
+                onChange={(e) => setCsvImportSupplier(e.target.value)}
+                className="h-8 text-xs border-[#DCDAD4]"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="csv_content" className="text-xs font-semibold text-[#101828]">Contenido CSV</Label>
+              <textarea
+                id="csv_content"
+                rows={6}
+                placeholder="BANQUETA-ROJA,50,4500&#10;BANQUETA-AZUL,20,4700"
+                value={csvText}
+                onChange={(e) => setCsvText(e.target.value)}
+                className="w-full text-xs font-mono p-2.5 border border-[#DCDAD4] rounded-md focus:outline-none focus:ring-1 focus:ring-[#102A56]"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0 pt-2">
+            <Button variant="outline" onClick={() => setIsImportCSVOpen(false)} className="h-8 text-xs border-[#DCDAD4]">
+              Cancelar
+            </Button>
+            <Button onClick={handleImportCSVSubmit} disabled={isProcessing} className="h-8 text-xs bg-[#102A56] hover:bg-[#102A56]/90 text-white">
+              Procesar CSV
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
