@@ -4,13 +4,17 @@
 
 Este runbook detalla los procedimientos obligatorios para la protección, validación y restauración de datos de Klyvo (Supabase / PostgreSQL), así como la estrategia de reconstrucción de estado ante pérdidas operacionales.
 
-### Métricas de Recuperación Objetivo
-* **RPO (Recovery Point Objective):**
-  * `< 1 hora` con Point in Time Recovery (PITR) activo en Supabase.
-  * `< 24 horas` mediante backups lógicos y snapshots automáticos diarios.
-* **RTO (Recovery Time Objective):**
-  * `< 30 minutos` para restauración de esquema y datos en entorno secundario o réplica de base de datos.
+### Métricas de Recuperación Objetivo (Target SLOs)
+* **RPO Objetivo (Recovery Point Objective):**
+  * `< 1 hora`: Objetivo condicionado a que Point-in-Time Recovery (PITR) esté formalmente contratado y habilitado en el proyecto Supabase de producción.
+  * `< 24 horas`: Garantizado mediante backups automáticos y snapshots diarios de base de datos.
+* **RTO Objetivo (Recovery Time Objective):**
+  * `< 30 minutos`: Objetivo para restauración de esquema y datos en un entorno secundario o réplica de base de datos.
 * **Responsable:** Líder de Ingeniería / Operador de Turno DevOps.
+
+> [!NOTE]
+> **Diferenciación entre Objetivos y Verificación Comprobada:**
+> Los valores de RPO/RTO anteriores constituyen objetivos de diseño operacional en producción. En el pipeline de CI y release gate local se ejecuta un **synthetic recovery test** automatizado sobre PostgreSQL descartable con datos sintéticos para verificar la integridad del esquema, constraints, funciones, políticas RLS y relaciones de clave foránea. No se descargan ni manipulan datos reales de producción ni se asume PITR activo sin contratación explícita en Supabase.
 
 ---
 
@@ -88,5 +92,5 @@ pg_dump "$DATABASE_URL" \
 
 ---
 
-## 5. Prueba de Backup/Restore Automatizada
-El script [`scripts/test-backup-restore.ts`](file:///c:/Users/Nailen/Desktop/Proyectos/stockly/scripts/test-backup-restore.ts) (`npm run test:recovery`) ejecuta este ciclo completo de forma 100% determinista sobre datos sintéticos como parte del release gate de CI.
+## 5. Prueba de Recuperación Sintética Automatizada (Synthetic Recovery Test)
+El script [`scripts/test-backup-restore.ts`](file:///c:/Users/Nailen/Desktop/Proyectos/stockly/scripts/test-backup-restore.ts) (`npm run test:recovery`) ejecuta un **synthetic recovery test** 100% determinista sobre datos sintéticos en PostgreSQL descartable. Valida la integridad de las 44 tablas, 382 constraints, 17 RPCs, 87 políticas RLS y la coherencia de claves foráneas entre tenants sintéticos como parte del release gate de CI.

@@ -48,10 +48,10 @@ jobs:
       - name: 1. Checkout repository
         uses: actions/checkout@v4
 
-      - name: 2. Setup Node.js (v22)
+      - name: 2. Setup Node.js (via .nvmrc)
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: ".nvmrc"
           cache: 'npm'
 
       - name: 3. Install dependencies
@@ -69,7 +69,7 @@ jobs:
       - name: 5. Scan for accidental hardcoded secret patterns
         run: |
           echo "Scanning for accidental token or private key patterns..."
-          if grep -rnE '(BEGIN PRIVATE KEY|ghp_[a-zA-Z0-9]{36}|xox[baprs]-[0-9a-zA-Z]{10,48})' --exclude-dir={.git,node_modules,.next} .; then
+          if grep -rnE '(BEGIN PRIVATE[[:space:]]KEY|ghp_[a-zA-Z0-9]{36}|xox[baprs]-[0-9a-zA-Z]{10,48})' --exclude-dir={.git,node_modules,.next} .; then
             echo "❌ ERROR: Potential hardcoded secret found!"
             exit 1
           else
@@ -134,10 +134,13 @@ jobs:
       - name: 20. Synthetic Backup & Restoration Audit
         run: npm run test:recovery
 
-      - name: 21. Critical E2E Workflows (Playwright)
+      - name: 21. Install Playwright Chromium with system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: 22. Critical E2E Smoke & Contract Tests (Playwright)
         run: npm run test:e2e
 
-      - name: 22. Next.js Production Build
+      - name: 23. Next.js Production Build
         run: npm run build
 
       - name: 23. Dependency Audit Report (Informational Artifact)

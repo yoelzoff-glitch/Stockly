@@ -11,8 +11,10 @@ Este plan cubre la respuesta y mitigación inmediata ante escenarios de fallo ca
 ---
 
 ## 2. Objetivos de Continuidad del Negocio
-- **RPO (Recovery Point Objective):** Máximo 1 hora de pérdida de transacciones con PITR.
-- **RTO (Recovery Time Objective):** Máximo 30 minutos para restablecer servicio en modo degradado o sobre réplica.
+- **RPO Objetivo (Recovery Point Objective):**
+  - `< 1 hora`: Objetivo condicionado a que Point-in-Time Recovery (PITR) esté contratado y habilitado en el proyecto Supabase de producción.
+  - `< 24 horas`: Garantizado mediante backups automáticos y snapshots diarios.
+- **RTO Objetivo (Recovery Time Objective):** Máximo 30 minutos para restablecer servicio en modo degradado o sobre réplica secundaria.
 - **Canal de Comunicación de Crisis:** Canal privado de Slack `#klyvo-incident-command` + Status Page interna.
 
 ---
