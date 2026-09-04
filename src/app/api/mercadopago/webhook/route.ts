@@ -5,7 +5,7 @@ import { logger } from "@/lib/errors/logger";
 import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { validateMercadoPagoWebhookSignature } from "@/lib/security/webhookSignatures";
 import { getWebhookSignatureConfig } from "@/lib/security/signatureConfig";
-import { claimWebhookEvent, updateWebhookEventStatus } from "@/lib/security/idempotency";
+import { claimWebhookEvent, updateWebhookEventStatus, hashWebhookPayload } from "@/lib/security/idempotency";
 import * as Sentry from "@sentry/nextjs";
 
 const MAX_PAYLOAD_SIZE = 512 * 1024; // 512 KB
@@ -113,8 +113,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Atomic Idempotency Claim
-    const eventKey = `mp_${topic}_${resourceId}_${parsedJson.date_created || Date.now()}`;
+    // 4. Atomic Idempotency Claim with Prioritized Notification ID
+    let eventKey: string;
+    const notificationId = parsedJson.id || parsedJson.notification_id;
+    if (notificationId) {
+      eventKey = `mp_${notificationId}`;
+    } else {
+      const action = parsedJson.action || "updated";
+      const dateCreated = parsedJson.date_created || "nodate";
+      const compositeHash = hashWebhookPayload({ topic, action, resourceId, dateCreated }).slice(0, 16);
+      eventKey = `mp_${topic}_${action}_${resourceId}_${compositeHash}`;
+    }
+
     const claim = await claimWebhookEvent({
       provider: "mercadopago",
       eventKey,

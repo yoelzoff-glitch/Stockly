@@ -30,21 +30,45 @@ export default function BillingPage() {
       const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single()
       if (profile?.tenant_id) {
         const currentMonth = new Date().toISOString().slice(0, 7) + "-01"
-        const { data: usage } = await supabase.from("subscription_usage").select("*").eq("tenant_id", profile.tenant_id).eq("month", currentMonth).maybeSingle()
-        const { data: sub } = await supabase.from("subscriptions").select("*").eq("tenant_id", profile.tenant_id).single()
+        const { data: usage } = await supabase
+          .from("subscription_usage")
+          .select("id, month, ai_credits_used, whatsapp_messages_used, automation_actions_used")
+          .eq("tenant_id", profile.tenant_id)
+          .eq("month", currentMonth)
+          .maybeSingle()
+
+        const { data: sub } = await supabase
+          .from("subscriptions")
+          .select("id, plan, status, expires_at, pending_plan")
+          .eq("tenant_id", profile.tenant_id)
+          .maybeSingle()
+
+        const { data: plans } = await supabase
+          .from("plans_config")
+          .select("plan_key, ai_credits_limit, automation_limit, whatsapp_limit, sku_limit, price_monthly")
+          .eq("is_active", true)
+
         const { data: products } = await supabase
           .from("products")
           .select("id, sku")
           .eq("tenant_id", profile.tenant_id)
-          .neq("status", "deleted_from_meli");
-        
-        const skus = products?.map((p, idx) => p.sku || `no-sku-${idx}`) || [];
-        const uniqueSkuCount = new Set(skus).size;
-        
+          .neq("status", "deleted_from_meli")
+
+        const skus = products?.map((p, idx) => p.sku || `no-sku-${idx}`) || []
+        const uniqueSkuCount = new Set(skus).size
+
+        const plansMap: Record<string, any> = {}
+        if (plans) {
+          for (const p of plans) {
+            plansMap[p.plan_key] = p
+          }
+        }
+
         setStats({
-          usage: usage || { ai_credits_used: 0, ai_requests_limit: 500 },
-          subscription: sub || { plan: 'starter', status: 'active' },
-          pubCount: uniqueSkuCount
+          usage: usage || { ai_credits_used: 0, whatsapp_messages_used: 0, automation_actions_used: 0 },
+          subscription: sub || { plan: "starter", status: "active", expires_at: null, pending_plan: null },
+          pubCount: uniqueSkuCount,
+          plansConfig: plansMap,
         })
       }
       setLoading(false)
@@ -52,13 +76,13 @@ export default function BillingPage() {
     loadBilling()
   }, [])
 
-  const getPlanWeight = (p: string) => p === 'ultra' ? 3 : p === 'pro' ? 2 : 1;
+  const getPlanWeight = (p: string) => (p === "ultra" ? 3 : p === "pro" ? 2 : 1)
 
-  const handleUpgrade = async (plan: 'starter' | 'pro' | 'ultra') => {
+  const handleUpgrade = async (plan: "starter" | "pro" | "ultra") => {
     if (getPlanWeight(plan) < getPlanWeight(stats?.subscription?.plan)) {
-      setTargetDowngrade(plan as 'starter' | 'pro');
-      setIsDowngradeModalOpen(true);
-      return;
+      setTargetDowngrade(plan as "starter" | "pro")
+      setIsDowngradeModalOpen(true)
+      return
     }
 
     setUpgrading(plan)
@@ -76,22 +100,22 @@ export default function BillingPage() {
   }
 
   const confirmDowngrade = async () => {
-    if (!targetDowngrade) return;
-    setDowngrading(targetDowngrade);
+    if (!targetDowngrade) return
+    setDowngrading(targetDowngrade)
     try {
-      await scheduleDowngradeAction(targetDowngrade);
+      await scheduleDowngradeAction(targetDowngrade)
       setStats({
         ...stats,
         subscription: {
           ...stats.subscription,
-          pending_plan: targetDowngrade
-        }
-      });
-      setIsDowngradeModalOpen(false);
+          pending_plan: targetDowngrade,
+        },
+      })
+      setIsDowngradeModalOpen(false)
     } catch (error: any) {
-      alert("Error al programar la baja: " + error.message);
+      alert("Error al programar la baja: " + error.message)
     } finally {
-      setDowngrading(null);
+      setDowngrading(null)
     }
   }
 
@@ -103,26 +127,18 @@ export default function BillingPage() {
     )
   }
 
-  const { usage, subscription } = stats
-  
-  let limit = usage.ai_requests_limit || 500;
-  if (subscription.plan === 'pro') limit = 1500;
-  if (subscription.plan === 'ultra') limit = 5000;
-  
+  const { usage, subscription, plansConfig } = stats
+  const currentPlanKey = subscription.plan === "business" ? "ultra" : subscription.plan === "free" ? "starter" : subscription.plan || "starter"
+  const currentPlanCfg = plansConfig?.[currentPlanKey]
+
+  const limit = currentPlanCfg?.ai_credits_limit || (currentPlanKey === "ultra" ? 5000 : currentPlanKey === "pro" ? 1500 : 500)
+  const pubLimit = currentPlanCfg?.sku_limit || (currentPlanKey === "ultra" ? 1000 : currentPlanKey === "pro" ? 400 : 100)
+  const autoLimit = currentPlanCfg?.automation_limit || (currentPlanKey === "ultra" ? 1500 : currentPlanKey === "pro" ? 800 : 250)
+
   const progress = Math.min(100, Math.round(((usage.ai_credits_used || 0) / limit) * 100))
-  let pubLimit = 100;
-  if (subscription.plan === 'pro') pubLimit = 400;
-  if (subscription.plan === 'ultra') pubLimit = 1000;
-  
-  const pubProgress = Math.min(100, Math.round(((stats.pubCount || 0) / pubLimit) * 100));
-  
-  let autoLimit = 250;
-  if (subscription.plan === 'pro') autoLimit = 800;
-  if (subscription.plan === 'ultra') autoLimit = 1500;
-  
-  const autoProgress = Math.min(100, Math.round(((usage.automation_actions_used || 0) / autoLimit) * 100));
-  
-  const isUnlimited = false;
+  const pubProgress = Math.min(100, Math.round(((stats.pubCount || 0) / pubLimit) * 100))
+  const autoProgress = Math.min(100, Math.round(((usage.automation_actions_used || 0) / autoLimit) * 100))
+  const isUnlimited = false
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">

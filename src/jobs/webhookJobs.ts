@@ -125,76 +125,69 @@ export const mercadopagoWebhookJob = inngest.createFunction(
             .from("profiles")
             .select("tenant_id")
             .eq("id", refId)
-            .single();
+            .maybeSingle();
           tenantId = profile?.tenant_id;
         }
 
-        let currentSub = null;
-        if (tenantId) {
-          const { data } = await supabase
-            .from("subscriptions")
-            .select("*")
-            .eq("tenant_id", tenantId)
-            .single();
-          currentSub = data;
+        if (!tenantId) {
+          logger.warn({
+            event: "MP_WEBHOOK_TENANT_NOT_FOUND",
+            refType,
+            refId,
+            resourceId,
+          });
+          return;
         }
+
+        const { data: currentSub } = await supabase
+          .from("subscriptions")
+          .select("id, tenant_id, plan, status, expires_at, updated_at, mercadopago_subscription_id")
+          .eq("tenant_id", tenantId)
+          .maybeSingle();
 
         if (status === "authorized") {
           targetPlan = plan;
         } else if (status === "cancelled" || status === "canceled") {
           if (currentSub?.expires_at && new Date(currentSub.expires_at) > new Date()) {
-            targetPlan = currentSub.plan;
+            targetPlan = (currentSub.plan as any) || "starter";
           } else {
             targetPlan = "starter";
             isExpired = true;
           }
         }
 
+        // Calculate expires_at: use MP's next_payment_date or end_date if available
         let expiresAt = currentSub?.expires_at || null;
         if (status === "authorized") {
-          const expirationDate = new Date();
-          expirationDate.setDate(expirationDate.getDate() + 30);
-          expiresAt = expirationDate.toISOString();
-        } else if (isExpired) {
-          expiresAt = null;
-        }
-
-        if (refType === "user") {
-          await supabase.auth.admin.updateUserById(refId, {
-            user_metadata: {
-              payment_status: status === "authorized" ? "paid" : "canceled",
-              mp_sub_id: subscription.id,
-            },
-          });
-
-          if (tenantId) {
-            await supabase.from("subscriptions").upsert({
-              tenant_id: tenantId,
-              plan: targetPlan,
-              status: status === "authorized" ? "active" : "canceled",
-              mercadopago_subscription_id: subscription.id,
-              expires_at: expiresAt,
-            });
-
-            await supabase
-              .from("tenants")
-              .update({ plan: targetPlan })
-              .eq("id", tenantId);
+          if (subscription.next_payment_date) {
+            expiresAt = new Date(subscription.next_payment_date).toISOString();
+          } else if ((subscription as any).end_date) {
+            expiresAt = new Date((subscription as any).end_date).toISOString();
+          } else if (!expiresAt || new Date(expiresAt) <= new Date()) {
+            const expirationDate = new Date();
+            expirationDate.setDate(expirationDate.getDate() + 30);
+            expiresAt = expirationDate.toISOString();
           }
-        } else if (refType === "tenant") {
-          await supabase.from("subscriptions").upsert({
-            tenant_id: refId,
-            plan: targetPlan,
-            status: status === "authorized" ? "active" : "canceled",
-            mercadopago_subscription_id: subscription.id,
-            expires_at: expiresAt,
-          });
-
-          await supabase
-            .from("tenants")
-            .update({ plan: targetPlan })
-            .eq("id", refId);
+        } else if (isExpired) {
+          expiresAt = new Date().toISOString();
         }
+
+        const mappedStatus = status === "authorized" ? "active" : status === "cancelled" || status === "canceled" ? "cancelled" : "active";
+
+        // Atomic update of subscriptions and tenants.plan
+        await supabase.from("subscriptions").upsert({
+          tenant_id: tenantId,
+          plan: targetPlan,
+          status: mappedStatus,
+          mercadopago_subscription_id: subscription.id,
+          expires_at: expiresAt,
+          updated_at: new Date().toISOString(),
+        });
+
+        await supabase
+          .from("tenants")
+          .update({ plan: targetPlan })
+          .eq("id", tenantId);
       });
 
       if (eventId) {

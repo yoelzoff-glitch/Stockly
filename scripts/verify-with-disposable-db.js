@@ -37,10 +37,12 @@ async function main() {
   const isWindows = process.platform === 'win32';
   const npmCmd = isWindows ? 'npm.cmd' : 'npm';
 
-  console.log('RUNNING: npm run verify:sprint4');
+  const targetScript = process.argv[2] || 'verify:sprint5';
+
+  console.log(`RUNNING: npm run ${targetScript}`);
   console.log('----------------------------------------------------');
 
-  const child = spawn(npmCmd, ['run', 'verify:sprint4'], {
+  const child = spawn(npmCmd, ['run', targetScript], {
     env,
     stdio: 'inherit',
     cwd: path.resolve(__dirname, '..'),

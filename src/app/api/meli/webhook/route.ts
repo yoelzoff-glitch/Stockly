@@ -6,7 +6,7 @@ import { logger } from "@/lib/errors/logger";
 import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { validateMercadoLibreWebhookSignature } from "@/lib/security/webhookSignatures";
 import { getWebhookSignatureConfig } from "@/lib/security/signatureConfig";
-import { claimWebhookEvent, updateWebhookEventStatus } from "@/lib/security/idempotency";
+import { claimWebhookEvent, updateWebhookEventStatus, hashWebhookPayload } from "@/lib/security/idempotency";
 import * as Sentry from "@sentry/nextjs";
 
 const MAX_PAYLOAD_SIZE = 512 * 1024; // 512 KB
@@ -116,8 +116,14 @@ export async function POST(req: NextRequest) {
 
     const tenantId = account.tenant_id;
 
-    // 5. Atomic Idempotency Claim
-    const eventKey = `meli_${topic}_${resource.replace(/\//g, "_")}_${payload.received || payload.sent || Date.now()}`;
+    // 5. Atomic Idempotency Claim with Delivery Identification
+    const resourceClean = resource.replace(/\//g, "_");
+    const deliveryTimestamp = payload.sent || payload.received;
+    const deliveryIdentifier = deliveryTimestamp
+      ? deliveryTimestamp
+      : hashWebhookPayload({ userId, topic, resource, attempts: payload.attempts }).slice(0, 16);
+    const eventKey = `meli_${userId}_${topic}_${resourceClean}_${deliveryIdentifier}`;
+
     const claim = await claimWebhookEvent({
       provider: "mercadolibre",
       eventKey,

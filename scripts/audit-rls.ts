@@ -156,17 +156,18 @@ function runRlsAudit() {
   const hasFeatureFlagsRevoke = /REVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+(?:TABLE\s+)?public\.tenant_feature_flags\s+FROM\s+authenticated/i.test(allSqlContent);
   const hasOperationRunsRevoke = /REVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+(?:TABLE\s+)?public\.operation_runs\s+FROM\s+authenticated/i.test(allSqlContent);
   const hasWebhookEventsRevoke = /REVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+(?:TABLE\s+)?public\.webhook_events\s+FROM\s+authenticated/i.test(allSqlContent);
+  const hasUsageEventsRevoke = /REVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+(?:TABLE\s+)?public\.usage_events\s+FROM\s+authenticated/i.test(allSqlContent);
 
-  if (!hasFeatureFlagsRevoke || !hasOperationRunsRevoke || !hasWebhookEventsRevoke) {
+  if (!hasFeatureFlagsRevoke || !hasOperationRunsRevoke || !hasWebhookEventsRevoke || !hasUsageEventsRevoke) {
     violations.push({
       file: "supabase/migrations/*",
       category: "BACKEND_ONLY_EXPOSURE",
-      message: "Backend-only tables (tenant_feature_flags, operation_runs, webhook_events) must revoke ALL permissions from authenticated and anon.",
+      message: "Backend-only tables (tenant_feature_flags, operation_runs, webhook_events, usage_events) must revoke ALL permissions from authenticated and anon.",
     });
   }
 
-  // 9. COVERAGE AUDIT: All 38 tables in Migration C + 3 backend tables = 41 tables
-  const canonical41Tables = [
+  // 9. COVERAGE AUDIT: All 38 tables in Migration C + 4 backend tables = 42 tables
+  const canonical42Tables = [
     "tenants", "profiles", "meli_accounts", "products", "orders", "order_items",
     "whatsapp_numbers", "messages", "ai_actions", "product_price_history",
     "stock_movements", "alert_rules", "alerts", "audit_logs", "tenant_preferences",
@@ -176,13 +177,13 @@ function runRlsAudit() {
     "inventory_movements", "product_components", "product_extra_costs", "subscriptions",
     "monthly_expenses", "plans_config", "competition_snapshots", "action_workflows",
     "workflow_steps", "price_adjustment_workflows", "price_adjustment_details",
-    "tenant_feature_flags", "operation_runs", "webhook_events"
+    "tenant_feature_flags", "operation_runs", "webhook_events", "usage_events"
   ];
 
   const sprint3BMigration = migrationFiles.find((m) => m.name.includes("sprint03_b_policies"))?.content || "";
   const testSchemaContent = fs.readFileSync(path.join(fixturesDir, "testSchema.sql"), "utf-8");
 
-  for (const tbl of canonical41Tables) {
+  for (const tbl of canonical42Tables) {
     // Must have definition in testSchema.sql fixture
     const hasDefinitionInFixture = new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?public\\.${tbl}\\b`, "i").test(testSchemaContent);
     if (!hasDefinitionInFixture) {
@@ -194,7 +195,7 @@ function runRlsAudit() {
     }
 
     // Authenticated tables must have explicit RLS policies in Migration B
-    if (tbl !== "tenant_feature_flags" && tbl !== "operation_runs" && tbl !== "webhook_events") {
+    if (tbl !== "tenant_feature_flags" && tbl !== "operation_runs" && tbl !== "webhook_events" && tbl !== "usage_events") {
       const hasPolicyInB = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${tbl}`, "i").test(sprint3BMigration);
       if (!hasPolicyInB) {
         violations.push({
@@ -205,7 +206,7 @@ function runRlsAudit() {
       }
     }
   }
-  console.log(`Coverage Audit: Verified explicit RLS policies & canonical fixture definitions for all ${canonical41Tables.length} tables.`);
+  console.log(`Coverage Audit: Verified explicit RLS policies & canonical fixture definitions for all ${canonical42Tables.length} tables.`);
 
   // 10. Codebase Schema and Write Audit: scan src/
   function scanDirForTablesAndWrites(dir: string, tableSet: Set<string>) {
@@ -266,7 +267,7 @@ function runRlsAudit() {
   console.log(`Codebase Query Audit: Scanned ${queriedTables.size} unique tables queried across src/`);
 
   // Verify all queried tables are in canonical table inventory
-  const allKnownTables = new Set(canonical41Tables);
+  const allKnownTables = new Set(canonical42Tables);
 
   for (const qTable of queriedTables) {
     if (!allKnownTables.has(qTable)) {
