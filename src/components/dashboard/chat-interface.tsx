@@ -46,12 +46,12 @@ export function ChatInterface({ initialMessages, initialPrompt }: { initialMessa
   const handleQuickSubmit = (question: string) => {
     if (isLoading) return;
     setInput(question);
-    
+
     // Create a synthetic event to pass to handleSubmit
     const syntheticEvent = {
       preventDefault: () => {}
     } as React.FormEvent;
-    
+
     // We need a timeout to ensure state is updated before submitting
     setTimeout(() => {
       // Actually we can just call the logic directly to avoid race conditions
@@ -75,7 +75,7 @@ export function ChatInterface({ initialMessages, initialPrompt }: { initialMessa
       });
 
       const data = await res.json();
-      
+
       if (!res.ok) throw new Error(data.error);
 
       setMessages(prev => [...prev, {
@@ -101,7 +101,7 @@ export function ChatInterface({ initialMessages, initialPrompt }: { initialMessa
 
   const handleClear = async () => {
     if (!confirm("¿Estás seguro de que deseas eliminar todo el historial de conversación?")) return;
-    
+
     setIsLoading(true);
     try {
       const res = await fetch("/api/ai/chat/clear", { method: "DELETE" });
@@ -117,12 +117,21 @@ export function ChatInterface({ initialMessages, initialPrompt }: { initialMessa
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900/50 relative">
+    <div className="flex flex-col h-full bg-[#FCFCFA] relative">
       {/* Header / Clear Button */}
       {messages.length > 0 && (
-        <div className="flex justify-end p-2 md:p-3 border-b bg-white dark:bg-slate-950 shrink-0">
-          <Button variant="ghost" size="sm" onClick={handleClear} disabled={isLoading} className="text-muted-foreground hover:text-destructive">
-            <Trash2 className="w-4 h-4 mr-2" />
+        <div className="flex justify-between items-center px-4 py-2.5 border-b border-[#DCDAD4] bg-[#FFFFFF] shrink-0">
+          <span className="text-xs font-semibold text-[#5F6875] uppercase tracking-wider">
+            Sesión de consulta
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClear}
+            disabled={isLoading}
+            className="h-7 text-xs text-[#5F6875] hover:text-[#D92D20] hover:bg-[#D92D20]/5 px-2"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
             <span className="hidden sm:inline">Limpiar Historial</span>
             <span className="sm:hidden">Limpiar</span>
           </Button>
@@ -130,56 +139,72 @@ export function ChatInterface({ initialMessages, initialPrompt }: { initialMessa
       )}
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4 pb-4">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 pb-4">
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-center space-y-3 opacity-50 px-4">
-            <Bot className="w-10 h-10 md:w-12 md:h-12" />
-            <p className="text-sm md:text-base">Escribe tu primera pregunta. <br/> Ejemplo: "¿Cuánto vendí hoy?" o "¿Qué productos tienen stock bajo?"</p>
+          <div className="h-full flex flex-col items-center justify-center text-center space-y-3 px-4 text-[#5F6875]">
+            <div className="w-10 h-10 rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] flex items-center justify-center text-[#102A56] font-mono font-bold text-sm shadow-xs">
+              KLY
+            </div>
+            <div className="max-w-md space-y-1">
+              <h4 className="text-sm font-semibold text-[#101828]">Consultas sobre la operación</h4>
+              <p className="text-xs text-[#5F6875]">
+                Haz preguntas sobre métricas de venta, reposición de stock, márgenes de ganancia o estado de órdenes.
+              </p>
+            </div>
           </div>
         )}
-        
+
         {messages.map((m) => (
-          <div key={m.id} className={`flex gap-2 md:gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div key={m.id} className={`flex gap-2.5 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {m.role === 'assistant' && (
-              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-1">
-                <Bot className="w-4 h-4 md:w-5 md:h-5 text-primary" />
+              <div className="w-7 h-7 rounded bg-[#102A56] text-white flex items-center justify-center text-[10px] font-mono font-bold shrink-0 mt-0.5">
+                KLY
               </div>
             )}
-            <div 
-              className={`max-w-[90%] md:max-w-[80%] px-3 md:px-4 py-2.5 md:py-3 rounded-2xl ${
-                m.role === 'user' 
-                  ? 'bg-primary text-primary-foreground rounded-tr-none' 
-                  : 'bg-white dark:bg-slate-800 border shadow-sm rounded-tl-none'
+            <div
+              className={`max-w-[90%] md:max-w-[75%] px-3.5 py-2.5 rounded-lg ${
+                m.role === 'user'
+                  ? 'bg-[#102A56] text-white rounded-tr-none text-xs'
+                  : 'bg-[#FFFFFF] border border-[#DCDAD4] text-[#101828] rounded-tl-none text-xs shadow-xs'
               }`}
             >
-              <p className="text-[13px] md:text-sm whitespace-pre-wrap leading-relaxed">{m.content}</p>
+              <p className="text-xs whitespace-pre-wrap leading-relaxed">{m.content}</p>
               {m.role === 'assistant' && m.content.includes("**CONFIRMO**") && (
-                <div className="mt-3 flex gap-2 border-t pt-3">
-                  <Button size="sm" onClick={() => submitMessage("Confirmo")} className="bg-green-600 hover:bg-green-700 text-white w-full">
+                <div className="mt-3 flex gap-2 border-t border-[#DCDAD4] pt-2.5">
+                  <Button
+                    size="sm"
+                    onClick={() => submitMessage("Confirmo")}
+                    className="h-7 bg-[#198754] hover:bg-[#198754]/90 text-white text-xs font-semibold w-full rounded"
+                  >
                     Confirmar
                   </Button>
-                  <Button size="sm" variant="destructive" onClick={() => submitMessage("Cancelar")} className="w-full">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => submitMessage("Cancelar")}
+                    className="h-7 border-[#DCDAD4] text-[#D92D20] hover:bg-[#D92D20]/5 text-xs font-semibold w-full rounded"
+                  >
                     Cancelar
                   </Button>
                 </div>
               )}
             </div>
             {m.role === 'user' && (
-              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-primary flex items-center justify-center shrink-0 mt-1">
-                <User className="w-4 h-4 md:w-5 md:h-5 text-primary-foreground" />
+              <div className="w-7 h-7 rounded bg-[#F5F3EE] border border-[#DCDAD4] text-[#101828] flex items-center justify-center shrink-0 mt-0.5">
+                <User className="w-3.5 h-3.5 text-[#5F6875]" />
               </div>
             )}
           </div>
         ))}
 
         {isLoading && (
-          <div className="flex gap-2 md:gap-3 justify-start">
-            <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-1">
-              <Bot className="w-4 h-4 md:w-5 md:h-5 text-primary" />
+          <div className="flex gap-2.5 justify-start">
+            <div className="w-7 h-7 rounded bg-[#102A56] text-white flex items-center justify-center text-[10px] font-mono font-bold shrink-0 mt-0.5">
+              KLY
             </div>
-            <div className="bg-white dark:bg-slate-800 border shadow-sm rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-primary" />
-              <span className="text-[13px] md:text-sm text-muted-foreground">Pensando...</span>
+            <div className="bg-[#FFFFFF] border border-[#DCDAD4] rounded-lg rounded-tl-none px-3.5 py-2.5 flex items-center gap-2 text-xs text-[#5F6875]">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#102A56]" />
+              <span>Consultando datos operativos...</span>
             </div>
           </div>
         )}
@@ -187,39 +212,38 @@ export function ChatInterface({ initialMessages, initialPrompt }: { initialMessa
       </div>
 
       {/* Input Area */}
-      <div className="bg-white dark:bg-slate-950 border-t shrink-0">
+      <div className="bg-[#FFFFFF] border-t border-[#DCDAD4] shrink-0">
         {/* Quick Questions */}
-        <div className="px-3 pt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+        <div className="px-4 pt-3 flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
           {QUICK_QUESTIONS.map((q, idx) => (
-            <Button 
-              key={idx} 
-              variant="outline" 
-              size="sm" 
-              className="rounded-full text-xs whitespace-nowrap border-primary/20 text-primary hover:bg-primary/5 h-8 px-3"
+            <button
+              key={idx}
+              type="button"
+              className="rounded border border-[#DCDAD4] bg-[#FCFCFA] text-[11px] font-medium text-[#101828] hover:bg-[#F5F3EE] transition-colors whitespace-nowrap h-7 px-2.5 shrink-0"
               onClick={() => handleQuickSubmit(q)}
               disabled={isLoading}
             >
               {q}
-            </Button>
+            </button>
           ))}
         </div>
 
-        <div className="p-3 md:p-4">
+        <div className="p-4 pt-2.5">
           <form onSubmit={handleSubmit} className="flex gap-2 relative">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Pregúntame sobre tus ventas o stock..."
-              className="flex-1 rounded-full border border-input bg-background px-4 py-2.5 md:py-3 text-[13px] md:text-sm ring-offset-background file:border-0 file:bg-transparent placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pr-12 shadow-sm"
+              placeholder="Escribe tu consulta sobre métricas, ventas o stock..."
+              className="flex-1 rounded-md border border-[#DCDAD4] bg-[#FFFFFF] px-3 py-2 text-xs placeholder:text-[#5F6875] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#102A56] disabled:cursor-not-allowed disabled:opacity-50 pr-10"
               disabled={isLoading}
             />
-            <Button 
-              type="submit" 
-              size="icon" 
-              className="absolute right-1 top-1 md:right-1.5 md:top-1.5 rounded-full w-8 h-8 md:w-9 md:h-9"
+            <Button
+              type="submit"
+              size="sm"
+              className="absolute right-1 top-1/2 -translate-y-1/2 rounded h-7 w-7 p-0 bg-[#102A56] hover:bg-[#102A56]/90 text-white"
               disabled={!input.trim() || isLoading}
             >
-              <Send className="h-3.5 w-3.5 md:h-4 md:w-4" />
+              <Send className="h-3.5 w-3.5" />
             </Button>
           </form>
         </div>

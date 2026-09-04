@@ -41,33 +41,33 @@ export function WorkflowActions({ workflowId }: WorkflowActionsProps) {
   };
 
   return (
-    <div className="flex flex-wrap gap-2.5 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-      <Button 
-        size="sm" 
-        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm transition-all rounded-full px-4"
+    <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-[#DCDAD4]">
+      <Button
+        size="sm"
+        className="h-8 bg-[#102A56] hover:bg-[#102A56]/90 text-white text-xs font-semibold px-3"
         disabled={loading !== null}
         onClick={() => handleAction("approve")}
       >
         {loading === "approve" ? (
-          <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
         ) : (
-          <CheckCircle2 className="w-4 h-4 mr-1.5" />
+          <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
         )}
-        Aprobar Plan
+        Aprobar y Ejecutar
       </Button>
-      <Button 
-        size="sm" 
-        variant="outline" 
-        className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-950 dark:hover:bg-rose-950/20 font-semibold transition-all rounded-full px-4"
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 border-[#DCDAD4] bg-[#FFFFFF] text-[#D92D20] hover:bg-[#D92D20]/5 text-xs font-semibold px-3"
         disabled={loading !== null}
         onClick={() => handleAction("reject")}
       >
         {loading === "reject" ? (
-          <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
         ) : (
-          <XCircle className="w-4 h-4 mr-1.5" />
+          <XCircle className="w-3.5 h-3.5 mr-1.5" />
         )}
-        Rechazar
+        Descartar Plan
       </Button>
     </div>
   );

@@ -25,14 +25,6 @@ export default async function NotificationsPage() {
     .limit(100);
 
   return (
-    <div className="flex-1 p-8 pt-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Centro de Notificaciones</h2>
-          <p className="text-muted-foreground mt-1">Historial completo de alertas y eventos del sistema.</p>
-        </div>
-      </div>
-      <NotificationsClientPage initialAlerts={alerts || []} tenantId={profile.tenant_id} />
-    </div>
+    <NotificationsClientPage initialAlerts={alerts || []} tenantId={profile.tenant_id} />
   );
 }

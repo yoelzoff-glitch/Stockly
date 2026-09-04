@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { ChatInterface } from "@/components/dashboard/chat-interface";
+import { OperationalPageHeader } from "@/components/operational/page-header";
 
 export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ msg?: string }> }) {
   const resolvedSearchParams = await searchParams;
@@ -32,13 +33,14 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
   })) || [];
 
   return (
-    <div className="flex-1 flex flex-col h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] p-0 md:p-8 md:pt-6">
-      <div className="hidden md:flex items-center justify-between space-y-2 mb-4">
-        <h2 className="text-3xl font-bold tracking-tight">Asistente Klyvo</h2>
-      </div>
-      <p className="hidden md:block text-muted-foreground mb-6">Pregúntale a nuestra Inteligencia Artificial sobre tus ventas, stock y productos usando lenguaje natural.</p>
-      
-      <div className="flex-1 overflow-hidden border-0 md:border md:rounded-xl shadow-none md:shadow-sm bg-background flex flex-col">
+    <div className="flex-1 flex flex-col h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] p-4 md:p-8 space-y-4">
+      <OperationalPageHeader
+        title="Consultas Operativas y Mensajes"
+        description="Canal de asistencia y consulta rápida sobre inventario, ventas recientes y márgenes por producto."
+        className="hidden md:block pb-0"
+      />
+
+      <div className="flex-1 overflow-hidden rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] shadow-sm flex flex-col">
         <ChatInterface initialMessages={initialMessages as any} initialPrompt={resolvedSearchParams?.msg} />
       </div>
     </div>

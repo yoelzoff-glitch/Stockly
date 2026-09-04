@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { OperationalPageHeader } from "@/components/operational/page-header";
+import { DataTableShell } from "@/components/operational/data-table-shell";
+import { MetricStrip, MetricItem } from "@/components/operational/metric-strip";
+import { OperationalEmptyState } from "@/components/operational/empty-state";
 
 export default async function ActionsPage() {
   const supabase = await createClient();
@@ -23,88 +26,168 @@ export default async function ActionsPage() {
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
-  const getStatusColor = (status: string) => {
+  const actionList = actions || [];
+  const pendingCount = actionList.filter(a => a.status === "pending").length;
+  const executedCount = actionList.filter(a => a.status === "executed").length;
+  const failedCount = actionList.filter(a => a.status === "failed").length;
+
+  const metrics: MetricItem[] = [
+    {
+      label: "Total de Acciones",
+      value: actionList.length.toString(),
+      subtext: "Registradas en el historial operativo"
+    },
+    {
+      label: "Pendientes",
+      value: pendingCount.toString(),
+      subtext: "Esperando confirmación o ejecución"
+    },
+    {
+      label: "Ejecutadas con Éxito",
+      value: executedCount.toString(),
+      subtext: "Completadas en Mercado Libre o catálogo"
+    },
+    {
+      label: "Con Error",
+      value: failedCount.toString(),
+      subtext: "Requieren revisión o reintento"
+    }
+  ];
+
+  const getStatusVariant = (status: string): "neutral" | "success" | "warning" | "danger" | "info" => {
     switch (status) {
-      case 'pending': return 'bg-yellow-500/10 text-yellow-500';
-      case 'executed': return 'bg-green-500/10 text-green-500';
-      case 'cancelled': return 'bg-gray-500/10 text-gray-500';
-      case 'failed': return 'bg-red-500/10 text-red-500';
-      default: return 'bg-gray-500/10 text-gray-500';
+      case "pending": return "warning";
+      case "executed": return "success";
+      case "cancelled": return "neutral";
+      case "failed": return "danger";
+      default: return "neutral";
     }
   };
 
-  const getRiskColor = (risk: string) => {
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "pending": return "Pendiente";
+      case "executed": return "Ejecutada";
+      case "cancelled": return "Cancelada";
+      case "failed": return "Error";
+      default: return status;
+    }
+  };
+
+  const getRiskVariant = (risk: string): "neutral" | "success" | "warning" | "danger" => {
     switch (risk?.toUpperCase()) {
-      case 'LOW': return 'bg-green-500/10 text-green-500';
-      case 'MEDIUM': return 'bg-orange-500/10 text-orange-500';
-      case 'HIGH': return 'bg-red-500/10 text-red-500';
-      default: return 'bg-gray-500/10 text-gray-500';
+      case "LOW": return "success";
+      case "MEDIUM": return "warning";
+      case "HIGH": return "danger";
+      default: return "neutral";
     }
   };
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Acciones IA</h2>
-      </div>
-      <p className="text-muted-foreground">
-        Historial de todas las operaciones preparadas y ejecutadas por el agente de Inteligencia Artificial.
-      </p>
+    <div className="flex-1 p-6 md:p-8 space-y-6">
+      <OperationalPageHeader
+        title="Registro de Acciones Operativas"
+        description="Historial y trazabilidad de acciones preparadas, confirmadas y ejecutadas sobre tu operativa de Mercado Libre."
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Últimas Acciones</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {actions?.length === 0 ? (
-            <div className="text-center py-6 text-muted-foreground">
-              No hay acciones registradas aún.
-            </div>
-          ) : (
-            <div className="relative w-full overflow-auto">
-              <table className="w-full caption-bottom text-sm">
-                <thead className="[&_tr]:border-b">
-                  <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Título</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Tipo</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Riesgo</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Estado</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Fecha Creación</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Ejecución</th>
+      <MetricStrip metrics={metrics} columns={4} />
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-[#101828]">Historial de Operaciones</h3>
+            <p className="text-xs text-[#5F6875]">Trazabilidad cronológica de eventos y resultados.</p>
+          </div>
+          <span className="text-xs font-mono text-[#5F6875]">{actionList.length} registros</span>
+        </div>
+
+        <DataTableShell>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="border-b border-[#DCDAD4] bg-[#FCFCFA] text-[11px] font-semibold text-[#5F6875] uppercase tracking-wider">
+                  <th className="px-4 py-2.5">Acción</th>
+                  <th className="px-3 py-2.5">Tipo</th>
+                  <th className="px-3 py-2.5 text-center">Nivel de Impacto</th>
+                  <th className="px-3 py-2.5 text-center">Estado</th>
+                  <th className="px-4 py-2.5">Fecha Creación</th>
+                  <th className="px-4 py-2.5">Ejecución / Resultado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#DCDAD4] bg-[#FFFFFF]">
+                {actionList.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-0">
+                      <OperationalEmptyState
+                        title="No hay acciones registradas aún"
+                        description="Las acciones automáticas o programadas aparecerán en esta tabla cuando se generen alertas o sugerencias operativas."
+                      />
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="[&_tr:last-child]:border-0">
-                  {actions?.map((action) => {
-                    const risk = action.payload?.risk_score || 'LOW';
+                ) : (
+                  actionList.map((action) => {
+                    const risk = action.payload?.risk_score || "LOW";
+                    const errorMessage = action.payload?.error || action.error_message;
+
                     return (
-                      <tr key={action.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                        <td className="p-4 align-middle font-medium">{action.title}</td>
-                        <td className="p-4 align-middle">{action.action_type}</td>
-                        <td className="p-4 align-middle">
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getRiskColor(risk)}`}>
+                      <tr key={action.id} className="hover:bg-[#F5F3EE]/50 transition-colors">
+                        <td className="px-4 py-2.5">
+                          <div className="font-semibold text-[#101828] max-w-sm truncate" title={action.title}>
+                            {action.title}
+                          </div>
+                          {errorMessage && (
+                            <div className="text-[11px] text-[#D92D20] mt-0.5 font-mono">
+                              Error: {errorMessage}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 font-mono text-[#5F6875]">
+                          <span className="px-1.5 py-0.5 rounded bg-[#F5F3EE] border border-[#DCDAD4] text-[10px] uppercase">
+                            {action.action_type}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <StatusBadge variant={getRiskVariant(risk)}>
                             {risk}
-                          </span>
+                          </StatusBadge>
                         </td>
-                        <td className="p-4 align-middle">
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(action.status)}`}>
-                            {action.status.toUpperCase()}
-                          </span>
+                        <td className="px-3 py-2.5 text-center">
+                          <StatusBadge variant={getStatusVariant(action.status)}>
+                            {getStatusLabel(action.status)}
+                          </StatusBadge>
                         </td>
-                        <td className="p-4 align-middle">
-                          {new Date(action.created_at).toLocaleString('es-AR')}
+                        <td className="px-4 py-2.5 font-mono text-[#5F6875] text-[11px]">
+                          {new Date(action.created_at).toLocaleString("es-AR", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          })}
                         </td>
-                        <td className="p-4 align-middle">
-                          {action.executed_at ? new Date(action.executed_at).toLocaleString('es-AR') : '-'}
+                        <td className="px-4 py-2.5 font-mono text-[#101828] text-[11px]">
+                          {action.executed_at ? (
+                            <span>
+                              {new Date(action.executed_at).toLocaleString("es-AR", {
+                                day: "2-digit",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit"
+                              })}
+                            </span>
+                          ) : (
+                            <span className="text-[#5F6875]">Pendiente de ejecución</span>
+                          )}
                         </td>
                       </tr>
                     );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </DataTableShell>
+      </div>
     </div>
   );
 }
