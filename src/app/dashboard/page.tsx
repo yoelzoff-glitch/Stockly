@@ -40,11 +40,15 @@ export default async function DashboardPage(props: PageProps) {
   const tenantId = profile?.tenant_id;
 
   // Check Meli account status
-  const { data: meliAccount } = await supabase
+  const { data: meliAccount, error: meliAccountError } = await supabase
     .from("meli_accounts")
-    .select("*")
+    .select("id, status, last_sync_at")
     .eq("tenant_id", tenantId)
-    .single();
+    .maybeSingle();
+
+  if (meliAccountError) {
+    throw new Error("No se pudo verificar la conexión con Mercado Libre");
+  }
 
   const isMeliConnected = !!meliAccount;
 
