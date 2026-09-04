@@ -12,12 +12,11 @@ export interface DashboardMetrics {
   criticalStockCount: number;
   productsWithoutCost: number;
   activeAlertsCount: number;
-  source: "rpc_aggregates" | "query_fallback";
+  source: "scoped_queries";
 }
 
 /**
- * Resolves dashboard KPIs for a tenant.
- * Uses SQL RPC aggregates when `dashboard_aggregates_v2` is active, or optimized scoped queries as fallback.
+ * Resolves dashboard KPIs for a tenant using optimized tenant-scoped queries.
  */
 export async function getDashboardMetrics(
   tenantId: string,
@@ -25,33 +24,6 @@ export async function getDashboardMetrics(
   customClient?: any
 ): Promise<DashboardMetrics> {
   const supabase = customClient || createAdminClient();
-  const useRpc = await isFeatureFlagEnabled(tenantId, "dashboard_aggregates_v2", supabase);
-
-  if (useRpc) {
-    try {
-      const { data, error } = await supabase.rpc("get_dashboard_aggregates_v2", {
-        p_tenant_id: tenantId,
-        p_days: days,
-      });
-
-      if (!error && data) {
-        return {
-          totalRevenue: Number(data.total_revenue || 0),
-          totalOrders: Number(data.total_orders || 0),
-          averageTicket: Number(data.average_ticket || 0),
-          todayRevenue: Number(data.today_revenue || 0),
-          todayOrders: Number(data.today_orders || 0),
-          totalProducts: Number(data.total_products || 0),
-          criticalStockCount: Number(data.critical_stock_count || 0),
-          productsWithoutCost: Number(data.products_without_cost || 0),
-          activeAlertsCount: Number(data.active_alerts_count || 0),
-          source: "rpc_aggregates",
-        };
-      }
-    } catch {
-      // Fallback on RPC failure
-    }
-  }
 
   // Standard optimized scoped query mode
   const now = new Date();
@@ -107,6 +79,6 @@ export async function getDashboardMetrics(
     criticalStockCount,
     productsWithoutCost,
     activeAlertsCount,
-    source: "query_fallback",
+    source: "scoped_queries",
   };
 }

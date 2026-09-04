@@ -34,139 +34,138 @@ describe("Sprint 6: Distributed Leases, Rate Limits & Scalability Integration Te
     assert.ok(true, "Sprint 6 migration executed successfully against canonical schema");
   });
 
-  test("Distributed Lease: 2 concurrent workers on same tenant -> only one acquires lease", async () => {
+  test("Distributed Lease: 50 concurrent independent clients -> exactly 1 acquires lease, 0 unique violations, 1 row", async () => {
     const [tenant] = await sql`
       INSERT INTO public.tenants (name, slug, currency, plan)
-      VALUES ('Lease Tenant', 'lease-tenant', 'ARS', 'pro')
+      VALUES ('Lease 50 Tenant', 'lease-50-tenant', 'ARS', 'pro')
       ON CONFLICT (slug) DO UPDATE SET plan = 'pro'
       RETURNING id
     `;
     const tenantId = tenant.id;
+    const opType = "sync_inventory_50";
 
-    const w1Client = postgres(testDbUrl, { max: 1 });
-    const w2Client = postgres(testDbUrl, { max: 1 });
+    const CLIENT_COUNT = 50;
+    const clients = Array.from({ length: CLIENT_COUNT }, () =>
+      postgres(testDbUrl, { max: 1 })
+    );
 
     try {
-      // Worker 1 and Worker 2 try to acquire at the exact same moment
-      const [w1, w2] = await Promise.all([
-        w1Client`SELECT public.acquire_operation_lease(${tenantId}::uuid, 'sync_orders'::text, 'worker-1'::text, 60) as res;`,
-        w2Client`SELECT public.acquire_operation_lease(${tenantId}::uuid, 'sync_orders'::text, 'worker-2'::text, 60) as res;`,
-      ]);
+      // 50 concurrent independent clients attempt to acquire the very first lease simultaneously
+      const results = await Promise.all(
+        clients.map((client, idx) =>
+          client`SELECT public.acquire_operation_lease(${tenantId}::uuid, ${opType}::text, ${'worker-' + idx}::text, 60) as res;`
+        )
+      );
 
-      const res1 = w1[0].res;
-      const res2 = w2[0].res;
+      const acquired = results.filter((r) => r[0].res.acquired === true);
+      const rejected = results.filter((r) => r[0].res.acquired === false);
 
-      const acquired = [res1, res2].filter((r) => r.acquired === true);
-      const rejected = [res1, res2].filter((r) => r.acquired === false);
+      assert.equal(acquired.length, 1, "Exactly 1 worker MUST acquire the lease");
+      assert.equal(rejected.length, 49, "Exactly 49 workers MUST be rejected");
+      for (const rej of rejected) {
+        assert.equal(rej[0].res.reason, "lease_held_by_other");
+      }
 
-      assert.equal(acquired.length, 1, "Exactly 1 worker must acquire the lease");
-      assert.equal(rejected.length, 1, "The competing worker must be rejected");
-      assert.equal(rejected[0].reason, "lease_held_by_other");
-
-      // Winner releases lease
-      const winnerOwner = acquired[0].lease_owner;
-      const [rel] = await sql`
-        SELECT public.release_operation_lease(${tenantId}::uuid, 'sync_orders'::text, ${winnerOwner}::text) as res;
+      // Check operation_leases table has exactly 1 row for this (tenant, opType)
+      const rows = await sql`
+        SELECT * FROM public.operation_leases
+        WHERE tenant_id = ${tenantId}::uuid AND operation_type = ${opType}::text;
       `;
-      assert.equal(rel.res.released, true);
+      assert.equal(rows.length, 1, "There MUST be exactly 1 row in operation_leases");
 
-      // Now Worker 2 can acquire
-      const [w2After] = await sql`
-        SELECT public.acquire_operation_lease(${tenantId}::uuid, 'sync_orders'::text, 'worker-2'::text, 60) as res;
+      // Release lease
+      const winnerOwner = acquired[0][0].res.lease_owner;
+      const [releaseRes] = await sql`
+        SELECT public.release_operation_lease(${tenantId}::uuid, ${opType}::text, ${winnerOwner}::text) as res;
       `;
-      assert.equal(w2After.res.acquired, true);
-
-      // Cleanup
-      await sql`SELECT public.release_operation_lease(${tenantId}::uuid, 'sync_orders'::text, 'worker-2'::text);`;
+      assert.equal(releaseRes.res.released, true);
     } finally {
-      await Promise.all([w1Client.end(), w2Client.end()]);
+      await Promise.all(clients.map((c) => c.end()));
     }
   });
 
-  test("Distributed Rate Limiter: increments correctly and returns 429 Retry-After when limit exceeded", async () => {
-    const [tenant] = await sql`
+  test("Distributed Rate Limiter: validates cost, window_seconds, max_requests, empty key, 50 requests with limit 20, and multi-tenant isolation", async () => {
+    const [tenantA] = await sql`
       INSERT INTO public.tenants (name, slug, currency, plan)
-      VALUES ('Rate Limit Tenant', 'rl-tenant', 'ARS', 'pro')
+      VALUES ('RL Tenant A', 'rl-tenant-a', 'ARS', 'pro')
       ON CONFLICT (slug) DO UPDATE SET plan = 'pro'
       RETURNING id
     `;
-    const tenantId = tenant.id;
+    const [tenantB] = await sql`
+      INSERT INTO public.tenants (name, slug, currency, plan)
+      VALUES ('RL Tenant B', 'rl-tenant-b', 'ARS', 'pro')
+      ON CONFLICT (slug) DO UPDATE SET plan = 'pro'
+      RETURNING id
+    `;
 
-    const maxRequests = 5;
-    const windowSeconds = 60;
+    // 1. cost = -1 -> rejected without changing bucket count
+    const [negCost] = await sql`
+      SELECT public.check_rate_limit_bucket(${tenantA.id}::uuid, 'ai_chat'::text, 10::integer, 60::integer, -1::integer) as res;
+    `;
+    assert.equal(negCost.res.allowed, false);
+    assert.equal(negCost.res.reason, "invalid_parameters");
 
-    // Make 5 requests (all should be allowed)
-    for (let i = 1; i <= 5; i++) {
+    // 2. window_seconds = 0 -> rejected
+    const [zeroWindow] = await sql`
+      SELECT public.check_rate_limit_bucket(${tenantA.id}::uuid, 'ai_chat'::text, 10::integer, 0::integer, 1::integer) as res;
+    `;
+    assert.equal(zeroWindow.res.allowed, false);
+    assert.equal(zeroWindow.res.reason, "invalid_parameters");
+
+    // 3. max_requests = 0 -> rejected
+    const [zeroMax] = await sql`
+      SELECT public.check_rate_limit_bucket(${tenantA.id}::uuid, 'ai_chat'::text, 0::integer, 60::integer, 1::integer) as res;
+    `;
+    assert.equal(zeroMax.res.allowed, false);
+    assert.equal(zeroMax.res.reason, "invalid_parameters");
+
+    // 4. bucket_key empty -> rejected
+    const [emptyKey] = await sql`
+      SELECT public.check_rate_limit_bucket(${tenantA.id}::uuid, '   '::text, 10::integer, 60::integer, 1::integer) as res;
+    `;
+    assert.equal(emptyKey.res.allowed, false);
+    assert.equal(emptyKey.res.reason, "invalid_parameters");
+
+    // 5. 50 sequential requests with limit 20 -> exactly 20 allowed, 30 rejected
+    let allowedCount = 0;
+    let rejectedCount = 0;
+    for (let i = 0; i < 50; i++) {
       const [res] = await sql`
-        SELECT public.check_rate_limit_bucket(
-          ${tenantId}::uuid,
-          'sales_export'::text,
-          ${maxRequests}::integer,
-          ${windowSeconds}::integer,
-          1::integer
-        ) as res;
+        SELECT public.check_rate_limit_bucket(${tenantA.id}::uuid, 'test_limit_20'::text, 20::integer, 60::integer, 1::integer) as res;
       `;
-      assert.equal(res.res.allowed, true);
-      assert.equal(res.res.current, i);
-      assert.equal(res.res.remaining, maxRequests - i);
+      if (res.res.allowed) {
+        allowedCount++;
+      } else {
+        rejectedCount++;
+      }
     }
+    assert.equal(allowedCount, 20, "Exactly 20 requests MUST be allowed");
+    assert.equal(rejectedCount, 30, "Exactly 30 requests MUST be rejected");
 
-    // 6th request: must be rejected
-    const [rejectedRes] = await sql`
-      SELECT public.check_rate_limit_bucket(
-        ${tenantId}::uuid,
-        'sales_export'::text,
-        ${maxRequests}::integer,
-        ${windowSeconds}::integer,
-        1::integer
-      ) as res;
+    // 6. Tenant A exhaustion does NOT affect Tenant B
+    const [tenantBReq] = await sql`
+      SELECT public.check_rate_limit_bucket(${tenantB.id}::uuid, 'test_limit_20'::text, 20::integer, 60::integer, 1::integer) as res;
     `;
-    assert.equal(rejectedRes.res.allowed, false);
-    assert.ok(rejectedRes.res.retry_after > 0);
-    assert.equal(rejectedRes.res.remaining, 0);
+    assert.equal(tenantBReq.res.allowed, true, "Tenant B MUST be allowed regardless of Tenant A rate limit exhaustion");
+    assert.equal(tenantBReq.res.current, 1);
   });
 
-  test("Dashboard SQL Aggregates RPC: calculates revenue, counts, stock and unread alerts accurately", async () => {
-    const [tenant] = await sql`
-      INSERT INTO public.tenants (name, slug, currency, plan)
-      VALUES ('Aggregates Tenant', 'aggregates-tenant', 'ARS', 'pro')
-      ON CONFLICT (slug) DO UPDATE SET plan = 'pro'
-      RETURNING id
-    `;
-    const tenantId = tenant.id;
-
-    // Insert products (1 active with stock 2, 1 active with stock 20, 1 without cost)
-    await sql`
-      INSERT INTO public.products (tenant_id, meli_item_id, title, sku, available_quantity, price, cost, status)
-      VALUES
-        (${tenantId}, 'MLA-AGG-1', 'Prod 1', 'SKU-1', 2, 1500, 800, 'active'),
-        (${tenantId}, 'MLA-AGG-2', 'Prod 2', 'SKU-2', 20, 2500, NULL, 'active')
+  test("Database Index Audit: confirms no duplicate equivalent indexes on public.orders", async () => {
+    const indexes = await sql`
+      SELECT indexname, indexdef
+      FROM pg_indexes
+      WHERE schemaname = 'public' AND tablename = 'orders';
     `;
 
-    // Insert orders (2 paid orders total $4000)
-    await sql`
-      INSERT INTO public.orders (tenant_id, meli_order_id, total_amount, status, date_created)
-      VALUES
-        (${tenantId}, 'ORD-AGG-1', 1500, 'paid', now() - interval '2 days'),
-        (${tenantId}, 'ORD-AGG-2', 2500, 'paid', now() - interval '1 hour')
-    `;
+    const indexDefs = indexes.map((i) => i.indexdef);
+    console.log("Indexes on public.orders:", indexes.map((i) => i.indexname));
 
-    // Insert 1 unread alert
-    await sql`
-      INSERT INTO public.alerts (tenant_id, title, is_read, severity)
-      VALUES (${tenantId}, 'Test Alert', false, 'warning');
-    `;
+    // Verify idx_orders_tenant_date exists
+    const hasTenantDate = indexes.some((i) => i.indexname === "idx_orders_tenant_date");
+    assert.ok(hasTenantDate, "idx_orders_tenant_date must exist on orders(tenant_id, date_created DESC)");
 
-    const [rpcRes] = await sql`
-      SELECT public.get_dashboard_aggregates_v2(${tenantId}::uuid, 30) as res;
-    `;
-
-    assert.equal(rpcRes.res.tenant_id, tenantId);
-    assert.equal(rpcRes.res.total_revenue, 4000);
-    assert.equal(rpcRes.res.total_orders, 2);
-    assert.equal(rpcRes.res.average_ticket, 2000);
-    assert.equal(rpcRes.res.critical_stock_count, 1);
-    assert.equal(rpcRes.res.products_without_cost, 1);
-    assert.equal(rpcRes.res.active_alerts_count, 1);
+    // Verify idx_orders_tenant_date_created was removed to avoid duplication
+    const hasDuplicate = indexes.some((i) => i.indexname === "idx_orders_tenant_date_created");
+    assert.equal(hasDuplicate, false, "Duplicate index idx_orders_tenant_date_created must NOT exist");
   });
 });

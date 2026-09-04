@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     const { dateFrom, dateTo } = getPeriodRangeInTimezone(daysParam, timezone, fromParam || undefined, toParam || undefined);
 
     // Explicit columns selection (eliminates select("*"))
-    const selectColumns = "id, meli_order_id, date_created, total_amount, status, raw_data";
+    const selectColumns = "id, meli_order_id, buyer_nickname, date_created, total_amount, status, raw_data";
 
     let allOrders: any[] = [];
     let offset = 0;
@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
         .gte("date_created", dateFrom.toISOString())
         .lte("date_created", dateTo.toISOString())
         .order("date_created", { ascending: false })
+        .order("id", { ascending: false })
         .range(offset, offset + BATCH_SIZE - 1);
 
       if (statusFilter !== "all") {

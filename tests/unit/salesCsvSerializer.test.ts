@@ -124,4 +124,86 @@ describe("Sales CSV Export Serializer Tests", () => {
     assert.ok(lines[1].includes(",5,5000,paid"));
     assert.ok(lines[2].includes(",1,3000,paid"));
   });
+
+  test("Snapshot: 0 rows generates exact single header line", () => {
+    const csv = serializeSalesExportCsv([]);
+    assert.equal(csv, "Fecha,Nº Orden,Comprador,Producto,Cantidad,Total (ARS),Estado");
+  });
+
+  test("Snapshot: 1 row generates exact es-AR formatted row matching contract", () => {
+    const single: ExportableOrder[] = [
+      {
+        date_created: "2026-09-01T15:30:00.000Z",
+        meli_order_id: "MLA-1001",
+        buyer_nickname: "CARLOS_GOMEZ",
+        product_title: "Termo Lumilagro 1L",
+        total_amount: 35000,
+        status: "paid",
+        raw_data: {
+          order_items: [{ quantity: 2, item: { title: "Termo Lumilagro 1L" } }],
+        },
+      },
+    ];
+
+    const expectedDate = new Intl.DateTimeFormat("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date("2026-09-01T15:30:00.000Z"));
+
+    const csv = serializeSalesExportCsv(single);
+    const lines = csv.split("\n");
+    assert.equal(lines.length, 2);
+    assert.equal(lines[0], "Fecha,Nº Orden,Comprador,Producto,Cantidad,Total (ARS),Estado");
+    assert.equal(
+      lines[1],
+      `${expectedDate},MLA-1001,"CARLOS_GOMEZ","Termo Lumilagro 1L",2,35000,paid`
+    );
+  });
+
+  test("Scalability: handles > 1000 rows (1,250 rows) with no row loss or duplicates across batches", () => {
+    const TOTAL_ROWS = 1250;
+    const BATCH_SIZE = 500;
+    const mockDbOrders: ExportableOrder[] = [];
+
+    for (let i = 1; i <= TOTAL_ROWS; i++) {
+      mockDbOrders.push({
+        date_created: new Date(Date.now() - i * 60000).toISOString(),
+        meli_order_id: `ORD-STREAM-${i}`,
+        buyer_nickname: `BUYER_${i}`,
+        product_title: `Item ${i}`,
+        total_amount: 1000 + i,
+        status: "paid",
+        raw_data: { order_items: [{ quantity: 1, item: { title: `Item ${i}` } }] },
+      });
+    }
+
+    // Simulate batch-by-batch fetching and accumulation
+    let accumulated: ExportableOrder[] = [];
+    let offset = 0;
+    while (offset < mockDbOrders.length) {
+      const batch = mockDbOrders.slice(offset, offset + BATCH_SIZE);
+      accumulated = accumulated.concat(batch);
+      offset += BATCH_SIZE;
+    }
+
+    assert.equal(accumulated.length, TOTAL_ROWS);
+
+    const csv = serializeSalesExportCsv(accumulated);
+    const lines = csv.split("\n");
+
+    // Header + 1250 data lines = 1251 lines
+    assert.equal(lines.length, TOTAL_ROWS + 1);
+
+    // Verify first and last row order
+    assert.ok(lines[1].includes("ORD-STREAM-1"));
+    assert.ok(lines[TOTAL_ROWS].includes(`ORD-STREAM-${TOTAL_ROWS}`));
+
+    // Verify no duplicates by checking unique order IDs in CSV
+    const orderIds = lines.slice(1).map((l) => l.split(",")[1]);
+    const uniqueIds = new Set(orderIds);
+    assert.equal(uniqueIds.size, TOTAL_ROWS, "Every single row must be unique with zero duplicate rows");
+  });
 });

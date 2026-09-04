@@ -1246,6 +1246,18 @@ DECLARE
   v_current_count integer;
   v_reset_seconds integer;
 BEGIN
+  IF p_tenant_id IS NULL OR p_bucket_key IS NULL OR length(trim(p_bucket_key)) = 0 OR p_max_requests <= 0 OR p_window_seconds <= 0 OR p_cost <= 0 THEN
+    RETURN jsonb_build_object(
+      'allowed', false,
+      'current', 0,
+      'limit', COALESCE(p_max_requests, 0),
+      'remaining', 0,
+      'retry_after', 60,
+      'reset_in_seconds', 60,
+      'reason', 'invalid_parameters'
+    );
+  END IF;
+
   v_now := timezone('utc', now());
   v_window_start := to_timestamp(
     floor(extract(epoch from v_now) / p_window_seconds) * p_window_seconds
@@ -1295,87 +1307,6 @@ $$;
 
 REVOKE ALL ON FUNCTION public.check_rate_limit_bucket(uuid, text, integer, integer, integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.check_rate_limit_bucket(uuid, text, integer, integer, integer) TO service_role;
-
-CREATE OR REPLACE FUNCTION public.get_dashboard_aggregates_v2(
-  p_tenant_id uuid,
-  p_days integer DEFAULT 30
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-DECLARE
-  v_now timestamp with time zone;
-  v_start_date timestamp with time zone;
-  v_today_start timestamp with time zone;
-  v_total_revenue numeric;
-  v_total_orders integer;
-  v_today_revenue numeric;
-  v_today_orders integer;
-  v_critical_stock_count integer;
-  v_total_products integer;
-  v_products_without_cost integer;
-  v_active_alerts_count integer;
-BEGIN
-  v_now := timezone('utc', now());
-  v_start_date := v_now - (p_days || ' days')::interval;
-  v_today_start := date_trunc('day', v_now);
-
-  SELECT
-    COALESCE(SUM(total_amount), 0),
-    COALESCE(COUNT(*), 0)
-  INTO v_total_revenue, v_total_orders
-  FROM public.orders
-  WHERE tenant_id = p_tenant_id
-    AND date_created >= v_start_date
-    AND status <> 'cancelled';
-
-  SELECT
-    COALESCE(SUM(total_amount), 0),
-    COALESCE(COUNT(*), 0)
-  INTO v_today_revenue, v_today_orders
-  FROM public.orders
-  WHERE tenant_id = p_tenant_id
-    AND date_created >= v_today_start
-    AND status <> 'cancelled';
-
-  SELECT
-    COALESCE(COUNT(*), 0),
-    COALESCE(COUNT(*) FILTER (WHERE available_quantity <= 5 AND available_quantity > 0), 0),
-    COALESCE(COUNT(*) FILTER (WHERE cost IS NULL OR cost = 0), 0)
-  INTO v_total_products, v_critical_stock_count, v_products_without_cost
-  FROM public.products
-  WHERE tenant_id = p_tenant_id
-    AND status = 'active';
-
-  SELECT COALESCE(COUNT(*), 0)
-  INTO v_active_alerts_count
-  FROM public.alerts
-  WHERE tenant_id = p_tenant_id
-    AND is_read = false;
-
-  RETURN jsonb_build_object(
-    'tenant_id', p_tenant_id,
-    'period_days', p_days,
-    'total_revenue', v_total_revenue,
-    'total_orders', v_total_orders,
-    'average_ticket', CASE WHEN v_total_orders > 0 THEN round(v_total_revenue / v_total_orders, 2) ELSE 0 END,
-    'today_revenue', v_today_revenue,
-    'today_orders', v_today_orders,
-    'total_products', v_total_products,
-    'critical_stock_count', v_critical_stock_count,
-    'products_without_cost', v_products_without_cost,
-    'active_alerts_count', v_active_alerts_count
-  );
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.get_dashboard_aggregates_v2(uuid, integer) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_dashboard_aggregates_v2(uuid, integer) TO service_role;
-
-CREATE INDEX IF NOT EXISTS idx_orders_tenant_date_created
-  ON public.orders (tenant_id, date_created DESC);
 
 CREATE INDEX IF NOT EXISTS idx_orders_tenant_status_date_created
   ON public.orders (tenant_id, status, date_created DESC);

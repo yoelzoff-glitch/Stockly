@@ -12,10 +12,8 @@ DROP INDEX IF EXISTS public.idx_products_tenant_status_updated;
 DROP INDEX IF EXISTS public.idx_stock_movements_tenant_created;
 DROP INDEX IF EXISTS public.idx_order_items_tenant_meli_item;
 DROP INDEX IF EXISTS public.idx_orders_tenant_status_date_created;
-DROP INDEX IF EXISTS public.idx_orders_tenant_date_created;
 
 -- 2. Drop RPC Functions
-DROP FUNCTION IF EXISTS public.get_dashboard_aggregates_v2(uuid, integer);
 DROP FUNCTION IF EXISTS public.check_rate_limit_bucket(uuid, text, integer, integer, integer);
 DROP FUNCTION IF EXISTS public.release_operation_lease(uuid, text, text);
 DROP FUNCTION IF EXISTS public.renew_operation_lease(uuid, text, text, integer);

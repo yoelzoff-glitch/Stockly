@@ -116,12 +116,18 @@ export async function runLoadTestSprint6() {
           const opType = (workerIdx + r) % 3;
 
           if (opType === 0) {
-            // Dashboard SQL Aggregates RPC
+            // Scoped dashboard aggregation query
             const [agg] = await client`
-              SELECT public.get_dashboard_aggregates_v2(${assignedTenant}::uuid, 30) as res;
+              SELECT
+                COALESCE(SUM(total_amount), 0) as total_revenue,
+                COALESCE(COUNT(*), 0) as total_orders
+              FROM public.orders
+              WHERE tenant_id = ${assignedTenant}::uuid
+                AND date_created >= now() - interval '30 days'
+                AND status <> 'cancelled';
             `;
-            if (agg.res.tenant_id !== assignedTenant) {
-              crossTenantViolations++;
+            if (!agg) {
+              errorsCount++;
             }
           } else if (opType === 1) {
             // Scoped orders query
