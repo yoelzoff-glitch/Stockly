@@ -150,22 +150,145 @@ describe("Sprint 6: Distributed Leases, Rate Limits & Scalability Integration Te
     assert.equal(tenantBReq.res.current, 1);
   });
 
-  test("Database Index Audit: confirms no duplicate equivalent indexes on public.orders", async () => {
-    const indexes = await sql`
+  test("Database Index Audit: confirms no duplicate equivalent indexes and absence of redundant idx_operation_leases_tenant_op", async () => {
+    const orderIndexes = await sql`
       SELECT indexname, indexdef
       FROM pg_indexes
       WHERE schemaname = 'public' AND tablename = 'orders';
     `;
 
-    const indexDefs = indexes.map((i) => i.indexdef);
-    console.log("Indexes on public.orders:", indexes.map((i) => i.indexname));
-
     // Verify idx_orders_tenant_date exists
-    const hasTenantDate = indexes.some((i) => i.indexname === "idx_orders_tenant_date");
+    const hasTenantDate = orderIndexes.some((i) => i.indexname === "idx_orders_tenant_date");
     assert.ok(hasTenantDate, "idx_orders_tenant_date must exist on orders(tenant_id, date_created DESC)");
 
     // Verify idx_orders_tenant_date_created was removed to avoid duplication
-    const hasDuplicate = indexes.some((i) => i.indexname === "idx_orders_tenant_date_created");
+    const hasDuplicate = orderIndexes.some((i) => i.indexname === "idx_orders_tenant_date_created");
     assert.equal(hasDuplicate, false, "Duplicate index idx_orders_tenant_date_created must NOT exist");
+
+    // Verify idx_operation_leases_tenant_op is absent (covered by UNIQUE constraint)
+    const leaseIndexes = await sql`
+      SELECT indexname
+      FROM pg_indexes
+      WHERE schemaname = 'public' AND tablename = 'operation_leases';
+    `;
+    const hasRedundantLeaseIdx = leaseIndexes.some((i) => i.indexname === "idx_operation_leases_tenant_op");
+    assert.equal(hasRedundantLeaseIdx, false, "idx_operation_leases_tenant_op must NOT exist (UNIQUE constraint already indexes it)");
+  });
+
+  test("Security Privileges: anon and authenticated are blocked, service_role is granted access", async () => {
+    const roleClient = postgres(testDbUrl, { max: 1 });
+
+    try {
+      // 1. authenticated role is blocked from direct SELECT on operation_leases
+      await roleClient`SET ROLE authenticated;`;
+      try {
+        await roleClient`SELECT * FROM public.operation_leases LIMIT 1;`;
+        assert.fail("authenticated MUST be blocked from querying operation_leases");
+      } catch (err: any) {
+        assert.ok(
+          err.message.includes("permission denied") || err.code === "42501",
+          `Expected permission denied for authenticated on operation_leases, got: ${err.message}`
+        );
+      }
+
+      // 2. authenticated role is blocked from direct SELECT on rate_limit_buckets
+      try {
+        await roleClient`SELECT * FROM public.rate_limit_buckets LIMIT 1;`;
+        assert.fail("authenticated MUST be blocked from querying rate_limit_buckets");
+      } catch (err: any) {
+        assert.ok(
+          err.message.includes("permission denied") || err.code === "42501",
+          `Expected permission denied for authenticated on rate_limit_buckets, got: ${err.message}`
+        );
+      }
+
+      // 3. anon role is blocked from direct SELECT on operation_leases
+      await roleClient`SET ROLE anon;`;
+      try {
+        await roleClient`SELECT * FROM public.operation_leases LIMIT 1;`;
+        assert.fail("anon MUST be blocked from querying operation_leases");
+      } catch (err: any) {
+        assert.ok(
+          err.message.includes("permission denied") || err.code === "42501",
+          `Expected permission denied for anon on operation_leases, got: ${err.message}`
+        );
+      }
+
+      // 4. anon role is blocked from direct SELECT on rate_limit_buckets
+      try {
+        await roleClient`SELECT * FROM public.rate_limit_buckets LIMIT 1;`;
+        assert.fail("anon MUST be blocked from querying rate_limit_buckets");
+      } catch (err: any) {
+        assert.ok(
+          err.message.includes("permission denied") || err.code === "42501",
+          `Expected permission denied for anon on rate_limit_buckets, got: ${err.message}`
+        );
+      }
+    } finally {
+      await roleClient`RESET ROLE;`.catch(() => {});
+      await roleClient.end();
+    }
+
+    // 5. service_role / superuser can access tables directly
+    const [leasesCount] = await sql`SELECT count(*)::integer as count FROM public.operation_leases;`;
+    assert.ok(typeof leasesCount.count === "number");
+
+    const [bucketsCount] = await sql`SELECT count(*)::integer as count FROM public.rate_limit_buckets;`;
+    assert.ok(typeof bucketsCount.count === "number");
+  });
+
+  test("cleanup_scalability_state: performs bounded paginated cleanup of expired leases and old rate limit buckets", async () => {
+    const [tenant] = await sql`
+      INSERT INTO public.tenants (name, slug, currency, plan)
+      VALUES ('Cleanup Tenant', 'cleanup-tenant', 'ARS', 'pro')
+      ON CONFLICT (slug) DO UPDATE SET plan = 'pro'
+      RETURNING id
+    `;
+    const tenantId = tenant.id;
+
+    // 1. Insert an expired lease manually
+    await sql`
+      INSERT INTO public.operation_leases (tenant_id, operation_type, lease_owner, acquired_at, expires_at, heartbeat_at)
+      VALUES (
+        ${tenantId}::uuid,
+        'expired_op',
+        'old-worker',
+        now() - interval '2 hours',
+        now() - interval '1 hour',
+        now() - interval '2 hours'
+      )
+      ON CONFLICT (tenant_id, operation_type) DO UPDATE
+      SET expires_at = now() - interval '1 hour';
+    `;
+
+    // 2. Insert an old rate limit bucket (5 days old)
+    await sql`
+      INSERT INTO public.rate_limit_buckets (tenant_id, bucket_key, window_start, request_count)
+      VALUES (${tenantId}::uuid, 'old_key', now() - interval '5 days', 10)
+      ON CONFLICT (tenant_id, bucket_key, window_start) DO NOTHING;
+    `;
+
+    // 3. Insert an active bucket (recent)
+    await sql`
+      INSERT INTO public.rate_limit_buckets (tenant_id, bucket_key, window_start, request_count)
+      VALUES (${tenantId}::uuid, 'recent_key', now() - interval '5 minutes', 3)
+      ON CONFLICT (tenant_id, bucket_key, window_start) DO NOTHING;
+    `;
+
+    // 4. Run cleanup
+    const [cleanupRes] = await sql`
+      SELECT public.cleanup_scalability_state(now() - interval '2 days', 500) as res;
+    `;
+
+    assert.equal(cleanupRes.res.cleaned, true);
+    assert.ok(cleanupRes.res.deleted_leases >= 1, "Must delete at least 1 expired lease");
+    assert.ok(cleanupRes.res.deleted_buckets >= 1, "Must delete at least 1 old bucket");
+
+    // 5. Verify recent bucket is still present
+    const recentBuckets = await sql`
+      SELECT * FROM public.rate_limit_buckets
+      WHERE tenant_id = ${tenantId}::uuid AND bucket_key = 'recent_key';
+    `;
+    assert.equal(recentBuckets.length, 1, "Recent rate limit bucket must NOT be deleted");
   });
 });

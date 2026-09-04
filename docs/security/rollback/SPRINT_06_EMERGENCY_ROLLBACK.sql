@@ -14,6 +14,7 @@ DROP INDEX IF EXISTS public.idx_order_items_tenant_meli_item;
 DROP INDEX IF EXISTS public.idx_orders_tenant_status_date_created;
 
 -- 2. Drop RPC Functions
+DROP FUNCTION IF EXISTS public.cleanup_scalability_state(timestamp with time zone, integer);
 DROP FUNCTION IF EXISTS public.check_rate_limit_bucket(uuid, text, integer, integer, integer);
 DROP FUNCTION IF EXISTS public.release_operation_lease(uuid, text, text);
 DROP FUNCTION IF EXISTS public.renew_operation_lease(uuid, text, text, integer);
