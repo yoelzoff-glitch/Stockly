@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
         inngestEventName = "meli/items.updated";
         break;
       case "questions":
-        inngestEventName = "meli/questions.received";
+        inngestEventName = null;
         break;
       case "shipments":
         inngestEventName = "meli/shipments.updated";

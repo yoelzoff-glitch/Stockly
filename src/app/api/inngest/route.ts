@@ -2,7 +2,6 @@ import { serve } from "inngest/next";
 import { inngest } from "../../../inngest/client";
 import { syncProductsDispatcherJob, syncProductsTenantJob } from "../../../jobs/syncProductsJob";
 import { syncOrdersDispatcherJob, syncOrdersTenantJob } from "../../../jobs/syncOrdersJob";
-import { questionsJob } from "../../../jobs/questionsJob";
 import { refreshMeliTokensJob } from "../../../jobs/refreshMeliTokensJob";
 import { massPromotionsJob } from "../../../jobs/massPromotionsJob";
 import { competitorAnalysisJob } from "../../../jobs/competitorAnalysisJob";
@@ -17,7 +16,6 @@ export const { GET, POST, PUT } = serve({
     syncProductsTenantJob,
     syncOrdersDispatcherJob,
     syncOrdersTenantJob,
-    questionsJob,
     refreshMeliTokensJob,
     massPromotionsJob,
     competitorAnalysisJob,

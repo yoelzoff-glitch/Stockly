@@ -78,4 +78,27 @@ describe("Critical Endpoints Static & Integration Verification", () => {
     assert.ok(!meliWebhook.includes("requireTenantContext"), "meli webhook is external");
     assert.ok(!mpWebhook.includes("requireTenantContext"), "mp webhook is external");
   });
+
+  test("Mercado Libre questions worker is fully deactivated in Inngest and Webhook", () => {
+    const inngestRoute = fs.readFileSync(path.join(rootDir, "src/app/api/inngest/route.ts"), "utf-8");
+    const meliWebhook = fs.readFileSync(path.join(rootDir, "src/app/api/meli/webhook/route.ts"), "utf-8");
+
+    // 1. /api/inngest/route.ts must NOT contain questionsJob
+    assert.ok(
+      !inngestRoute.includes("questionsJob"),
+      "/api/inngest/route.ts must not import or register questionsJob"
+    );
+
+    // 2. Webhook explicitly handles case "questions"
+    assert.ok(
+      meliWebhook.includes('case "questions":'),
+      'src/app/api/meli/webhook/route.ts must explicitly handle case "questions":'
+    );
+
+    // 3. Must not assign inngestEventName = "meli/questions.received"
+    assert.ok(
+      !meliWebhook.includes('"meli/questions.received"'),
+      'src/app/api/meli/webhook/route.ts must not assign inngestEventName = "meli/questions.received"'
+    );
+  });
 });
