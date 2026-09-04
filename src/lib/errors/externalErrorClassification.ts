@@ -66,6 +66,7 @@ export function classifyExternalError(error: any): ClassifiedError {
 
   // 3. Network Timeouts & Connection Aborts (RETRYABLE)
   if (
+    status === 408 ||
     errorCode === "etimedout" ||
     errorCode === "econnreset" ||
     errorCode === "econnrefused" ||
@@ -78,6 +79,7 @@ export function classifyExternalError(error: any): ClassifiedError {
       isRetryable: true,
       isPermanentAuth: false,
       category: "timeout",
+      statusCode: status || 408,
       reason: "network_or_timeout",
     };
   }

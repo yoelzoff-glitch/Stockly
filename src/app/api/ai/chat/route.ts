@@ -55,11 +55,14 @@ export async function POST(request: Request) {
       });
     }
 
-    // 4. Run the AI Agent
+    // 4. Run the AI Agent with correlationId and idempotencyKey
+    const idempotencyKey = `ai_chat_${tenantId}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const aiResult = await runBusinessAgent({
       tenantId,
       userMessage: message.trim(),
-      channel: "web"
+      channel: "web",
+      idempotencyKey,
+      correlationId,
     });
 
     // Handle string fallback just in case some logic still returns a string

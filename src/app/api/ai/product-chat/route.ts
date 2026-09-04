@@ -3,7 +3,7 @@ import { openai } from "@/lib/ai/openai";
 import { preparePriceChangeAction, prepareStockChangeAction, prepareStatusChangeAction } from "@/actions/product-command-actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
-import { checkAILimit, incrementAIUsage } from "@/services/billing/checkLimits";
+import { consumeQuota } from "@/lib/billing/quotaService";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { logger } from "@/lib/errors/logger";
 
@@ -120,10 +120,19 @@ CONTEXTO DEL PRODUCTO:
       }
     ];
 
-    const hasLimit = await checkAILimit(tenantId);
-    if (!hasLimit) {
+    const idempotencyKey = `ai_product_chat_${product.id}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const quotaReservation = await consumeQuota({
+      tenantId,
+      metric: "ai_credits_used",
+      amount: 1,
+      idempotencyKey,
+      source: "ai_product_chat",
+      correlationId,
+    });
+
+    if (!quotaReservation.allowed) {
       return NextResponse.json(
-        { error: "Límite mensual de consultas IA alcanzado para este plan." },
+        { error: "Límite mensual de consultas de Inteligencia Artificial alcanzado para tu plan." },
         { status: 429, headers: { [CORRELATION_ID_HEADER]: correlationId } }
       );
     }
@@ -138,8 +147,6 @@ CONTEXTO DEL PRODUCTO:
       function_call: "auto",
       temperature: 0.2
     });
-
-    await incrementAIUsage(tenantId, 1);
 
     const responseMessage = completion.choices[0].message;
     let replyText = responseMessage.content || "";

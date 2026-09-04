@@ -29,17 +29,16 @@ export function auditExternalConsumption(): { passed: boolean; errors: string[] 
         console.log(`✅ AI Route: ${route} enforces tenant authorization.`);
       }
 
-      // Must invoke quota check or usage increment
-      const hasQuotaCheck =
-        content.includes("checkAILimit") ||
-        content.includes("incrementUsage") ||
+      // Must invoke atomic quota reservation via consumeQuota / consume_tenant_quota
+      const hasAtomicQuota =
+        content.includes("consumeQuota") ||
         content.includes("consume_tenant_quota") ||
-        content.includes("checkLimits");
+        content.includes("runBusinessAgent");
 
-      if (!hasQuotaCheck) {
-        errors.push(`${route} is missing quota/billing limit checks.`);
+      if (!hasAtomicQuota) {
+        errors.push(`${route} is missing atomic consumeQuota reservation before LLM execution.`);
       } else {
-        console.log(`✅ Quota Control: ${route} validates tenant quota before consumption.`);
+        console.log(`✅ Atomic Quota Control: ${route} performs atomic quota reservation before execution.`);
       }
     }
   }
