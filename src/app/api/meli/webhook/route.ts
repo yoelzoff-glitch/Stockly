@@ -1,62 +1,113 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { inngest } from "@/inngest/client";
 import { logger } from "@/lib/errors/logger";
-import { syncOrders } from "@/services/meli/syncOrders";
-import { syncProducts } from "@/services/meli/syncProducts";
-import { syncShipments } from "@/services/meli/syncShipments";
 import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
-import { startOperationRun, completeOperationRun } from "@/lib/observability/operationRuns";
-
+import { validateMercadoLibreWebhookSignature } from "@/lib/security/webhookSignatures";
+import { getWebhookSignatureConfig } from "@/lib/security/signatureConfig";
+import { claimWebhookEvent, updateWebhookEventStatus } from "@/lib/security/idempotency";
 import * as Sentry from "@sentry/nextjs";
+
+const MAX_PAYLOAD_SIZE = 512 * 1024; // 512 KB
+
+const MeliWebhookSchema = z.object({
+  _id: z.string().optional(),
+  topic: z.string().optional(),
+  type: z.string().optional(),
+  resource: z.string().min(1),
+  user_id: z.union([z.string(), z.number()]),
+  application_id: z.union([z.string(), z.number()]).optional(),
+  attempts: z.number().optional(),
+  sent: z.string().optional(),
+  received: z.string().optional(),
+});
 
 export async function POST(req: NextRequest) {
   const correlationId = getOrCreateCorrelationId(req);
+  const signatureConfig = getWebhookSignatureConfig();
 
   try {
-    // Basic origin/header validation
-    const userAgent = req.headers.get("user-agent") || "";
+    // 1. Read raw body with size limit
+    const rawBody = await req.text();
+    if (rawBody.length > MAX_PAYLOAD_SIZE) {
+      logger.warn({
+        event: "MELI_WEBHOOK_PAYLOAD_TOO_LARGE",
+        correlationId,
+        size: rawBody.length,
+      });
+      return new NextResponse("Payload Too Large", {
+        status: 413,
+        headers: { [CORRELATION_ID_HEADER]: correlationId },
+      });
+    }
+
+    // 2. Signature verification
     const signature = req.headers.get("x-signature") || req.headers.get("x-meli-signature");
+    const secret = process.env.MELI_WEBHOOK_SECRET;
+    const { isValid, reason } = validateMercadoLibreWebhookSignature(rawBody, signature, secret);
 
-    logger.info({
-      event: "MELI_WEBHOOK_RECEIVED",
-      correlationId,
-      source: "mercadolibre",
-      userAgent,
-      hasSignature: !!signature,
-    });
+    if (!isValid && signatureConfig.meli === "enforce") {
+      logger.warn({
+        event: "MELI_WEBHOOK_SIGNATURE_ENFORCE_REJECTED",
+        correlationId,
+        reason,
+      });
+      return new NextResponse("Forbidden", {
+        status: 403,
+        headers: { [CORRELATION_ID_HEADER]: correlationId },
+      });
+    } else if (!isValid && signatureConfig.meli === "observe") {
+      logger.info({
+        event: "MELI_WEBHOOK_SIGNATURE_OBSERVE_UNVERIFIED",
+        correlationId,
+        reason,
+      });
+    }
 
-    const payload = await req.json();
-
-    // Estructura payload
-    if (typeof payload !== "object" || payload === null) {
-      return new NextResponse("Invalid Payload", {
+    // 3. Parse JSON & Validate Schema with Zod
+    let parsedJson: any;
+    try {
+      parsedJson = JSON.parse(rawBody);
+    } catch {
+      return new NextResponse("Invalid JSON", {
         status: 400,
         headers: { [CORRELATION_ID_HEADER]: correlationId },
       });
     }
 
-    const topic = payload.topic || payload.type;
-    const resource = payload.resource;
-    const userId = payload.user_id;
-
-    if (!topic || !resource || !userId) {
+    const validation = MeliWebhookSchema.safeParse(parsedJson);
+    if (!validation.success) {
+      logger.warn({
+        event: "MELI_WEBHOOK_SCHEMA_INVALID",
+        correlationId,
+        errors: validation.error.format(),
+      });
       return NextResponse.json(
-        { status: "ignored", reason: "missing_fields" },
+        { status: "ignored", reason: "invalid_schema" },
         { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
       );
     }
 
-    const supabase = createAdminClient();
+    const payload = validation.data;
+    const topic = payload.topic || payload.type || "unknown";
+    const resource = payload.resource;
+    const userId = payload.user_id.toString();
 
-    // Find the tenant for this user_id
+    // 4. Resolve Tenant
+    const supabase = createAdminClient();
     const { data: account } = await supabase
       .from("meli_accounts")
       .select("tenant_id")
-      .eq("meli_user_id", userId.toString())
-      .single();
+      .eq("meli_user_id", userId)
+      .maybeSingle();
 
-    if (!account) {
+    if (!account?.tenant_id) {
+      logger.info({
+        event: "MELI_WEBHOOK_UNKNOWN_USER",
+        correlationId,
+        userId,
+      });
       return NextResponse.json(
         { status: "ignored", reason: "unknown_user" },
         { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
@@ -65,138 +116,77 @@ export async function POST(req: NextRequest) {
 
     const tenantId = account.tenant_id;
 
-    // Track operation run asynchronously without delaying webhook response
-    startOperationRun({
+    // 5. Atomic Idempotency Claim
+    const eventKey = `meli_${topic}_${resource.replace(/\//g, "_")}_${payload.received || payload.sent || Date.now()}`;
+    const claim = await claimWebhookEvent({
+      provider: "mercadolibre",
+      eventKey,
       tenantId,
-      operationType: `meli_webhook_${topic}`,
-      source: "mercadolibre_webhook",
+      topic,
+      payload: parsedJson,
       correlationId,
-      metadata: { topic, resource, userId },
-    }).then((runId) => {
-      if (runId) {
-        completeOperationRun(runId, { itemsProcessed: 1 });
-      }
-    }).catch(() => {});
+      eventData: { resource, userId },
+    });
 
-    // Depending on the topic, we dispatch an inngest event or handle it directly
+    if (claim.isDuplicate) {
+      logger.info({
+        event: "MELI_WEBHOOK_DUPLICATE_IGNORED",
+        correlationId,
+        tenantId,
+        eventKey,
+      });
+      return NextResponse.json(
+        { status: "duplicate_ignored", eventId: claim.eventId },
+        { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
+
+    // 6. Asynchronous Dispatch to Inngest
+    let inngestEventName: string | null = null;
     switch (topic) {
       case "orders_v2":
       case "orders":
-        const specificOrderId = resource ? resource.split("/").pop() : undefined;
-        
-        // Sincronizar la orden directamente de forma asíncrona en el fondo
-        if (specificOrderId) {
-          syncOrders(tenantId, specificOrderId).catch(err => {
-            logger.error({
-              event: "MELI_WEBHOOK_SYNC_ORDERS_ASYNC_FAILED",
-              tenantId,
-              correlationId,
-              orderId: specificOrderId,
-              error: err,
-            });
-          });
-        }
-
-        try {
-          await inngest.send({
-            name: "meli/orders.updated",
-            data: { tenantId, resource, correlationId }
-          });
-        } catch (e: any) {
-          logger.warn({
-            event: "MELI_WEBHOOK_INNGEST_SEND_FAILED",
-            tenantId,
-            correlationId,
-            message: e?.message,
-          });
-        }
+        inngestEventName = "meli/orders.updated";
         break;
-
       case "items":
-        // Sync products directly in the background
-        syncProducts(tenantId).catch(err => {
-          logger.error({
-            event: "MELI_WEBHOOK_SYNC_PRODUCTS_ASYNC_FAILED",
-            tenantId,
-            correlationId,
-            error: err,
-          });
-        });
-
-        try {
-          await inngest.send({
-            name: "meli/items.updated",
-            data: { tenantId, resource, correlationId }
-          });
-        } catch (e: any) {
-          logger.warn({
-            event: "MELI_WEBHOOK_INNGEST_SEND_FAILED",
-            tenantId,
-            correlationId,
-            message: e?.message,
-          });
-        }
+        inngestEventName = "meli/items.updated";
         break;
-
       case "questions":
-        try {
-          await inngest.send({
-            name: "meli/questions.received",
-            data: { tenantId, resource, correlationId }
-          });
-        } catch (e: any) {
-          logger.warn({
-            event: "MELI_WEBHOOK_INNGEST_SEND_FAILED",
-            tenantId,
-            correlationId,
-            message: e?.message,
-          });
-        }
+        inngestEventName = "meli/questions.received";
         break;
-
       case "shipments":
-        const specificShipmentId = resource ? resource.split("/").pop() : undefined;
-        if (specificShipmentId) {
-          syncShipments(tenantId, specificShipmentId).catch(err => {
-            logger.error({
-              event: "MELI_WEBHOOK_SYNC_SHIPMENTS_ASYNC_FAILED",
-              tenantId,
-              correlationId,
-              shipmentId: specificShipmentId,
-              error: err,
-            });
-          });
-        }
+        inngestEventName = "meli/shipments.updated";
         break;
-
       default:
-        logger.info({
-          event: "MELI_WEBHOOK_UNHANDLED_TOPIC",
-          tenantId,
-          correlationId,
-          topic,
-        });
+        inngestEventName = null;
     }
 
-    // Save in audit logs (as requested previously, kept to not break logic)
-    await supabase.from("ai_actions").insert({
-      tenant_id: tenantId,
-      action_type: `webhook_${topic}`,
-      title: `Webhook recibido: ${topic}`,
-      description: `Notificación para el recurso ${resource}`,
-      status: "executed",
-      payload: payload,
-      executed_at: new Date().toISOString()
-    });
+    if (inngestEventName) {
+      await inngest.send({
+        name: inngestEventName as any,
+        data: {
+          tenantId,
+          resource,
+          eventId: claim.eventId,
+          correlationId,
+        },
+      });
+      await updateWebhookEventStatus(claim.eventId, "queued");
+    } else {
+      await updateWebhookEventStatus(claim.eventId, "ignored", {
+        lastErrorCode: "UNHANDLED_TOPIC",
+      });
+    }
 
+    // 7. Fast HTTP 200 Acknowledgment
     return NextResponse.json(
-      { status: "received" },
+      { status: "received", eventId: claim.eventId },
       { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
     );
   } catch (error: any) {
     Sentry.captureException(error, { extra: { context: "MELI_WEBHOOK", correlationId } });
     logger.error({
-      event: "MELI_WEBHOOK_PROCESSING_FAILED",
+      event: "MELI_WEBHOOK_ERROR",
       correlationId,
       error,
       message: error?.message,

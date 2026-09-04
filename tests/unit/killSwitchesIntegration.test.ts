@@ -62,18 +62,18 @@ describe("Kill Switches Static Integration Checks", () => {
     );
   });
 
-  test("KLYVO_DISABLE_WHATSAPP_AGENT is integrated in whatsapp webhook before AI agent execution", () => {
-    const waWebhook = fs.readFileSync(
-      path.join(rootDir, "src/app/api/whatsapp/webhook/route.ts"),
+  test("KLYVO_DISABLE_WHATSAPP_AGENT is integrated in whatsapp processing before AI agent execution", () => {
+    const waJob = fs.readFileSync(
+      path.join(rootDir, "src/jobs/webhookJobs.ts"),
       "utf-8"
     );
 
     assert.ok(
-      waWebhook.includes("isWhatsappAgentDisabled()"),
-      "whatsapp webhook must check isWhatsappAgentDisabled()"
+      waJob.includes("isWhatsappAgentDisabled()"),
+      "whatsapp processor must check isWhatsappAgentDisabled()"
     );
-    const killSwitchIndex = waWebhook.indexOf("isWhatsappAgentDisabled()");
-    const agentIndex = waWebhook.indexOf("runBusinessAgent(");
+    const killSwitchIndex = waJob.indexOf("isWhatsappAgentDisabled()");
+    const agentIndex = waJob.indexOf("runBusinessAgent(");
 
     assert.ok(
       killSwitchIndex < agentIndex,

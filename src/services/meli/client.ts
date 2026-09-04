@@ -11,6 +11,30 @@ export interface MeliFetchArgs {
   endpoint: string;
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   body?: any;
+  timeoutMs?: number;
+  maxRetries?: number;
+}
+
+const DEFAULT_TIMEOUT_MS = 15000;
+const MAX_RETRY_ATTEMPTS = 3;
+const MAX_RETRY_AFTER_MS = 30000;
+
+function parseRetryAfter(headerValue: string | null): number | null {
+  if (!headerValue) return null;
+  const seconds = parseInt(headerValue, 10);
+  if (!isNaN(seconds) && seconds > 0) {
+    return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+  }
+  const dateParsed = Date.parse(headerValue);
+  if (!isNaN(dateParsed)) {
+    const diff = dateParsed - Date.now();
+    return diff > 0 ? Math.min(diff, MAX_RETRY_AFTER_MS) : 1000;
+  }
+  return null;
+}
+
+function isTransientError(status: number): boolean {
+  return status === 429 || status === 408 || status === 500 || status === 502 || status === 503 || status === 504;
 }
 
 export async function meliFetch({
@@ -18,8 +42,13 @@ export async function meliFetch({
   meliAccountId,
   endpoint,
   method = "GET",
-  body
+  body,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  maxRetries = MAX_RETRY_ATTEMPTS,
 }: MeliFetchArgs): Promise<any> {
+  const startTime = Date.now();
+  const isReadOperation = !method || method === "GET";
+
   // Remote write protection via kill switch (does NOT block GET, OAuth or refresh)
   if (method && method !== "GET" && isMeliWritesDisabled()) {
     logger.warn({
@@ -36,6 +65,10 @@ export async function meliFetch({
     );
   }
 
+  if (!meliAccountId && !tenantId) {
+    throw new AppError("VALIDATION_ERROR", "meliFetch requires either tenantId or meliAccountId", 400);
+  }
+
   const supabase = createAdminClient();
 
   // 1. Fetch current meli account
@@ -45,10 +78,8 @@ export async function meliFetch({
 
   if (meliAccountId) {
     query = query.eq("id", meliAccountId);
-  } else if (tenantId) {
-    query = query.eq("tenant_id", tenantId);
   } else {
-    throw new AppError("VALIDATION_ERROR", "meliFetch requires either tenantId or meliAccountId", 400);
+    query = query.eq("tenant_id", tenantId!);
   }
 
   const { data: account, error } = await query.maybeSingle();
@@ -85,52 +116,116 @@ export async function meliFetch({
     const options: RequestInit = {
       method,
       headers: {
-        "Authorization": `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
-        "Accept": "application/json",
-      }
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(timeoutMs),
     };
     if (body) {
       options.body = JSON.stringify(body);
     }
-    const response = await fetch(url, options);
-    return response;
+    return await fetch(url, options);
   };
 
-  // 3. Execute Request
-  let response = await executeRequest(accessToken || "");
+  // 3. Execution & Resilient Retry Loop
+  let response: Response | null = null;
+  let attempt = 0;
+  let refreshedTokenOnce = false;
 
-  // 4. If 401 Unauthorized, attempt refresh once and retry
-  if (response.status === 401) {
-    console.warn("[meliFetch] Received 401 from Mercado Libre. Attempting token refresh...");
+  const allowedAttempts = isReadOperation ? Math.max(1, maxRetries) : 1;
+
+  while (attempt < allowedAttempts) {
+    attempt++;
     try {
-      accessToken = await refreshMeliToken(account.id);
-      response = await executeRequest(accessToken);
-    } catch (refreshErr: any) {
-      console.error("[meliFetch] Refresh and retry failed:", refreshErr);
+      response = await executeRequest(accessToken || "");
+
+      // Handle 401 Unauthorized with single token refresh
+      if (response.status === 401 && !refreshedTokenOnce) {
+        refreshedTokenOnce = true;
+        logger.warn({
+          event: "MELI_FETCH_401_REFRESH",
+          tenantId: finalTenantId,
+          endpoint,
+        });
+        try {
+          accessToken = await refreshMeliToken(account.id);
+          response = await executeRequest(accessToken || "");
+        } catch (refreshErr) {
+          logger.error({
+            event: "MELI_FETCH_REFRESH_FAILED",
+            tenantId: finalTenantId,
+            error: refreshErr,
+          });
+        }
+      }
+
+      if (response.ok) {
+        break;
+      }
+
+      // If transient error and read operation with remaining retries, backoff
+      if (isTransientError(response.status) && isReadOperation && attempt < allowedAttempts) {
+        const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
+        const jitter = Math.random() * 200;
+        const backoffMs = retryAfterMs || Math.pow(2, attempt) * 400 + jitter;
+
+        logger.warn({
+          event: "MELI_FETCH_RATE_LIMIT_BACKOFF",
+          tenantId: finalTenantId,
+          endpoint,
+          status: String(response.status),
+          attempt,
+          backoffMs,
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
+        continue;
+      }
+
+      // Non-recoverable or max retries reached
+      break;
+    } catch (err: any) {
+      // Abort / Timeout / Network error
+      if (isReadOperation && attempt < allowedAttempts) {
+        const backoffMs = Math.pow(2, attempt) * 400 + Math.random() * 200;
+        logger.warn({
+          event: "MELI_FETCH_NETWORK_RETRY",
+          tenantId: finalTenantId,
+          endpoint,
+          attempt,
+          error: err?.message,
+        });
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
+        continue;
+      }
+      throw new AppError("MELI_API_ERROR", `Mercado Libre network/timeout failure: ${err?.message}`, 504);
     }
   }
 
-  // 5. If 429 Too Many Requests (Rate Limit), back off and retry up to 2 times
-  if (response.status === 429) {
-    console.warn("[meliFetch] Received 429 Rate Limit from Mercado Libre. Backing off...");
-    const retryAfterHeader = response.headers.get("retry-after");
-    const waitMs = retryAfterHeader ? parseInt(retryAfterHeader, 10) * 1000 : 1500;
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
-    response = await executeRequest(accessToken || "");
-  }
+  const durationMs = Date.now() - startTime;
 
-  // 6. If it still fails, update status to error (only for 401 authentication errors) and throw controlled error
-  if (!response.ok) {
-    const errorText = await response.text();
+  // 4. Handle Final Failed Response
+  if (!response || !response.ok) {
+    const status = response ? response.status : 500;
+    const errorText = response ? await response.text() : "No response";
     let errorData: any = null;
     try {
       errorData = JSON.parse(errorText);
     } catch (_) {}
 
-    const errorMessage = errorData?.message || `Mercado Libre API failed with status ${response.status}: ${errorText}`;
-    
-    if (response.status === 401) {
+    const errorMessage = errorData?.message || `Mercado Libre API failed with status ${status}`;
+
+    logger.error({
+      event: "MELI_FETCH_ERROR",
+      tenantId: finalTenantId,
+      endpoint,
+      status,
+      durationMs,
+      errorMessage,
+    });
+
+    if (status === 401) {
       await supabase
         .from("meli_accounts")
         .update({
@@ -143,22 +238,14 @@ export async function meliFetch({
         tenantId: finalTenantId,
         title: "Fallo de comunicación con Mercado Libre",
         body: `La sincronización ha fallado: ${errorMessage.substring(0, 100)}`,
-        severity: "error"
+        severity: "error",
       });
     }
 
-    // Create Audit Log
-    await supabase.from("audit_logs").insert({
-      tenant_id: finalTenantId,
-      action: "sync_failed",
-      resource_type: "meli_account",
-      resource_id: account.id,
-      details: { error: errorMessage, endpoint }
-    });
-
-    throw new AppError("VALIDATION_ERROR", `Mercado Libre API Error: ${errorMessage}`, response.status);
+    throw new AppError("VALIDATION_ERROR", `Mercado Libre API Error: ${errorMessage}`, status);
   }
 
+  // 5. Parse and Return JSON
   const responseText = await response.text();
   if (!responseText) {
     return {};

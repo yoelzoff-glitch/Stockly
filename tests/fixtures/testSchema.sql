@@ -747,3 +747,28 @@ CREATE TABLE IF NOT EXISTS public.operation_runs (
   CONSTRAINT operation_runs_pkey PRIMARY KEY (id),
   CONSTRAINT operation_runs_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
+
+CREATE TABLE IF NOT EXISTS public.webhook_events (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  provider text NOT NULL,
+  event_key text NOT NULL,
+  tenant_id uuid,
+  topic text NOT NULL,
+  status text NOT NULL DEFAULT 'received' CHECK (
+    status = ANY (ARRAY['received'::text, 'queued'::text, 'processing'::text, 'completed'::text, 'retrying'::text, 'dead_letter'::text, 'ignored'::text])
+  ),
+  attempts integer NOT NULL DEFAULT 0,
+  payload_hash text NOT NULL,
+  correlation_id text,
+  received_at timestamp with time zone NOT NULL DEFAULT now(),
+  processed_at timestamp with time zone,
+  last_error_code text,
+  last_error_message text,
+  event_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT webhook_events_pkey PRIMARY KEY (id),
+  CONSTRAINT webhook_events_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE,
+  CONSTRAINT webhook_events_provider_event_key_key UNIQUE (provider, event_key)
+);
+

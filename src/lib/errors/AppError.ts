@@ -30,6 +30,7 @@ export class AppError extends Error {
     isOperational: boolean = true
   ) {
     super(message);
+    this.name = "AppError";
     this.code = code;
     this.statusCode = statusCode;
     this.isOperational = isOperational;

@@ -264,15 +264,15 @@ function runRlsAudit() {
   scanDirForTablesAndWrites(srcDir, queriedTables);
   console.log(`Codebase Query Audit: Scanned ${queriedTables.size} unique tables queried across src/`);
 
-  // Verify all queried tables are in canonical 40 table inventory
-  const allKnownTables = new Set(canonical40Tables);
+  // Verify all queried tables are in canonical table inventory
+  const allKnownTables = new Set([...canonical40Tables, "webhook_events"]);
 
   for (const qTable of queriedTables) {
     if (!allKnownTables.has(qTable)) {
       violations.push({
         file: "src/**",
         category: "UNINVENTORIED_TABLE_ACCESSED",
-        message: `Codebase queries table '${qTable}' which is NOT inventoried or protected in Sprint 3 migrations!`,
+        message: `Codebase queries table '${qTable}' which is NOT inventoried or protected in database migrations!`,
       });
     }
   }

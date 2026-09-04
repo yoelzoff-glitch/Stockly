@@ -1,178 +1,160 @@
-import { NextResponse } from 'next/server';
-import { getSubscription, updateSubscriptionAmount } from '@/integrations/mercadopago/client';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { logger } from '@/lib/errors/logger';
-import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from '@/lib/observability/correlationId';
-import { startOperationRun, completeOperationRun } from '@/lib/observability/operationRuns';
-
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { inngest } from "@/inngest/client";
+import { logger } from "@/lib/errors/logger";
+import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
+import { validateMercadoPagoWebhookSignature } from "@/lib/security/webhookSignatures";
+import { getWebhookSignatureConfig } from "@/lib/security/signatureConfig";
+import { claimWebhookEvent, updateWebhookEventStatus } from "@/lib/security/idempotency";
 import * as Sentry from "@sentry/nextjs";
 
-export async function POST(req: Request) {
+const MAX_PAYLOAD_SIZE = 512 * 1024; // 512 KB
+
+const MercadoPagoWebhookSchema = z.object({
+  id: z.union([z.string(), z.number()]).optional(),
+  live_mode: z.boolean().optional(),
+  type: z.string().optional(),
+  action: z.string().optional(),
+  data: z.object({
+    id: z.union([z.string(), z.number()]).optional(),
+  }).optional(),
+  date_created: z.string().optional(),
+  user_id: z.union([z.string(), z.number()]).optional(),
+});
+
+export async function POST(req: NextRequest) {
   const correlationId = getOrCreateCorrelationId(req);
+  const signatureConfig = getWebhookSignatureConfig();
 
   try {
     const url = new URL(req.url);
 
-    // Seguridad: Validar secreto de webhook de Mercado Pago
-    const secret = url.searchParams.get("secret");
-    if (process.env.MERCADOPAGO_WEBHOOK_SECRET && secret !== process.env.MERCADOPAGO_WEBHOOK_SECRET) {
+    // 1. Read raw body with size limit
+    const rawBody = await req.text();
+    if (rawBody.length > MAX_PAYLOAD_SIZE) {
       logger.warn({
-        event: "MP_WEBHOOK_UNAUTHORIZED",
+        event: "MP_WEBHOOK_PAYLOAD_TOO_LARGE",
         correlationId,
-        message: "Invalid or missing Mercado Pago webhook secret",
+        size: rawBody.length,
       });
-      return new NextResponse("Unauthorized", {
-        status: 401,
+      return new NextResponse("Payload Too Large", {
+        status: 413,
         headers: { [CORRELATION_ID_HEADER]: correlationId },
       });
     }
 
-    const id = url.searchParams.get("id") || url.searchParams.get("data.id");
-    const type = url.searchParams.get("type");
-
-    let body: any = {};
-    try {
-      body = await req.json();
-    } catch (e) {
-      // Body might be empty
-    }
-
-    const topic = body.type || body.action || type;
-    const resourceId = body.data?.id || id;
-
-    // Track operation run asynchronously without delaying webhook response
-    startOperationRun({
-      operationType: `mp_webhook_${topic || 'unknown'}`,
-      source: "mercadopago_webhook",
-      correlationId,
-      metadata: { topic, resourceId },
-    }).then((runId) => {
-      if (runId) completeOperationRun(runId, { itemsProcessed: 1 });
-    }).catch(() => {});
-
-    logger.info({
-      event: "MP_WEBHOOK_RECEIVED",
-      correlationId,
-      topic,
-      resourceId,
-    });
-
-    if (topic === "subscription_preapproval" && resourceId) {
-      const subscription = await getSubscription(resourceId);
-      const reason = subscription.reason || "";
-      const externalReference = subscription.external_reference || "";
-      const [refType, ...refIdParts] = externalReference.split("_");
-      const refId = refIdParts.join("_");
-      
-      const status = subscription.status; 
-      const plan = reason.toLowerCase().includes("ultra")
-        ? "ultra"
-        : (reason.toLowerCase().includes("pro") ? "pro" : "starter");
-
-      if (refType && refId) {
-        const supabase = createAdminClient();
-        
-        let targetPlan = plan;
-        let isExpired = false;
-
-        const dbTable = refType === 'user' ? 'profiles' : 'tenants';
-        let tenantId = refType === 'user' ? null : refId;
-        
-        if (refType === 'user') {
-          const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', refId).single();
-          tenantId = profile?.tenant_id;
-        }
-
-        let currentSub = null;
-        if (tenantId) {
-          const { data } = await supabase.from('subscriptions').select('*').eq('tenant_id', tenantId).single();
-          currentSub = data;
-        }
-
-        if (status === 'authorized') {
-          targetPlan = plan;
-        } else if (status === 'cancelled' || status === 'canceled') {
-          if (currentSub?.expires_at && new Date(currentSub.expires_at) > new Date()) {
-            targetPlan = currentSub.plan;
-          } else {
-            targetPlan = 'starter';
-            isExpired = true;
-          }
-        }
-
-        if (refType === 'user') {
-          // 1. Update User Metadata
-          await supabase.auth.admin.updateUserById(refId, {
-            user_metadata: { 
-              payment_status: status === 'authorized' ? 'paid' : 'canceled',
-              mp_sub_id: subscription.id 
-            }
-          });
-
-          // Calculate expires_at for paid plans
-          let expiresAt = currentSub?.expires_at || null;
-          if (status === 'authorized') {
-            const expirationDate = new Date();
-            expirationDate.setDate(expirationDate.getDate() + 30);
-            expiresAt = expirationDate.toISOString();
-          } else if (isExpired) {
-            expiresAt = null;
-          }
-
-          if (tenantId) {
-            await supabase.from("subscriptions").upsert({
-              tenant_id: tenantId,
-              plan: targetPlan,
-              status: status === 'authorized' ? 'active' : 'canceled',
-              mercadopago_subscription_id: subscription.id,
-              expires_at: expiresAt,
-            });
-
-            await supabase.from("tenants").update({
-              plan: targetPlan,
-            }).eq("id", tenantId);
-          }
-
-          logger.info({
-            event: "MP_USER_PAYMENT_STATUS_UPDATED",
-            tenantId: tenantId || undefined,
-            correlationId,
-            userId: refId,
-            status,
-            targetPlan,
-          });
-        } else if (refType === 'tenant') {
-          let expiresAt = currentSub?.expires_at || null;
-          if (status === 'authorized') {
-            const expirationDate = new Date();
-            expirationDate.setDate(expirationDate.getDate() + 30);
-            expiresAt = expirationDate.toISOString();
-          } else if (isExpired) {
-            expiresAt = null;
-          }
-
-          await supabase.from("subscriptions").upsert({
-            tenant_id: refId,
-            plan: targetPlan,
-            status: status === 'authorized' ? 'active' : 'canceled',
-            mercadopago_subscription_id: subscription.id,
-            expires_at: expiresAt,
-          });
-
-          await supabase.from("tenants").update({
-            plan: targetPlan,
-          }).eq("id", refId);
-
-          logger.info({
-            event: "MP_TENANT_SUBSCRIPTION_UPDATED",
-            tenantId: refId,
-            correlationId,
-            status,
-            targetPlan,
-          });
-        }
+    let parsedJson: any = {};
+    if (rawBody.trim().length > 0) {
+      try {
+        parsedJson = JSON.parse(rawBody);
+      } catch {
+        return new NextResponse("Invalid JSON", {
+          status: 400,
+          headers: { [CORRELATION_ID_HEADER]: correlationId },
+        });
       }
     }
+
+    const queryId = url.searchParams.get("id") || url.searchParams.get("data.id");
+    const queryType = url.searchParams.get("type");
+    const resourceId = parsedJson.data?.id ? String(parsedJson.data.id) : (queryId ? String(queryId) : undefined);
+    const topic = parsedJson.type || parsedJson.action || queryType || "unknown";
+
+    // 2. Cryptographic signature validation
+    const signatureHeader = req.headers.get("x-signature");
+    const xRequestIdHeader = req.headers.get("x-request-id");
+    const mpSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET || process.env.MP_WEBHOOK_SECRET;
+
+    const { isValid, reason } = validateMercadoPagoWebhookSignature({
+      rawBody,
+      signatureHeader,
+      xRequestIdHeader,
+      dataId: resourceId,
+      secret: mpSecret,
+    });
+
+    // Fallback: Check query param secret during transitional observe mode
+    const querySecret = url.searchParams.get("secret");
+    const isQuerySecretValid = mpSecret && querySecret && querySecret === mpSecret;
+
+    const isVerified = isValid || (signatureConfig.mercadopago === "observe" && isQuerySecretValid);
+
+    if (!isVerified && signatureConfig.mercadopago === "enforce") {
+      logger.warn({
+        event: "MP_WEBHOOK_SIGNATURE_ENFORCE_REJECTED",
+        correlationId,
+        reason,
+      });
+      return new NextResponse("Forbidden", {
+        status: 403,
+        headers: { [CORRELATION_ID_HEADER]: correlationId },
+      });
+    } else if (!isVerified && signatureConfig.mercadopago === "observe") {
+      logger.info({
+        event: "MP_WEBHOOK_SIGNATURE_OBSERVE_UNVERIFIED",
+        correlationId,
+        reason,
+      });
+    }
+
+    // 3. Validate schema
+    const validation = MercadoPagoWebhookSchema.safeParse(parsedJson);
+    if (!validation.success && Object.keys(parsedJson).length > 0) {
+      logger.warn({
+        event: "MP_WEBHOOK_SCHEMA_INVALID",
+        correlationId,
+      });
+    }
+
+    if (!resourceId) {
+      return NextResponse.json(
+        { status: "ignored", reason: "missing_resource_id" },
+        { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
+
+    // 4. Atomic Idempotency Claim
+    const eventKey = `mp_${topic}_${resourceId}_${parsedJson.date_created || Date.now()}`;
+    const claim = await claimWebhookEvent({
+      provider: "mercadopago",
+      eventKey,
+      topic,
+      payload: parsedJson,
+      correlationId,
+      eventData: { resourceId, topic },
+    });
+
+    if (claim.isDuplicate) {
+      logger.info({
+        event: "MP_WEBHOOK_DUPLICATE_IGNORED",
+        correlationId,
+        eventKey,
+      });
+      return new NextResponse("OK", {
+        status: 200,
+        headers: { [CORRELATION_ID_HEADER]: correlationId },
+      });
+    }
+
+    // 5. Asynchronous Inngest Dispatch
+    await inngest.send({
+      name: "mercadopago/subscription.updated" as any,
+      data: {
+        resourceId,
+        topic,
+        eventId: claim.eventId,
+        correlationId,
+      },
+    });
+
+    await updateWebhookEventStatus(claim.eventId, "queued");
+
+    logger.info({
+      event: "MP_WEBHOOK_QUEUED",
+      correlationId,
+      topic,
+      eventId: claim.eventId,
+    });
 
     return new NextResponse("OK", {
       status: 200,
@@ -181,7 +163,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     Sentry.captureException(error, { extra: { context: "MERCADOPAGO_WEBHOOK", correlationId } });
     logger.error({
-      event: "MP_WEBHOOK_PROCESSING_FAILED",
+      event: "MP_WEBHOOK_ERROR",
       correlationId,
       error,
       message: error?.message,
