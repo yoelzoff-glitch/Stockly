@@ -48,10 +48,10 @@ jobs:
       - name: 1. Checkout repository
         uses: actions/checkout@v4
 
-      - name: 2. Setup Node.js (v22)
+      - name: 2. Setup Node.js (via .nvmrc)
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: ".nvmrc"
           cache: 'npm'
 
       - name: 3. Install dependencies
@@ -134,10 +134,13 @@ jobs:
       - name: 20. Synthetic Backup & Restoration Audit
         run: npm run test:recovery
 
-      - name: 21. Critical E2E Workflows (Playwright)
+      - name: 21. Install Playwright Chromium with system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: 22. Critical E2E Smoke & Contract Tests (Playwright)
         run: npm run test:e2e
 
-      - name: 22. Next.js Production Build
+      - name: 23. Next.js Production Build
         run: npm run build
 
       - name: 23. Dependency Audit Report (Informational Artifact)
