@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getGeminiModel } from "@/lib/ai/gemini";
 import { meliFetch } from "@/services/meli/client";
 import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { checkAILimit, incrementAIUsage } from "@/services/billing/checkLimits";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 
 export async function POST(request: Request) {
@@ -246,6 +247,15 @@ export async function POST(request: Request) {
         is_catalog: isCatalogProduct
       };
 
+      // Check tenant AI quota limit before generating analysis
+      const hasLimit = await checkAILimit(tenantId);
+      if (!hasLimit) {
+        return NextResponse.json(
+          { error: "Límite mensual de consultas IA alcanzado para este plan." },
+          { status: 429, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+        );
+      }
+
       // Call Gemini to analyze
       let analysisResult: any;
       try {
@@ -288,6 +298,7 @@ export async function POST(request: Request) {
 
         const responseText = result.response.text();
         analysisResult = JSON.parse(responseText);
+        await incrementAIUsage(tenantId, 1);
       } catch (geminiError: any) {
         console.error("Error calling Gemini API:", geminiError);
         return NextResponse.json({ 

@@ -3,6 +3,7 @@ import { openai } from "@/lib/ai/openai";
 import { preparePriceChangeAction, prepareStockChangeAction, prepareStatusChangeAction } from "@/actions/product-command-actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { checkAILimit, incrementAIUsage } from "@/services/billing/checkLimits";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { logger } from "@/lib/errors/logger";
 
@@ -119,6 +120,14 @@ CONTEXTO DEL PRODUCTO:
       }
     ];
 
+    const hasLimit = await checkAILimit(tenantId);
+    if (!hasLimit) {
+      return NextResponse.json(
+        { error: "Límite mensual de consultas IA alcanzado para este plan." },
+        { status: 429, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
+
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -129,6 +138,8 @@ CONTEXTO DEL PRODUCTO:
       function_call: "auto",
       temperature: 0.2
     });
+
+    await incrementAIUsage(tenantId, 1);
 
     const responseMessage = completion.choices[0].message;
     let replyText = responseMessage.content || "";

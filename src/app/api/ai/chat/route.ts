@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { runBusinessAgent } from "@/services/ai/agent";
+import { checkAILimit } from "@/services/billing/checkLimits";
 import { logger } from "@/lib/errors/logger";
 import { AppError } from "@/lib/errors/AppError";
 import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
