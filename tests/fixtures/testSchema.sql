@@ -3,6 +3,8 @@
 
 CREATE SCHEMA IF NOT EXISTS auth;
 CREATE SCHEMA IF NOT EXISTS public;
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+ALTER ROLE service_role WITH BYPASSRLS;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Mock custom types to match production exactly
@@ -175,7 +177,8 @@ CREATE TABLE IF NOT EXISTS public.order_items (
   sku text,
   quantity integer NOT NULL DEFAULT 1,
   unit_price numeric NOT NULL DEFAULT 0,
-  total_price numeric DEFAULT ((quantity)::numeric * unit_price),
+  total_price numeric
+    GENERATED ALWAYS AS (((quantity)::numeric * unit_price)) STORED,
   unit_cost numeric,
   estimated_fee numeric,
   estimated_shipping_cost numeric,
