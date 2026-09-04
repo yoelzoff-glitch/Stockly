@@ -69,7 +69,7 @@ jobs:
       - name: 5. Scan for accidental hardcoded secret patterns
         run: |
           echo "Scanning for accidental token or private key patterns..."
-          if grep -rnE '(BEGIN PRIVATE KEY|ghp_[a-zA-Z0-9]{36}|xox[baprs]-[0-9a-zA-Z]{10,48})' --exclude-dir={.git,node_modules,.next} .; then
+          if grep -rnE '(BEGIN PRIVATE[[:space:]]KEY|ghp_[a-zA-Z0-9]{36}|xox[baprs]-[0-9a-zA-Z]{10,48})' --exclude-dir={.git,node_modules,.next} .; then
             echo "❌ ERROR: Potential hardcoded secret found!"
             exit 1
           else
