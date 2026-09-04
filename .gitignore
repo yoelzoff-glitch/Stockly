@@ -44,3 +44,6 @@ next-env.d.ts
 auth_debug.json
 supabase/.temp/
 .disposable-test-db/
+test-results/
+playwright-report/
+

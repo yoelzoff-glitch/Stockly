@@ -1,4 +1,4 @@
-name: CI Baseline & Safety Checks
+name: CI Release Gate & Safety Checks
 
 on:
   push:
@@ -6,25 +6,58 @@ on:
   pull_request:
     branches: [ main ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   verify:
-    name: Typecheck, Tests & Safety Audits
+    name: Complete Release Gate & Integration Suite
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL_TEST: postgresql://postgres:password@127.0.0.1:5432/postgres
+      KLYVO_RLS_TEST_DB: "1"
+      KLYVO_WEBHOOK_TEST_DB: "1"
+      NEXT_PUBLIC_SUPABASE_URL: https://mock.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: mock-anon-key-ci-only
+      SUPABASE_SERVICE_ROLE_KEY: mock-service-role-key-ci-only
+      HEALTHCHECK_TOKEN: ci-healthcheck-token-safe
 
     steps:
-      - name: Checkout repository
+      - name: 1. Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: 2. Setup Node.js (v22)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: 3. Install dependencies
         run: npm ci
 
-      - name: Verify no committed .env files
+      - name: 4. Verify no committed .env files
         run: |
           if git ls-files | grep -E '^\.env(\..+)?$' | grep -v '\.env\.example'; then
             echo "❌ ERROR: A real .env file is tracked in git!"
@@ -33,7 +66,7 @@ jobs:
             echo "✅ No real .env files tracked."
           fi
 
-      - name: Scan for accidental hardcoded secret patterns
+      - name: 5. Scan for accidental hardcoded secret patterns
         run: |
           echo "Scanning for accidental token or private key patterns..."
           if grep -rnE '(BEGIN PRIVATE KEY|ghp_[a-zA-Z0-9]{36}|xox[baprs]-[0-9a-zA-Z]{10,48})' --exclude-dir={.git,node_modules,.next} .; then
@@ -43,16 +76,83 @@ jobs:
             echo "✅ No hardcoded private keys or access tokens detected."
           fi
 
-      - name: TypeScript Typecheck
+      - name: 6. TypeScript Typecheck
         run: npm run typecheck
 
-      - name: Run Deterministic Unit Tests
+      - name: 7. Run Deterministic Unit Tests
         run: npm run test:ci
 
-      - name: Static Route Authorization Audit (Sprint 2)
+      - name: 8. Static Route Authorization Audit
         run: npm run audit:auth
 
-      - name: Dependency Audit (Informational Report)
-        # Informational only for Sprint 1; vulnerability remediation is scheduled for Sprint 8
+      - name: 9. Row Level Security (RLS) Audit
+        run: npm run audit:rls
+
+      - name: 10. Webhooks Security & Idempotency Audit
+        run: npm run audit:webhooks
+
+      - name: 11. Billing & Entitlements Audit
+        run: npm run audit:billing
+
+      - name: 12. Database Performance & Index Audit
+        run: npm run audit:performance
+
+      - name: 13. Release Pipeline Governance Audit
+        run: npm run audit:release
+
+      - name: 14. Apply Database Fixture to Service Container
         run: |
-          npm audit --omit=dev || true
+          npx tsx -e '
+            const postgres = require("postgres");
+            const fs = require("fs");
+            const sql = postgres(process.env.DATABASE_URL_TEST);
+            const fixture = fs.readFileSync("tests/fixtures/testSchema.sql", "utf-8");
+            sql.unsafe(fixture).then(() => {
+              console.log("✅ Fixture schema applied to CI PostgreSQL.");
+              process.exit(0);
+            }).catch((err) => {
+              console.error("❌ Failed applying fixture schema:", err);
+              process.exit(1);
+            });
+          '
+
+      - name: 15. Multitenant RLS Integration Suite
+        run: npm run test:rls:integration
+
+      - name: 16. Webhooks Idempotency Integration Suite
+        run: npm run test:webhooks:integration
+
+      - name: 17. Billing Concurrency Integration Suite
+        run: npm run test:billing:integration
+
+      - name: 18. Leases & Rate Limiting Integration Suite
+        run: npm run test:leases:integration
+
+      - name: 19. Fault Injection & Graceful Degradation Suite
+        run: npm run test:fault
+
+      - name: 20. Synthetic Backup & Restoration Audit
+        run: npm run test:recovery
+
+      - name: 21. Critical E2E Workflows (Playwright)
+        run: npm run test:e2e
+
+      - name: 22. Next.js Production Build
+        run: npm run build
+
+      - name: 23. Dependency Audit Report (Informational Artifact)
+        if: always()
+        run: |
+          mkdir -p reports
+          npm audit --omit=dev --json > reports/npm-audit-report.json || true
+          echo "Audit report generated."
+
+      - name: 24. Upload Audit & Test Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-audit-reports
+          path: |
+            reports/
+            test-results/
+          retention-days: 14
