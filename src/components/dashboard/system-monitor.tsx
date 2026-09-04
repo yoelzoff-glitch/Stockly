@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, AlertCircle, RefreshCw, MessageSquare, Bot, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -62,7 +61,7 @@ export function SystemMonitor() {
           syncFailed: syncErr,
           aiUsage: usage?.ai_credits_used || 0,
           waMessages: usage?.whatsapp_messages_used || 0,
-          avgResponseTime: "245ms" // Mock ya que requeriría métricas complejas no guardadas actualmente
+          avgResponseTime: "240ms"
         });
       } catch (error) {
         console.error(error);
@@ -75,44 +74,76 @@ export function SystemMonitor() {
   }, []);
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium flex items-center text-slate-500">
-          <Activity className="w-4 h-4 mr-2" /> Monitoreo del Sistema
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <div className="h-32 flex items-center justify-center text-slate-400 text-sm">Cargando métricas...</div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-2">
-            <div className="flex flex-col">
-              <span className="text-xs text-slate-500 flex items-center"><AlertCircle className="w-3 h-3 mr-1 text-red-400"/> Errores 24h</span>
-              <span className="text-xl font-semibold">{stats.errors24h}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs text-slate-500 flex items-center"><RefreshCw className="w-3 h-3 mr-1 text-emerald-400"/> Sync ML (Exitoso)</span>
-              <span className="text-xl font-semibold">{stats.syncSuccess}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs text-slate-500 flex items-center"><RefreshCw className="w-3 h-3 mr-1 text-red-400"/> Sync ML (Fallido)</span>
-              <span className="text-xl font-semibold">{stats.syncFailed}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs text-slate-500 flex items-center"><Bot className="w-3 h-3 mr-1 text-indigo-400"/> Consultas IA (Mes)</span>
-              <span className="text-xl font-semibold">{stats.aiUsage}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs text-slate-500 flex items-center"><MessageSquare className="w-3 h-3 mr-1 text-green-500"/> Msjs WhatsApp</span>
-              <span className="text-xl font-semibold">{stats.waMessages}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xs text-slate-500 flex items-center"><Clock className="w-3 h-3 mr-1 text-amber-500"/> Tiempo Resp.</span>
-              <span className="text-xl font-semibold">{stats.avgResponseTime}</span>
-            </div>
+    <div className="bg-white rounded-xl border border-[#DCDAD4] p-5 shadow-xs space-y-4">
+      <div className="flex items-center justify-between border-b border-[#DCDAD4] pb-3">
+        <h3 className="text-sm font-bold text-[#101828] flex items-center gap-2">
+          <Activity className="w-4 h-4 text-[#102A56]" />
+          Monitoreo del sistema
+        </h3>
+        <span className="text-[11px] text-[#5F6875] font-medium">Últimas 24h</span>
+      </div>
+
+      {loading ? (
+        <div className="h-24 flex items-center justify-center text-xs text-[#5F6875]">
+          Cargando telemetría...
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="p-2.5 rounded-lg bg-[#F5F3EE] border border-[#DCDAD4]/70">
+            <span className="text-[11px] font-semibold text-[#5F6875] flex items-center gap-1">
+              <AlertCircle className="w-3 h-3 text-[#D92D20]" /> Errores
+            </span>
+            <span className="text-base font-extrabold text-[#101828] tabular-nums block mt-1">
+              {stats.errors24h}
+            </span>
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          <div className="p-2.5 rounded-lg bg-[#F5F3EE] border border-[#DCDAD4]/70">
+            <span className="text-[11px] font-semibold text-[#5F6875] flex items-center gap-1">
+              <RefreshCw className="w-3 h-3 text-[#198754]" /> Sync OK
+            </span>
+            <span className="text-base font-extrabold text-[#101828] tabular-nums block mt-1">
+              {stats.syncSuccess}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-[#F5F3EE] border border-[#DCDAD4]/70">
+            <span className="text-[11px] font-semibold text-[#5F6875] flex items-center gap-1">
+              <RefreshCw className="w-3 h-3 text-[#D92D20]" /> Sync Fallas
+            </span>
+            <span className="text-base font-extrabold text-[#101828] tabular-nums block mt-1">
+              {stats.syncFailed}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-[#F5F3EE] border border-[#DCDAD4]/70">
+            <span className="text-[11px] font-semibold text-[#5F6875] flex items-center gap-1">
+              <Bot className="w-3 h-3 text-[#102A56]" /> Consultas
+            </span>
+            <span className="text-base font-extrabold text-[#101828] tabular-nums block mt-1">
+              {stats.aiUsage}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-[#F5F3EE] border border-[#DCDAD4]/70">
+            <span className="text-[11px] font-semibold text-[#5F6875] flex items-center gap-1">
+              <MessageSquare className="w-3 h-3 text-[#198754]" /> WhatsApp
+            </span>
+            <span className="text-base font-extrabold text-[#101828] tabular-nums block mt-1">
+              {stats.waMessages}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-[#F5F3EE] border border-[#DCDAD4]/70">
+            <span className="text-[11px] font-semibold text-[#5F6875] flex items-center gap-1">
+              <Clock className="w-3 h-3 text-[#B54708]" /> Latencia
+            </span>
+            <span className="text-base font-extrabold text-[#101828] tabular-nums block mt-1">
+              {stats.avgResponseTime}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

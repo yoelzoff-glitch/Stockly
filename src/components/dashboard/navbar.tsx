@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, User, Menu, Target, Package } from "lucide-react";
+import { LogOut, User, Menu, Target } from "lucide-react";
 import { logoutAction } from "@/actions/auth";
 import Link from "next/link";
 import { NotificationBell } from "@/components/layout/notification-bell";
@@ -10,74 +10,81 @@ import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 export function Navbar({ plan, daysRemaining }: { plan?: string, daysRemaining?: number | null }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const getPlanBadge = () => {
-    if (!plan) return null;
-    
-    let planColor = "bg-slate-100 text-slate-700";
-    if (plan === "pro") planColor = "bg-indigo-100 text-indigo-700";
-    if (plan === "ultra") planColor = "bg-fuchsia-100 text-fuchsia-700";
-    
-    return (
-      <Link 
-        href="/dashboard/billing"
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium hover:opacity-80 transition-opacity cursor-pointer ${planColor}`}
-        title="Ver detalles de facturación"
-      >
-        <span className="capitalize">Klyvo {plan}</span>
-        {daysRemaining !== null && daysRemaining !== undefined && (
-          <span className="opacity-80">
-            • {daysRemaining > 0 ? `Renueva en ${daysRemaining} d${daysRemaining === 1 ? 'ía' : 'ías'}` : 'Vencido'}
-          </span>
-        )}
-      </Link>
-    );
-  };
-
   return (
     <>
-      <header className="flex h-14 items-center justify-between border-b bg-card px-4 md:px-6 lg:h-16 shrink-0">
-        <div className="flex items-center gap-4">
+      <header className="flex h-16 items-center justify-between border-b border-[#DCDAD4] bg-white px-4 md:px-6 shrink-0">
+        <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={() => setIsMobileMenuOpen(true)}
-            className="md:hidden flex items-center justify-center h-9 w-9 rounded-md border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            className="md:hidden flex items-center justify-center h-9 w-9 rounded-lg border border-[#DCDAD4] text-[#5F6875] hover:bg-[#F5F3EE] hover:text-[#101828]"
+            aria-label="Abrir navegación"
           >
             <Menu className="h-5 w-5" />
           </button>
           
-          <div className="md:hidden flex items-center gap-2">
-            <div className="h-8 w-8 rounded-md bg-indigo-600 flex items-center justify-center">
-              <Package className="h-4 w-4 text-white" />
-            </div>
-            <span className="font-bold tracking-tight text-slate-900">Klyvo</span>
+          <div className="md:hidden flex items-center">
+            <img src="/logo.png" alt="Klyvo" className="h-7 w-auto" />
           </div>
         </div>
-        <div className="flex items-center gap-3 md:gap-4">
-          <Link href="/dashboard/get-started" className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-indigo-600 transition-colors">
-            <Target className="h-4 w-4" />
+
+        <div className="flex items-center gap-2.5 sm:gap-4">
+          {/* Guía de inicio */}
+          <Link
+            href="/dashboard/get-started"
+            className="flex items-center gap-1.5 text-xs font-semibold text-[#5F6875] hover:text-[#101828] transition-colors px-2.5 py-1.5 rounded-lg hover:bg-[#F5F3EE]"
+          >
+            <Target className="h-4 w-4 text-[#102A56]" />
             <span className="hidden sm:inline">Guía de Inicio</span>
           </Link>
-          <div className="hidden sm:block border-l h-5 border-slate-200 mx-1"></div>
-          {getPlanBadge()}
+
+          {/* Plan actual discreto */}
+          {plan && (
+            <Link
+              href="/dashboard/billing"
+              className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-[#F5F3EE] text-[#102A56] border border-[#DCDAD4] hover:bg-[#EAE7DF] transition-colors"
+              title="Ver detalles de facturación"
+            >
+              <span className="capitalize">Klyvo {plan}</span>
+              {daysRemaining !== null && daysRemaining !== undefined && (
+                <span className="text-[#5F6875]">
+                  • {daysRemaining > 0 ? `${daysRemaining}d` : "Vencido"}
+                </span>
+              )}
+            </Link>
+          )}
+
+          <div className="h-4 w-px bg-[#DCDAD4] hidden sm:block" />
+
+          {/* Notificaciones */}
           <NotificationBell />
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <User className="h-4 w-4" />
+
+          {/* Usuario / Mi Cuenta */}
+          <Link
+            href="/dashboard/settings"
+            className="flex items-center gap-2 text-[#5F6875] hover:text-[#101828] p-1.5 rounded-lg hover:bg-[#F5F3EE] transition-colors"
+            title="Configuración de la cuenta"
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F5F3EE] text-[#102A56] border border-[#DCDAD4]">
+              <User className="h-3.5 w-3.5" />
             </div>
-            <div className="hidden flex-col md:flex">
-              <span className="text-sm font-medium leading-none">Mi Cuenta</span>
-            </div>
-          </div>
+            <span className="hidden md:inline text-xs font-semibold text-[#101828]">Mi Cuenta</span>
+          </Link>
+
+          {/* Cerrar Sesión */}
           <form action={logoutAction}>
             <button
               type="submit"
-              className="flex h-9 w-9 items-center justify-center rounded-md border text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#DCDAD4] text-[#5F6875] hover:bg-[#F5F3EE] hover:text-[#D92D20] transition-colors cursor-pointer"
               title="Cerrar sesión"
+              aria-label="Cerrar sesión"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-3.5 w-3.5" />
             </button>
           </form>
         </div>
       </header>
+
       <MobileSidebar open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen} />
     </>
   );

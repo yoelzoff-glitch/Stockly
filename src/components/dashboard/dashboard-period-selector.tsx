@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
-import { Calendar, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 export function DashboardPeriodSelector() {
   const router = useRouter();
@@ -29,32 +29,30 @@ export function DashboardPeriodSelector() {
   ];
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
-        {isPending ? (
-          <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-600 dark:text-indigo-400" />
-        ) : (
-          <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-        )}
-        <span className="hidden sm:inline">Período:</span>
-      </div>
-      
-      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/60 p-0.5 rounded-full border border-slate-200/50 dark:border-slate-800/50 shrink-0 shadow-sm">
+    <div className="flex items-center gap-2">
+      <span className="text-xs font-semibold text-[#5F6875] uppercase tracking-wider hidden sm:inline">
+        Período:
+      </span>
+      <div className="inline-flex rounded-lg border border-[#DCDAD4] bg-[#F5F3EE] p-0.5">
         {options.map((opt) => (
           <button
             key={opt.value}
+            type="button"
             onClick={() => handlePeriodChange(opt.value)}
             disabled={isPending}
-            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+            className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
               currentDays === opt.value
-                ? "bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 shadow-sm border border-slate-200/10"
-                : "text-slate-500 hover:text-slate-750 dark:hover:text-slate-350"
+                ? "bg-white text-[#101828] shadow-xs"
+                : "text-[#5F6875] hover:text-[#101828]"
             }`}
           >
             {opt.label}
           </button>
         ))}
       </div>
+      {isPending && (
+        <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#102A56]" />
+      )}
     </div>
   );
 }

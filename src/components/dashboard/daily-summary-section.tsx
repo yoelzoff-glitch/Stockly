@@ -1,14 +1,12 @@
 import { getOrCreateDailySummary } from "@/services/ai/dailySummary";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sparkles } from "lucide-react";
 
 interface DailySummarySectionProps {
   tenantId: string;
 }
 
 /**
- * Server Component that asynchronously fetches and displays the AI daily summary.
- * It is designed to be streamed via Suspense.
+ * Componente que muestra de forma sobria y complementaria la lectura del día generada.
+ * Diseñado para cargarse asíncronamente con Suspense sin protagonismo visual excesivo.
  */
 export async function DailySummarySection({ tenantId }: DailySummarySectionProps) {
   const dailySummary = await getOrCreateDailySummary(tenantId);
@@ -16,24 +14,18 @@ export async function DailySummarySection({ tenantId }: DailySummarySectionProps
   if (!dailySummary) return null;
   
   return (
-    <Card className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 text-white border-none shadow-[0_8px_32px_rgba(99,102,241,0.25)] transition-all duration-300 hover:shadow-[0_12px_40px_rgba(99,102,241,0.4)]">
-      {/* Decorative background glow shapes */}
-      <div className="absolute -top-24 -right-24 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-fuchsia-500/20 rounded-full blur-3xl pointer-events-none" />
-      
-      <CardHeader className="relative pb-3 flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-xl flex items-center gap-2.5 font-bold tracking-tight">
-          <div className="p-2 bg-white/10 rounded-lg backdrop-blur-md">
-            <Sparkles className="w-5 h-5 text-yellow-300 animate-pulse" />
-          </div>
-          Resumen Automático de IA
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="relative">
-        <p className="text-sm md:text-base leading-relaxed whitespace-pre-wrap opacity-95 font-medium font-sans">
-          {dailySummary}
-        </p>
-      </CardContent>
-    </Card>
+    <div className="bg-white rounded-xl border border-[#DCDAD4] p-5 shadow-xs space-y-3">
+      <div className="flex items-center justify-between border-b border-[#DCDAD4] pb-3">
+        <h3 className="text-sm font-bold text-[#101828]">
+          Lectura del día
+        </h3>
+        <span className="text-[11px] font-semibold text-[#5F6875] bg-[#F5F3EE] px-2.5 py-0.5 rounded border border-[#DCDAD4]">
+          Generado automáticamente
+        </span>
+      </div>
+      <p className="text-sm text-[#5F6875] leading-relaxed whitespace-pre-wrap font-normal">
+        {dailySummary}
+      </p>
+    </div>
   );
 }

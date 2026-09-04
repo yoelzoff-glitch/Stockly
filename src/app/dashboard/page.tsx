@@ -1,11 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { OverviewChart } from "@/components/dashboard/overview-chart";
 import { TopProductsChart } from "@/components/dashboard/top-products-chart";
-import { MetricCard } from "@/components/dashboard/metric-card";
 import { SystemMonitor } from "@/components/dashboard/system-monitor";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { AlertCircle, CheckCircle2, MessageSquare, Package, RefreshCw, Sparkles, Lightbulb, ArrowRight, DollarSign, LineChart } from "lucide-react";
+import { OperationalMetricsStrip } from "@/components/dashboard/operational-metrics-strip";
+import { AlertCircle, CheckCircle2, RefreshCw, ArrowRight, MessageSquare, ShieldCheck, HelpCircle } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getCachedOrders } from "@/lib/cache";
@@ -54,16 +52,21 @@ export default async function DashboardPage(props: PageProps) {
 
   if (!isMeliConnected) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] flex-col items-center justify-center p-8 text-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
-          <AlertCircle className="h-10 w-10 text-muted-foreground" />
+      <div className="flex h-[calc(100vh-8rem)] flex-col items-center justify-center p-8 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-white border border-[#DCDAD4] shadow-xs">
+          <AlertCircle className="h-8 w-8 text-[#5F6875]" />
         </div>
-        <h2 className="mt-6 text-2xl font-bold tracking-tight">Todavía no conectaste Mercado Libre</h2>
-        <p className="mt-2 mb-6 text-muted-foreground max-w-md">
+        <h2 className="mt-5 text-xl font-bold text-[#101828]">
+          Todavía no conectaste Mercado Libre
+        </h2>
+        <p className="mt-1.5 mb-6 text-sm text-[#5F6875] max-w-md">
           Para ver tus métricas de ventas, stock y productos, primero necesitas vincular tu cuenta de Mercado Libre con Klyvo.
         </p>
-        <Link href="/dashboard/get-started">
-          <Button>Ir a Guía de Inicio</Button>
+        <Link
+          href="/dashboard/get-started"
+          className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#102A56] hover:bg-[#0A1D3C] transition-colors"
+        >
+          Ir a Guía de Inicio
         </Link>
       </div>
     );
@@ -75,26 +78,21 @@ export default async function DashboardPage(props: PageProps) {
     recentOrdersRaw,
     { data: allProducts },
     { data: recentMessages },
-    { data: usage },
-    { data: sub },
-    activation
+    activation,
   ] = await Promise.all([
     supabase.from("tenants").select("timezone, metadata").eq("id", tenantId).maybeSingle(),
     getCachedOrders(tenantId, days + 1),
     supabase.from("products").select("id, title, cost, sku, available_quantity, sold_quantity, margin_percent, margin_amount, estimated_fee").eq("tenant_id", tenantId),
     supabase.from("messages").select("text, direction, created_at").eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(3),
-    supabase.from("subscription_usage").select("ai_credits_used").eq("tenant_id", tenantId).maybeSingle(),
-    supabase.from("subscriptions").select("plan").eq("tenant_id", tenantId).maybeSingle(),
-    getActivationProgress()
+    getActivationProgress(),
   ]);
 
-  const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
+  const timezone = tenant?.timezone || "America/Argentina/Buenos_Aires";
   const ignoredOrderIds = (tenant?.metadata as any)?.ignored_order_ids || [];
-
   const today = getMidnightInTimezone(new Date(), timezone);
 
-  const recentOrders = (recentOrdersRaw || []).filter(o => 
-    o.status !== "cancelled" && !ignoredOrderIds.includes(o.meli_order_id)
+  const recentOrders = (recentOrdersRaw || []).filter(
+    (o) => o.status !== "cancelled" && !ignoredOrderIds.includes(o.meli_order_id)
   );
 
   // Calculate metrics
@@ -105,7 +103,7 @@ export default async function DashboardPage(props: PageProps) {
   pastDate.setDate(pastDate.getDate() - days);
   const periodStart = getMidnightInTimezone(pastDate, timezone);
 
-  recentOrders?.forEach(order => {
+  recentOrders?.forEach((order) => {
     const orderDate = new Date(order.date_created);
     if (orderDate >= periodStart) {
       revenuePeriod += Number(order.total_amount) || 0;
@@ -119,7 +117,7 @@ export default async function DashboardPage(props: PageProps) {
   const groupedProductsMap = new Map<string, any>();
   const nonSkuProducts: any[] = [];
 
-  (allProducts || []).forEach(p => {
+  (allProducts || []).forEach((p) => {
     const sku = p.sku?.trim();
     if (!sku) {
       nonSkuProducts.push({ ...p });
@@ -144,284 +142,386 @@ export default async function DashboardPage(props: PageProps) {
     } else {
       groupedProductsMap.set(sku, {
         ...p,
-        _raw_sold_quantity: p.sold_quantity || 0
+        _raw_sold_quantity: p.sold_quantity || 0,
       });
     }
   });
 
   const aggregatedProducts = [
     ...Array.from(groupedProductsMap.values()),
-    ...nonSkuProducts
+    ...nonSkuProducts,
   ];
 
   const totalProductsCount = aggregatedProducts.length;
-  const lowStockCount = aggregatedProducts.filter(p => p.available_quantity <= 5).length;
+  const lowStockCount = aggregatedProducts.filter((p) => p.available_quantity <= 5).length;
+  const missingCostsCount = (allProducts || []).filter((p) => p.cost === null || p.cost === undefined).length;
 
   // Top products
-  const topProducts = [...aggregatedProducts].sort((a, b) => (b.sold_quantity || 0) - (a.sold_quantity || 0)).slice(0, 5);
+  const topProducts = [...aggregatedProducts]
+    .sort((a, b) => (b.sold_quantity || 0) - (a.sold_quantity || 0))
+    .slice(0, 5);
   const topProduct = topProducts[0];
 
-  const chartData = topProducts.filter(p => p.sold_quantity && p.sold_quantity > 0).map(p => ({
-    name: p.sku ? `[${p.sku}] ${p.title}` : p.title || "Producto",
-    value: p.sold_quantity || 0
-  }));
+  const chartData = topProducts
+    .filter((p) => p.sold_quantity && p.sold_quantity > 0)
+    .map((p) => ({
+      name: p.sku ? `[${p.sku}] ${p.title}` : p.title || "Producto",
+      value: p.sold_quantity || 0,
+    }));
 
   // Top products by margin
   const topMarginProducts = [...aggregatedProducts]
-    .filter(p => p.margin_percent !== null && p.margin_percent !== undefined)
+    .filter((p) => p.margin_percent !== null && p.margin_percent !== undefined)
     .sort((a, b) => (b.margin_percent || 0) - (a.margin_percent || 0))
     .slice(0, 3);
 
   const bottomMarginProducts = [...aggregatedProducts]
-    .filter(p => p.margin_percent !== null && p.margin_percent !== undefined)
+    .filter((p) => p.margin_percent !== null && p.margin_percent !== undefined)
     .sort((a, b) => (a.margin_percent || 0) - (b.margin_percent || 0))
     .slice(0, 3);
 
-  const missingFeesCount = aggregatedProducts.filter(p => p.estimated_fee === null || p.estimated_fee === undefined).length;
-
-  const aiUsed = usage?.ai_credits_used || 0;
-  const aiLimit = sub?.plan === 'business' ? '∞' : 500;
+  const missingFeesCount = aggregatedProducts.filter(
+    (p) => p.estimated_fee === null || p.estimated_fee === undefined
+  ).length;
 
   // Time formatting helper
   const formatTimeAgo = (dateStr: string) => {
     const diffMs = new Date().getTime() - new Date(dateStr).getTime();
     const diffMins = Math.floor(diffMs / 60000);
     if (diffMins < 1) return "hace instantes";
-    if (diffMins < 60) return `hace ${diffMins} minutos`;
-    return `hace ${Math.floor(diffMins / 60)} horas`;
+    if (diffMins < 60) return `hace ${diffMins} min`;
+    return `hace ${Math.floor(diffMins / 60)} hs`;
   };
 
-  const userName = user.email ? user.email.split('@')[0] : "Emprendedor";
-  const formattedName = userName.charAt(0).toUpperCase() + userName.slice(1);
-
   return (
-    <div className="flex-1 space-y-6 md:space-y-8 p-4 md:p-8 pt-4 md:pt-6">
+    <div className="flex-1 space-y-6 p-4 md:p-8 pt-4 md:pt-6 max-w-[1400px] mx-auto">
       
+      {/* 4.1 Encabezado operativo y barra de controles compacta */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b border-[#DCDAD4] pb-5">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#101828]">
+            Resumen de la operación
+          </h1>
+          <p className="text-xs sm:text-sm text-[#5F6875] mt-1">
+            Ventas, rentabilidad y estado del negocio para el período seleccionado.
+          </p>
+        </div>
+
+        {/* Barra de controles compacta */}
+        <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-xl border border-[#DCDAD4] shadow-xs">
+          <DashboardPeriodSelector />
+
+          <div className="h-4 w-px bg-[#DCDAD4] hidden sm:block" />
+
+          {/* Estado de sincronización */}
+          <div className="flex items-center gap-2 text-xs font-semibold px-2">
+            {meliAccount.status === "syncing" ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 text-[#102A56] animate-spin" />
+                <span className="text-[#102A56]">Sincronizando...</span>
+              </>
+            ) : meliAccount.status === "error" ? (
+              <>
+                <AlertCircle className="w-3.5 h-3.5 text-[#D92D20]" />
+                <span className="text-[#D92D20]">Error de sync</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#198754]" />
+                <span className="text-[#101828]">
+                  Sincronizado {meliAccount.last_sync_at ? formatTimeAgo(meliAccount.last_sync_at as string) : "recientemente"}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 4.2 Configuración inicial compacta */}
       {activation.percentage < 100 && (
-        <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl flex items-center justify-between shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
-          <div className="flex items-center gap-4">
-            <div className="bg-indigo-600 text-white font-bold w-12 h-12 rounded-full flex items-center justify-center text-lg shadow-sm">
-              {activation.percentage}%
+        <div className="bg-white border border-[#DCDAD4] p-5 rounded-xl shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="space-y-1 max-w-2xl">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#102A56]">
+                Configuración inicial
+              </span>
+              <span className="text-xs text-[#5F6875]">•</span>
+              <span className="text-xs font-semibold text-[#101828] tabular-nums">
+                {activation.completedSteps} de {activation.totalSteps} pasos completados
+              </span>
             </div>
-            <div>
-              <h3 className="font-semibold text-indigo-900 text-lg">Te falta completar {activation.totalSteps - activation.completedSteps} pasos de configuración</h3>
-              <p className="text-sm text-indigo-700/80 mt-0.5">Termina de configurar tu cuenta para desbloquear todo el poder de la IA.</p>
+            <p className="text-xs sm:text-sm text-[#5F6875] leading-relaxed">
+              Completá los datos necesarios para calcular correctamente costos, márgenes y rentabilidad.
+            </p>
+            <div className="pt-2 flex items-center gap-3">
+              <div className="h-2 w-48 bg-[#F5F3EE] rounded-full overflow-hidden border border-[#DCDAD4]">
+                <div
+                  className="h-full bg-[#102A56] rounded-full transition-all duration-300"
+                  style={{ width: `${activation.percentage}%` }}
+                />
+              </div>
+              <span className="text-xs font-bold text-[#101828] tabular-nums">
+                {activation.percentage}%
+              </span>
             </div>
           </div>
-          <Button asChild className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm rounded-full px-6">
-            <Link href="/dashboard/get-started">Continuar</Link>
-          </Button>
+
+          <Link
+            href="/dashboard/get-started"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-[#102A56] hover:bg-[#0A1D3C] transition-colors shrink-0"
+          >
+            <span>Continuar configuración</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
       )}
 
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-slate-900">Hola, {formattedName} 👋</h2>
-          <p className="text-slate-500 mt-1.5">Aquí está el resumen de tu negocio hoy.</p>
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-3">
-          <DashboardPeriodSelector />
-
-
-
-          <StatusBadge variant={meliAccount.status === 'syncing' ? 'info' : meliAccount.status === 'error' ? 'danger' : 'success'} className="px-3 py-1.5 text-sm">
-            {meliAccount.status === 'syncing' ? (
-              <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" />
-            ) : meliAccount.status === 'error' ? (
-              <AlertCircle className="w-4 h-4 mr-1.5" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4 mr-1.5" />
-            )}
-            {meliAccount.status === 'syncing' 
-              ? "Sincronizando..." 
-              : meliAccount.status === 'error' 
-                ? "Error de sincronización" 
-                : `Sincronizado ${meliAccount.last_sync_at ? formatTimeAgo(meliAccount.last_sync_at as string) : 'recientemente'}`
-            }
-          </StatusBadge>
-        </div>
-      </div>
-
-      {/* AI Daily Summary Hero */}
-      <Suspense fallback={<DailySummarySkeleton />}>
-        <DailySummarySection tenantId={tenantId} />
-      </Suspense>
-
-      {/* Missing Costs Alert */}
-      {(() => {
-        const missingCostsCount = allProducts?.filter(p => p.cost === null || p.cost === undefined).length || 0;
-        if (missingCostsCount > 0) {
-          return (
-            <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3 shadow-sm">
-              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-semibold text-amber-900">
-                  Faltan costos de productos
-                </h3>
-                <p className="text-sm text-amber-700/90 mt-1">
-                  Tenés {missingCostsCount} productos sin costo cargado. Klyvo no puede calcular rentabilidad real.
-                </p>
-                <div className="mt-3">
-                  <Button variant="outline" size="sm" className="h-8 border-amber-300 text-amber-800 hover:bg-amber-100 rounded-full bg-amber-50" asChild>
-                    <Link href="/dashboard/products">Cargar costos ahora</Link>
-                  </Button>
-                </div>
-              </div>
+      {/* 4.3 Alerta operativa de productos sin costo */}
+      {missingCostsCount > 0 && (
+        <div className="bg-white border border-[#DCDAD4] border-l-4 border-l-[#F2C94C] p-4 rounded-xl shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-[#B54708] shrink-0 mt-0.5" />
+            <div>
+              <h2 className="text-sm font-bold text-[#101828]">
+                Hay {missingCostsCount} {missingCostsCount === 1 ? "producto" : "productos"} sin costo
+              </h2>
+              <p className="text-xs text-[#5F6875] mt-0.5">
+                La rentabilidad de las ventas asociadas todavía no puede calcularse correctamente.
+              </p>
             </div>
-          );
-        }
-        return null;
-      })()}
+          </div>
+          <Link
+            href="/dashboard/products"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#101828] bg-[#F5F3EE] hover:bg-[#EAE7DF] border border-[#DCDAD4] transition-colors shrink-0"
+          >
+            <span>Cargar costos ahora</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      )}
 
-      {/* Klyvo Recommends */}
+      {/* 4.4 Franja estructurada de indicadores */}
+      <OperationalMetricsStrip
+        salesToday={salesToday}
+        revenuePeriod={revenuePeriod}
+        days={days}
+        totalProductsCount={totalProductsCount}
+        lowStockCount={lowStockCount}
+        topProduct={topProduct}
+      />
+
+      {/* 4.5 Prioridades de hoy */}
       <Suspense fallback={<InsightsSkeleton />}>
         <InsightsSection tenantId={tenantId} />
       </Suspense>
-      
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <MetricCard 
-          title="Ventas Hoy" 
-          value={`$${salesToday.toLocaleString()}`} 
-          icon={<DollarSign className="w-5 h-5" />} 
-          variant="blue" 
-        />
-        <MetricCard 
-          title={`Ingresos (${days} días)`} 
-          value={`$${revenuePeriod.toLocaleString()}`} 
-          icon={<LineChart className="w-5 h-5" />} 
-          variant="green" 
-        />
-        <MetricCard 
-          title="Catálogo" 
-          value={totalProductsCount} 
-          description="Productos activos" 
-          icon={<Package className="w-5 h-5" />} 
-          variant="slate" 
-        />
-        <MetricCard 
-          title="Stock Crítico" 
-          value={lowStockCount} 
-          description="Con 5 unidades o menos" 
-          icon={<AlertCircle className="w-5 h-5" />} 
-          variant="amber" 
-        />
-        <MetricCard 
-          title="Producto Estrella" 
-          value={topProduct?.sold_quantity || 0} 
-          description={topProduct ? (topProduct.sku ? `[${topProduct.sku}] ${topProduct.title}` : topProduct.title) : "Sin datos"} 
-          icon={<Sparkles className="w-5 h-5" />} 
-          variant="purple" 
-        />
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 items-start">
-        <div className="col-span-4 space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Ventas últimos {days} días</CardTitle>
-              <CardDescription>Resumen de ingresos de los últimos {days} días.</CardDescription>
-            </CardHeader>
-            <CardContent className="pl-2">
-              <OverviewChart data={recentOrders || []} days={days} timezone={timezone} />
-            </CardContent>
-          </Card>
+      {/* 4.7 Área principal de análisis con jerarquía clara */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        {/* Columna Principal (7 cols): Ventas, Rentabilidad y Top Productos */}
+        <div className="lg:col-span-7 space-y-6">
           
-          <Card>
-            <CardHeader>
-              <CardTitle>Rentabilidad Estimada</CardTitle>
-              <CardDescription>Basado en productos con costos cargados</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          {/* Evolución de ventas e ingresos */}
+          <div className="bg-white rounded-xl border border-[#DCDAD4] p-5 md:p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-[#DCDAD4] pb-3">
               <div>
-                <h4 className="text-sm font-semibold mb-2 text-green-600">Mejor Margen Neto</h4>
+                <h2 className="text-base font-bold text-[#101828]">
+                  Evolución de ventas e ingresos
+                </h2>
+                <p className="text-xs text-[#5F6875] mt-0.5">
+                  Facturación bruta diaria en los últimos {days} días.
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-[#5F6875] tabular-nums">
+                $ {revenuePeriod.toLocaleString("es-AR")}
+              </span>
+            </div>
+            <OverviewChart data={recentOrders || []} days={days} timezone={timezone} />
+          </div>
+
+          {/* Rentabilidad estimada */}
+          <div className="bg-white rounded-xl border border-[#DCDAD4] p-5 md:p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-[#DCDAD4] pb-3">
+              <div>
+                <h2 className="text-base font-bold text-[#101828]">
+                  Rentabilidad estimada
+                </h2>
+                <p className="text-xs text-[#5F6875] mt-0.5">
+                  Márgenes calculados sobre productos con costos de reposición cargados.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Mejor margen */}
+              <div className="space-y-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#198754] block">
+                  Mejor margen neto
+                </span>
                 {topMarginProducts && topMarginProducts.length > 0 ? (
-                  <ul className="space-y-2 text-sm">
+                  <ul className="divide-y divide-[#DCDAD4]/60">
                     {topMarginProducts.map((p, i) => (
-                      <li key={i} className="flex justify-between items-center">
-                        <span className="truncate max-w-[180px]" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
+                      <li key={i} className="py-2 flex justify-between items-center text-xs">
+                        <span className="truncate max-w-[180px] font-medium text-[#101828]" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
                           {p.sku ? `[${p.sku}] ${p.title}` : p.title}
                         </span>
-                        <span className="font-medium text-green-600">{p.margin_percent?.toFixed(1)}%</span>
+                        <span className="font-bold text-[#198754] tabular-nums ml-2">
+                          {p.margin_percent?.toFixed(1)}%
+                        </span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-xs text-muted-foreground">No hay datos suficientes</p>
+                  <p className="text-xs text-[#5F6875] italic py-2">
+                    Cargá los costos para comenzar a calcular márgenes.
+                  </p>
                 )}
               </div>
-              <div>
-                <h4 className="text-sm font-semibold mb-2 text-red-500">Peor Margen Neto</h4>
+
+              {/* Peor margen */}
+              <div className="space-y-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#D92D20] block">
+                  Menor margen neto
+                </span>
                 {bottomMarginProducts && bottomMarginProducts.length > 0 ? (
-                  <ul className="space-y-2 text-sm">
+                  <ul className="divide-y divide-[#DCDAD4]/60">
                     {bottomMarginProducts.map((p, i) => (
-                      <li key={i} className="flex justify-between items-center">
-                        <span className="truncate max-w-[180px]" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
+                      <li key={i} className="py-2 flex justify-between items-center text-xs">
+                        <span className="truncate max-w-[180px] font-medium text-[#101828]" title={p.sku ? `[${p.sku}] ${p.title}` : p.title}>
                           {p.sku ? `[${p.sku}] ${p.title}` : p.title}
                         </span>
-                        <span className="font-medium text-red-500">{p.margin_percent?.toFixed(1)}%</span>
+                        <span className="font-bold text-[#D92D20] tabular-nums ml-2">
+                          {p.margin_percent?.toFixed(1)}%
+                        </span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-xs text-muted-foreground">No hay datos suficientes</p>
+                  <p className="text-xs text-[#5F6875] italic py-2">
+                    No hay suficientes publicaciones con margen asignado.
+                  </p>
                 )}
               </div>
-              {missingFeesCount > 0 && (
-                <div className="pt-2 border-t text-xs text-muted-foreground flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3 text-yellow-500" />
-                  {missingFeesCount} productos no tienen comisión ML estimada.
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            {missingFeesCount > 0 && (
+              <p className="text-[11px] text-[#5F6875] pt-3 border-t border-[#DCDAD4] flex items-center gap-1.5">
+                <HelpCircle className="w-3.5 h-3.5 text-[#B54708] shrink-0" />
+                <span>{missingFeesCount} publicaciones pendientes de estimación de comisión de Mercado Libre.</span>
+              </p>
+            )}
+          </div>
+
+          {/* Productos más vendidos */}
+          <div className="bg-white rounded-xl border border-[#DCDAD4] p-5 md:p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-[#DCDAD4] pb-3">
               <div>
-                <CardTitle className="text-base">Agente IA</CardTitle>
-                <CardDescription>Actividad reciente</CardDescription>
+                <h2 className="text-base font-bold text-[#101828]">
+                  Productos más vendidos
+                </h2>
+                <p className="text-xs text-[#5F6875] mt-0.5">
+                  Volumen de unidades despachadas en el período.
+                </p>
               </div>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/dashboard/messages">
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  Ir al Chat
-                </Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {recentMessages && recentMessages.length > 0 ? (
-                <div className="space-y-3">
-                  {recentMessages.map((msg, idx) => (
-                    <div key={idx} className="text-sm">
-                      <span className="font-semibold text-xs uppercase text-muted-foreground mr-2">
-                        {msg.direction === 'inbound' ? 'Tú' : 'Klyvo'}
-                      </span>
-                      <span className="line-clamp-1">{msg.text}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No tienes mensajes recientes con la Inteligencia Artificial.</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        <div className="col-span-3 space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Productos más vendidos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <TopProductsChart data={chartData} />
-            </CardContent>
-          </Card>
-          
-          {/* Rentabilidad y Agente IA fueron movidos a la columna izquierda */}
+            </div>
+            <TopProductsChart data={chartData} />
+          </div>
 
-          <SystemMonitor />
         </div>
+
+        {/* Columna Secundaria (5 cols): Estado de Operación, Resumen, Monitoreo y Actividad */}
+        <div className="lg:col-span-5 space-y-6">
+          
+          {/* Panel: Estado de la operación */}
+          <div className="bg-white rounded-xl border border-[#DCDAD4] p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-[#DCDAD4] pb-3">
+              <h2 className="text-sm font-bold text-[#101828]">
+                Estado de la operación
+              </h2>
+              <span className="text-[11px] font-semibold text-[#198754] bg-[#F5F3EE] px-2 py-0.5 rounded border border-[#DCDAD4]">
+                Operativo
+              </span>
+            </div>
+
+            <div className="divide-y divide-[#DCDAD4] text-xs">
+              <div className="py-2 flex items-center justify-between">
+                <span className="text-[#5F6875]">Conexión Mercado Libre</span>
+                <span className="font-semibold text-[#101828] flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-[#198754]" /> Activa (OAuth)
+                </span>
+              </div>
+              <div className="py-2 flex items-center justify-between">
+                <span className="text-[#5F6875]">Última sincronización</span>
+                <span className="font-semibold text-[#101828]">
+                  {meliAccount.last_sync_at ? formatTimeAgo(meliAccount.last_sync_at as string) : "Reciente"}
+                </span>
+              </div>
+              <div className="py-2 flex items-center justify-between">
+                <span className="text-[#5F6875]">Publicaciones sin costo</span>
+                <span className={`font-semibold tabular-nums ${missingCostsCount > 0 ? "text-[#B54708]" : "text-[#198754]"}`}>
+                  {missingCostsCount}
+                </span>
+              </div>
+              <div className="py-2 flex items-center justify-between">
+                <span className="text-[#5F6875]">Publicaciones en stock crítico</span>
+                <span className={`font-semibold tabular-nums ${lowStockCount > 0 ? "text-[#D92D20]" : "text-[#101828]"}`}>
+                  {lowStockCount}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 4.6 Lectura del día (Daily Summary) */}
+          <Suspense fallback={<DailySummarySkeleton />}>
+            <DailySummarySection tenantId={tenantId} />
+          </Suspense>
+
+          {/* Monitoreo del sistema en posición secundaria */}
+          <SystemMonitor />
+
+          {/* Actividad reciente */}
+          <div className="bg-white rounded-xl border border-[#DCDAD4] p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-[#DCDAD4] pb-3">
+              <div>
+                <h2 className="text-sm font-bold text-[#101828]">
+                  Actividad reciente
+                </h2>
+                <p className="text-[11px] text-[#5F6875]">
+                  Consultas y registros recientes
+                </p>
+              </div>
+              <Link
+                href="/dashboard/messages"
+                className="text-xs font-semibold text-[#102A56] hover:underline"
+              >
+                Ver mensajes
+              </Link>
+            </div>
+
+            {recentMessages && recentMessages.length > 0 ? (
+              <div className="space-y-2.5">
+                {recentMessages.map((msg, idx) => (
+                  <div key={idx} className="p-2.5 rounded-lg bg-[#F5F3EE] text-xs space-y-0.5">
+                    <span className="font-bold text-[#101828] uppercase text-[10px] block">
+                      {msg.direction === "inbound" ? "Consulta" : "Klyvo"}
+                    </span>
+                    <p className="line-clamp-1 text-[#5F6875]">
+                      {msg.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-[#5F6875] italic py-1">
+                No hay actividad reciente registrada en este canal.
+              </p>
+            )}
+          </div>
+
+        </div>
+
       </div>
+
     </div>
   );
 }

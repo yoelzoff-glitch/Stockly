@@ -2,6 +2,14 @@ import { Sidebar } from "@/components/sidebar/sidebar";
 import { Navbar } from "@/components/dashboard/navbar";
 import { Footer } from "@/components/layout/footer";
 import { createClient } from "@/lib/supabase/server";
+import { Archivo } from "next/font/google";
+
+const archivo = Archivo({
+  subsets: ["latin"],
+  variable: "--font-archivo",
+  display: "swap",
+  weight: ["400", "500", "600", "700", "800"],
+});
 
 export default async function DashboardLayout({
   children,
@@ -39,7 +47,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className={`${archivo.variable} ${archivo.className} flex h-screen overflow-hidden bg-[#F5F3EE] text-[#101828] antialiased selection:bg-[#F2C94C] selection:text-[#101828]`}>
       <div className="hidden md:flex">
         <Sidebar />
       </div>

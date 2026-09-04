@@ -88,28 +88,35 @@ export function OverviewChart({ data, days = 7, timezone = 'America/Argentina/Bu
   }, [data, days, timezone]);
 
   return (
-    <ResponsiveContainer width="100%" height={350}>
-      <BarChart data={chartData}>
+    <ResponsiveContainer width="100%" height={320}>
+      <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
         <XAxis
           dataKey="name"
-          stroke="#888888"
-          fontSize={12}
+          stroke="#5F6875"
+          fontSize={11}
           tickLine={false}
-          axisLine={false}
+          axisLine={{ stroke: "#DCDAD4" }}
         />
         <YAxis
-          stroke="#888888"
-          fontSize={12}
+          stroke="#5F6875"
+          fontSize={11}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(value) => `$${value}`}
+          tickFormatter={(value) => `$${value >= 1000 ? `${Math.round(value / 1000)}k` : value}`}
         />
-        <Tooltip 
-          cursor={{ fill: 'rgba(0, 0, 0, 0.1)' }}
-          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-          formatter={(value: any) => [`$${Number(value).toFixed(2)}`, "Total"]}
+        <Tooltip
+          cursor={{ fill: 'rgba(16, 42, 86, 0.05)' }}
+          contentStyle={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '8px',
+            border: '1px solid #DCDAD4',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+            fontSize: '12px',
+            color: '#101828'
+          }}
+          formatter={(value: any) => [`$ ${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`, "Ingresos"]}
         />
-        <Bar dataKey="total" fill="currentColor" radius={[4, 4, 0, 0]} className="fill-primary" />
+        <Bar dataKey="total" fill="#102A56" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

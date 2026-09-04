@@ -3,8 +3,8 @@
 export function TopProductsChart({ data }: { data: { name: string; value: number }[] }) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        No hay suficientes datos de ventas.
+      <div className="flex h-40 items-center justify-center text-xs text-[#5F6875] text-center p-4">
+        Todavía no hay ventas en este período para clasificar productos.
       </div>
     );
   }
@@ -12,22 +12,22 @@ export function TopProductsChart({ data }: { data: { name: string; value: number
   const maxValue = Math.max(...data.map(d => d.value), 1);
 
   return (
-    <div className="space-y-3 pt-2">
+    <div className="space-y-3.5 pt-1">
       {data.slice(0, 5).map((item, index) => {
         const percentage = (item.value / maxValue) * 100;
         return (
-          <div key={index} className="space-y-1">
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-medium text-slate-700 truncate max-w-[250px] md:max-w-[300px]" title={item.name}>
+          <div key={index} className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-[#101828] truncate max-w-[220px] md:max-w-[280px]" title={item.name}>
                 {index + 1}. {item.name}
               </span>
-              <span className="text-slate-600 font-semibold shrink-0 text-xs">
+              <span className="text-[#5F6875] font-bold shrink-0 tabular-nums">
                 {item.value} {item.value === 1 ? 'unidad' : 'unidades'}
               </span>
             </div>
-            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-indigo-600 rounded-full transition-all duration-500" 
+            <div className="h-2 w-full bg-[#F5F3EE] rounded-full overflow-hidden border border-[#DCDAD4]/60">
+              <div
+                className="h-full bg-[#102A56] rounded-full transition-all duration-300"
                 style={{ width: `${percentage}%` }}
               />
             </div>

@@ -11,72 +11,112 @@ import {
   Plug,
   MessageSquare,
   Settings,
-  LogOut,
-  Target,
-  BrainCircuit,
-  Activity,
   Truck,
   Ban,
-  LineChart,
   DollarSign,
   Tag,
   ShoppingBag,
   Layers,
   Calculator,
-  Megaphone
+  Megaphone,
 } from "lucide-react";
-import { logoutAction } from "@/actions/auth";
 
-const sidebarLinks = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Analíticas e Insights", href: "/dashboard/analytics", icon: BarChart3 },
-  { name: "Productos", href: "/dashboard/products", icon: Package },
-  { name: "Stock Interno", href: "/dashboard/internal-stock", icon: Layers, indent: true },
-  { name: "Compras Internas", href: "/dashboard/purchases", icon: ShoppingBag, indent: true },
-  { name: "Promociones", href: "/dashboard/promotions", icon: Tag },
-  { name: "Mercado Libre ADS", href: "/dashboard/ads", icon: Megaphone, indent: true },
-  { name: "Ventas", href: "/dashboard/sales", icon: ShoppingCart },
-  { name: "Envíos", href: "/dashboard/shipments", icon: Truck, indent: true },
-  { name: "Cancelaciones", href: "/dashboard/cancellations", icon: Ban, indent: true },
-  { name: "Finanzas", href: "/dashboard/finance", icon: DollarSign },
-  { name: "Contabilidad", href: "/dashboard/accounting", icon: Calculator, indent: true },
-  { name: "Mensajes", href: "/dashboard/messages", icon: MessageSquare },
-  { name: "Configuración", href: "/dashboard/settings", icon: Settings },
-  { name: "Integraciones", href: "/dashboard/integrations", icon: Plug, indent: true },
+interface NavGroup {
+  label: string;
+  items: {
+    name: string;
+    href: string;
+    icon: any;
+  }[];
+}
+
+const navGroups: NavGroup[] = [
+  {
+    label: "Operación",
+    items: [
+      { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { name: "Ventas", href: "/dashboard/sales", icon: ShoppingCart },
+      { name: "Envíos", href: "/dashboard/shipments", icon: Truck },
+      { name: "Cancelaciones", href: "/dashboard/cancellations", icon: Ban },
+    ],
+  },
+  {
+    label: "Catálogo & Stock",
+    items: [
+      { name: "Productos", href: "/dashboard/products", icon: Package },
+      { name: "Stock Interno", href: "/dashboard/internal-stock", icon: Layers },
+      { name: "Compras Internas", href: "/dashboard/purchases", icon: ShoppingBag },
+    ],
+  },
+  {
+    label: "Rentabilidad & Mkt",
+    items: [
+      { name: "Analíticas e Insights", href: "/dashboard/analytics", icon: BarChart3 },
+      { name: "Finanzas", href: "/dashboard/finance", icon: DollarSign },
+      { name: "Contabilidad", href: "/dashboard/accounting", icon: Calculator },
+      { name: "Promociones", href: "/dashboard/promotions", icon: Tag },
+      { name: "Mercado Libre ADS", href: "/dashboard/ads", icon: Megaphone },
+    ],
+  },
+  {
+    label: "Sistema",
+    items: [
+      { name: "Mensajes", href: "/dashboard/messages", icon: MessageSquare },
+      { name: "Integraciones", href: "/dashboard/integrations", icon: Plug },
+      { name: "Configuración", href: "/dashboard/settings", icon: Settings },
+    ],
+  },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-screen w-64 flex-col border-r border-slate-200 bg-white py-4">
-      <div className="mb-4 px-4 flex items-center justify-center w-full shrink-0">
-        <img src="/logo.png" alt="Klyvo Logo" className="w-full max-w-[200px] h-auto" />
+    <aside className="flex h-screen w-64 flex-col border-r border-[#DCDAD4] bg-white">
+      {/* Brand Header */}
+      <div className="h-16 px-5 flex items-center border-b border-[#DCDAD4] shrink-0">
+        <Link href="/dashboard" className="flex items-center" aria-label="Ir al Dashboard">
+          <img src="/logo.png" alt="Klyvo" className="h-9 w-auto" />
+        </Link>
       </div>
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-6">
-        {sidebarLinks.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
-                item.indent ? "ml-6 text-slate-500 border-l border-slate-200 pl-4 py-1.5" : "",
-                isActive
-                  ? (item.indent ? "bg-indigo-50/50 text-indigo-700 border-indigo-400" : "bg-indigo-50 text-indigo-700 relative")
-                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-              )}
-            >
-              {!item.indent && isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-indigo-600 rounded-r-full" />
-              )}
-              <item.icon className={cn("mr-3 h-4 w-4", isActive ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600")} />
-              {item.name}
-            </Link>
-          );
-        })}
+
+      {/* Structured Nav Groups */}
+      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+        {navGroups.map((group) => (
+          <div key={group.label} className="space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6875] px-3 block">
+              {group.label}
+            </span>
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const isActive = pathname === item.href;
+                const Icon = item.icon;
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs transition-colors",
+                      isActive
+                        ? "bg-[#F5F3EE] text-[#101828] font-bold border-l-2 border-[#102A56]"
+                        : "text-[#5F6875] hover:bg-[#F5F3EE]/60 hover:text-[#101828] font-medium"
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "w-4 h-4 shrink-0",
+                        isActive ? "text-[#102A56]" : "text-[#5F6875]"
+                      )}
+                    />
+                    <span className="truncate">{item.name}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
-    </div>
+    </aside>
   );
 }

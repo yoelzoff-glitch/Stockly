@@ -1,67 +1,103 @@
 import { generateBusinessInsights } from "@/services/analytics/insights";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Lightbulb } from "lucide-react";
 import Link from "next/link";
+import { AlertCircle, AlertTriangle, Info, ArrowRight } from "lucide-react";
 
 interface InsightsSectionProps {
   tenantId: string;
 }
 
 /**
- * Server Component that asynchronously fetches and displays Klyvo business insights/recommendations.
- * It is designed to be streamed via Suspense.
+ * Server Component que muestra las prioridades operativas de hoy en una lista compacta.
+ * Se enfoca en alertas de acción (atención, crítica, informativa) y elimina felicitaciones genéricas.
  */
 export async function InsightsSection({ tenantId }: InsightsSectionProps) {
-  const insights = await generateBusinessInsights(tenantId);
+  const rawInsights = await generateBusinessInsights(tenantId);
 
-  if (!insights || insights.length === 0) return null;
+  // Filtrar recomendaciones positivas genéricas que no implican acción operativa
+  const actionableInsights = (rawInsights || []).filter(
+    (i) => i.type === "warning" || i.type === "negative" || i.actionLabel
+  );
+
+  if (!actionableInsights || actionableInsights.length === 0) return null;
+
+  const getLevelConfig = (type: string) => {
+    switch (type) {
+      case "negative":
+        return {
+          label: "Crítica",
+          badgeClass: "bg-red-50 text-[#D92D20] border-red-200",
+          icon: AlertCircle,
+        };
+      case "warning":
+        return {
+          label: "Atención",
+          badgeClass: "bg-amber-50 text-[#B54708] border-amber-200",
+          icon: AlertTriangle,
+        };
+      default:
+        return {
+          label: "Informativa",
+          badgeClass: "bg-[#F5F3EE] text-[#102A56] border-[#DCDAD4]",
+          icon: Info,
+        };
+    }
+  };
 
   return (
-    <div className="space-y-5 animate-in fade-in-50 duration-500">
-      <h3 className="text-xl font-bold flex items-center gap-2.5 text-slate-900 dark:text-white tracking-tight">
-        <div className="p-1.5 bg-amber-100 dark:bg-amber-950/40 rounded-lg">
-          <Lightbulb className="w-5 h-5 text-amber-500 animate-pulse" />
+    <div className="bg-white rounded-xl border border-[#DCDAD4] shadow-xs p-5 md:p-6 space-y-4">
+      <div className="flex items-center justify-between border-b border-[#DCDAD4] pb-3">
+        <div>
+          <h3 className="text-base font-bold text-[#101828]">
+            Prioridades de hoy
+          </h3>
+          <p className="text-xs text-[#5F6875] mt-0.5">
+            Situaciones que requieren seguimiento o acción en tu cuenta.
+          </p>
         </div>
-        Klyvo Recomienda
-      </h3>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {insights.map((insight) => {
-          // Curated status color border configurations
-          let borderColor = "#6366f1"; // default: indigo
-          if (insight.type === 'positive') borderColor = "#10b981"; // emerald
-          else if (insight.type === 'negative') borderColor = "#ef4444"; // rose/red
-          else if (insight.type === 'warning') borderColor = "#f59e0b"; // amber
+        <span className="text-xs font-semibold text-[#5F6875] tabular-nums">
+          {actionableInsights.length} {actionableInsights.length === 1 ? "pendiente" : "pendientes"}
+        </span>
+      </div>
+
+      <div className="divide-y divide-[#DCDAD4]">
+        {actionableInsights.map((insight) => {
+          const config = getLevelConfig(insight.type);
+          const Icon = config.icon;
 
           return (
-            <Card 
-              key={insight.id} 
-              className="group border-l-[6px] border-y-slate-100 border-r-slate-100 dark:border-y-slate-800 dark:border-r-slate-800 hover:border-slate-200 dark:hover:border-slate-700 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 bg-white dark:bg-slate-900 overflow-hidden"
-              style={{ borderLeftColor: borderColor }}
+            <div
+              key={insight.id}
+              className="py-3.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
             >
-              <CardHeader className="p-5 pb-2">
-                <CardTitle className="text-sm font-bold text-slate-850 dark:text-slate-100 group-hover:text-indigo-650 transition-colors">
-                  {insight.title}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-5 pt-0 flex flex-col justify-between h-[calc(100%-52px)] min-h-[110px]">
-                <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
-                  {insight.description}
-                </p>
-                {insight.actionLabel && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full text-xs h-9 rounded-full font-semibold border-slate-200 dark:border-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-slate-800 dark:hover:text-white transition-all duration-200" 
-                    asChild
-                  >
-                    <Link href={insight.actionHref || "#"}>
-                      {insight.actionLabel}
-                    </Link>
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 shrink-0">
+                  <Icon className={`w-4 h-4 ${insight.type === "negative" ? "text-[#D92D20]" : insight.type === "warning" ? "text-[#B54708]" : "text-[#102A56]"}`} />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-[#101828]">
+                      {insight.title}
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${config.badgeClass}`}>
+                      {config.label}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#5F6875] leading-relaxed max-w-2xl">
+                    {insight.description}
+                  </p>
+                </div>
+              </div>
+
+              {insight.actionLabel && (
+                <Link
+                  href={insight.actionHref || "#"}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-[#102A56] bg-[#F5F3EE] hover:bg-[#EAE7DF] border border-[#DCDAD4] transition-colors shrink-0 self-start sm:self-center"
+                >
+                  <span>{insight.actionLabel}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              )}
+            </div>
           );
         })}
       </div>
