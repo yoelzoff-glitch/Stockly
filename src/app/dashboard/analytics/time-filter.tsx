@@ -14,11 +14,11 @@ export function TimeFilter({ initialDays }: { initialDays: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm font-medium text-slate-500">Filtrar por:</span>
+      <span className="text-xs font-semibold text-[#5F6875]">Período:</span>
       <select
         value={initialDays}
         onChange={(e) => handleDaysChange(e.target.value)}
-        className="flex h-10 w-[180px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        className="h-9 w-[180px] rounded-md border border-[#DCDAD4] bg-[#FFFFFF] px-3 py-1 text-xs font-semibold text-[#101828] shadow-sm transition-all focus:border-[#102A56] focus:outline-none focus:ring-1 focus:ring-[#102A56]"
       >
         <option value="current_month">Mes actual</option>
         <option value="7">Últimos 7 días</option>

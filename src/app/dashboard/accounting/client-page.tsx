@@ -3,41 +3,31 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { 
-  Calculator, 
-  Plus, 
-  Edit3, 
-  Trash2, 
-  PiggyBank, 
-  Percent, 
-  Calendar, 
-  DollarSign, 
-  HelpCircle, 
-  Power, 
-  BadgeInfo, 
-  TrendingUp,
-  RefreshCw
-} from "lucide-react";
-import { 
-  createMonthlyExpense, 
-  updateMonthlyExpense, 
-  deleteMonthlyExpense, 
+import { Plus, Edit3, Trash2, Download, Calendar, RefreshCw } from "lucide-react";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { OperationalPageHeader } from "@/components/operational/page-header";
+import { MetricStrip, MetricItem } from "@/components/operational/metric-strip";
+import { OperationalPanel } from "@/components/operational/panel";
+import { DataTableShell } from "@/components/operational/data-table-shell";
+import { OperationalEmptyState } from "@/components/operational/empty-state";
+import {
+  createMonthlyExpense,
+  updateMonthlyExpense,
+  deleteMonthlyExpense,
   updateMonthlyExpenseWithHistory,
-  MonthlyExpense 
+  MonthlyExpense
 } from "./actions";
 
-export function AccountingClient({ 
+export function AccountingClient({
   initialExpenses,
   actualRevenue,
   actualOperatingProfit,
   currentMonthStr
-}: { 
+}: {
   initialExpenses: MonthlyExpense[];
   actualRevenue: number;
   actualOperatingProfit: number;
@@ -50,7 +40,6 @@ export function AccountingClient({
   const [expenses, setExpenses] = useState<MonthlyExpense[]>(initialExpenses);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Sync state with props when initialExpenses changes
   useEffect(() => {
     setExpenses(initialExpenses);
   }, [initialExpenses]);
@@ -76,7 +65,6 @@ export function AccountingClient({
   const [editHasIva, setEditHasIva] = useState(false);
   const [editMode, setEditMode] = useState<"history" | "global">("history");
 
-  // Sync Create Modal month when currentMonthStr changes
   useEffect(() => {
     setNewTargetMonth(currentMonthStr);
   }, [currentMonthStr]);
@@ -87,7 +75,6 @@ export function AccountingClient({
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  // Helper calculation for expenses in the selected month (considering daily accumulation & IVA)
   const getExpenseCalculatedInfo = (expense: MonthlyExpense, monthStr: string) => {
     if (expense.type === "percent_variable") {
       return { totalAmount: 0, elapsedDays: 0, daysInMonth: 0, isCurrentMonth: false };
@@ -122,9 +109,7 @@ export function AccountingClient({
     return { totalAmount: finalAmount, elapsedDays, daysInMonth, isCurrentMonth };
   };
 
-  // Filter expenses valid for the selected month (currentMonthStr)
   const activeExpenses = expenses.filter(e => {
-    // If it's globally inactive and does NOT have an end_month (meaning it was globally disabled, not chronologically closed)
     if (!e.is_active && !e.end_month) return false;
 
     if (e.type === "fixed_one_off") {
@@ -133,13 +118,11 @@ export function AccountingClient({
       const startMonthStr = e.start_month ? e.start_month.substring(0, 7) : null;
       const endMonthStr = e.end_month ? e.end_month.substring(0, 7) : null;
 
-      // Fallback for start_month: if not present, use creation month
       const fallbackStartMonth = startMonthStr || (e.created_at ? e.created_at.substring(0, 7) : "2000-01");
 
       const started = currentMonthStr >= fallbackStartMonth;
       const ended = endMonthStr ? currentMonthStr > endMonthStr : false;
 
-      // It is active if it started and has not ended
       return started && !ended;
     }
   });
@@ -159,12 +142,10 @@ export function AccountingClient({
     })
     .reduce((sum, e) => sum + getExpenseCalculatedInfo(e, currentMonthStr).totalAmount, 0);
 
-  // Actual month calculation logic
   const actualVariableExpenses = (totalPercentVariable * actualRevenue) / 100;
   const cleanPocket = actualOperatingProfit - totalFixedRecurring - totalTemporalThisMonth - actualVariableExpenses;
   const pocketPercentage = actualRevenue > 0 ? (cleanPocket / actualRevenue) * 100 : 0;
 
-  // Handlers
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
@@ -188,7 +169,6 @@ export function AccountingClient({
       if (res.success && res.data) {
         setExpenses(prev => [res.data as MonthlyExpense, ...prev]);
         setIsCreateOpen(false);
-        // Reset
         setNewName("");
         setNewType("fixed_recurring");
         setNewAmount("");
@@ -214,10 +194,10 @@ export function AccountingClient({
     setEditPercentage((expense.percentage || "").toString());
     setEditIsDaily(!!expense.is_daily);
     setEditHasIva(!!expense.has_iva);
-    setEditMode("history"); // Default edit mode is preserving history
-    
+    setEditMode("history");
+
     if (expense.target_month) {
-      setEditTargetMonth(expense.target_month.substring(0, 7)); // YYYY-MM
+      setEditTargetMonth(expense.target_month.substring(0, 7));
     } else {
       setEditTargetMonth(currentMonthStr);
     }
@@ -230,10 +210,9 @@ export function AccountingClient({
 
     try {
       const formattedMonth = editType === "fixed_one_off" ? `${editTargetMonth}-01` : null;
-      
+
       let res;
       if (editType !== "fixed_one_off" && editMode === "history") {
-        // Chronological update (closes current expense last month, creates new one starting this month)
         res = await updateMonthlyExpenseWithHistory(
           editingExpense.id,
           {
@@ -247,7 +226,6 @@ export function AccountingClient({
           currentMonthStr
         );
       } else {
-        // Global / Historical update
         res = await updateMonthlyExpense(editingExpense.id, {
           name: editName.trim(),
           type: editType,
@@ -307,7 +285,6 @@ export function AccountingClient({
         setIsProcessing(false);
       }
     } else {
-      // For recurring or variable expenses, offer history-preserving finalization vs complete deletion
       const choice = confirm(
         `¿Cómo deseas eliminar el gasto recurrente "${expense.name}"?\n\n` +
         `Aceptar (OK): Finalizar a partir de este mes (${formatTargetMonth(currentMonthStr)}). Se mantendrá en el historial de meses pasados.\n\n` +
@@ -317,7 +294,6 @@ export function AccountingClient({
       setIsProcessing(true);
       try {
         if (choice) {
-          // Finalize: set end_month to previous month
           const [year, month] = currentMonthStr.split('-').map(Number);
           const prevMonthDate = new Date(Date.UTC(year, month - 2, 1));
           const prevMonthStr = `${prevMonthDate.getUTCFullYear()}-${String(prevMonthDate.getUTCMonth() + 1).padStart(2, '0')}-01`;
@@ -332,7 +308,6 @@ export function AccountingClient({
             alert("Error al finalizar el gasto: " + res.error);
           }
         } else {
-          // Confirm global deletion
           const doubleCheck = confirm(`¿Estás seguro de que deseas eliminar COMPLETAMENTE el gasto "${expense.name}" y todo su historial? Esta acción no se puede deshacer.`);
           if (!doubleCheck) {
             setIsProcessing(false);
@@ -359,363 +334,406 @@ export function AccountingClient({
     try {
       const parts = monthStr.split("-");
       const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
-      return date.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+      return date.toLocaleDateString("es-AR", { month: "short", year: "numeric" });
     } catch {
       return monthStr;
     }
   };
 
+  const exportCSV = () => {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Nombre,Tipo,Valor,Acumulado Mes,Vigencia,Estado\n";
+    activeExpenses.forEach(exp => {
+      const info = getExpenseCalculatedInfo(exp, currentMonthStr);
+      const val = exp.type === "percent_variable" ? `${exp.percentage}%` : exp.amount;
+      const calc = exp.type === "percent_variable" ? "-" : info.totalAmount.toFixed(2);
+      const vigencia = exp.type === "fixed_one_off" ? formatTargetMonth(exp.target_month) : "Recurrente";
+      const estado = exp.is_active ? "Activo" : "Inactivo";
+      csvContent += `"${exp.name.replace(/"/g, '""')}",${exp.type},${val},${calc},"${vigencia}",${estado}\n`;
+    });
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `contabilidad_gastos_${currentMonthStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const metricItems: MetricItem[] = [
+    {
+      label: "Gastos Fijos Recurrentes",
+      value: `$${totalFixedRecurring.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
+      subtext: "Estructura operativa fija"
+    },
+    {
+      label: "Impuestos / Variables",
+      value: `${totalPercentVariable.toFixed(1)}%`,
+      subtext: "Alícuotas sobre facturación (IIBB)"
+    },
+    {
+      label: "Gastos Temporales",
+      value: `$${totalTemporalThisMonth.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
+      subtext: "Imputados al mes en curso"
+    },
+    {
+      label: "Ganancia Operativa",
+      value: `$${actualOperatingProfit.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`,
+      subtext: "Margen comercial previo"
+    },
+    {
+      label: "Bolsillo Limpio Real",
+      value: `${cleanPocket < 0 ? "-" : ""}$${Math.abs(cleanPocket).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`,
+      subtext: `Margen de caja: ${pocketPercentage.toFixed(1)}%`
+    }
+  ];
+
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-bold tracking-tight">Contabilidad</h2>
-          <p className="text-sm text-muted-foreground">
-            Administra tus costos de estructura mensuales, impuestos locales (IIBB, Monotributo) y presupuestos de marketing.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5 text-indigo-500" /> Mes:
-            </span>
-            <input
-              type="month"
-              value={currentMonthStr}
-              onChange={(e) => handleMonthChange(e.target.value)}
-              className="text-xs font-bold text-slate-800 bg-transparent border-0 outline-none focus:ring-0 cursor-pointer"
-            />
+    <div className="space-y-6">
+      <OperationalPageHeader
+        title="Contabilidad y Estructura de Gastos"
+        description="Administración de costos fijos, impuestos provinciales y deducciones de caja del período."
+        actions={
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-2 rounded-md border border-[#DCDAD4] bg-[#FFFFFF] px-2.5 py-1 text-xs shadow-sm">
+              <Calendar className="w-3.5 h-3.5 text-[#5F6875]" />
+              <span className="font-semibold text-[#5F6875]">Período:</span>
+              <input
+                type="month"
+                value={currentMonthStr}
+                onChange={(e) => handleMonthChange(e.target.value)}
+                className="bg-transparent border-0 p-0 text-xs font-bold text-[#101828] outline-none cursor-pointer"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportCSV}
+              className="h-8 border-[#DCDAD4] bg-[#FFFFFF] text-xs font-semibold text-[#101828] hover:bg-[#F5F3EE]"
+            >
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+              Exportar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setIsCreateOpen(true)}
+              className="h-8 bg-[#102A56] hover:bg-[#102A56]/90 text-white text-xs font-semibold"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Agregar Gasto
+            </Button>
           </div>
-          <Button onClick={() => setIsCreateOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Agregar Gasto
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Analytics Summary */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Gastos Fijos Recurrentes</CardTitle>
-            <DollarSign className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalFixedRecurring.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground mt-1">Estructura fija mensual constante</p>
-          </CardContent>
-        </Card>
+      {/* Top 5 Key Metrics */}
+      <MetricStrip metrics={metricItems} columns={5} />
 
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Impuestos / Variables</CardTitle>
-            <Percent className="h-4 w-4 text-indigo-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalPercentVariable.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground mt-1">Suma de alícuotas (ej: IIBB 3.0%)</p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Gastos Temporales (Mes)</CardTitle>
-            <Calendar className="h-4 w-4 text-amber-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalTemporalThisMonth.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground mt-1">Vencen al finalizar el mes en curso</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Interactive Simulation Dashboard & Expenses List Layout */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Left 2 columns: Expenses List */}
-        <div className="md:col-span-2 space-y-6">
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>Listado de Gastos Registrados</CardTitle>
-              <CardDescription>Visualiza, edita o desactiva los gastos cargados en el sistema.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {activeExpenses.length === 0 ? (
-                <div className="py-12 text-center text-muted-foreground text-sm flex flex-col items-center justify-center space-y-3">
-                  <BadgeInfo className="w-8 h-8 text-slate-350" />
-                  <p>No tienes ningún gasto activo para este mes. Comienza agregando uno arriba.</p>
-                </div>
-              ) : (
-                <div className="rounded-xl border border-slate-200 overflow-x-auto">
-                  <table className="w-full text-xs text-left">
-                    <thead className="border-b bg-slate-50 font-medium text-slate-600">
-                      <tr>
-                        <th className="p-3">Nombre</th>
-                        <th className="p-3">Tipo de Gasto</th>
-                        <th className="p-3 text-right">Valor</th>
-                        <th className="p-3">Vigencia / Vence</th>
-                        <th className="p-3 text-center">Estado</th>
-                        <th className="p-3 text-right">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {activeExpenses.map((expense) => {
-                        const info = getExpenseCalculatedInfo(expense, currentMonthStr);
-                        return (
-                          <tr key={expense.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
-                            <td className="p-3 font-semibold text-slate-800">
-                              <div className="flex flex-col">
-                                <span>{expense.name}</span>
-                                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                                  {expense.is_daily && (
-                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-sky-50 text-sky-700 border-sky-200">
-                                      Diario (${Number(expense.amount).toLocaleString("es-AR")}/día)
-                                    </Badge>
-                                  )}
-                                  {expense.has_iva && (
-                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-purple-50 text-purple-700 border-purple-200">
-                                      +21% IVA
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="p-3 font-medium text-slate-650">
-                              {expense.type === "fixed_recurring" && (
-                                <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-50">Fijo Recurrente</Badge>
+      {/* Main Grid: Dense Administrative Table (2 cols) & Financial Reconciliation (1 col) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Dense Expenses Table (2 columns) */}
+        <div className="lg:col-span-2 space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-[#101828]">Registro de Gastos Imputados</h3>
+              <p className="text-xs text-[#5F6875]">Gastos aplicados al ejercicio contable de {formatTargetMonth(currentMonthStr)} ({activeExpenses.length} registrados).</p>
+            </div>
+          </div>
+          <DataTableShell
+            isEmpty={activeExpenses.length === 0}
+            emptyState={
+              <OperationalEmptyState
+                title="Sin gastos contables registrados"
+                description="No hay gastos fijos, temporales ni variables cargados para este período mensual."
+                actionLabel="Registrar primer gasto"
+                onAction={() => setIsCreateOpen(true)}
+              />
+            }
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-[#DCDAD4] bg-[#FCFCFA] text-[11px] font-semibold text-[#5F6875] uppercase tracking-wider">
+                    <th className="px-4 py-2.5">Concepto</th>
+                    <th className="px-3 py-2.5">Tipo</th>
+                    <th className="px-3 py-2.5 text-right">Valor Registrado</th>
+                    <th className="px-3 py-2.5">Vigencia</th>
+                    <th className="px-3 py-2.5 text-center">Estado</th>
+                    <th className="px-4 py-2.5 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#DCDAD4] bg-[#FFFFFF]">
+                  {activeExpenses.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-0">
+                        <OperationalEmptyState
+                          title="Sin gastos contables registrados"
+                          description="No hay gastos fijos, temporales ni variables cargados para este período mensual."
+                          actionLabel="Registrar primer gasto"
+                          onAction={() => setIsCreateOpen(true)}
+                        />
+                      </td>
+                    </tr>
+                  ) : (
+                    activeExpenses.map((expense) => {
+                      const info = getExpenseCalculatedInfo(expense, currentMonthStr);
+                      return (
+                        <tr key={expense.id} className="hover:bg-[#F5F3EE]/50 transition-colors">
+                          <td className="px-4 py-2.5">
+                            <div className="font-semibold text-[#101828]">
+                              {expense.name}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5 font-mono text-[10px] text-[#5F6875]">
+                              {expense.is_daily && (
+                                <span className="text-[#102A56]">
+                                  Diario (${Number(expense.amount).toLocaleString("es-AR")}/día)
+                                </span>
                               )}
-                              {expense.type === "fixed_one_off" && (
-                                <Badge variant="secondary" className="bg-amber-50 text-amber-700 hover:bg-amber-50">Fijo Temporal</Badge>
+                              {expense.has_iva && (
+                                <span>+21% IVA</span>
                               )}
-                              {expense.type === "percent_variable" && (
-                                <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50">Porcentual Variable</Badge>
-                              )}
-                            </td>
-                            <td className="p-3 text-right font-bold text-slate-900">
-                              {expense.type === "percent_variable" ? (
-                                `${expense.percentage}%`
-                              ) : (
-                                <div className="flex flex-col items-end">
-                                  <span>${info.totalAmount.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                  {expense.is_daily && (
-                                    <span className="text-[10px] text-slate-500 font-normal">
-                                      Acumulado {info.isCurrentMonth ? `al día ${info.elapsedDays}` : `(${info.elapsedDays} días)`}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                            <td className="p-3 text-muted-foreground capitalize">
-                              {expense.type === "fixed_one_off" 
-                                ? formatTargetMonth(expense.target_month) 
-                                : (
-                                  <div className="flex flex-col text-[10px] leading-tight normal-case">
-                                    {expense.start_month && (
-                                      <span>Desde: {formatTargetMonth(expense.start_month)}</span>
-                                    )}
-                                    {expense.end_month ? (
-                                      <span className="text-amber-600 font-medium">Hasta: {formatTargetMonth(expense.end_month)}</span>
-                                    ) : (
-                                      <span className="text-slate-400">Siempre activo</span>
-                                    )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            {expense.type === "fixed_recurring" && (
+                              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-[#F5F3EE] text-[#101828] border border-[#DCDAD4]">
+                                Fijo Recurrente
+                              </span>
+                            )}
+                            {expense.type === "fixed_one_off" && (
+                              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-[#FEF3F2] text-[#B42318] border border-[#FECDCA]">
+                                Fijo Temporal
+                              </span>
+                            )}
+                            {expense.type === "percent_variable" && (
+                              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-[#F0F9FF] text-[#026AA2] border border-[#B9E6FE]">
+                                Porcentual Variable
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-mono font-semibold text-[#101828]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            {expense.type === "percent_variable" ? (
+                              `${expense.percentage}% fact.`
+                            ) : (
+                              <div>
+                                <span>${info.totalAmount.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                {expense.is_daily && (
+                                  <div className="text-[10px] font-normal text-[#5F6875]">
+                                    {info.isCurrentMonth ? `${info.elapsedDays} d. acumulados` : `${info.elapsedDays} días`}
                                   </div>
-                                )
-                              }
-                            </td>
-                            <td className="p-3 text-center">
-                              <Badge 
-                                onClick={() => handleToggleActive(expense)}
-                                className={`cursor-pointer transition-all ${
-                                  expense.is_active 
-                                    ? "bg-green-100 text-green-800 hover:bg-green-200" 
-                                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                                }`}
-                              >
-                                {expense.is_active ? "Activo" : "Inactivo"}
-                              </Badge>
-                            </td>
-                            <td className="p-3 text-right space-x-1 whitespace-nowrap">
-                              <Button variant="outline" size="sm" className="text-[10px] px-2 py-0.5 h-7" onClick={() => handleOpenEdit(expense)}>
-                                <Edit3 className="w-3.5 h-3.5 mr-1 inline" /> Editar
-                              </Button>
-                              <Button variant="ghost" size="sm" className="text-[10px] px-2 py-0.5 h-7 text-red-650 hover:text-red-800 hover:bg-red-50" onClick={() => handleDelete(expense)} disabled={isProcessing}>
-                                <Trash2 className="w-3.5 h-3.5 mr-1 inline" /> Eliminar
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-[#5F6875] text-[11px]">
+                            {expense.type === "fixed_one_off" ? (
+                              formatTargetMonth(expense.target_month)
+                            ) : (
+                              <div>
+                                {expense.start_month && (
+                                  <div>Desde: {formatTargetMonth(expense.start_month)}</div>
+                                )}
+                                {expense.end_month ? (
+                                  <div className="text-[#D92D20]">Hasta: {formatTargetMonth(expense.end_month)}</div>
+                                ) : (
+                                  <div className="text-[#5F6875]">Indefinido</div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleActive(expense)}
+                              className="focus:outline-none"
+                              title="Haz clic para alternar estado"
+                            >
+                              <StatusBadge variant={expense.is_active ? "success" : "neutral"}>
+                                {expense.is_active ? "Activo" : "Pausado"}
+                              </StatusBadge>
+                            </button>
+                          </td>
+                          <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenEdit(expense)}
+                              className="h-7 px-2 text-xs font-medium text-[#101828] hover:bg-[#F5F3EE]"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 mr-1" />
+                              Editar
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(expense)}
+                              disabled={isProcessing}
+                              className="h-7 px-2 text-xs font-medium text-[#D92D20] hover:bg-[#FEF3F2]"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 mr-1" />
+                              Eliminar
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </DataTableShell>
         </div>
 
-        {/* Right 1 column: Simulation Widget */}
-        <div className="space-y-6">
-          <Card className="shadow-sm border-indigo-100 bg-gradient-to-br from-white to-slate-50/50">
-            <CardHeader className="pb-3 border-b">
-              <CardTitle className="flex items-center gap-1.5 text-indigo-850">
-                <Calculator className="w-5 h-5 text-indigo-600" /> Rentabilidad del Mes
-              </CardTitle>
-              <CardDescription>Resumen de ganancia neta real de bolsillo del mes actual.</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4 text-xs">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-slate-600">
-                  <span>Facturación Real</span>
-                  <span className="font-semibold text-slate-800">${actualRevenue.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</span>
-                </div>
-                <div className="flex justify-between items-center text-emerald-650 font-medium">
-                  <span>Ganancia Operativa</span>
-                  <span className="font-bold">${actualOperatingProfit.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2.5 pt-2 border-t border-slate-100">
-                <h4 className="font-semibold text-slate-650 text-[11px] uppercase tracking-wider">Deducciones del Mes</h4>
-                
-                <div className="flex justify-between items-center text-slate-700">
-                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Gastos Fijos</span>
-                  <span className="font-medium">-${totalFixedRecurring.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
-                </div>
-
-                <div className="flex justify-between items-center text-slate-700">
-                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Gastos Temporales</span>
-                  <span className="font-medium">-${totalTemporalThisMonth.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
-                </div>
-
-                <div className="flex justify-between items-center text-slate-700">
-                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Variables ({totalPercentVariable.toFixed(1)}% fact.)</span>
-                  <span className="font-medium">-${actualVariableExpenses.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex flex-col space-y-2">
-                <div className="flex justify-between items-end">
-                  <span className="text-slate-500 font-medium">Bolsillo Limpio Real</span>
-                  <span className={`text-xl font-bold ${cleanPocket >= 0 ? "text-emerald-600" : "text-red-650"}`}>
-                    {cleanPocket < 0 ? "-" : ""}${Math.abs(cleanPocket).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        {/* Administrative Financial Reconciliation (1 column) */}
+        <div>
+          <OperationalPanel
+            title="Liquidación Neta del Mes"
+            description="Conciliación entre ganancia comercial bruta y resultado neto de caja."
+          >
+            <div className="space-y-4 text-xs">
+              <div className="space-y-2 pb-3 border-b border-[#DCDAD4]">
+                <div className="flex justify-between items-center text-[#5F6875]">
+                  <span>Facturación Total Bruta</span>
+                  <span className="font-mono font-semibold text-[#101828]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    ${actualRevenue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
                   </span>
                 </div>
-
-                {/* Progress bar showing remaining % */}
-                <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden mt-1">
-                  <div 
-                    className={`${cleanPocket >= 0 ? "bg-emerald-500" : "bg-red-500"} h-full rounded-full transition-all duration-500`} 
-                    style={{ width: `${Math.max(0, Math.min(100, pocketPercentage))}%` }}
-                  />
-                </div>
-                <div className="flex justify-between text-[10px] text-muted-foreground">
-                  <span>Margen de Caja Neto</span>
-                  <span className="font-bold text-slate-700">{pocketPercentage.toFixed(1)}%</span>
+                <div className="flex justify-between items-center text-[#198754]">
+                  <span>Ganancia Operativa (ML)</span>
+                  <span className="font-mono font-bold" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    ${actualOperatingProfit.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                  </span>
                 </div>
               </div>
 
-              <div className="bg-indigo-50/50 border border-indigo-100 rounded-lg p-3 text-[11px] text-indigo-800 space-y-1">
-                <p className="font-semibold flex items-center gap-1">
-                  <BadgeInfo className="w-3.5 h-3.5" /> ¿Cómo se calcula?
-                </p>
-                <p className="text-indigo-900/80 leading-relaxed">
-                  Calculamos la Ganancia Operativa de tus ventas, restamos los gastos fijos/temporales y deducimos los gastos porcentuales (como IIBB) calculados sobre la facturación bruta real del mes actual.
-                </p>
+              <div className="space-y-2.5 pb-3 border-b border-[#DCDAD4]">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#5F6875] block">
+                  Deducciones Imputadas
+                </span>
+                <div className="flex justify-between items-center text-[#101828]">
+                  <span>Gastos Fijos Recurrentes</span>
+                  <span className="font-mono text-[#D92D20]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    -${totalFixedRecurring.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[#101828]">
+                  <span>Gastos Temporales del Mes</span>
+                  <span className="font-mono text-[#D92D20]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    -${totalTemporalThisMonth.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[#101828]">
+                  <span>Variables ({totalPercentVariable.toFixed(1)}% facturación)</span>
+                  <span className="font-mono text-[#D92D20]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    -${actualVariableExpenses.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+
+              <div className="pt-1">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-xs font-bold text-[#101828]">Resultado Neto de Caja</span>
+                  <span
+                    className={`text-xl font-bold font-mono ${
+                      cleanPocket >= 0 ? "text-[#198754]" : "text-[#D92D20]"
+                    }`}
+                    style={{ fontVariantNumeric: "tabular-nums" }}
+                  >
+                    {cleanPocket < 0 ? "-" : ""}${Math.abs(cleanPocket).toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div className="mt-2 flex justify-between items-center text-[11px] text-[#5F6875]">
+                  <span>Margen de Caja Limpio:</span>
+                  <span className="font-mono font-bold text-[#101828]">{pocketPercentage.toFixed(1)}%</span>
+                </div>
+              </div>
+
+              <div className="rounded border border-[#DCDAD4] bg-[#FCFCFA] p-3 text-[11px] text-[#5F6875] leading-relaxed">
+                El cálculo deduce del resultado operativo de tus ventas los costos estructurales fijos, temporales y las alícuotas impositivas variables declaradas.
+              </div>
+            </div>
+          </OperationalPanel>
         </div>
       </div>
 
-      {/* Add Modal */}
+      {/* Create Modal */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md border-[#DCDAD4] bg-[#FFFFFF]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-1.5">
-              <Plus className="w-5 h-5 text-indigo-600" /> Registrar Nuevo Gasto
+            <DialogTitle className="text-base font-semibold text-[#101828]">
+              Registrar Gasto Estructural
             </DialogTitle>
-            <DialogDescription>
-              Carga un costo mensual permanente, de marketing o impositivo.
+            <DialogDescription className="text-xs text-[#5F6875]">
+              Carga un costo operativo fijo, temporal o alícuota porcentual impositiva.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateSubmit} className="space-y-4 text-xs">
             <div className="space-y-1">
-              <Label>Concepto / Nombre del Gasto</Label>
+              <Label className="text-xs font-semibold text-[#101828]">Concepto / Denominación</Label>
               <Input
-                placeholder="Ej. Alquiler de Depósito, IIBB, Monotributo, Google Ads"
+                placeholder="Ej. Alquiler depósito, Monotributo, IIBB, Marketing"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 required
+                className="h-8 border-[#DCDAD4] text-xs"
               />
             </div>
 
             <div className="space-y-1">
-              <Label>Tipo de Gasto</Label>
+              <Label className="text-xs font-semibold text-[#101828]">Tipo de Imputación</Label>
               <select
                 value={newType}
                 onChange={(e) => setNewType(e.target.value as any)}
-                className="w-full h-9 rounded-md border border-slate-200 px-3 bg-white text-xs"
+                className="w-full h-8 rounded-md border border-[#DCDAD4] px-2.5 bg-[#FFFFFF] text-xs text-[#101828]"
               >
-                <option value="fixed_recurring">Fijo Recurrente (Ej. Sueldos, Alquiler, Publicidad Diario)</option>
-                <option value="fixed_one_off">Fijo Temporal (Ej. Publicidad del mes, Roturas)</option>
-                <option value="percent_variable">Porcentual Variable (Ej. IIBB % facturación)</option>
+                <option value="fixed_recurring">Fijo Recurrente (Alquiler, sueldos, servicios continuos)</option>
+                <option value="fixed_one_off">Fijo Temporal (Gasto único o imputable a un solo mes)</option>
+                <option value="percent_variable">Porcentual Variable (Alícuotas IIBB o impuestos sobre facturación)</option>
               </select>
             </div>
 
             {newType !== "percent_variable" ? (
               <>
                 <div className="space-y-1">
-                  <Label>{newIsDaily ? "Monto Diario ($)" : "Monto Mensual ($)"}</Label>
+                  <Label className="text-xs font-semibold text-[#101828]">
+                    {newIsDaily ? "Monto Diario ($)" : "Monto Mensual ($)"}
+                  </Label>
                   <Input
                     type="number"
                     step="0.01"
-                    placeholder={newIsDaily ? "Ej. 30000" : "Ej. 120000"}
+                    placeholder={newIsDaily ? "Ej. 25000" : "Ej. 150000"}
                     value={newAmount}
                     onChange={(e) => setNewAmount(e.target.value)}
                     required
+                    className="h-8 border-[#DCDAD4] text-xs"
                   />
                 </div>
 
-                <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                <div className="space-y-2 p-3 bg-[#FCFCFA] border border-[#DCDAD4] rounded-md">
+                  <label className="flex items-center gap-2 cursor-pointer font-medium text-[#101828]">
                     <input
                       type="checkbox"
                       checked={newIsDaily}
                       onChange={(e) => setNewIsDaily(e.target.checked)}
-                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="rounded border-[#DCDAD4] text-[#102A56] focus:ring-[#102A56]"
                     />
-                    <span>Gasto Diario (se acumula día a día)</span>
+                    <span>Gasto con acumulación diaria (se suma proporcionalmente por día transcurrido)</span>
                   </label>
 
-                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                  <label className="flex items-center gap-2 cursor-pointer font-medium text-[#101828]">
                     <input
                       type="checkbox"
                       checked={newHasIva}
                       onChange={(e) => setNewHasIva(e.target.checked)}
-                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="rounded border-[#DCDAD4] text-[#102A56] focus:ring-[#102A56]"
                     />
-                    <span>Sumar 21% de IVA</span>
+                    <span>Adicionar 21% de IVA sobre el valor base</span>
                   </label>
-
-                  {(newIsDaily || newHasIva) && (
-                    <div className="text-[11px] text-slate-600 pt-1 border-t border-slate-200/60 space-y-0.5">
-                      {newIsDaily && (
-                        <p>
-                          💡 Se multiplicará <strong>${(parseFloat(newAmount) || 0).toLocaleString("es-AR")}/día</strong> por los días transcurridos del mes en curso.
-                        </p>
-                      )}
-                      {newHasIva && (
-                        <p>
-                          🧾 Se agregará un <strong>21% de IVA</strong> al monto acumulado.
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </div>
               </>
             ) : (
               <div className="space-y-1">
-                <Label>Porcentaje sobre Facturación Bruta (%)</Label>
+                <Label className="text-xs font-semibold text-[#101828]">Porcentaje sobre Facturación Bruta (%)</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -723,29 +741,30 @@ export function AccountingClient({
                   value={newPercentage}
                   onChange={(e) => setNewPercentage(e.target.value)}
                   required
+                  className="h-8 border-[#DCDAD4] text-xs"
                 />
               </div>
             )}
 
             {newType === "fixed_one_off" && (
               <div className="space-y-1">
-                <Label>Mes de Aplicación</Label>
+                <Label className="text-xs font-semibold text-[#101828]">Mes Imputado</Label>
                 <Input
                   type="month"
                   value={newTargetMonth}
                   onChange={(e) => setNewTargetMonth(e.target.value)}
                   required
+                  className="h-8 border-[#DCDAD4] text-xs"
                 />
-                <p className="text-[10px] text-muted-foreground">Este gasto vencerá automáticamente al terminar este mes.</p>
               </div>
             )}
 
-            <DialogFooter className="pt-2 border-t">
-              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)} disabled={isProcessing}>
+            <DialogFooter className="pt-2 border-t border-[#DCDAD4]">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsCreateOpen(false)} disabled={isProcessing}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isProcessing} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                {isProcessing ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : "Guardar Gasto"}
+              <Button type="submit" size="sm" disabled={isProcessing} className="bg-[#102A56] hover:bg-[#102A56]/90 text-white font-semibold">
+                {isProcessing ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" /> : "Guardar Gasto"}
               </Button>
             </DialogFooter>
           </form>
@@ -754,161 +773,139 @@ export function AccountingClient({
 
       {/* Edit Modal */}
       {editingExpense && (
-        <Dialog open={editingExpense !== null} onOpenChange={(open) => !open && setEditingExpense(null)}>
-          <DialogContent className="max-w-md">
+        <Dialog open={!!editingExpense} onOpenChange={(open) => !open && setEditingExpense(null)}>
+          <DialogContent className="max-w-md border-[#DCDAD4] bg-[#FFFFFF]">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-1.5">
-                <Edit3 className="w-5 h-5 text-indigo-600" /> Editar Gasto
+              <DialogTitle className="text-base font-semibold text-[#101828]">
+                Editar Gasto
               </DialogTitle>
-              <DialogDescription>
-                Modifica los atributos del gasto "{editingExpense.name}".
+              <DialogDescription className="text-xs text-[#5F6875]">
+                Modifica los parámetros del gasto seleccionado.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleEditSubmit} className="space-y-4 text-xs">
               <div className="space-y-1">
-                <Label>Concepto / Nombre del Gasto</Label>
+                <Label className="text-xs font-semibold text-[#101828]">Concepto / Denominación</Label>
                 <Input
-                  placeholder="Ej. Alquiler de Depósito"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   required
+                  className="h-8 border-[#DCDAD4] text-xs"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label>Tipo de Gasto</Label>
+                <Label className="text-xs font-semibold text-[#101828]">Tipo de Imputación</Label>
                 <select
                   value={editType}
                   onChange={(e) => setEditType(e.target.value as any)}
-                  className="w-full h-9 rounded-md border border-slate-200 px-3 bg-white text-xs"
+                  className="w-full h-8 rounded-md border border-[#DCDAD4] px-2.5 bg-[#FFFFFF] text-xs text-[#101828]"
                 >
-                  <option value="fixed_recurring">Fijo Recurrente (Ej. Sueldos, Alquiler, Publicidad Diario)</option>
-                  <option value="fixed_one_off">Fijo Temporal (Ej. Publicidad del mes)</option>
-                  <option value="percent_variable">Porcentual Variable (Ej. IIBB % facturación)</option>
+                  <option value="fixed_recurring">Fijo Recurrente</option>
+                  <option value="fixed_one_off">Fijo Temporal</option>
+                  <option value="percent_variable">Porcentual Variable</option>
                 </select>
               </div>
 
               {editType !== "percent_variable" ? (
                 <>
                   <div className="space-y-1">
-                    <Label>{editIsDaily ? "Monto Diario ($)" : "Monto Mensual ($)"}</Label>
+                    <Label className="text-xs font-semibold text-[#101828]">
+                      {editIsDaily ? "Monto Diario ($)" : "Monto Mensual ($)"}
+                    </Label>
                     <Input
                       type="number"
                       step="0.01"
-                      placeholder={editIsDaily ? "Ej. 30000" : "Ej. 120000"}
                       value={editAmount}
                       onChange={(e) => setEditAmount(e.target.value)}
                       required
+                      className="h-8 border-[#DCDAD4] text-xs"
                     />
                   </div>
 
-                  <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                  <div className="space-y-2 p-3 bg-[#FCFCFA] border border-[#DCDAD4] rounded-md">
+                    <label className="flex items-center gap-2 cursor-pointer font-medium text-[#101828]">
                       <input
                         type="checkbox"
                         checked={editIsDaily}
                         onChange={(e) => setEditIsDaily(e.target.checked)}
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        className="rounded border-[#DCDAD4] text-[#102A56] focus:ring-[#102A56]"
                       />
-                      <span>Gasto Diario (se acumula día a día)</span>
+                      <span>Acumulación diaria</span>
                     </label>
 
-                    <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                    <label className="flex items-center gap-2 cursor-pointer font-medium text-[#101828]">
                       <input
                         type="checkbox"
                         checked={editHasIva}
                         onChange={(e) => setEditHasIva(e.target.checked)}
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        className="rounded border-[#DCDAD4] text-[#102A56] focus:ring-[#102A56]"
                       />
-                      <span>Sumar 21% de IVA</span>
+                      <span>+21% de IVA</span>
                     </label>
-
-                    {(editIsDaily || editHasIva) && (
-                      <div className="text-[11px] text-slate-600 pt-1 border-t border-slate-200/60 space-y-0.5">
-                        {editIsDaily && (
-                          <p>
-                            💡 Se multiplicará <strong>${(parseFloat(editAmount) || 0).toLocaleString("es-AR")}/día</strong> por los días transcurridos del mes en curso.
-                          </p>
-                        )}
-                        {editHasIva && (
-                          <p>
-                            🧾 Se agregará un <strong>21% de IVA</strong> al monto acumulado.
-                          </p>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </>
               ) : (
                 <div className="space-y-1">
-                  <Label>Porcentaje sobre Facturación Bruta (%)</Label>
+                  <Label className="text-xs font-semibold text-[#101828]">Porcentaje (%)</Label>
                   <Input
                     type="number"
                     step="0.01"
-                    placeholder="Ej. 3.0"
                     value={editPercentage}
-                    onChange={(e) => setEditPercentage(e.target.value)}
+                    onChange={(e) => setNewPercentage(e.target.value)}
                     required
+                    className="h-8 border-[#DCDAD4] text-xs"
                   />
                 </div>
               )}
 
               {editType === "fixed_one_off" && (
                 <div className="space-y-1">
-                  <Label>Mes de Aplicación</Label>
+                  <Label className="text-xs font-semibold text-[#101828]">Mes Imputado</Label>
                   <Input
                     type="month"
                     value={editTargetMonth}
                     onChange={(e) => setEditTargetMonth(e.target.value)}
                     required
+                    className="h-8 border-[#DCDAD4] text-xs"
                   />
                 </div>
               )}
 
               {editType !== "fixed_one_off" && (
-                <div className="space-y-2 p-3 bg-slate-50 border border-slate-100 rounded-lg">
-                  <Label className="font-semibold text-slate-700 block mb-2">Aplicación del Cambio</Label>
-                  <div className="flex flex-col gap-3">
-                    <label className="flex items-start gap-2.5 cursor-pointer text-slate-700">
-                      <input
-                        type="radio"
-                        name="editMode"
-                        checked={editMode === "history"}
-                        onChange={() => setEditMode("history")}
-                        className="mt-0.5 accent-indigo-600"
-                      />
-                      <div className="flex flex-col leading-tight">
-                        <span className="font-semibold text-slate-800">A partir de este mes ({formatTargetMonth(currentMonthStr)})</span>
-                        <span className="text-[10px] text-muted-foreground mt-0.5">
-                          El valor anterior se conservará en los meses pasados (como el mes anterior).
-                        </span>
-                      </div>
-                    </label>
-                    <label className="flex items-start gap-2.5 cursor-pointer text-slate-700">
-                      <input
-                        type="radio"
-                        name="editMode"
-                        checked={editMode === "global"}
-                        onChange={() => setEditMode("global")}
-                        className="mt-0.5 accent-indigo-600"
-                      />
-                      <div className="flex flex-col leading-tight">
-                        <span className="font-semibold text-slate-800">Actualizar de forma global</span>
-                        <span className="text-[10px] text-muted-foreground mt-0.5">
-                          Modifica este gasto en todo el historial (afectando meses anteriores).
-                        </span>
-                      </div>
-                    </label>
-                  </div>
+                <div className="p-3 bg-[#FCFCFA] border border-[#DCDAD4] rounded-md space-y-2">
+                  <span className="text-[11px] font-semibold text-[#101828] block">Alcance del cambio:</span>
+                  <label className="flex items-start gap-2 cursor-pointer text-[11px] text-[#101828]">
+                    <input
+                      type="radio"
+                      name="editMode"
+                      value="history"
+                      checked={editMode === "history"}
+                      onChange={() => setEditMode("history")}
+                      className="mt-0.5"
+                    />
+                    <span>A partir de este mes ({formatTargetMonth(currentMonthStr)}), preservando historial anterior.</span>
+                  </label>
+                  <label className="flex items-start gap-2 cursor-pointer text-[11px] text-[#101828]">
+                    <input
+                      type="radio"
+                      name="editMode"
+                      value="global"
+                      checked={editMode === "global"}
+                      onChange={() => setEditMode("global")}
+                      className="mt-0.5"
+                    />
+                    <span>Modificar globalmente en todo el historial.</span>
+                  </label>
                 </div>
               )}
 
-              <DialogFooter className="pt-2 border-t">
-                <Button type="button" variant="outline" onClick={() => setEditingExpense(null)} disabled={isProcessing}>
+              <DialogFooter className="pt-2 border-t border-[#DCDAD4]">
+                <Button type="button" variant="outline" size="sm" onClick={() => setEditingExpense(null)} disabled={isProcessing}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isProcessing} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                  {isProcessing ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : "Guardar Cambios"}
+                <Button type="submit" size="sm" disabled={isProcessing} className="bg-[#102A56] hover:bg-[#102A56]/90 text-white font-semibold">
+                  {isProcessing ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" /> : "Actualizar Gasto"}
                 </Button>
               </DialogFooter>
             </form>

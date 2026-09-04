@@ -54,12 +54,12 @@ export default async function AccountingPage(props: { searchParams: Promise<{ mo
   // Determine selected month (e.g. "2026-07")
   const defaultMonthStr = `${tenantYear}-${String(tenantMonth).padStart(2, '0')}`;
   const selectedMonthStr = searchParams.month || defaultMonthStr;
-  
+
   const [year, month] = selectedMonthStr.split('-').map(Number);
 
   // Calculate start of selected month
   const dateFrom = getMidnightInTimezone(new Date(Date.UTC(year, month - 1, 1, 12, 0, 0)), timezone);
-  
+
   // Calculate end of selected month
   const nextMonthYear = month === 12 ? year + 1 : year;
   const nextMonth = month === 12 ? 1 : month + 1;
@@ -72,7 +72,7 @@ export default async function AccountingPage(props: { searchParams: Promise<{ mo
 
   try {
     initialExpenses = await getMonthlyExpenses();
-    
+
     const financials = await getFinancialData(
       supabase,
       tenantId,
@@ -90,11 +90,13 @@ export default async function AccountingPage(props: { searchParams: Promise<{ mo
   }
 
   return (
-    <AccountingClient 
-      initialExpenses={initialExpenses} 
-      actualRevenue={actualRevenue}
-      actualOperatingProfit={actualOperatingProfit}
-      currentMonthStr={selectedMonthStr}
-    />
+    <div className="flex-1 p-6 md:p-8">
+      <AccountingClient
+        initialExpenses={initialExpenses}
+        actualRevenue={actualRevenue}
+        actualOperatingProfit={actualOperatingProfit}
+        currentMonthStr={selectedMonthStr}
+      />
+    </div>
   );
 }
