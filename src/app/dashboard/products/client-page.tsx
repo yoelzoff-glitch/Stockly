@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import {
   Package,
   RefreshCw,
@@ -522,8 +522,8 @@ export function ProductsClient({
                   : <span className="font-semibold text-[#101828]">{group.minMargin.toFixed(0)}% - {group.maxMargin!.toFixed(0)}%</span>;
 
               return (
-                <tbody key={group.key} className="border-b border-[#DCDAD4]">
-                  <tr className="bg-[#FCFCFA] hover:bg-[#F5F3EE]/40 transition-colors">
+                <Fragment key={group.key}>
+                  <tr className="bg-[#FCFCFA] hover:bg-[#F5F3EE]/40 transition-colors border-b border-[#DCDAD4]">
                     <td className="px-4 py-3">
                       <div className="flex items-start gap-2.5">
                         <button
@@ -691,7 +691,7 @@ export function ProductsClient({
                       </tr>
                     );
                   })}
-                </tbody>
+                </Fragment>
               );
             })}
           </tbody>

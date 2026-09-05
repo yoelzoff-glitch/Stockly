@@ -131,7 +131,7 @@ export default function NotificationsClientPage({ initialAlerts, tenantId }: { i
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] font-mono text-[#5F6875] shrink-0">
+                  <span suppressHydrationWarning className="text-[11px] font-mono text-[#5F6875] shrink-0">
                     {new Date(alert.created_at).toLocaleString("es-AR", {
                       day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit"
                     })}
