@@ -3,6 +3,7 @@ import { createPriceAdjustmentWorkflow } from "@/services/pricing/createPriceAdj
 import { requireTenantRole, assertRequestedTenant, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { logger } from "@/lib/errors/logger";
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 
 export async function POST(request: Request) {
   let correlationId: string | undefined;
@@ -46,6 +47,9 @@ export async function POST(request: Request) {
 
     // Reject tenant mismatch with 403
     assertRequestedTenant(context, requestedTenant);
+
+    // Block write operations on demo accounts
+    await assertTenantWritable(context.tenantId);
 
     // Create workflow strictly for authenticated tenant
     const workflowId = await createPriceAdjustmentWorkflow(

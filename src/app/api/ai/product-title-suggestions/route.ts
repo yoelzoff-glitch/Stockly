@@ -50,6 +50,35 @@ export async function POST(req: Request) {
       );
     }
 
+    if (context.isDemo) {
+      logger.info({
+        event: "DEMO_TENANT_SKIPPED_EXTERNAL_OPERATION",
+        tenantId,
+        operation: "ai_product_title_suggestions",
+        message: "Skipping AI product title suggestions for demo tenant",
+      });
+      return NextResponse.json(
+        {
+          suggestions: [
+            {
+              title: `${product.title} - Edición Nórdica Premium`,
+              reason: "Optimización de palabras clave para destacar diseño y calidad.",
+            },
+            {
+              title: `${product.title} Organización Integral Hogar`,
+              reason: "Enfoque funcional con alta intención de búsqueda en la categoría.",
+            },
+            {
+              title: `${product.title} Original Casa Norte`,
+              reason: "Fortalece la marca del comercio en publicaciones destacadas.",
+            },
+          ],
+          demo: true,
+        },
+        { headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
+
     // Atomic quota reservation for 5 AI credits
     const customKey = req.headers.get("x-idempotency-key") || body?.idempotencyKey;
     const idempotencyKey = createScopedIdempotencyKey({

@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 
 export async function updateProductCost(productId: string, cost: number) {
   const supabase = await createClient();
@@ -17,6 +18,12 @@ export async function updateProductCost(productId: string, cost: number) {
     .single();
 
   if (!profile?.tenant_id) return { success: false, error: "No tenant" };
+
+  try {
+    await assertTenantWritable(profile.tenant_id);
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
 
   // 1. Get the current product's SKU
   const { data: product, error: fetchError } = await supabase
@@ -148,6 +155,12 @@ export async function updateProductComponents(
   if (!profile?.tenant_id) return { success: false, error: "No tenant" };
   const tenantId = profile.tenant_id;
 
+  try {
+    await assertTenantWritable(tenantId);
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+
   // 1. Fetch current product to get its SKU and find all sibling products
   const { data: currentProduct, error: prodErr } = await supabase
     .from("products")
@@ -272,6 +285,12 @@ export async function reprocessProductOrdersStock(productId: string) {
 
   if (!profile?.tenant_id) return { success: false, error: "No tenant" };
   const tenantId = profile.tenant_id;
+
+  try {
+    await assertTenantWritable(tenantId);
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
 
   // 1. Resolve product and sibling product IDs
   const { data: currentProduct, error: prodErr } = await supabase

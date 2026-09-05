@@ -5,6 +5,8 @@ import { refreshMeliToken } from "@/services/meli/refreshToken";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
+
 export async function refreshMeliConnectionAction() {
   try {
     const supabase = await createClient();
@@ -19,6 +21,8 @@ export async function refreshMeliConnectionAction() {
       .single();
 
     if (!profile?.tenant_id) throw new Error("Tenant no encontrado");
+
+    await assertTenantWritable(profile.tenant_id);
 
     // Call the refresh service
     await refreshMeliToken(profile.tenant_id);
@@ -47,6 +51,8 @@ export async function disconnectMeliConnectionAction() {
       .single();
 
     if (!profile?.tenant_id) throw new Error("Tenant no encontrado");
+
+    await assertTenantWritable(profile.tenant_id);
 
     const adminSupabase = createAdminClient();
 

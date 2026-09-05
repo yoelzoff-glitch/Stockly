@@ -68,6 +68,8 @@ CREATE TABLE IF NOT EXISTS public.tenants (
   timezone text NOT NULL DEFAULT 'America/Argentina/Buenos_Aires'::text,
   currency text NOT NULL DEFAULT 'ARS'::text,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  is_demo boolean NOT NULL DEFAULT false,
+  demo_label text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT tenants_pkey PRIMARY KEY (id)

@@ -1,8 +1,8 @@
-// src/app/dashboard/accounting/actions.ts
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 
 export interface MonthlyExpense {
   id: string;
@@ -24,7 +24,7 @@ export interface MonthlyExpense {
 /**
  * Obtiene el tenant_id del usuario autenticado.
  */
-async function getTenantId(supabase: any) {
+async function getTenantId(supabase: any, requireWritable: boolean = false) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
 
@@ -36,6 +36,10 @@ async function getTenantId(supabase: any) {
 
   if (error || !profile?.tenant_id) {
     throw new Error("No se pudo obtener el tenant");
+  }
+
+  if (requireWritable) {
+    await assertTenantWritable(profile.tenant_id);
   }
 
   return profile.tenant_id;
@@ -81,7 +85,7 @@ export async function createMonthlyExpense(expense: {
 }) {
   const supabase = await createClient();
   try {
-    const tenantId = await getTenantId(supabase);
+    const tenantId = await getTenantId(supabase, true);
 
     const payload: any = {
       tenant_id: tenantId,
@@ -138,7 +142,7 @@ export async function updateMonthlyExpense(
 ) {
   const supabase = await createClient();
   try {
-    const tenantId = await getTenantId(supabase);
+    const tenantId = await getTenantId(supabase, true);
 
     const payload: any = {
       updated_at: new Date().toISOString()
@@ -210,7 +214,7 @@ export async function updateMonthlyExpenseWithHistory(
 ) {
   const supabase = await createClient();
   try {
-    const tenantId = await getTenantId(supabase);
+    const tenantId = await getTenantId(supabase, true);
 
     // 1. Obtener el gasto original
     const { data: original, error: fetchErr } = await supabase
@@ -283,7 +287,7 @@ export async function updateMonthlyExpenseWithHistory(
 export async function deleteMonthlyExpense(id: string) {
   const supabase = await createClient();
   try {
-    const tenantId = await getTenantId(supabase);
+    const tenantId = await getTenantId(supabase, true);
 
     const { error } = await supabase
       .from("monthly_expenses")

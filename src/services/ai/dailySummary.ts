@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { openai } from "@/lib/ai/openai";
 import { logger } from "@/lib/errors/logger";
 import { getMidnightInTimezone } from "./tools/finance";
+import { isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 
 /**
  * Obtiene o genera el resumen diario del negocio utilizando Inteligencia Artificial.
@@ -17,6 +18,24 @@ import { getMidnightInTimezone } from "./tools/finance";
 export async function getOrCreateDailySummary(tenantId: string): Promise<string | null> {
   const supabase = createAdminClient();
   
+  // Zero AI consumption for demo tenants: return pre-seeded or static fixture
+  if (await isDemoTenant(tenantId, supabase)) {
+    const { data: demoAlert } = await supabase
+      .from("alerts")
+      .select("body")
+      .eq("tenant_id", tenantId)
+      .like("title", "Resumen Diario%")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (demoAlert?.body) {
+      return demoAlert.body;
+    }
+
+    return "📊 Resumen Demo: Operaciones comerciales estables con crecimiento sostenido en Hogar y Organización.\n⭐ Producto estrella: Lámpara de escritorio Nórdica.\n📦 Control de stock: 4 productos en nivel crítico para reposición.";
+  }
+
   // Obtener la zona horaria del tenant
   const { data: tenant } = await supabase.from("tenants").select("timezone").eq("id", tenantId).single();
   const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';

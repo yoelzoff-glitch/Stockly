@@ -8,6 +8,7 @@ import { updatePrice } from "@/services/meli/actions/updatePrice";
 import { revalidatePath } from "next/cache";
 
 import { getCoupons } from "@/services/meli/promotions/getCoupons";
+import { assertTenantWritable, isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 
 // ==========================================
 // COUPON ACTIONS (MANTENIDOS)
@@ -25,6 +26,17 @@ export async function getCouponsAction() {
     .single();
 
   if (!profile?.tenant_id) return [];
+
+  // If demo tenant, return database records directly without external sync
+  if (await isDemoTenant(profile.tenant_id)) {
+    const { data: coupons } = await supabase
+      .from("coupons")
+      .select("*")
+      .eq("tenant_id", profile.tenant_id)
+      .order("created_at", { ascending: false });
+
+    return coupons || [];
+  }
 
   // Synchronize coupons & promotions from Mercado Libre live API via server-side admin client
   try {
@@ -111,6 +123,7 @@ export async function createManualCouponAction(formData: FormData) {
     .single();
 
   if (!profile?.tenant_id) throw new Error("Usuario sin tenant");
+  await assertTenantWritable(profile.tenant_id);
 
   const title = formData.get("title") as string;
   const code = formData.get("code") as string;
@@ -234,6 +247,22 @@ export async function getPromotionsAction() {
     .single();
 
   if (!profile?.tenant_id) return [];
+
+  // If demo tenant, return database records directly without external sync
+  if (await isDemoTenant(profile.tenant_id)) {
+    const { data: promotions } = await supabase
+      .from("promotions")
+      .select(`
+        *,
+        promotion_items (
+          id, product_id, meli_item_id, current_price, discount_price, discount_percent, status, raw_response
+        )
+      `)
+      .eq("tenant_id", profile.tenant_id)
+      .order("created_at", { ascending: false });
+
+    return promotions || [];
+  }
 
   // Live Sync Mercado Libre Seller Promotions & Participating Items
   try {
@@ -466,6 +495,7 @@ export async function createManualPromotionAction(payload: {
 
   const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
   if (!profile?.tenant_id) throw new Error("Usuario sin tenant");
+  await assertTenantWritable(profile.tenant_id);
 
   // Validaciones
   if (!payload.title) throw new Error("El título es obligatorio");

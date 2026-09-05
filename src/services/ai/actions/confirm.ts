@@ -9,6 +9,7 @@ import { logger } from '@/lib/errors/logger';
 import { incrementUsage } from '@/services/billing/checkLimits';
 
 import { isAiWritesDisabled } from '@/lib/safety/killSwitches';
+import { assertTenantWritable } from '@/lib/demo/assert-demo-write-allowed';
 
 /**
  * Confirma y ejecuta de forma definitiva una acción de actualización de producto pendiente.
@@ -22,6 +23,7 @@ import { isAiWritesDisabled } from '@/lib/safety/killSwitches';
  * @returns Promesa con estado de éxito y los resultados individuales por producto
  */
 export async function confirmPendingAction(tenantId: string, actionId: string): Promise<{ success: boolean; error?: string; results?: any[] }> {
+  await assertTenantWritable(tenantId);
   if (isAiWritesDisabled()) {
     logger.warn({
       event: "AI_WRITES_DISABLED",
@@ -216,6 +218,7 @@ export async function confirmPendingAction(tenantId: string, actionId: string): 
  * @returns Promesa con estado de éxito de la actualización de base de datos
  */
 export async function cancelPendingAction(tenantId: string, actionId: string) {
+  await assertTenantWritable(tenantId);
   const supabase = createAdminClient();
   const { error } = await supabase.from("ai_actions").update({
     status: "cancelled",

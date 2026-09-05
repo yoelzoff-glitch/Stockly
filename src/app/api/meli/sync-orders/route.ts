@@ -5,6 +5,7 @@ import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/observabi
 import { logger } from "@/lib/errors/logger";
 import { startOperationRun, completeOperationRun, failOperationRun } from "@/lib/observability/operationRuns";
 import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 
 export async function POST(request: Request) {
   const correlationId = getOrCreateCorrelationId(request);
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
   try {
     const context = await requireTenantContext(request);
     tenantId = context.tenantId;
+    await assertTenantWritable(tenantId);
 
     logger.info({
       event: "SYNC_ORDERS_STARTED",

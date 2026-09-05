@@ -1,6 +1,7 @@
 import { inngest } from "../inngest/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/errors/logger";
+import { isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 import * as Sentry from "@sentry/nextjs";
 
 export const massPromotionsJob = inngest.createFunction(
@@ -11,6 +12,16 @@ export const massPromotionsJob = inngest.createFunction(
   },
   async ({ event, step }) => {
     const { tenantId, promotionData, productIds } = event.data;
+
+    if (await isDemoTenant(tenantId)) {
+      logger.info({
+        event: "DEMO_TENANT_SKIPPED_EXTERNAL_OPERATION",
+        tenantId,
+        operation: "mass_promotions",
+        message: "Skipping mass promotions for demo tenant",
+      });
+      return { skipped: true, reason: "demo_tenant" };
+    }
     
     await step.run("create-mass-promotions", async () => {
       try {

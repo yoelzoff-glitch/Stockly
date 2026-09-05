@@ -9,6 +9,7 @@ import { runBusinessAgent } from "@/services/ai/agent";
 import { incrementUsage, checkWhatsAppLimit } from "@/services/billing/checkLimits";
 import { isWhatsappAgentDisabled } from "@/lib/safety/killSwitches";
 import { logger } from "@/lib/errors/logger";
+import { isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 
 /**
  * Inngest Job: Process Mercado Libre Shipments Webhook
@@ -36,6 +37,17 @@ export const meliShipmentsJob = inngest.createFunction(
   async ({ event, step }: any) => {
     const { tenantId, resource, eventId } = event?.data || {};
     if (!tenantId) return { message: "No tenantId provided" };
+
+    if (await isDemoTenant(tenantId)) {
+      logger.info({
+        event: "DEMO_TENANT_SKIPPED_EXTERNAL_OPERATION",
+        tenantId,
+        operation: "meli_shipments_webhook",
+        message: "Skipping shipments webhook for demo tenant",
+      });
+      if (eventId) await updateWebhookEventStatus(eventId, "completed");
+      return { skipped: true, reason: "demo_tenant" };
+    }
 
     const shipmentId = resource ? resource.split("/").pop() : undefined;
     if (!shipmentId) return { message: "No shipmentId in resource" };
@@ -137,6 +149,16 @@ export const mercadopagoWebhookJob = inngest.createFunction(
             resourceId,
           });
           return;
+        }
+
+        if (await isDemoTenant(tenantId, supabase)) {
+          logger.info({
+            event: "DEMO_TENANT_SKIPPED_EXTERNAL_OPERATION",
+            tenantId,
+            operation: "mercadopago_webhook",
+            message: "Skipping Mercado Pago webhook for demo tenant",
+          });
+          return { skipped: true, reason: "demo_tenant" };
         }
 
         const { data: currentSub } = await supabase
@@ -254,6 +276,17 @@ export const whatsappWebhookJob = inngest.createFunction(
 
     if (!tenantId || !from) {
       return { message: "Missing required WhatsApp event parameters" };
+    }
+
+    if (await isDemoTenant(tenantId)) {
+      logger.info({
+        event: "DEMO_TENANT_SKIPPED_EXTERNAL_OPERATION",
+        tenantId,
+        operation: "whatsapp_webhook",
+        message: "Skipping WhatsApp webhook for demo tenant",
+      });
+      if (eventId) await updateWebhookEventStatus(eventId, "completed");
+      return { skipped: true, reason: "demo_tenant" };
     }
 
     if (eventId) {

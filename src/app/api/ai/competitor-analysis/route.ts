@@ -14,6 +14,23 @@ export async function POST(request: Request) {
     correlationId = context.correlationId;
     const tenantId = context.tenantId;
 
+    if (context.isDemo) {
+      return NextResponse.json({
+        analysis: {
+          summary: "Análisis de competencia simulado para la cuenta demostrativa (Casa Norte). En producción, esta función consulta precios en tiempo real de Mercado Libre y ejecuta análisis de posicionamiento con Gemini.",
+          competitors: [
+            { title: "Lámpara Nórdica Madera y Metal", price: 28900, sold_quantity: 120, reputation: "MercadoLíder Platinum" },
+            { title: "Lámpara de Escritorio Minimalista", price: 31500, sold_quantity: 85, reputation: "MercadoLíder Gold" },
+          ],
+          recommendations: [
+            "Mantener precio competitivo dentro del rango $28.000 - $31.000.",
+            "Destacar acabado en madera natural y despacho inmediato FULL.",
+          ],
+        },
+        demo: true,
+      }, { headers: { [CORRELATION_ID_HEADER]: correlationId } });
+    }
+
     // Check if Gemini API Key is configured
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json({ 

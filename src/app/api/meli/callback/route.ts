@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse, NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { POST as webhookPOST } from "../webhook/route";
+import { isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 
 export async function POST(request: NextRequest) {
   return webhookPOST(request);
@@ -36,6 +37,10 @@ export async function GET(request: Request) {
   if (profileError || !profile?.tenant_id) {
     console.error("Meli Callback Error: Profile or tenant_id not found.", profileError);
     return NextResponse.redirect(new URL("/dashboard/integrations?meli=error", baseUrl));
+  }
+
+  if (await isDemoTenant(profile.tenant_id)) {
+    return NextResponse.redirect(new URL("/dashboard/integrations?error=demo_readonly", baseUrl));
   }
 
   const clientId = process.env.MELI_CLIENT_ID;

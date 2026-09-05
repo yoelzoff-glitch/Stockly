@@ -60,9 +60,13 @@ export default async function IntegrationsPage({
   const openAIStatus = process.env.OPENAI_API_KEY ? "conectado" : "pendiente";
 
   // Fetch current AI Settings and Usage
-  const { data: tenant } = await supabase.from("tenants").select("metadata").eq("id", tenantId).maybeSingle();
+  const { data: tenant } = await supabase.from("tenants").select("metadata, is_demo, demo_label").eq("id", tenantId).maybeSingle();
+  const isDemo = Boolean(tenant?.is_demo);
   const { data: usage } = await supabase.from("subscription_usage").select("ai_credits_used").eq("tenant_id", tenantId).maybeSingle();
   const aiModel = tenant?.metadata?.ai_settings?.model || "gpt-4o-mini";
+
+  const displayWaStatus = isDemo ? "Simulación demo" : waStatus;
+  const displayAIStatus = isDemo ? "Simulación demo" : openAIStatus;
 
   return (
     <div className="flex-1 p-6 md:p-8 space-y-6">
@@ -86,7 +90,7 @@ export default async function IntegrationsPage({
       )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <MeliCard meliAccount={meliAccount} />
+        <MeliCard meliAccount={meliAccount} isDemo={isDemo} />
 
         {/* WhatsApp */}
         <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-5 flex flex-col justify-between h-full space-y-4">
@@ -101,8 +105,8 @@ export default async function IntegrationsPage({
                   <p className="text-[11px] text-[#5F6875]">Canal de Comunicación</p>
                 </div>
               </div>
-              <StatusBadge variant={waStatus === "conectado" ? "success" : "neutral"} className="capitalize">
-                {waStatus}
+              <StatusBadge variant={isDemo ? "neutral" : (waStatus === "conectado" ? "success" : "neutral")} className="capitalize">
+                {displayWaStatus}
               </StatusBadge>
             </div>
 
@@ -138,8 +142,8 @@ export default async function IntegrationsPage({
                   <p className="text-[11px] text-[#5F6875]">OpenAI GPT / Modelos LLM</p>
                 </div>
               </div>
-              <StatusBadge variant={openAIStatus === "conectado" ? "success" : "neutral"} className="capitalize">
-                {openAIStatus}
+              <StatusBadge variant={isDemo ? "neutral" : (openAIStatus === "conectado" ? "success" : "neutral")} className="capitalize">
+                {displayAIStatus}
               </StatusBadge>
             </div>
 

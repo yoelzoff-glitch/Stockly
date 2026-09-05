@@ -94,6 +94,8 @@ export async function getActivationProgress() {
   return { steps, percentage, completedSteps, totalSteps };
 }
 
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
+
 export async function markStepCompletedAction(stepId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -102,6 +104,8 @@ export async function markStepCompletedAction(stepId: string) {
 
   const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
   if (!profile?.tenant_id) throw new Error("Tenant no encontrado");
+
+  await assertTenantWritable(profile.tenant_id);
 
   // Upsert progress
   await supabase

@@ -10,12 +10,20 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { refreshMeliConnectionAction, disconnectMeliConnectionAction } from "@/actions/meli-connection";
 
-export function MeliCard({ meliAccount }: { meliAccount: any }) {
+export function MeliCard({ meliAccount, isDemo = false }: { meliAccount: any; isDemo?: boolean }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const router = useRouter();
 
+  const showDemoNotice = () => {
+    alert("Esta es una cuenta de demostración\n\nPodés recorrer toda la información, pero los cambios y las conexiones externas están deshabilitados.");
+  };
+
   const handleSync = async () => {
+    if (isDemo) {
+      showDemoNotice();
+      return;
+    }
     setIsSyncing(true);
     try {
       const resProducts = await fetch("/api/meli/sync-products", { method: "POST" });
@@ -42,6 +50,10 @@ export function MeliCard({ meliAccount }: { meliAccount: any }) {
   };
 
   const handleManualRefresh = async () => {
+    if (isDemo) {
+      showDemoNotice();
+      return;
+    }
     setIsRefreshing(true);
     try {
       const res = await refreshMeliConnectionAction();
@@ -59,6 +71,10 @@ export function MeliCard({ meliAccount }: { meliAccount: any }) {
   };
 
   const handleDisconnect = async () => {
+    if (isDemo) {
+      showDemoNotice();
+      return;
+    }
     const confirmed = confirm(
       "¿Estás seguro de desconectar tu cuenta de Mercado Libre?\n\nDesconectar Mercado Libre detendrá nuevas sincronizaciones, pero tus datos históricos se conservarán."
     );
@@ -78,14 +94,14 @@ export function MeliCard({ meliAccount }: { meliAccount: any }) {
   };
 
   // Determine actual display state
-  const isConnected = meliAccount && meliAccount.status === "connected";
-  const isError = meliAccount && meliAccount.status === "error";
-  const isDisconnected = !meliAccount || meliAccount.status === "disconnected";
+  const isConnected = isDemo || (meliAccount && meliAccount.status === "connected");
+  const isError = !isDemo && meliAccount && meliAccount.status === "error";
+  const isDisconnected = !isDemo && (!meliAccount || meliAccount.status === "disconnected");
 
   // Calculate token expiration details
   let hoursLeft = 0;
   let isTokenExpired = false;
-  if (isConnected && meliAccount.token_expires_at) {
+  if (isConnected && meliAccount?.token_expires_at) {
     const expiresAt = new Date(meliAccount.token_expires_at).getTime();
     hoursLeft = Math.max(0, Math.round((expiresAt - Date.now()) / (1000 * 60 * 60)));
     isTokenExpired = expiresAt < Date.now();
@@ -94,7 +110,7 @@ export function MeliCard({ meliAccount }: { meliAccount: any }) {
   // Format last successful refresh
   const lastRefreshStr = meliAccount?.last_success_refresh 
     ? new Date(meliAccount.last_success_refresh).toLocaleString("es-AR")
-    : "Nunca";
+    : isDemo ? "Simulado (reciente)" : "Nunca";
 
   return (
     <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-5 flex flex-col justify-between h-full space-y-4">
@@ -109,7 +125,9 @@ export function MeliCard({ meliAccount }: { meliAccount: any }) {
               <p className="text-[11px] text-[#5F6875]">Canal de Venta Principal</p>
             </div>
           </div>
-          {isConnected ? (
+          {isDemo ? (
+            <StatusBadge variant="neutral">Simulación demo</StatusBadge>
+          ) : isConnected ? (
             <StatusBadge variant="success">Conectado</StatusBadge>
           ) : isError ? (
             <StatusBadge variant="danger">Error</StatusBadge>

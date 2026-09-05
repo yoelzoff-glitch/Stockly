@@ -51,6 +51,22 @@ export async function POST(request: Request) {
       );
     }
 
+    if (context.isDemo) {
+      logger.info({
+        event: "DEMO_TENANT_SKIPPED_EXTERNAL_OPERATION",
+        tenantId,
+        operation: "ai_product_chat",
+        message: "Skipping AI product chat execution for demo tenant",
+      });
+      return NextResponse.json(
+        {
+          reply: `En la cuenta demostrativa, las consultas de IA sobre ${product.title} se encuentran en modo de solo lectura. Los datos de precio ($${product.price}) y stock (${product.available_quantity}) son ficticios.`,
+          actions: [],
+        },
+        { headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
+
     // Save User Message
     const { error: inboundError } = await adminSupabase.from("messages").insert({
       tenant_id: tenantId,

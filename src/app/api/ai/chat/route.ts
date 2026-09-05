@@ -35,6 +35,23 @@ export async function POST(request: Request) {
     }
 
     const tenantId = context.tenantId;
+
+    if (context.isDemo) {
+      logger.info({
+        event: "DEMO_TENANT_SKIPPED_EXTERNAL_OPERATION",
+        tenantId,
+        operation: "ai_chat",
+        message: "Skipping AI chat execution for demo tenant",
+      });
+      return NextResponse.json(
+        {
+          reply: "Esta es una cuenta demostrativa privada (Casa Norte). La ejecución en vivo de modelos de IA y el consumo de cuotas están deshabilitados. Podés explorar todas las métricas, productos y herramientas con datos ficticios precargados.",
+          actions: [],
+        },
+        { headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
+
     const adminSupabase = createAdminClient();
 
     // 3. Save inbound message

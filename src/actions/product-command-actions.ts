@@ -7,9 +7,12 @@ import { normalizeSku } from "@/lib/sku";
 import { requireTenantContext } from "@/lib/security/tenantAuth";
 import { logger } from "@/lib/errors/logger";
 
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
+
 export async function preparePriceChangeAction(productId: string, sku: string | null, productTitle: string, newPrice: number) {
   try {
     const context = await requireTenantContext();
+    await assertTenantWritable(context.tenantId);
     const query = productId;
     return await preparePriceUpdate(context.tenantId, query, newPrice, undefined);
   } catch (error: any) {
@@ -21,6 +24,7 @@ export async function preparePriceChangeAction(productId: string, sku: string | 
 export async function prepareStockChangeAction(productId: string, sku: string | null, productTitle: string, newQuantity: number, operation: 'set' | 'add' | 'subtract' = 'set') {
   try {
     const context = await requireTenantContext();
+    await assertTenantWritable(context.tenantId);
     const query = productId;
     return await prepareMeliStockUpdate(context.tenantId, query, newQuantity, operation);
   } catch (error: any) {
@@ -32,6 +36,7 @@ export async function prepareStockChangeAction(productId: string, sku: string | 
 export async function prepareStatusChangeAction(productId: string, sku: string | null, productTitle: string, status: 'paused' | 'active') {
   try {
     const context = await requireTenantContext();
+    await assertTenantWritable(context.tenantId);
     const query = productId;
     return await prepareStatusChange(context.tenantId, query, status);
   } catch (error: any) {
@@ -90,6 +95,7 @@ export async function prepareTitleChangeAction(
 ) {
   try {
     const context = await requireTenantContext();
+    await assertTenantWritable(context.tenantId);
     const supabase = await createClient();
 
     const { data: product, error } = await supabase
@@ -197,6 +203,7 @@ import { formatCommandCenterActionResult, type CommandCenterActionResult } from 
 export async function confirmCommandCenterAction(actionId: string): Promise<CommandCenterActionResult> {
   try {
     const context = await requireTenantContext();
+    await assertTenantWritable(context.tenantId);
     const res = await confirmPendingAction(context.tenantId, actionId);
     return formatCommandCenterActionResult(res);
   } catch (error: any) {
@@ -207,6 +214,7 @@ export async function confirmCommandCenterAction(actionId: string): Promise<Comm
 export async function cancelCommandCenterAction(actionId: string): Promise<{ success: boolean; error?: string }> {
   try {
     const context = await requireTenantContext();
+    await assertTenantWritable(context.tenantId);
     const res = await cancelPendingAction(context.tenantId, actionId);
     return res;
   } catch (error: any) {

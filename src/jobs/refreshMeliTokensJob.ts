@@ -26,8 +26,9 @@ export const refreshMeliTokensJob = inngest.createFunction(
 
       const { data: accounts, error } = await supabase
         .from("meli_accounts")
-        .select("id, tenant_id")
+        .select("id, tenant_id, tenants!inner(is_demo)")
         .eq("status", "connected")
+        .eq("tenants.is_demo", false)
         .lt("token_expires_at", twelveHoursFromNow.toISOString());
 
       if (error || !accounts || accounts.length === 0) {

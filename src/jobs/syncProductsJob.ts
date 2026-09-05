@@ -3,6 +3,7 @@ import { syncProducts } from "../services/meli/syncProducts";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withOperationLease } from "@/lib/security/leases";
 import { logger } from "@/lib/errors/logger";
+import { isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 
 const BATCH_PAGE_SIZE = 50;
 
@@ -23,8 +24,9 @@ export const syncProductsDispatcherJob = inngest.createFunction(
     while (hasMore) {
       const { data: accounts, error } = await supabase
         .from("meli_accounts")
-        .select("tenant_id")
+        .select("tenant_id, tenants!inner(is_demo)")
         .eq("status", "connected")
+        .eq("tenants.is_demo", false)
         .range(offset, offset + BATCH_PAGE_SIZE - 1);
 
       if (error || !accounts || accounts.length === 0) {
@@ -78,6 +80,16 @@ export const syncProductsTenantJob = inngest.createFunction(
     const tenantId = event.data?.tenantId;
     if (!tenantId) {
       return { status: "ignored", reason: "missing_tenant_id" };
+    }
+
+    if (await isDemoTenant(tenantId)) {
+      logger.info({
+        event: "DEMO_TENANT_SKIPPED_EXTERNAL_OPERATION",
+        tenantId,
+        operation: "sync_products",
+        message: "Skipping sync products worker for demo tenant",
+      });
+      return { skipped: true, reason: "demo_tenant" };
     }
 
     const workerId = `sync-products-${tenantId}-${Date.now()}`;

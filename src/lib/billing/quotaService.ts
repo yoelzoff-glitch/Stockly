@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/errors/logger";
 import { resolveTenantEntitlements } from "./entitlements";
+import { isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 import * as Sentry from "@sentry/nextjs";
 
 export type QuotaMetric = "ai_credits_used" | "whatsapp_messages_used" | "automation_actions_used";
@@ -47,6 +48,24 @@ export async function isBillingV2Enabled(tenantId: string): Promise<boolean> {
  */
 export async function consumeQuota(params: ConsumeQuotaParams): Promise<QuotaResult> {
   const { tenantId, metric, amount = 1, idempotencyKey, source, correlationId } = params;
+
+  // Zero external/internal quota consumption for demo tenants
+  if (await isDemoTenant(tenantId)) {
+    logger.info({
+      event: "DEMO_TENANT_SKIPPED_EXTERNAL_OPERATION",
+      tenantId,
+      metric,
+      message: "Skipping quota consumption for demo tenant",
+    });
+    return {
+      allowed: false,
+      currentUsage: 0,
+      limit: 0,
+      remaining: 0,
+      duplicate: false,
+    };
+  }
+
   const supabase = createAdminClient();
 
   try {

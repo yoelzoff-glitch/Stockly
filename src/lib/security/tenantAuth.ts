@@ -6,6 +6,7 @@ import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/observabi
 import { logger } from "@/lib/errors/logger";
 import { AppError } from "@/lib/errors/AppError";
 import { isFeatureFlagEnabled } from "@/lib/safety/featureFlags";
+import { DemoReadOnlyError, isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 
 export type TenantRole = "owner" | "admin" | "user";
 
@@ -14,6 +15,7 @@ export interface TenantContext {
   tenantId: string;
   role: TenantRole;
   isActive: boolean;
+  isDemo?: boolean;
   correlationId: string;
 }
 
@@ -118,12 +120,14 @@ export async function requireTenantContext(
   }
 
   const role: TenantRole = (profile.role as TenantRole) || "user";
+  const isDemo = await isDemoTenant(profile.tenant_id, supabase);
 
   return {
     userId: user.id,
     tenantId: profile.tenant_id,
     role,
     isActive: profile.is_active !== false,
+    isDemo,
     correlationId,
   };
 }
@@ -231,6 +235,13 @@ export function toAuthErrorResponse(error: unknown, correlationId?: string): Nex
     }
     return NextResponse.json(
       { error: error.message },
+      { status: error.statusCode, headers }
+    );
+  }
+
+  if (error instanceof DemoReadOnlyError) {
+    return NextResponse.json(
+      { error: error.message, code: error.code },
       { status: error.statusCode, headers }
     );
   }

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizeSku } from "@/services/products/sku/normalizeSku";
 import { recalculateAllProductsByComponent } from "@/services/inventory/recalculateProductCostFromComponents";
 import { revalidatePath } from "next/cache";
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 
 /**
  * Obtiene los items del inventario de depósito para el tenant autenticado.
@@ -147,6 +148,7 @@ export async function adjustInventoryStock(
     .single();
 
   if (!profile?.tenant_id) throw new Error("No tenant");
+  await assertTenantWritable(profile.tenant_id);
 
   // 1. Obtener stock actual
   const { data: item, error: fetchErr } = await supabase
@@ -219,6 +221,7 @@ export async function updateInventoryItemParams(
     .single();
 
   if (!profile?.tenant_id) throw new Error("No tenant");
+  await assertTenantWritable(profile.tenant_id);
 
   const updatePayload: any = {
     updated_at: new Date().toISOString()
@@ -289,6 +292,7 @@ export async function deleteInventoryItem(itemId: string) {
     .single();
 
   if (!profile?.tenant_id) throw new Error("No tenant");
+  await assertTenantWritable(profile.tenant_id);
 
   // 1. Verificar si tiene vinculación activa en product_components
   const { data: activeComps, error: compErr } = await supabase
@@ -300,29 +304,25 @@ export async function deleteInventoryItem(itemId: string) {
   if (compErr) throw new Error(`Verification failed: ${compErr.message}`);
 
   if (activeComps && activeComps.length > 0) {
-    const prodTitle = (activeComps[0] as any)?.products?.title || "desconocido";
-    throw new Error(
-      `No se puede eliminar el componente porque está vinculado a publicaciones activas (ej: "${prodTitle}").`
-    );
+    const linkedTitle = (activeComps[0] as any)?.products?.title || "una publicación";
+    throw new Error(`No se puede eliminar este item porque está vinculado a: "${linkedTitle}". Desvinculalo primero desde la sección de Productos.`);
   }
 
-  // 2. Eliminar movimientos históricos
-  const { error: moveErr } = await supabase
+  // 2. Eliminar movimientos asociados
+  await supabase
     .from("inventory_movements")
     .delete()
     .eq("inventory_item_id", itemId)
     .eq("tenant_id", profile.tenant_id);
 
-  if (moveErr) throw new Error(`Failed to clear history: ${moveErr.message}`);
-
-  // 3. Eliminar item
-  const { error: deleteErr } = await supabase
+  // 3. Eliminar el item
+  const { error: delErr } = await supabase
     .from("inventory_items")
     .delete()
     .eq("id", itemId)
     .eq("tenant_id", profile.tenant_id);
 
-  if (deleteErr) throw new Error(`Delete failed: ${deleteErr.message}`);
+  if (delErr) throw new Error(`Delete failed: ${delErr.message}`);
 
   revalidatePath("/dashboard/internal-stock");
   return { success: true };
@@ -354,6 +354,7 @@ export async function bulkUpdateInventoryFromExcel(
 
   if (!profile?.tenant_id) throw new Error("No tenant");
   const tenantId = profile.tenant_id;
+  await assertTenantWritable(tenantId);
 
   // Traer todos los items existentes del tenant
   const { data: existingItems, error } = await supabase

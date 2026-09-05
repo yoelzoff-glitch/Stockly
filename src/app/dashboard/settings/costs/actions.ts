@@ -1,9 +1,9 @@
-// src/app/dashboard/settings/costs/actions.ts
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
 import { recalculateProductCostFromComponents } from "@/services/inventory/recalculateProductCostFromComponents";
 import { revalidatePath } from "next/cache";
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 
 /**
  * Obtiene los costos extra configurados para el tenant.
@@ -55,6 +55,7 @@ export async function createExtraCost(
   if (!profile?.tenant_id) throw new Error("No tenant");
 
   const tenantId = profile.tenant_id;
+  await assertTenantWritable(tenantId);
 
   const metadata: any = {};
   if (categoryId) {
@@ -120,6 +121,7 @@ export async function deleteExtraCost(id: string) {
   if (!profile?.tenant_id) throw new Error("No tenant");
 
   const tenantId = profile.tenant_id;
+  await assertTenantWritable(tenantId);
 
   const { error } = await supabase
     .from("product_extra_costs")

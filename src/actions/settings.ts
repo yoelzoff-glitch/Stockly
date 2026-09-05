@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
+
 export async function updateAccountAction(prevState: any, formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -34,6 +36,8 @@ export async function updateBusinessAction(prevState: any, formData: FormData) {
   const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
   if (!profile?.tenant_id) return { error: "Tenant no encontrado" };
 
+  await assertTenantWritable(profile.tenant_id);
+
   const name = formData.get("name") as string;
   const currency = formData.get("currency") as string;
   
@@ -56,6 +60,7 @@ import { requireTenantContext } from "@/lib/security/tenantAuth";
 export async function updatePreferencesAction(prevState: any, formData: FormData) {
   try {
     const context = await requireTenantContext();
+    await assertTenantWritable(context.tenantId);
     const adminSupabase = createAdminClient();
 
     const { data: tenant } = await adminSupabase
@@ -92,6 +97,7 @@ export async function updatePreferencesAction(prevState: any, formData: FormData
 export async function updateOperationalCostsAction(prevState: any, formData: FormData) {
   try {
     const context = await requireTenantContext();
+    await assertTenantWritable(context.tenantId);
     const adminSupabase = createAdminClient();
 
     const { data: tenant } = await adminSupabase

@@ -3,6 +3,7 @@ import { logger } from "@/lib/errors/logger";
 import { confirmPendingAction } from "@/services/ai/actions/confirm";
 import { requireTenantContext, assertRequestedTenant, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 
 export async function POST(req: Request) {
   let correlationId: string | undefined;
@@ -34,6 +35,9 @@ export async function POST(req: Request) {
 
     // Reject tenant mismatch with 403
     assertRequestedTenant(context, requestedTenant);
+
+    // Block write operations on demo accounts
+    await assertTenantWritable(context.tenantId);
 
     // Execute service exclusively with the server-derived tenantId
     const res = await confirmPendingAction(context.tenantId, effectiveActionId.trim());

@@ -6,6 +6,7 @@ import { calculateAverageCost } from "@/services/inventory/calculateAverageCost"
 import { recalculateAllProductsByComponent } from "@/services/inventory/recalculateProductCostFromComponents";
 import { normalizeSku } from "@/services/products/sku/normalizeSku";
 import { revalidatePath } from "next/cache";
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 
 /**
  * Obtiene todas las órdenes de compra del tenant.
@@ -63,6 +64,7 @@ export async function createManualPurchase(
   if (!profile?.tenant_id) throw new Error("No tenant");
 
   const tenantId = profile.tenant_id;
+  await assertTenantWritable(tenantId);
 
   // 1. Crear Purchase Order cabecera
   const { data: po, error: poErr } = await supabase
@@ -214,6 +216,7 @@ export async function voidPurchase(purchaseOrderId: string) {
   if (!profile?.tenant_id) throw new Error("No tenant");
 
   const tenantId = profile.tenant_id;
+  await assertTenantWritable(tenantId);
 
   // 1. Obtener la orden de compra y sus items
   const { data: po, error: fetchErr } = await supabase

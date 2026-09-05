@@ -5,6 +5,7 @@ import { AppError } from "@/lib/errors/AppError";
 import { isMeliWritesDisabled } from "@/lib/safety/killSwitches";
 import { logger } from "@/lib/errors/logger";
 import { classifyExternalError } from "@/lib/errors/externalErrorClassification";
+import { isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 
 export interface MeliFetchArgs {
   tenantId?: string;
@@ -72,6 +73,17 @@ export async function meliFetch({
 
   const supabase = createAdminClient();
 
+  if (tenantId && (await isDemoTenant(tenantId, supabase))) {
+    logger.info({
+      event: "DEMO_TENANT_SKIPPED_EXTERNAL_OPERATION",
+      tenantId,
+      endpoint,
+      method,
+      message: "Skipping external Mercado Libre API call for demo tenant",
+    });
+    throw new AppError("OPERATION_BLOCKED", "Operación externa no disponible en la cuenta demostrativa", 403);
+  }
+
   // 1. Fetch current meli account
   let query = supabase
     .from("meli_accounts")
@@ -90,6 +102,18 @@ export async function meliFetch({
   }
 
   const finalTenantId = account.tenant_id;
+
+  if (await isDemoTenant(finalTenantId, supabase)) {
+    logger.info({
+      event: "DEMO_TENANT_SKIPPED_EXTERNAL_OPERATION",
+      tenantId: finalTenantId,
+      endpoint,
+      method,
+      message: "Skipping external Mercado Libre API call for demo tenant",
+    });
+    throw new AppError("OPERATION_BLOCKED", "Operación externa no disponible en la cuenta demostrativa", 403);
+  }
+
   let accessToken = account.access_token;
 
   // 2. Check if token expires in less than 10 minutes (or already expired)

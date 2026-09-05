@@ -5,6 +5,7 @@ import { requireTenantRole, toAuthErrorResponse } from "@/lib/security/tenantAut
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { logger } from "@/lib/errors/logger";
 import * as Sentry from "@sentry/nextjs";
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 
 export async function POST(req: Request) {
   let correlationId: string | undefined;
@@ -12,6 +13,7 @@ export async function POST(req: Request) {
   try {
     const context = await requireTenantRole(["owner", "admin"], req);
     correlationId = context.correlationId;
+    await assertTenantWritable(context.tenantId);
     const adminSupabase = createAdminClient();
 
     let body: any;

@@ -3,10 +3,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenantContext } from "@/lib/security/tenantAuth";
 import { revalidatePath } from "next/cache";
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 
 export async function connectWhatsAppNumberAction(prevState: any, formData: FormData) {
   try {
     const context = await requireTenantContext();
+    await assertTenantWritable(context.tenantId);
     const adminSupabase = createAdminClient();
 
     const rawPhoneNumber = formData.get("phone_number") as string;
@@ -70,6 +72,7 @@ export async function connectWhatsAppNumberAction(prevState: any, formData: Form
 export async function disconnectWhatsAppNumberAction() {
   try {
     const context = await requireTenantContext();
+    await assertTenantWritable(context.tenantId);
     const adminSupabase = createAdminClient();
 
     // Eliminar la vinculación del tenant autenticado

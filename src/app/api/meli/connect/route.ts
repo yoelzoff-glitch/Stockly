@@ -16,12 +16,24 @@ function generatePKCE() {
   return { verifier, challenge };
 }
 
+import { isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
+
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.redirect(new URL("/login", process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"));
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.tenant_id && await isDemoTenant(profile.tenant_id)) {
+    return NextResponse.redirect(new URL("/dashboard/integrations?error=demo_readonly", process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"));
   }
 
   const clientId = process.env.MELI_CLIENT_ID;

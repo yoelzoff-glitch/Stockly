@@ -3,10 +3,12 @@
 import { createSubscriptionPreference } from "@/integrations/mercadopago/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenantContext, requireTenantRole } from "@/lib/security/tenantAuth";
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 
 export async function upgradePlan(plan: "starter" | "pro" | "ultra") {
   const context = await requireTenantContext();
   await requireTenantRole(["owner", "admin"]);
+  await assertTenantWritable(context.tenantId);
 
   const adminSupabase = createAdminClient();
   const { data: profile } = await adminSupabase
@@ -23,6 +25,7 @@ export async function upgradePlan(plan: "starter" | "pro" | "ultra") {
 export async function scheduleDowngradeAction(targetPlan: "starter" | "pro") {
   const context = await requireTenantContext();
   await requireTenantRole(["owner", "admin"]);
+  await assertTenantWritable(context.tenantId);
 
   const adminSupabase = createAdminClient();
 

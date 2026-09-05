@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenantRole, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { logger } from "@/lib/errors/logger";
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 
 export async function POST(req: Request) {
   let correlationId: string | undefined;
@@ -10,6 +11,7 @@ export async function POST(req: Request) {
   try {
     const context = await requireTenantRole(["owner", "admin"], req);
     correlationId = context.correlationId;
+    await assertTenantWritable(context.tenantId);
     const supabase = createAdminClient();
 
     // MÓDULO 5: Update status to disconnected instead of deleting the row (prevents cascade deletion)

@@ -3,10 +3,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTenantContext } from "@/lib/security/tenantAuth";
 import { revalidatePath } from "next/cache";
+import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 
 export async function toggleIgnoreOrderAction(meliOrderId: string, currentIgnored: boolean) {
   try {
     const context = await requireTenantContext();
+    await assertTenantWritable(context.tenantId);
     const adminSupabase = createAdminClient();
 
     // Fetch current metadata to merge

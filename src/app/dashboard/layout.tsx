@@ -28,22 +28,45 @@ export default async function DashboardLayout({
       .select(`
         tenant_id,
         tenants:tenants(
+          is_demo,
+          demo_label,
           subscriptions:subscriptions(plan, expires_at)
         )
       `)
       .eq("id", user.id)
       .single();
 
-    const subscription = (profile as any)?.tenants?.subscriptions;
+    const tenant = (profile as any)?.tenants;
+    const isDemo = Boolean(tenant?.is_demo);
+    const subscription = tenant?.subscriptions;
     if (subscription) {
-      plan = subscription.plan;
-      if (subscription.expires_at) {
+      plan = isDemo ? "Demo" : subscription.plan;
+      if (subscription.expires_at && !isDemo) {
         const expiresAt = new Date(subscription.expires_at);
         const now = new Date();
         const diffTime = expiresAt.getTime() - now.getTime();
         daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       }
+    } else if (isDemo) {
+      plan = "Demo";
     }
+
+    return (
+      <div className={`${archivo.variable} ${archivo.className} flex h-screen overflow-hidden bg-[#F5F3EE] text-[#101828] antialiased selection:bg-[#F2C94C] selection:text-[#101828]`}>
+        <div className="hidden md:flex">
+          <Sidebar />
+        </div>
+        <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+          <Navbar plan={plan} daysRemaining={daysRemaining} isDemo={isDemo} />
+          <main className="flex-1 overflow-y-auto flex flex-col">
+            <div className="flex-1">
+              {children}
+            </div>
+            <Footer />
+          </main>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -52,7 +75,7 @@ export default async function DashboardLayout({
         <Sidebar />
       </div>
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        <Navbar plan={plan} daysRemaining={daysRemaining} />
+        <Navbar plan={plan} daysRemaining={daysRemaining} isDemo={false} />
         <main className="flex-1 overflow-y-auto flex flex-col">
           <div className="flex-1">
             {children}
