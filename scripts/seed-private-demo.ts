@@ -1,4 +1,13 @@
 import postgres from "postgres";
+import fs from "node:fs";
+import path from "node:path";
+
+try {
+  const envLocal = path.resolve(process.cwd(), ".env.local");
+  if (fs.existsSync(envLocal) && typeof (process as any).loadEnvFile === "function") {
+    (process as any).loadEnvFile(envLocal);
+  }
+} catch (_) {}
 
 export const DEMO_RANDOM_SEED = "klyvo-casa-norte-v1";
 export const DEMO_TENANT_SLUG = "klyvo-private-demo";

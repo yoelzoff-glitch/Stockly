@@ -1,4 +1,14 @@
 import postgres from "postgres";
+import fs from "node:fs";
+import path from "node:path";
+
+try {
+  const envLocal = path.resolve(process.cwd(), ".env.local");
+  if (fs.existsSync(envLocal) && typeof (process as any).loadEnvFile === "function") {
+    (process as any).loadEnvFile(envLocal);
+  }
+} catch (_) {}
+
 import { seedPrivateDemo, DEMO_TENANT_SLUG, DEMO_SEED_VERSION } from "./seed-private-demo";
 
 export interface ProvisionOptions {
