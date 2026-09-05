@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useActionState, useEffect } from "react";
+import { useState, useActionState } from "react";
 import { updateAccountAction, updateBusinessAction, updatePreferencesAction, updateOperationalCostsAction } from "@/actions/settings";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { User, Building2, Store, MessageCircle, BrainCircuit, Bell, Shield, CheckCircle2, AlertCircle, Calculator } from "lucide-react";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { User, Building2, Store, Bell, Shield, Calculator, CreditCard, ArrowRight, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
 
 export default function SettingsClientPage({ profile, tenant, meliAccount }: { profile: any, tenant: any, meliAccount: any }) {
-  const [activeTab, setActiveTab] = useState("account");
+  const [activeTab, setActiveTab] = useState("business");
 
   // Actions
   const [accState, accAction, isAccPending] = useActionState(updateAccountAction, null);
@@ -18,118 +18,182 @@ export default function SettingsClientPage({ profile, tenant, meliAccount }: { p
   const [prefState, prefAction, isPrefPending] = useActionState(updatePreferencesAction, null);
   const [opState, opAction, isOpPending] = useActionState(updateOperationalCostsAction, null);
 
-  const tabs = [
-    { id: "account", label: "Cuenta", icon: User },
-    { id: "business", label: "Negocio", icon: Building2 },
-    { id: "operational", label: "Costos Operativos", icon: Calculator },
-    { id: "meli", label: "Mercado Libre", icon: Store },
-    { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
-    { id: "ai", label: "IA", icon: BrainCircuit },
-    { id: "notifications", label: "Notificaciones", icon: Bell },
-    { id: "security", label: "Seguridad", icon: Shield },
+  const domains = [
+    { id: "business", label: "Negocio", icon: Building2, desc: "Identificación comercial y moneda" },
+    { id: "account", label: "Cuenta", icon: User, desc: "Datos de usuario y perfil" },
+    { id: "costs", label: "Costos", icon: Calculator, desc: "Empaque, flex y recargos fijos" },
+    { id: "integrations", label: "Integraciones", icon: Store, desc: "Mercado Libre, canales y API" },
+    { id: "notifications", label: "Notificaciones", icon: Bell, desc: "Preferencias de alertas operativas" },
+    { id: "security", label: "Seguridad", icon: Shield, desc: "Sesión y credenciales" },
+    { id: "plan", label: "Plan", icon: CreditCard, desc: "Suscripción y límites de uso" },
   ];
 
   return (
-    <div className="flex flex-col md:flex-row gap-6">
-      {/* Sidebar Tabs */}
-      <div className="w-full md:w-64 flex flex-col space-y-1 shrink-0">
-        {tabs.map(tab => (
+    <div className="flex flex-col lg:flex-row gap-6 items-start">
+      {/* Sidebar Navigation */}
+      <div className="w-full lg:w-64 rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-2 shrink-0 space-y-1">
+        <div className="px-3 py-2 text-[10px] uppercase font-bold text-[#5F6875] tracking-wider border-b border-[#DCDAD4] mb-1">
+          Dominios de Configuración
+        </div>
+        {domains.map(dom => (
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === tab.id ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+            key={dom.id}
+            type="button"
+            onClick={() => setActiveTab(dom.id)}
+            className={`w-full flex items-start gap-2.5 px-3 py-2 rounded-md text-left transition-colors ${
+              activeTab === dom.id
+                ? "bg-[#102A56] text-white"
+                : "text-[#101828] hover:bg-[#F5F3EE]"
             }`}
           >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
+            <dom.icon className={`w-4 h-4 mt-0.5 shrink-0 ${activeTab === dom.id ? "text-white" : "text-[#5F6875]"}`} />
+            <div>
+              <div className={`text-xs font-semibold ${activeTab === dom.id ? "text-white" : "text-[#101828]"}`}>
+                {dom.label}
+              </div>
+              <div className={`text-[10px] ${activeTab === dom.id ? "text-white/80" : "text-[#5F6875]"}`}>
+                {dom.desc}
+              </div>
+            </div>
           </button>
         ))}
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 min-w-0">
-        
-        {/* Tab: Cuenta */}
-        {activeTab === "account" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Perfil de Usuario</CardTitle>
-              <CardDescription>Actualiza tu información personal.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form action={accAction} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" value={profile?.email || ""} disabled className="bg-muted/50" />
-                  <p className="text-xs text-muted-foreground">Tu email no puede ser modificado por ahora.</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Nombre Completo</Label>
-                  <Input id="fullName" name="fullName" defaultValue={profile?.full_name || ""} disabled={isAccPending} />
-                </div>
-                {accState?.error && <p className="text-sm text-red-500">{accState.error}</p>}
-                {accState?.success && <p className="text-sm text-green-500">{accState.success}</p>}
-                <Button type="submit" disabled={isAccPending}>
-                  {isAccPending ? "Guardando..." : "Guardar cambios"}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Tab: Negocio */}
+      {/* Main Content Area */}
+      <div className="flex-1 w-full min-w-0">
+        {/* DOMAIN 1: NEGOCIO */}
         {activeTab === "business" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Configuración del Negocio</CardTitle>
-              <CardDescription>Administra la información general de tu empresa.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form action={busAction} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nombre del Negocio</Label>
-                  <Input id="name" name="name" defaultValue={tenant?.name || ""} disabled={isBusPending} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="currency">Moneda Base</Label>
-                  <select 
-                    id="currency" 
-                    name="currency" 
-                    defaultValue={tenant?.currency || "ARS"}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm md:text-sm"
-                    disabled={isBusPending}
-                  >
-                    <option value="ARS">ARS - Peso Argentino</option>
-                    <option value="MXN">MXN - Peso Mexicano</option>
-                    <option value="COP">COP - Peso Colombiano</option>
-                    <option value="USD">USD - Dólar</option>
-                  </select>
-                </div>
-                {busState?.error && <p className="text-sm text-red-500">{busState.error}</p>}
-                {busState?.success && <p className="text-sm text-green-500">{busState.success}</p>}
-                <Button type="submit" disabled={isBusPending}>
-                  {isBusPending ? "Guardando..." : "Guardar negocio"}
+          <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-6 space-y-6">
+            <div className="border-b border-[#DCDAD4] pb-4">
+              <h3 className="text-base font-semibold text-[#101828]">Configuración del Negocio</h3>
+              <p className="text-xs text-[#5F6875] mt-0.5">Administra los parámetros de tu empresa, razón social y moneda operativa.</p>
+            </div>
+
+            <form action={busAction} className="space-y-4 max-w-xl">
+              <div className="space-y-1.5">
+                <Label htmlFor="name" className="text-xs font-semibold text-[#101828]">Nombre del Negocio / Empresa</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  defaultValue={tenant?.name || ""}
+                  disabled={isBusPending}
+                  className="h-9 text-xs border-[#DCDAD4] bg-[#FFFFFF]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="currency" className="text-xs font-semibold text-[#101828]">Moneda Base para Cálculos</Label>
+                <select
+                  id="currency"
+                  name="currency"
+                  defaultValue={tenant?.currency || "ARS"}
+                  className="flex h-9 w-full rounded-md border border-[#DCDAD4] bg-[#FFFFFF] px-3 py-1 text-xs text-[#101828] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#102A56]"
+                  disabled={isBusPending}
+                >
+                  <option value="ARS">ARS - Peso Argentino</option>
+                  <option value="MXN">MXN - Peso Mexicano</option>
+                  <option value="COP">COP - Peso Colombiano</option>
+                  <option value="USD">USD - Dólar Estadounidense</option>
+                </select>
+                <p className="text-[11px] text-[#5F6875]">Todas las métricas de rentabilidad, comisiones y costos se consolidarán en esta moneda.</p>
+              </div>
+
+              {busState?.error && <p className="text-xs text-[#D92D20] font-mono">{busState.error}</p>}
+              {busState?.success && <p className="text-xs text-[#198754] font-mono">{busState.success}</p>}
+
+              <div className="pt-2">
+                <Button
+                  type="submit"
+                  disabled={isBusPending}
+                  className="h-8 bg-[#102A56] hover:bg-[#102A56]/90 text-white text-xs font-semibold px-4"
+                >
+                  {isBusPending ? "Guardando..." : "Guardar Configuración"}
                 </Button>
-              </form>
-            </CardContent>
-          </Card>
+              </div>
+            </form>
+          </div>
         )}
 
-        {/* Tab: Costos Operativos */}
-        {activeTab === "operational" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Costos Operativos (Fijos por Orden)</CardTitle>
-              <CardDescription>
-                Define los costos que aplican a cada venta para tener una rentabilidad 100% exacta. 
-                Estos costos se restan a nivel de la orden completa, y no del SKU, por lo que son perfectos para calcular el empaque de carritos o logística Flex.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+        {/* DOMAIN 2: CUENTA */}
+        {activeTab === "account" && (
+          <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-6 space-y-6">
+            <div className="border-b border-[#DCDAD4] pb-4">
+              <h3 className="text-base font-semibold text-[#101828]">Perfil de Cuenta y Usuario</h3>
+              <p className="text-xs text-[#5F6875] mt-0.5">Información del operador autenticado y rol asignado.</p>
+            </div>
+
+            <form action={accAction} className="space-y-4 max-w-xl">
+              <div className="space-y-1.5">
+                <Label htmlFor="email" className="text-xs font-semibold text-[#101828]">Correo Electrónico</Label>
+                <Input
+                  id="email"
+                  value={profile?.email || ""}
+                  disabled
+                  className="h-9 text-xs border-[#DCDAD4] bg-[#F5F3EE] text-[#5F6875]"
+                />
+                <p className="text-[11px] text-[#5F6875]">Identificador único de acceso y autenticación.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="fullName" className="text-xs font-semibold text-[#101828]">Nombre y Apellido</Label>
+                <Input
+                  id="fullName"
+                  name="fullName"
+                  defaultValue={profile?.full_name || ""}
+                  disabled={isAccPending}
+                  className="h-9 text-xs border-[#DCDAD4] bg-[#FFFFFF]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-[#101828]">Rol Operativo</Label>
+                <div>
+                  <StatusBadge variant="neutral">
+                    {profile?.role ? profile.role.toUpperCase() : "ADMIN"}
+                  </StatusBadge>
+                </div>
+              </div>
+
+              {accState?.error && <p className="text-xs text-[#D92D20] font-mono">{accState.error}</p>}
+              {accState?.success && <p className="text-xs text-[#198754] font-mono">{accState.success}</p>}
+
+              <div className="pt-2">
+                <Button
+                  type="submit"
+                  disabled={isAccPending}
+                  className="h-8 bg-[#102A56] hover:bg-[#102A56]/90 text-white text-xs font-semibold px-4"
+                >
+                  {isAccPending ? "Guardando..." : "Guardar Perfil"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* DOMAIN 3: COSTOS */}
+        {activeTab === "costs" && (
+          <div className="space-y-6">
+            <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-6 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#DCDAD4] pb-4">
+                <div>
+                  <h3 className="text-base font-semibold text-[#101828]">Costos Operativos Fijos por Orden</h3>
+                  <p className="text-xs text-[#5F6875] mt-0.5">
+                    Gastos que se deducen a nivel de pedido (empaque, mano de obra, logística Flex).
+                  </p>
+                </div>
+                <Link
+                  href="/dashboard/settings/costs"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#102A56] hover:underline"
+                >
+                  Gestionar Costos Extra por SKU <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
               <form action={opAction} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="packagingCost">Costo Fijo de Empaque por Orden ($)</Label>
+                <div className="space-y-1.5 max-w-sm">
+                  <Label htmlFor="packagingCost" className="text-xs font-semibold text-[#101828]">
+                    Costo Fijo de Empaque por Orden ($)
+                  </Label>
                   <Input 
                     id="packagingCost" 
                     name="packagingCost" 
@@ -137,198 +201,224 @@ export default function SettingsClientPage({ profile, tenant, meliAccount }: { p
                     min="0"
                     defaultValue={tenant?.metadata?.packaging_cost || 0} 
                     disabled={isOpPending} 
+                    className="h-9 text-xs border-[#DCDAD4] bg-[#FFFFFF]"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Costo promedio de caja, cinta, etiquetas y mano de obra para armar un paquete. Se descontará 1 vez por orden despachada.
+                  <p className="text-[11px] text-[#5F6875]">
+                    Costo promedio de caja, film, etiquetas y mano de obra. Se descontará 1 vez por orden despachada.
                   </p>
                 </div>
                 
-                <div className="space-y-4 pt-4 border-t">
-                  <div className="space-y-1">
-                    <Label className="text-base">Logística Flex (4 Cordones)</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Mercado Libre te paga una bonificación fija según el cordón. Define cuánto te paga ML y cuánto te cobra tu moto en cada zona para que Klyvo deduzca automáticamente la rentabilidad exacta de cada venta Flex.
+                <div className="space-y-3 pt-4 border-t border-[#DCDAD4]">
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#101828]">Logística Mercado Envíos Flex (Cordones)</h4>
+                    <p className="text-[11px] text-[#5F6875] mt-0.5">
+                      Define la bonificación que abona Mercado Libre versus lo que cobra tu mensajería en cada cordón.
                     </p>
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-2 text-xs font-medium text-muted-foreground border-b pb-2">
-                    <div>Zona</div>
-                    <div>ML te bonifica ($)</div>
-                    <div>Tu Moto te cobra ($)</div>
+                  <div className="border border-[#DCDAD4] rounded-lg overflow-hidden">
+                    <table className="w-full text-xs text-left">
+                      <thead>
+                        <tr className="border-b border-[#DCDAD4] bg-[#FCFCFA] text-[11px] font-semibold text-[#5F6875] uppercase">
+                          <th className="px-4 py-2">Zona / Cordón</th>
+                          <th className="px-3 py-2">ML Bonifica ($)</th>
+                          <th className="px-3 py-2">Mensajería Cobra ($)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#DCDAD4]">
+                        {[1, 2, 3, 4].map((zoneIndex) => (
+                          <tr key={zoneIndex} className="hover:bg-[#F5F3EE]/50">
+                            <td className="px-4 py-2 font-medium text-[#101828]">
+                              {zoneIndex === 1 ? "CABA" : `Cordón ${zoneIndex - 1}`}
+                            </td>
+                            <td className="px-3 py-2">
+                              <Input
+                                name={`flex_ml_${zoneIndex}`}
+                                type="number"
+                                placeholder="3200"
+                                defaultValue={tenant?.metadata?.flex_zones?.[zoneIndex - 1]?.ml_pays || ""}
+                                disabled={isOpPending}
+                                className="h-8 text-xs border-[#DCDAD4] bg-[#FFFFFF] max-w-xs"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <Input
+                                name={`flex_moto_${zoneIndex}`}
+                                type="number"
+                                placeholder="4500"
+                                defaultValue={tenant?.metadata?.flex_zones?.[zoneIndex - 1]?.moto_costs || ""}
+                                disabled={isOpPending}
+                                className="h-8 text-xs border-[#DCDAD4] bg-[#FFFFFF] max-w-xs"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-
-                  {[1, 2, 3, 4].map((zoneIndex) => (
-                    <div key={zoneIndex} className="grid grid-cols-3 gap-2 items-center">
-                      <div className="font-medium text-sm">
-                        {zoneIndex === 1 ? "CABA" : `Cordón ${zoneIndex - 1}`}
-                      </div>
-                      <div>
-                        <Input 
-                          name={`flex_ml_${zoneIndex}`} 
-                          type="number" 
-                          placeholder="Ej. 3200" 
-                          defaultValue={tenant?.metadata?.flex_zones?.[zoneIndex - 1]?.ml_pays || ""}
-                          disabled={isOpPending}
-                        />
-                      </div>
-                      <div>
-                        <Input 
-                          name={`flex_moto_${zoneIndex}`} 
-                          type="number" 
-                          placeholder="Ej. 4500" 
-                          defaultValue={tenant?.metadata?.flex_zones?.[zoneIndex - 1]?.moto_costs || ""}
-                          disabled={isOpPending}
-                        />
-                      </div>
-                    </div>
-                  ))}
                 </div>
 
-                {opState?.error && <p className="text-sm text-red-500">{opState.error}</p>}
-                {opState?.success && <p className="text-sm text-green-500">{opState.success}</p>}
+                {opState?.error && <p className="text-xs text-[#D92D20] font-mono">{opState.error}</p>}
+                {opState?.success && <p className="text-xs text-[#198754] font-mono">{opState.success}</p>}
                 
-                <Button type="submit" disabled={isOpPending}>
+                <Button
+                  type="submit"
+                  disabled={isOpPending}
+                  className="h-8 bg-[#102A56] hover:bg-[#102A56]/90 text-white text-xs font-semibold px-4"
+                >
                   {isOpPending ? "Guardando..." : "Guardar Costos Operativos"}
                 </Button>
               </form>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
-        {/* Tab: Mercado Libre */}
-        {activeTab === "meli" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Integración con Mercado Libre</CardTitle>
-              <CardDescription>Estado de tu conexión con tu cuenta de vendedor.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {meliAccount ? (
-                <div className="p-4 border rounded-md bg-muted/20">
-                  <div className="flex justify-between items-center mb-4">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-md">
-                        <Store className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-sm">Cuenta conectada</h4>
-                        <p className="text-xs text-muted-foreground">Nickname: {meliAccount.nickname || "N/A"}</p>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      Activa
-                    </Badge>
-                  </div>
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p>Última sincronización: {meliAccount.last_sync_at ? new Date(meliAccount.last_sync_at).toLocaleString('es-AR') : 'Nunca'}</p>
-                    <p>ID Vendedor: {meliAccount.meli_user_id}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-8 text-center border border-dashed rounded-md">
-                  <Store className="w-10 h-10 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="font-medium text-lg mb-2">No has conectado Mercado Libre</h3>
-                  <p className="text-sm text-muted-foreground mb-4">Conecta tu cuenta para sincronizar productos y ventas.</p>
-                  <Button asChild>
-                    <a href="/api/auth/mercadolibre">Conectar ahora</a>
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-            {meliAccount && (
-              <CardFooter className="border-t pt-4 flex justify-end gap-2">
-                <Button variant="outline">Sincronizar ahora</Button>
-                <Button variant="destructive">Desconectar</Button>
-              </CardFooter>
-            )}
-          </Card>
-        )}
-
-        {/* Tab: IA */}
-        {activeTab === "ai" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Preferencias de Inteligencia Artificial</CardTitle>
-              <CardDescription>Configura cómo quieres que el Agente IA maneje tu negocio.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form action={prefAction} className="space-y-6">
-                
-                <div className="space-y-2">
-                  <Label htmlFor="strategy">Estrategia de Precios</Label>
-                  <select 
-                    id="strategy" 
-                    name="strategy" 
-                    defaultValue={tenant?.metadata?.ai_pricing_strategy || "balanced"}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm md:text-sm"
-                    disabled={isPrefPending}
-                  >
-                    <option value="conservative">Conservadora (Prioriza margen, menos ventas)</option>
-                    <option value="balanced">Equilibrada (Balance margen/volumen)</option>
-                    <option value="aggressive">Agresiva (Prioriza volumen, ignora márgenes altos)</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="minMargin">Margen Neto Mínimo Permitido (%)</Label>
-                  <Input 
-                    id="minMargin" 
-                    name="minMargin" 
-                    type="number" 
-                    min="0" max="100" 
-                    defaultValue={tenant?.metadata?.ai_min_margin_percent || 15} 
-                    disabled={isPrefPending} 
-                  />
-                  <p className="text-xs text-muted-foreground">El agente no sugerirá precios que dejen un margen menor a este.</p>
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-md">
-                  <div className="space-y-0.5">
-                    <Label className="text-base font-semibold">Sugerencias Automáticas</Label>
-                    <p className="text-sm text-muted-foreground">Permite que el IA proponga cambios proactivamente.</p>
-                  </div>
-                  <div>
-                    <input 
-                      type="checkbox" 
-                      name="autoSuggestions" 
-                      id="autoSuggestions" 
-                      className="w-5 h-5 accent-primary" 
-                      defaultChecked={tenant?.metadata?.auto_suggestions_enabled ?? true}
-                    />
-                  </div>
-                </div>
-
-                {prefState?.error && <p className="text-sm text-red-500">{prefState.error}</p>}
-                {prefState?.success && <p className="text-sm text-green-500">{prefState.success}</p>}
-                
-                <Button type="submit" disabled={isPrefPending}>
-                  {isPrefPending ? "Guardando..." : "Guardar preferencias IA"}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Tab: Mocked tabs */}
-        {(activeTab === "whatsapp" || activeTab === "notifications" || activeTab === "security") && (
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {activeTab === "whatsapp" ? "Integración WhatsApp" : 
-                 activeTab === "notifications" ? "Preferencias de Notificaciones" : "Seguridad"}
-              </CardTitle>
-              <CardDescription>Esta funcionalidad estará disponible muy pronto.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="p-8 text-center bg-muted/20 border border-dashed rounded-md">
-                <AlertCircle className="w-10 h-10 mx-auto text-muted-foreground mb-4" />
-                <h3 className="font-medium text-lg mb-2">Próximamente</h3>
-                <p className="text-sm text-muted-foreground">Estamos construyendo este módulo para mejorar tu experiencia.</p>
+        {/* DOMAIN 4: INTEGRACIONES */}
+        {activeTab === "integrations" && (
+          <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-6 space-y-4">
+            <div className="border-b border-[#DCDAD4] pb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-[#101828]">Integraciones Conectadas</h3>
+                <p className="text-xs text-[#5F6875] mt-0.5">Resumen de conexiones con canales externos.</p>
               </div>
-            </CardContent>
-          </Card>
+              <Link
+                href="/dashboard/integrations"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#102A56] hover:underline"
+              >
+                Abrir Centro de Integraciones <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            <div className="divide-y divide-[#DCDAD4] border border-[#DCDAD4] rounded-lg">
+              <div className="p-4 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-semibold text-[#101828]">Mercado Libre</h4>
+                  <p className="text-[11px] text-[#5F6875]">
+                    {meliAccount?.nickname ? `Conectado como: ${meliAccount.nickname}` : "Sin cuenta vinculada"}
+                  </p>
+                </div>
+                <StatusBadge variant={meliAccount?.status === "connected" ? "success" : "neutral"}>
+                  {meliAccount?.status === "connected" ? "Conectado" : "Desconectado"}
+                </StatusBadge>
+              </div>
+
+              <div className="p-4 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-semibold text-[#101828]">WhatsApp Cloud API</h4>
+                  <p className="text-[11px] text-[#5F6875]">Notificaciones automáticas y servicio a compradores</p>
+                </div>
+                <StatusBadge variant="neutral">Configurado</StatusBadge>
+              </div>
+
+              <div className="p-4 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-semibold text-[#101828]">Motor LLM / OpenAI</h4>
+                  <p className="text-[11px] text-[#5F6875]">Asistencia operativa y clasificación</p>
+                </div>
+                <StatusBadge variant="neutral">Activo</StatusBadge>
+              </div>
+            </div>
+          </div>
         )}
 
+        {/* DOMAIN 5: NOTIFICACIONES */}
+        {activeTab === "notifications" && (
+          <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-6 space-y-6">
+            <div className="border-b border-[#DCDAD4] pb-4">
+              <h3 className="text-base font-semibold text-[#101828]">Preferencias de Notificaciones</h3>
+              <p className="text-xs text-[#5F6875] mt-0.5">Controla qué alertas operativas se despachan.</p>
+            </div>
+
+            <div className="space-y-3 max-w-xl">
+              <div className="flex items-center justify-between p-3.5 border border-[#DCDAD4] rounded-lg">
+                <div>
+                  <h4 className="text-xs font-semibold text-[#101828]">Alertas de Stock Crítico</h4>
+                  <p className="text-[11px] text-[#5F6875]">Avisar cuando un producto caiga por debajo de su punto de reposición.</p>
+                </div>
+                <input type="checkbox" defaultChecked className="h-4 w-4 accent-[#102A56]" />
+              </div>
+
+              <div className="flex items-center justify-between p-3.5 border border-[#DCDAD4] rounded-lg">
+                <div>
+                  <h4 className="text-xs font-semibold text-[#101828]">Ventas con Margen Negativo</h4>
+                  <p className="text-[11px] text-[#5F6875]">Notificar inmediatamente cuando una venta arroje resultado en pérdida.</p>
+                </div>
+                <input type="checkbox" defaultChecked className="h-4 w-4 accent-[#102A56]" />
+              </div>
+
+              <div className="flex items-center justify-between p-3.5 border border-[#DCDAD4] rounded-lg">
+                <div>
+                  <h4 className="text-xs font-semibold text-[#101828]">Productos sin Costo Asignado</h4>
+                  <p className="text-[11px] text-[#5F6875]">Recordatorio semanal de publicaciones vendidas sin costo de reposición.</p>
+                </div>
+                <input type="checkbox" defaultChecked className="h-4 w-4 accent-[#102A56]" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DOMAIN 6: SEGURIDAD */}
+        {activeTab === "security" && (
+          <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-6 space-y-6">
+            <div className="border-b border-[#DCDAD4] pb-4">
+              <h3 className="text-base font-semibold text-[#101828]">Seguridad y Sesión</h3>
+              <p className="text-xs text-[#5F6875] mt-0.5">Acciones de cuenta y exportación de datos sensibles.</p>
+            </div>
+
+            <div className="space-y-4 max-w-xl">
+              <div className="p-4 border border-[#DCDAD4] rounded-lg bg-[#FCFCFA] space-y-2">
+                <h4 className="text-xs font-semibold text-[#101828]">Exportación Completa de Operaciones</h4>
+                <p className="text-xs text-[#5F6875] leading-relaxed">
+                  Descarga una copia íntegra de tu catálogo, órdenes de venta, costos y movimientos en formato Excel (.xlsx).
+                </p>
+                <div className="pt-1">
+                  <a href="/api/export" download="klyvo_backup.xlsx">
+                    <Button variant="outline" size="sm" className="h-8 border-[#DCDAD4] bg-[#FFFFFF] text-xs font-semibold text-[#101828] hover:bg-[#F5F3EE]">
+                      Exportar Datos (.xlsx)
+                    </Button>
+                  </a>
+                </div>
+              </div>
+
+              <div className="p-4 border border-[#DCDAD4] rounded-lg bg-[#FCFCFA] space-y-2">
+                <h4 className="text-xs font-semibold text-[#101828]">Autenticación de Dos Factores</h4>
+                <p className="text-xs text-[#5F6875]">Protege tu cuenta mediante verificación de seguridad adicional.</p>
+                <StatusBadge variant="neutral">Próximamente</StatusBadge>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DOMAIN 7: PLAN */}
+        {activeTab === "plan" && (
+          <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-6 space-y-6">
+            <div className="border-b border-[#DCDAD4] pb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-[#101828]">Plan y Suscripción</h3>
+                <p className="text-xs text-[#5F6875] mt-0.5">Detalles del plan contratado y estado de facturación.</p>
+              </div>
+              <Link
+                href="/dashboard/billing"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#102A56] hover:underline"
+              >
+                Administrar Facturación <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            <div className="p-4 border border-[#DCDAD4] rounded-lg bg-[#FCFCFA] max-w-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-[#5F6875]">Plan actual:</span>
+                  <div className="text-sm font-bold text-[#101828] uppercase">{tenant?.plan || "Starter"}</div>
+                </div>
+                <StatusBadge variant="success">Activo</StatusBadge>
+              </div>
+              <p className="text-xs text-[#5F6875]">
+                Para cambiar de plan, revisar límites de publicaciones o ver facturas pasadas, accede al módulo de facturación.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

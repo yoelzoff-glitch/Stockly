@@ -1,18 +1,16 @@
 import { getActivationProgress } from "@/actions/activation";
 import GetStartedClient from "./client-page";
+import { OperationalPageHeader } from "@/components/operational/page-header";
 
 export default async function GetStartedPage() {
   const data = await getActivationProgress();
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Activación de Cuenta</h2>
-      </div>
-      <p className="text-muted-foreground">
-        Completa estos pasos para aprovechar al máximo las capacidades de Klyvo.
-      </p>
-
+    <div className="space-y-6">
+      <OperationalPageHeader
+        title="Configuración inicial"
+        description="Pasos requeridos y recomendados para habilitar el control de catálogo, costos, márgenes y sincronización."
+      />
       <GetStartedClient data={data} />
     </div>
   );

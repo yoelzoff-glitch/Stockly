@@ -2,15 +2,15 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Percent, DollarSign, Plus, Trash2, ArrowLeft, Coins, HelpCircle } from "lucide-react";
-import Link from "next/link";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { OperationalPageHeader } from "@/components/operational/page-header";
+import { DataTableShell } from "@/components/operational/data-table-shell";
+import { OperationalEmptyState } from "@/components/operational/empty-state";
+import { Plus, Trash2, HelpCircle } from "lucide-react";
 import { createExtraCost, deleteExtraCost } from "./actions";
 
 export function ExtraCostsClient({ initialCosts }: { initialCosts: any[] }) {
@@ -23,7 +23,7 @@ export function ExtraCostsClient({ initialCosts }: { initialCosts: any[] }) {
   const [amount, setAmount] = useState("");
   const [costType, setCostType] = useState<"fixed" | "percent">("fixed");
   const [appliesTo, setAppliesTo] = useState<"all" | "category" | "product">("all");
-  const [targetId, setTargetId] = useState(""); // Category ID or Product ID
+  const [targetId, setTargetId] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +64,7 @@ export function ExtraCostsClient({ initialCosts }: { initialCosts: any[] }) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Estás seguro de que deseas eliminar este costo extra? Se recalcularán los costos finales de todas las publicaciones que estuvieran siendo afectadas.")) return;
+    if (!confirm("¿Estás seguro de que deseas eliminar este costo extra? Se recalcularán los costos finales de todas las publicaciones afectadas.")) return;
     setIsProcessing(true);
     try {
       const res = await deleteExtraCost(id);
@@ -79,193 +79,214 @@ export function ExtraCostsClient({ initialCosts }: { initialCosts: any[] }) {
   };
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      {/* Header */}
-      <div className="flex items-center justify-between space-y-2">
-        <div className="flex items-center space-x-2">
-          <Link href="/dashboard/settings">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Costos Extra</h2>
-            <p className="text-sm text-muted-foreground">
-              Define recargos y gastos directos que impactan en el costeo final de tus publicaciones.
-            </p>
-          </div>
+    <div className="flex-1 p-6 md:p-8 space-y-6">
+      <OperationalPageHeader
+        title="Costos Adicionales y Recargos"
+        description="Configuración de cargos fijos o porcentuales que se suman al costo base del producto para determinar el margen neto real."
+        backLink={{
+          href: "/dashboard/settings",
+          label: "Volver a Configuración"
+        }}
+        actions={
+          <Button
+            size="sm"
+            onClick={() => setIsNewCostOpen(true)}
+            className="h-8 bg-[#102A56] hover:bg-[#102A56]/90 text-white text-xs font-semibold"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            Nuevo Costo Adicional
+          </Button>
+        }
+      />
+
+      {/* Explanatory Operational Notice */}
+      <div className="p-4 rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] space-y-2">
+        <div className="flex items-center gap-2 text-xs font-semibold text-[#101828]">
+          <HelpCircle className="w-4 h-4 text-[#102A56]" />
+          <span>Mecánica del Cálculo de Costos en Klyvo</span>
         </div>
-        <Button onClick={() => setIsNewCostOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
-          <Plus className="mr-2 h-4 w-4" />
-          Añadir Costo Extra
-        </Button>
+        <p className="text-xs text-[#5F6875] leading-relaxed">
+          Los costos adicionales (etiquetas, comisiones bancarias fijas o insumos de empaque) se deducen automáticamente del precio de venta junto con las comisiones de Mercado Libre y los costos de envío. Puedes definir reglas <strong>Globales</strong> (todo el catálogo), <strong>Por Categoría ML</strong> o <strong>Por Producto Específico</strong> (asignando el MLA).
+        </p>
       </div>
 
-      {/* Intro info card */}
-      <Card className="bg-blue-50/50 border-blue-100">
-        <CardContent className="pt-4 flex gap-3 text-xs text-blue-800">
-          <HelpCircle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+      {/* Table */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="font-semibold">¿Cómo funcionan los Costos Extra?</p>
-            <p className="mt-1 leading-relaxed">
-              Los costos extra (como bolsitas de packaging, etiquetas o comisiones fijas de logística) se suman de forma automática al costo de fabricación de tus combos o publicaciones individuales. Puedes configurar costos <strong>Globales</strong> (se aplican a todo el catálogo), <strong>Por Categoría</strong> de Mercado Libre, o <strong>Por Producto</strong> específico.
-            </p>
+            <h3 className="text-sm font-semibold text-[#101828]">Reglas de Costos Configuradas</h3>
+            <p className="text-xs text-[#5F6875]">Listado de cargos activos aplicados al inventario.</p>
           </div>
-        </CardContent>
-      </Card>
+          <span className="text-xs font-mono text-[#5F6875]">{costs.length} reglas</span>
+        </div>
 
-      {/* Main Catalog Card */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>Listado de Costos Extra Activos</CardTitle>
-          <CardDescription>Cargos aplicados al costeo de tu inventario.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {costs.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground text-sm">
-              No tienes costos extra configurados. Comienza agregando uno global.
-            </div>
-          ) : (
-            <div className="rounded-xl border border-slate-200 overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="border-b bg-slate-50 font-medium text-slate-600">
+        <DataTableShell>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="border-b border-[#DCDAD4] bg-[#FCFCFA] text-[11px] font-semibold text-[#5F6875] uppercase tracking-wider">
+                  <th className="px-4 py-2.5">Concepto</th>
+                  <th className="px-3 py-2.5 text-right">Valor / Monto</th>
+                  <th className="px-3 py-2.5 text-center">Tipo</th>
+                  <th className="px-3 py-2.5 text-center">Alcance</th>
+                  <th className="px-4 py-2.5">Destino / ID</th>
+                  <th className="px-4 py-2.5 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#DCDAD4] bg-[#FFFFFF]">
+                {costs.length === 0 ? (
                   <tr>
-                    <th className="p-3">Concepto</th>
-                    <th className="p-3 text-right">Monto</th>
-                    <th className="p-3 text-center">Tipo de Costo</th>
-                    <th className="p-3 text-center">Alcance / Aplica A</th>
-                    <th className="p-3">Destino / ID</th>
-                    <th className="p-3 text-right">Acciones</th>
+                    <td colSpan={6} className="p-0">
+                      <OperationalEmptyState
+                        title="Todos los productos tienen un costo cargado."
+                        description="No tienes reglas de costos adicionales configuradas. Agrega una regla global o por categoría si necesitas incluir insumos fijos."
+                        actionLabel="Añadir Costo Extra"
+                        onAction={() => setIsNewCostOpen(true)}
+                      />
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {costs.map((cost) => (
-                    <tr key={cost.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
-                      <td className="p-3 font-semibold text-slate-800 flex items-center gap-1.5">
-                        <Coins className="w-4 h-4 text-amber-500" />
+                ) : (
+                  costs.map((cost) => (
+                    <tr key={cost.id} className="hover:bg-[#F5F3EE]/50 transition-colors">
+                      <td className="px-4 py-2.5 font-semibold text-[#101828]">
                         {cost.name}
                       </td>
-                      <td className="p-3 text-right font-bold">
-                        {cost.cost_type === "fixed" ? `$${cost.amount.toLocaleString()}` : `${cost.amount}%`}
+                      <td className="px-3 py-2.5 text-right font-mono font-bold text-[#101828]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                        {cost.cost_type === "fixed" ? `$${cost.amount.toLocaleString("es-AR")}` : `${cost.amount}%`}
                       </td>
-                      <td className="p-3 text-center">
-                        <Badge variant="outline" className="capitalize">
-                          {cost.cost_type === "fixed" ? "Fijo ($)" : "Porcentual (%)"}
-                        </Badge>
+                      <td className="px-3 py-2.5 text-center">
+                        <StatusBadge variant="neutral">
+                          {cost.cost_type === "fixed" ? "Monto Fijo" : "Porcentaje"}
+                        </StatusBadge>
                       </td>
-                      <td className="p-3 text-center">
-                        <Badge className={
-                          cost.applies_to === "all" ? "bg-blue-100 text-blue-700 hover:bg-blue-100" :
-                          cost.applies_to === "category" ? "bg-amber-100 text-amber-700 hover:bg-amber-100" :
-                          "bg-indigo-100 text-indigo-700 hover:bg-indigo-100"
-                        }>
-                          {cost.applies_to === "all" ? "Global (Todos)" :
-                           cost.applies_to === "category" ? "Por Categoría" : "Por Producto"}
-                        </Badge>
+                      <td className="px-3 py-2.5 text-center">
+                        <StatusBadge variant={cost.applies_to === "all" ? "info" : "warning"}>
+                          {cost.applies_to === "all" ? "Global" : cost.applies_to === "category" ? "Categoría" : "Producto"}
+                        </StatusBadge>
                       </td>
-                      <td className="p-3 font-mono text-muted-foreground">
-                        {cost.applies_to === "all" ? "-" :
+                      <td className="px-4 py-2.5 font-mono text-[#5F6875] text-[11px]">
+                        {cost.applies_to === "all" ? "— (Todo el catálogo)" :
                          cost.applies_to === "category" ? (cost.metadata?.category_id || cost.name) :
                          cost.product_id}
                       </td>
-                      <td className="p-3 text-right">
-                        <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-750 hover:bg-red-50" onClick={() => handleDelete(cost.id)} disabled={isProcessing}>
-                          <Trash2 className="w-4 h-4" />
+                      <td className="px-4 py-2.5 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(cost.id)}
+                          disabled={isProcessing}
+                          className="h-7 w-7 p-0 text-[#5F6875] hover:text-[#D92D20] hover:bg-[#D92D20]/10"
+                          title="Eliminar regla"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </DataTableShell>
+      </div>
 
-      {/* New Extra Cost Modal */}
+      {/* Modal */}
       {isNewCostOpen && (
         <Dialog open={isNewCostOpen} onOpenChange={(open) => !open && setIsNewCostOpen(false)}>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="max-w-md bg-[#FFFFFF] border-[#DCDAD4]">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-1.5">
-                <Coins className="w-5 h-5 text-blue-600" /> Nuevo Costo Extra
-              </DialogTitle>
-              <DialogDescription>
-                Define un costo adicional y recalcula tus publicaciones vinculadas.
+              <DialogTitle className="text-base font-semibold text-[#101828]">Nuevo Costo Adicional</DialogTitle>
+              <DialogDescription className="text-xs text-[#5F6875]">
+                Define un recargo y especifica sobre qué publicaciones se aplicará.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 text-xs">
               <div className="space-y-1">
-                <Label>Concepto / Nombre del Costo</Label>
+                <Label className="text-xs font-semibold text-[#101828]">Concepto / Denominación</Label>
                 <Input
                   placeholder="Ej. Bolsa Packaging, Comisión Embalaje"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
+                  className="h-8 text-xs border-[#DCDAD4] bg-[#FFFFFF]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>Tipo de Cargo</Label>
+                  <Label className="text-xs font-semibold text-[#101828]">Tipo de Cargo</Label>
                   <select
                     value={costType}
                     onChange={(e) => setCostType(e.target.value as any)}
-                    className="w-full rounded-md border border-slate-200 h-9 px-2 bg-white"
+                    className="w-full rounded-md border border-[#DCDAD4] h-8 px-2.5 text-xs bg-[#FFFFFF] text-[#101828]"
                   >
-                    <option value="fixed">Fijo ($)</option>
+                    <option value="fixed">Monto Fijo ($)</option>
                     <option value="percent">Porcentual (%)</option>
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Valor / Monto</Label>
+                  <Label className="text-xs font-semibold text-[#101828]">Valor / Monto</Label>
                   <Input
                     type="number"
-                    placeholder="Ej. 500 o 5%"
+                    placeholder="Ej. 500"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     required
                     min="0.01"
                     step="0.01"
+                    className="h-8 text-xs border-[#DCDAD4] bg-[#FFFFFF]"
                   />
                 </div>
               </div>
 
-              <Separator />
-
-              <div className="space-y-1">
-                <Label>Alcance (¿A quién aplica?)</Label>
+              <div className="space-y-1 pt-1 border-t border-[#DCDAD4]">
+                <Label className="text-xs font-semibold text-[#101828]">Alcance de la Regla</Label>
                 <select
                   value={appliesTo}
                   onChange={(e) => {
                     setAppliesTo(e.target.value as any);
                     setTargetId("");
                   }}
-                  className="w-full rounded-md border border-slate-200 h-9 px-2 bg-white"
+                  className="w-full rounded-md border border-[#DCDAD4] h-8 px-2.5 text-xs bg-[#FFFFFF] text-[#101828]"
                 >
                   <option value="all">Global (Todo el catálogo)</option>
-                  <option value="category">Por Categoría de ML</option>
+                  <option value="category">Por Categoría de Mercado Libre</option>
                   <option value="product">Por Producto Específico</option>
                 </select>
               </div>
 
               {appliesTo !== "all" && (
                 <div className="space-y-1">
-                  <Label>{appliesTo === "category" ? "ID de la Categoría ML" : "ID del Producto (Mercado Libre)"}</Label>
+                  <Label className="text-xs font-semibold text-[#101828]">
+                    {appliesTo === "category" ? "Código de Categoría ML" : "ID de Publicación (MLA)"}
+                  </Label>
                   <Input
-                    placeholder={appliesTo === "category" ? "Ej. MLA1430 o MLA_CATEGORY" : "Ej. MLA123456789"}
+                    placeholder={appliesTo === "category" ? "Ej. MLA1430" : "Ej. MLA123456789"}
                     value={targetId}
                     onChange={(e) => setTargetId(e.target.value)}
                     required
+                    className="h-8 text-xs border-[#DCDAD4] bg-[#FFFFFF]"
                   />
                 </div>
               )}
 
-              <DialogFooter className="pt-2 border-t">
-                <Button type="button" variant="outline" onClick={() => setIsNewCostOpen(false)} disabled={isProcessing}>
+              <DialogFooter className="pt-3 border-t border-[#DCDAD4] gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsNewCostOpen(false)}
+                  disabled={isProcessing}
+                  className="h-8 border-[#DCDAD4] text-xs font-semibold"
+                >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isProcessing} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isProcessing}
+                  className="h-8 bg-[#102A56] hover:bg-[#102A56]/90 text-white text-xs font-semibold"
+                >
                   {isProcessing ? "Guardando..." : "Crear Costo"}
                 </Button>
               </DialogFooter>

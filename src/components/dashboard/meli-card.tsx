@@ -97,131 +97,130 @@ export function MeliCard({ meliAccount }: { meliAccount: any }) {
     : "Nunca";
 
   return (
-    <Card className="flex flex-col h-full justify-between">
-      <div>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-lg font-medium">Mercado Libre</CardTitle>
-          <ShoppingBag className="h-5 w-5 text-muted-foreground" />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <CardDescription>
-            Sincroniza tus publicaciones, stock y ventas de Mercado Libre.
-          </CardDescription>
+    <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-5 flex flex-col justify-between h-full space-y-4">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-[#DCDAD4]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-md bg-[#FFF0A6] border border-[#E5D275] flex items-center justify-center text-[#101828]">
+              <ShoppingBag className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm text-[#101828]">Mercado Libre</h3>
+              <p className="text-[11px] text-[#5F6875]">Canal de Venta Principal</p>
+            </div>
+          </div>
+          {isConnected ? (
+            <StatusBadge variant="success">Conectado</StatusBadge>
+          ) : isError ? (
+            <StatusBadge variant="danger">Error</StatusBadge>
+          ) : (
+            <StatusBadge variant="neutral">Desconectado</StatusBadge>
+          )}
+        </div>
 
-          {/* Estado de conexión */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-muted-foreground">Estado de conexión:</span>
-            {isConnected ? (
-              <StatusBadge variant="success">Conectado</StatusBadge>
-            ) : isError ? (
-              <StatusBadge variant="danger">Error</StatusBadge>
-            ) : (
-              <StatusBadge variant="neutral">Desconectado</StatusBadge>
+        <p className="text-xs text-[#5F6875] leading-relaxed">
+          Sincronización bidireccional de publicaciones, stock disponible, ventas y costos de envío.
+        </p>
+
+        {meliAccount && !isDisconnected && (
+          <div className="space-y-1.5 pt-2 border-t border-[#DCDAD4] text-xs font-mono">
+            {isConnected && (
+              <div className="flex justify-between items-center text-[#5F6875]">
+                <span>Token de Acceso:</span>
+                {isTokenExpired ? (
+                  <span className="text-[#D92D20] font-semibold flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5" /> Expirado
+                  </span>
+                ) : (
+                  <span className="text-[#198754] font-medium flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" /> Vigente ({hoursLeft}h restantes)
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="flex justify-between items-center text-[#5F6875]">
+              <span>Última sincronización:</span>
+              <span className="text-[#101828]">{lastRefreshStr}</span>
+            </div>
+            {meliAccount.sync_error && (
+              <div className="bg-[#FEF3F2] border border-[#FECDCA] text-[#D92D20] p-2 rounded text-[11px] font-mono leading-tight mt-1">
+                <span className="font-semibold">Error detectado:</span> {meliAccount.sync_error}
+              </div>
             )}
           </div>
-
-          {/* Información del Token si está enlazado */}
-          {meliAccount && !isDisconnected && (
-            <div className="text-xs space-y-2 border-t pt-3 mt-3">
-              {isConnected && (
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Token:</span>
-                  {isTokenExpired ? (
-                    <span className="text-red-500 font-semibold flex items-center gap-1">
-                      <AlertTriangle className="w-3.5 h-3.5" /> Expirado
-                    </span>
-                  ) : (
-                    <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                      <CheckCircle className="w-3.5 h-3.5" /> Vigente ({hoursLeft} hs restantes)
-                    </span>
-                  )}
-                </div>
-              )}
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Último refresh exitoso:</span>
-                <span className="font-mono">{lastRefreshStr}</span>
-              </div>
-              {meliAccount.sync_error && (
-                <div className="bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 p-2 rounded text-[11px] font-mono break-words leading-tight mt-1 border border-red-100 dark:border-red-950">
-                  <span className="font-semibold">Último error:</span> {meliAccount.sync_error}
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
+        )}
       </div>
 
-      <CardContent className="border-t pt-4 bg-muted/5 flex flex-col gap-2 mt-auto">
+      <div className="pt-3 border-t border-[#DCDAD4] mt-auto">
         {isConnected ? (
-          <div className="flex flex-col gap-2 w-full">
+          <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={handleSync}
                 disabled={isSyncing || isRefreshing}
-                className="w-full"
+                className="h-8 border-[#DCDAD4] bg-[#FFFFFF] text-xs font-semibold text-[#101828] hover:bg-[#F5F3EE]"
               >
                 {isSyncing ? (
                   <>
-                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     Sincronizando
                   </>
                 ) : (
                   "Sincronizar"
                 )}
               </Button>
-              <Button 
-                variant="secondary" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleManualRefresh}
                 disabled={isSyncing || isRefreshing}
-                className="w-full flex items-center justify-center gap-1"
+                className="h-8 border-[#DCDAD4] bg-[#FFFFFF] text-xs font-semibold text-[#101828] hover:bg-[#F5F3EE]"
               >
                 {isRefreshing ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <RefreshCw className="h-3.5 w-3.5" />
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
                 )}
                 Refrescar
               </Button>
             </div>
-            <Button 
-              variant="destructive" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleDisconnect}
               disabled={isSyncing || isRefreshing}
-              className="w-full"
+              className="w-full h-8 border-[#DCDAD4] text-[#D92D20] hover:bg-[#D92D20]/5 text-xs font-semibold"
             >
               Desconectar
             </Button>
           </div>
         ) : isError ? (
-          <div className="flex flex-col gap-2 w-full">
-            <Link href="/api/meli/connect" className="w-full">
-              <Button variant="default" size="sm" className="w-full flex items-center justify-center gap-1">
-                <Flame className="w-4 h-4" />
+          <div className="space-y-2">
+            <Link href="/api/meli/connect" className="block w-full">
+              <Button size="sm" className="w-full h-8 bg-[#102A56] hover:bg-[#102A56]/90 text-white text-xs font-semibold">
                 Reconectar cuenta
               </Button>
             </Link>
-            <Button 
-              variant="destructive" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleDisconnect}
               disabled={isSyncing || isRefreshing}
-              className="w-full"
+              className="w-full h-8 border-[#DCDAD4] text-[#D92D20] hover:bg-[#D92D20]/5 text-xs font-semibold"
             >
               Desconectar
             </Button>
           </div>
         ) : (
-          <Link href="/api/meli/connect" className="w-full">
-            <Button variant="default" size="sm" className="w-full">
+          <Link href="/api/meli/connect" className="block w-full">
+            <Button size="sm" className="w-full h-8 bg-[#102A56] hover:bg-[#102A56]/90 text-white text-xs font-semibold">
               Conectar Mercado Libre
             </Button>
           </Link>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

@@ -3,13 +3,13 @@
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { Check, Loader2, CreditCard, AlertCircle } from "lucide-react"
+import { Check, Loader2, CreditCard, AlertCircle, Calendar, ShieldCheck, ArrowDownCircle, Zap } from "lucide-react"
 import { upgradePlan, scheduleDowngradeAction } from "./actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { OperationalPageHeader } from "@/components/operational/page-header"
+import { StatusBadge } from "@/components/ui/status-badge"
 
 export default function BillingPage() {
   const [loading, setLoading] = useState(true)
@@ -121,8 +121,11 @@ export default function BillingPage() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex h-96 items-center justify-center">
+        <div className="flex items-center gap-2 text-sm text-[#5F6875]">
+          <Loader2 className="h-4 w-4 animate-spin text-[#102A56]" />
+          <span>Cargando estado de suscripción...</span>
+        </div>
       </div>
     )
   }
@@ -141,221 +144,386 @@ export default function BillingPage() {
   const isUnlimited = false
 
   return (
-    <div className="flex-1 space-y-6 p-8 pt-6">
+    <div className="space-y-6">
+      <OperationalPageHeader
+        title="Facturación y suscripción"
+        description="Gestión de planes, cuotas operativas mensuales y consumo de catálogo."
+        status={
+          <StatusBadge
+            variant={isExpired ? "danger" : subscription.status === "active" ? "success" : "warning"}
+          >
+            {isExpired ? "Vencida" : subscription.status === "active" ? "Plan Activo" : subscription.status}
+          </StatusBadge>
+        }
+      />
+
       {isExpired && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Suscripción Vencida</AlertTitle>
-          <AlertDescription>
-            Tu plan actual ha expirado. Por favor, renueva tu suscripción para seguir utilizando Klyvo.
-            Tus datos están a salvo, pero el acceso está restringido hasta que regularices el pago.
+        <Alert variant="destructive" className="border-[#D92D20]/40 bg-[#FEF3F2]">
+          <AlertCircle className="h-4 w-4 text-[#D92D20]" />
+          <AlertTitle className="text-[#D92D20] font-bold">Suscripción Vencida</AlertTitle>
+          <AlertDescription className="text-[#5F6875] text-xs mt-1">
+            Tu plan actual ha expirado. Por favor, regulariza tu suscripción para reanudar el acceso completo a Klyvo.
+            Tus datos de catálogo, costos y configuraciones se encuentran a salvo.
           </AlertDescription>
         </Alert>
       )}
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Facturación y Planes</h2>
+
+      {/* Plan summary strip & usage */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Current plan card */}
+        <div className="bg-[#FFFFFF] border border-[#DCDAD4] rounded-xl p-5 shadow-xs flex flex-col justify-between">
+          <div className="space-y-1">
+            <span className="text-[11px] font-bold text-[#5F6875] uppercase tracking-wider block">
+              Plan vigente
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-bold text-[#101828] uppercase">
+                {subscription.plan}
+              </span>
+              <StatusBadge variant="neutral">
+                {subscription.status}
+              </StatusBadge>
+            </div>
+            {subscription.pending_plan && (
+              <div className="text-[11px] text-[#B54708] bg-[#FEF6EE] px-2 py-1 rounded border border-[#F9DBAF] mt-2 flex items-center gap-1.5">
+                <ArrowDownCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>Baja a {subscription.pending_plan.toUpperCase()} programada</span>
+              </div>
+            )}
+          </div>
+          <div className="pt-4 border-t border-[#DCDAD4]/60 text-xs text-[#5F6875] space-y-1">
+            <div className="flex justify-between">
+              <span>Procesador:</span>
+              <span className="font-semibold text-[#101828]">Mercado Pago</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Renovación:</span>
+              <span className="font-semibold text-[#101828]">
+                {subscription.expires_at ? new Date(subscription.expires_at).toLocaleDateString("es-AR") : "Mensual automática"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* SKUs usage card */}
+        <div className="bg-[#FFFFFF] border border-[#DCDAD4] rounded-xl p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#5F6875] uppercase tracking-wider">
+              SKUs de catálogo
+            </span>
+            <span className="text-xs font-bold text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+              {stats.pubCount || 0} / {isUnlimited ? "∞" : pubLimit}
+            </span>
+          </div>
+          <div className="w-full bg-[#F5F3EE] h-2 rounded-full overflow-hidden border border-[#DCDAD4]/40">
+            <div
+              className={`h-full transition-all duration-300 ${pubProgress > 90 ? "bg-[#D92D20]" : "bg-[#102A56]"}`}
+              style={{ width: `${pubProgress}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-[#5F6875]">
+            {isUnlimited ? "Sin límite de SKUs." : `${pubProgress}% del límite mensual utilizado.`}
+          </p>
+        </div>
+
+        {/* AI Queries usage card */}
+        <div className="bg-[#FFFFFF] border border-[#DCDAD4] rounded-xl p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#5F6875] uppercase tracking-wider">
+              Consultas operativas
+            </span>
+            <span className="text-xs font-bold text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+              {usage.ai_credits_used || 0} / {isUnlimited ? "∞" : limit}
+            </span>
+          </div>
+          <div className="w-full bg-[#F5F3EE] h-2 rounded-full overflow-hidden border border-[#DCDAD4]/40">
+            <div
+              className={`h-full transition-all duration-300 ${progress > 90 ? "bg-[#D92D20]" : "bg-[#102A56]"}`}
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-[#5F6875]">
+            {isUnlimited ? "Sin límite mensual." : `${progress}% de consultas utilizadas este mes.`}
+          </p>
+        </div>
+
+        {/* Automated Processes usage card */}
+        <div className="bg-[#FFFFFF] border border-[#DCDAD4] rounded-xl p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#5F6875] uppercase tracking-wider">
+              Procesos automáticos
+            </span>
+            <span className="text-xs font-bold text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+              {usage.automation_actions_used || 0} / {isUnlimited ? "∞" : autoLimit}
+            </span>
+          </div>
+          <div className="w-full bg-[#F5F3EE] h-2 rounded-full overflow-hidden border border-[#DCDAD4]/40">
+            <div
+              className={`h-full transition-all duration-300 ${autoProgress > 90 ? "bg-[#D92D20]" : "bg-[#102A56]"}`}
+              style={{ width: `${autoProgress}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-[#5F6875]">
+            {isUnlimited ? "Sin límite de procesos." : `${autoProgress}% de ejecuciones utilizadas.`}
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Usage Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Uso de Inteligencia Artificial</CardTitle>
-            <CardDescription>
-              Consultas realizadas a través del Agente IA o WhatsApp en el mes actual.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between text-sm font-medium">
-              <span>{usage.ai_credits_used || 0} consultas usadas</span>
-              <span>{isUnlimited ? '∞' : limit} límite</span>
-            </div>
-            <Progress value={isUnlimited ? 0 : progress} className="h-2" />
-            <p className="text-xs text-muted-foreground">
-              {isUnlimited ? "Tu plan no tiene límite de consultas." : `Has usado el ${progress}% de tu límite mensual.`}
-            </p>
-          </CardContent>
-        </Card>
+      {/* Plan selection grid */}
+      <div className="space-y-4 pt-2">
+        <div className="border-b border-[#DCDAD4] pb-3">
+          <h2 className="text-base font-bold text-[#101828]">
+            Planes y suscripciones disponibles
+          </h2>
+          <p className="text-xs text-[#5F6875] mt-0.5">
+            Selecciona el plan que se adapte al volumen de tu catálogo y operaciones.
+          </p>
+        </div>
 
-        {/* SKUs Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>SKUs de Catálogo</CardTitle>
-            <CardDescription>
-              SKUs únicos importados y sincronizados activamente.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between text-sm font-medium">
-              <span>{stats.pubCount || 0} SKUs únicos importados</span>
-              <span>{isUnlimited ? '∞' : pubLimit} límite</span>
-            </div>
-            <Progress value={isUnlimited ? 0 : pubProgress} className="h-2" />
-            <p className="text-xs text-muted-foreground">
-              {isUnlimited ? "Tu plan no tiene límite de SKUs." : `Has usado el ${pubProgress}% de tu límite de SKUs.`}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* Starter Plan */}
+          <div className={`rounded-xl border p-6 flex flex-col justify-between shadow-xs transition-colors ${subscription.plan === 'starter' ? "border-[#102A56] bg-[#FFFFFF] ring-1 ring-[#102A56]" : "border-[#DCDAD4] bg-[#FFFFFF]"}`}>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-[#101828]">Starter</h3>
+                  <p className="text-xs text-[#5F6875]">Vendedores individuales o tiendas iniciales.</p>
+                </div>
+                {subscription.plan === 'starter' && (
+                  <StatusBadge variant="info">Actual</StatusBadge>
+                )}
+              </div>
 
-        {/* Automated Processes Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Procesos Automatizados</CardTitle>
-            <CardDescription>
-              Acciones automáticas ejecutadas por Klyvo sobre tu catálogo en el mes actual.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between text-sm font-medium">
-              <span>{usage.automation_actions_used || 0} procesos usados</span>
-              <span>{isUnlimited ? '∞' : autoLimit} límite</span>
-            </div>
-            <Progress value={isUnlimited ? 0 : autoProgress} className="h-2" />
-            <p className="text-xs text-muted-foreground">
-              {isUnlimited ? "Tu plan no tiene límite de procesos automáticos." : `Has usado el ${autoProgress}% de tu límite mensual.`}
-            </p>
-          </CardContent>
-        </Card>
+              <div className="border-y border-[#DCDAD4]/60 py-3">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-extrabold text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    $49.99
+                  </span>
+                  <span className="text-xs text-[#5F6875] font-medium">USD / mes</span>
+                </div>
+                <p className="text-[11px] text-[#5F6875] mt-0.5 font-mono">
+                  equiv. $78.984 ARS / mes (Mercado Pago)
+                </p>
+              </div>
 
-        {/* Current Plan Card */}
-        <Card className="bg-primary/5 border-primary/20">
-          <CardHeader>
-            <CardTitle>Plan Actual: {subscription.plan.toUpperCase()}</CardTitle>
-            <CardDescription>
-              Estado: <span className="capitalize font-semibold">{subscription.status}</span>
-              {subscription.pending_plan && (
-                <span className="ml-2 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                  Baja programada a {subscription.pending_plan.toUpperCase()}
-                </span>
+              <ul className="space-y-2.5 text-xs text-[#101828]">
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>15 días de prueba inicial sin costo</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>Hasta 100 SKUs únicos de catálogo</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>500 consultas operativas por mes</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>250 procesos automáticos mensuales</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>Control de stock y rentabilidad por producto</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="pt-6 mt-4 border-t border-[#DCDAD4]/60">
+              {subscription.plan === 'starter' && !isExpired ? (
+                <Button className="w-full bg-[#F5F3EE] text-[#5F6875] border border-[#DCDAD4]" disabled variant="outline">
+                  Plan actual
+                </Button>
+              ) : (
+                <Button
+                  className="w-full bg-[#102A56] hover:bg-[#0A1D3C] text-white"
+                  onClick={() => handleUpgrade('starter')}
+                  disabled={!!upgrading || !!downgrading || (!isExpired && subscription.plan === 'starter') || subscription.pending_plan === 'starter'}
+                  variant={subscription.plan === 'pro' || subscription.plan === 'ultra' ? "outline" : "default"}
+                >
+                  {upgrading === 'starter' || downgrading === 'starter' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                  {subscription.plan === 'starter' && isExpired ? 'Pagar Starter' : (subscription.plan === 'pro' || subscription.plan === 'ultra' ? 'Bajar a Starter' : 'Seleccionar Starter')}
+                </Button>
               )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center space-x-2 text-sm">
-              <Check className="h-4 w-4 text-green-500" />
-              <span>Funcionalidades base de Klyvo</span>
             </div>
-            <div className="flex items-center space-x-2 text-sm mt-2">
-              <Check className="h-4 w-4 text-green-500" />
-              <span>{isUnlimited ? 'Consultas IA ilimitadas' : `${limit} consultas IA/mes`}</span>
+          </div>
+
+          {/* Pro Plan */}
+          <div className={`rounded-xl border p-6 flex flex-col justify-between shadow-xs transition-colors ${subscription.plan === 'pro' ? "border-[#102A56] bg-[#FFFFFF] ring-1 ring-[#102A56]" : "border-[#DCDAD4] bg-[#FFFFFF]"}`}>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-[#101828]">Pro</h3>
+                  <p className="text-xs text-[#5F6875]">Tiendas medianas en crecimiento sostenido.</p>
+                </div>
+                {subscription.plan === 'pro' && (
+                  <StatusBadge variant="info">Actual</StatusBadge>
+                )}
+              </div>
+
+              <div className="border-y border-[#DCDAD4]/60 py-3">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-extrabold text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    $79.99
+                  </span>
+                  <span className="text-xs text-[#5F6875] font-medium">USD / mes</span>
+                </div>
+                <p className="text-[11px] text-[#5F6875] mt-0.5 font-mono">
+                  equiv. $126.384 ARS / mes (Mercado Pago)
+                </p>
+              </div>
+
+              <ul className="space-y-2.5 text-xs text-[#101828]">
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>15 días de prueba inicial sin costo</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>Hasta 400 SKUs únicos de catálogo</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>1.500 consultas operativas por mes</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>800 procesos automáticos mensuales</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>Hasta 2 números de WhatsApp vinculados</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>Soporte prioritario por canal operativo</span>
+                </li>
+              </ul>
             </div>
-            <div className="flex items-center space-x-2 text-sm mt-2">
-              <Check className="h-4 w-4 text-green-500" />
-              <span>{isUnlimited ? 'Procesos automáticos ilimitados' : `${autoLimit} procesos automáticos/mes`}</span>
+
+            <div className="pt-6 mt-4 border-t border-[#DCDAD4]/60">
+              {subscription.plan === 'pro' ? (
+                <Button className="w-full bg-[#F5F3EE] text-[#5F6875] border border-[#DCDAD4]" disabled variant="outline">
+                  Plan actual
+                </Button>
+              ) : (
+                <Button
+                  className="w-full bg-[#102A56] hover:bg-[#0A1D3C] text-white"
+                  onClick={() => handleUpgrade('pro')}
+                  disabled={!!upgrading || !!downgrading || subscription.pending_plan === 'pro'}
+                  variant={subscription.plan === 'ultra' ? "outline" : "default"}
+                >
+                  {upgrading === 'pro' || downgrading === 'pro' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                  {subscription.plan === 'ultra' ? 'Bajar a Pro' : 'Actualizar a Pro'}
+                </Button>
+              )}
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
 
-      <h3 className="text-xl font-bold mt-10">Mejora tu Plan</h3>
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Starter Plan */}
-        <Card className={subscription.plan === 'starter' ? "border-primary" : ""}>
-          <CardHeader>
-            <CardTitle>Starter</CardTitle>
-            <CardDescription>Para pequeños vendedores.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$49.99 <span className="text-xs font-normal text-muted-foreground">USD/mes</span></div>
-            <div className="text-xs text-slate-400 font-medium mt-1">equiv. $78.984 ARS / mes (Mercado Pago)</div>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>15 días de prueba gratis</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 100 SKUs de catálogo (sin límite de publicaciones)</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>500 mensajes de IA (WhatsApp/Web)</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>250 procesos automáticos mensuales</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Gestión de Títulos con IA</span></div>
-          </CardContent>
-          <CardFooter>
-            {subscription.plan === 'starter' && !isExpired ? (
-              <Button className="w-full" disabled variant="secondary">
-                Plan Actual
-              </Button>
-            ) : (
-              <Button 
-                className="w-full" 
-                onClick={() => handleUpgrade('starter')} 
-                disabled={!!upgrading || !!downgrading || (!isExpired && subscription.plan === 'starter') || subscription.pending_plan === 'starter'}
-                variant={subscription.plan === 'pro' || subscription.plan === 'ultra' ? "outline" : "default"}
-              >
-                {upgrading === 'starter' || downgrading === 'starter' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                {subscription.plan === 'starter' && isExpired ? 'Pagar Starter' : (subscription.plan === 'pro' || subscription.plan === 'ultra' ? 'Bajar a Starter' : 'Seleccionar Starter')}
-              </Button>
-            )}
-          </CardFooter>
-        </Card>
+          {/* Ultra Plan */}
+          <div className={`rounded-xl border p-6 flex flex-col justify-between shadow-xs transition-colors ${subscription.plan === 'ultra' ? "border-[#102A56] bg-[#FFFFFF] ring-1 ring-[#102A56]" : "border-[#DCDAD4] bg-[#FFFFFF]"}`}>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-[#101828]">Ultra</h3>
+                  <p className="text-xs text-[#5F6875]">Cuentas de alto volumen y operaciones complejas.</p>
+                </div>
+                {subscription.plan === 'ultra' && (
+                  <StatusBadge variant="info">Actual</StatusBadge>
+                )}
+              </div>
 
-        {/* Pro Plan */}
-        <Card className={subscription.plan === 'pro' ? "border-primary" : ""}>
-          <CardHeader>
-            <CardTitle>Pro</CardTitle>
-            <CardDescription>Para tiendas en crecimiento.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$79.99 <span className="text-xs font-normal text-muted-foreground">USD/mes</span></div>
-            <div className="text-xs text-slate-400 font-medium mt-1">equiv. $126.384 ARS / mes (Mercado Pago)</div>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>15 días de prueba gratis</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 400 SKUs de catálogo (sin límite de publicaciones)</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>1.500 mensajes de IA (WhatsApp/Web)</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>800 procesos automáticos mensuales</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 2 números de WhatsApp vinculados</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Soporte prioritario</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Optimización y Cambio Masivo de Títulos</span></div>
-          </CardContent>
-          <CardFooter>
-            {subscription.plan === 'pro' ? (
-              <Button className="w-full" disabled variant="secondary">Plan Actual</Button>
-            ) : (
-              <Button className="w-full" onClick={() => handleUpgrade('pro')} disabled={!!upgrading || !!downgrading || subscription.pending_plan === 'pro'} variant={subscription.plan === 'ultra' ? "outline" : "default"}>
-                {upgrading === 'pro' || downgrading === 'pro' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                {subscription.plan === 'ultra' ? 'Bajar a Pro' : 'Actualizar a Pro'}
-              </Button>
-            )}
-          </CardFooter>
-        </Card>
+              <div className="border-y border-[#DCDAD4]/60 py-3">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-extrabold text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    $129.99
+                  </span>
+                  <span className="text-xs text-[#5F6875] font-medium">USD / mes</span>
+                </div>
+                <p className="text-[11px] text-[#5F6875] mt-0.5 font-mono">
+                  equiv. $205.384 ARS / mes (Mercado Pago)
+                </p>
+              </div>
 
-        {/* Ultra Plan */}
-        <Card className={subscription.plan === 'ultra' ? "border-primary" : "border-primary/50 bg-primary/5"}>
-          <CardHeader>
-            <CardTitle>Ultra</CardTitle>
-            <CardDescription>Para negocios a gran escala.</CardDescription>
-            <div className="mt-4 text-3xl font-bold">$129.99 <span className="text-xs font-normal text-muted-foreground">USD/mes</span></div>
-            <div className="text-xs text-slate-400 font-medium mt-1">equiv. $205.384 ARS / mes (Mercado Pago)</div>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 1.000 SKUs de catálogo (sin límite de publicaciones)</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>5.000 mensajes de IA (WhatsApp/Web)</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 1.500 procesos automáticos</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Hasta 2 números de WhatsApp vinculados</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Soporte 24/7 por WhatsApp</span></div>
-            <div className="flex items-center space-x-2"><Check className="h-4 w-4" /> <span>Optimización y Cambio Masivo de Títulos</span></div>
-          </CardContent>
-          <CardFooter>
-            {subscription.plan === 'ultra' ? (
-              <Button className="w-full" disabled variant="secondary">Plan Actual</Button>
-            ) : (
-              <Button className="w-full" onClick={() => handleUpgrade('ultra')} disabled={!!upgrading}>
-                {upgrading === 'ultra' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                Actualizar a Ultra
-              </Button>
-            )}
-          </CardFooter>
-        </Card>
+              <ul className="space-y-2.5 text-xs text-[#101828]">
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>Hasta 1.000 SKUs de catálogo</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>5.000 consultas operativas por mes</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>Hasta 1.500 procesos automáticos</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>Hasta 2 números de WhatsApp vinculados</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#198754] shrink-0" />
+                  <span>Soporte 24/7 operativo directo</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="pt-6 mt-4 border-t border-[#DCDAD4]/60">
+              {subscription.plan === 'ultra' ? (
+                <Button className="w-full bg-[#F5F3EE] text-[#5F6875] border border-[#DCDAD4]" disabled variant="outline">
+                  Plan actual
+                </Button>
+              ) : (
+                <Button
+                  className="w-full bg-[#102A56] hover:bg-[#0A1D3C] text-white"
+                  onClick={() => handleUpgrade('ultra')}
+                  disabled={!!upgrading}
+                >
+                  {upgrading === 'ultra' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                  Actualizar a Ultra
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       <Dialog open={isDowngradeModalOpen} onOpenChange={setIsDowngradeModalOpen}>
-        <DialogContent>
+        <DialogContent className="border-[#DCDAD4] bg-white sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirmar Baja de Plan</DialogTitle>
-            <DialogDescription>
-              Tu plan {subscription?.plan?.toUpperCase()} se mantendrá activo hasta el final de tu ciclo de facturación actual. A partir de ese momento, tu suscripción se cancelará para que no se te vuelva a cobrar.
+            <DialogTitle className="text-base font-bold text-[#101828]">
+              Confirmar cambio de plan
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#5F6875] mt-1.5">
+              Tu plan {subscription?.plan?.toUpperCase()} continuará vigente hasta finalizar tu ciclo de facturación actual.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 text-sm text-slate-600">
-            <p>Al inicio del próximo mes, tu cuenta pasará a ser {targetDowngrade?.toUpperCase()}, y se te pedirá que ingreses tu tarjeta nuevamente para suscribirte a la nueva tarifa.</p>
+          <div className="py-3 text-xs text-[#5F6875] space-y-2">
+            <p>
+              Al cumplirse la fecha de vencimiento, la suscripción actual finalizará y tu cuenta se ajustará al plan {targetDowngrade?.toUpperCase()}.
+            </p>
+            <p>
+              Podrás actualizar tus datos de pago en Mercado Pago para activar el nuevo período.
+            </p>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDowngradeModalOpen(false)} disabled={!!downgrading}>Cancelar</Button>
-            <Button variant="destructive" onClick={confirmDowngrade} disabled={!!downgrading}>
-              {downgrading ? "Procesando..." : "Sí, programar baja"}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsDowngradeModalOpen(false)}
+              disabled={!!downgrading}
+              className="border-[#DCDAD4] text-xs font-semibold"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDowngrade}
+              disabled={!!downgrading}
+              className="text-xs font-semibold"
+            >
+              {downgrading ? "Procesando..." : "Confirmar programación"}
             </Button>
           </DialogFooter>
         </DialogContent>

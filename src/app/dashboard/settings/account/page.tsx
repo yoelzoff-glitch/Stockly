@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { OperationalPageHeader } from "@/components/operational/page-header";
+import { Button } from "@/components/ui/button";
 
 export default async function AccountSettingsPage() {
   const supabase = await createClient();
@@ -33,111 +34,101 @@ export default async function AccountSettingsPage() {
     .single();
 
   if (error || !profile) {
-    // Si da error PGRST116 es porque el usuario no tiene perfil (ej: se registró antes de implementar la lógica o falló a medias).
     return (
-      <div className="flex-1 space-y-4 p-8 pt-6">
-        <h2 className="text-3xl font-bold tracking-tight">Cuenta</h2>
-        <p className="text-muted-foreground">Error al cargar la información del perfil.</p>
+      <div className="flex-1 p-6 md:p-8 space-y-4">
+        <h2 className="text-xl font-bold text-[#101828]">Cuenta</h2>
+        <p className="text-xs text-[#5F6875]">Error al cargar la información del perfil.</p>
       </div>
     );
   }
 
-  // En Supabase, un join 1:1 puede devolver un objeto o un array de 1 elemento dependiendo de la FK
-  // Como profile pertenece a UN tenant, suele ser un objeto, o un array (si es one-to-many inverso). 
-  // Lo tratamos asumiendo que es un objeto (si devuelve array tomamos el 0).
   const tenant = Array.isArray(profile.tenants) ? profile.tenants[0] : profile.tenants;
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Cuenta y Plan</h2>
-      </div>
+    <div className="flex-1 p-6 md:p-8 space-y-6">
+      <OperationalPageHeader
+        title="Cuenta y Negocio"
+        description="Identidad del usuario operador, permisos de acceso y datos del tenant registrado."
+      />
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Información del Perfil</CardTitle>
-            <CardDescription>
-              Tus datos personales como usuario.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-6 space-y-4">
+          <div className="border-b border-[#DCDAD4] pb-3">
+            <h3 className="text-sm font-semibold text-[#101828]">Información Personal</h3>
+            <p className="text-xs text-[#5F6875]">Credenciales de acceso y contacto del operador.</p>
+          </div>
+          <div className="space-y-3 text-xs">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Nombre Completo</p>
-              <p className="text-lg">{profile.full_name || "Sin nombre"}</p>
+              <span className="text-[#5F6875] block font-medium">Nombre Completo:</span>
+              <span className="text-sm font-semibold text-[#101828]">{profile.full_name || "Sin nombre registrado"}</span>
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Email</p>
-              <p className="text-lg">{profile.email || user.email}</p>
+              <span className="text-[#5F6875] block font-medium">Correo Electrónico:</span>
+              <span className="text-sm font-mono text-[#101828]">{profile.email || user.email}</span>
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Rol</p>
-              <Badge variant="outline" className="mt-1 capitalize">
-                {profile.role}
-              </Badge>
+              <span className="text-[#5F6875] block font-medium mb-1">Rol en la Plataforma:</span>
+              <StatusBadge variant="neutral">
+                {profile.role ? profile.role.toUpperCase() : "ADMIN"}
+              </StatusBadge>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Datos del Negocio (Tenant)</CardTitle>
-            <CardDescription>
-              Información sobre tu tienda y suscripción actual.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-6 space-y-4">
+          <div className="border-b border-[#DCDAD4] pb-3">
+            <h3 className="text-sm font-semibold text-[#101828]">Datos de la Empresa (Tenant)</h3>
+            <p className="text-xs text-[#5F6875]">Información del comercio y plan contratado.</p>
+          </div>
+          <div className="space-y-3 text-xs">
             {tenant ? (
               <>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Nombre del Negocio</p>
-                  <p className="text-lg">{tenant.name}</p>
+                  <span className="text-[#5F6875] block font-medium">Razón Social / Nombre:</span>
+                  <span className="text-sm font-semibold text-[#101828]">{tenant.name}</span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Slug</p>
-                  <p className="text-sm text-muted-foreground">{tenant.slug}</p>
+                  <span className="text-[#5F6875] block font-medium">Identificador Slug:</span>
+                  <span className="text-xs font-mono text-[#5F6875]">{tenant.slug}</span>
                 </div>
-                <div className="flex items-center gap-4 mt-4">
+                <div className="flex items-center gap-4 pt-1">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Plan</p>
-                    <Badge className="mt-1 capitalize bg-primary/10 text-primary hover:bg-primary/20 border-primary/20">
-                      {tenant.plan}
-                    </Badge>
+                    <span className="text-[#5F6875] block font-medium mb-1">Plan Activo:</span>
+                    <StatusBadge variant="info">
+                      {tenant.plan ? tenant.plan.toUpperCase() : "STARTER"}
+                    </StatusBadge>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Estado</p>
-                    <Badge 
-                      variant={tenant.status === 'active' ? 'default' : 'secondary'} 
-                      className="mt-1 capitalize"
-                    >
-                      {tenant.status}
-                    </Badge>
+                    <span className="text-[#5F6875] block font-medium mb-1">Estado:</span>
+                    <StatusBadge variant={tenant.status === "active" ? "success" : "neutral"}>
+                      {tenant.status === "active" ? "Vigente" : tenant.status}
+                    </StatusBadge>
                   </div>
                 </div>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground">No se encontró un negocio asociado.</p>
+              <p className="text-xs text-[#5F6875]">No se encontró un negocio asociado.</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      <div className="mt-8">
-        <Card className="border-indigo-100 bg-indigo-50/50">
-          <CardHeader>
-            <CardTitle className="text-lg text-indigo-900">Exportación de Datos</CardTitle>
-            <CardDescription className="text-indigo-700/70">
-              Descargá un respaldo completo de tu catálogo, órdenes y ventas en formato Excel (.xlsx).
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <a href="/api/export" download="klyvo_backup.xlsx">
-              <div className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2">
-                Exportar datos empresa
-              </div>
-            </a>
-          </CardContent>
-        </Card>
+      <div className="rounded-lg border border-[#DCDAD4] bg-[#FCFCFA] p-6 space-y-3 max-w-2xl">
+        <h3 className="text-sm font-semibold text-[#101828]">Exportación de Respaldo</h3>
+        <p className="text-xs text-[#5F6875] leading-relaxed">
+          Descarga un archivo Excel (.xlsx) con la totalidad de tus publicaciones, pedidos, ventas históricas y comisiones procesadas en Klyvo.
+        </p>
+        <div className="pt-2">
+          <a href="/api/export" download="klyvo_backup.xlsx">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 border-[#DCDAD4] bg-[#FFFFFF] text-xs font-semibold text-[#101828] hover:bg-[#F5F3EE]"
+            >
+              Exportar datos empresa (.xlsx)
+            </Button>
+          </a>
+        </div>
       </div>
     </div>
   );
