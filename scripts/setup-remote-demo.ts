@@ -349,8 +349,8 @@ async function setupRemoteDemo() {
   const { data: insertedProducts, error: prodErr } = await supabase
     .from("products")
     .insert(productRows)
-    .select("id, meli_item_id, title, sku, price, cost");
-  if (prodErr) throw prodErr;
+    .select("id, meli_item_id, title, sku, price, cost, available_quantity");
+  if (prodErr || !insertedProducts) throw prodErr ?? new Error("Failed to insert products");
 
   console.log(`Inserted ${insertedProducts.length} products and inventory items.`);
 
