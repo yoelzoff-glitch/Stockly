@@ -53,38 +53,19 @@ export default function DashboardLoading() {
   }, [pathname]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] h-full w-full p-8 animate-in fade-in duration-300">
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-            @keyframes spin-reverse {
-              to { transform: rotate(-360deg); }
-            }
-            .animate-spin-reverse {
-              animation: spin-reverse 1.2s linear infinite;
-            }
-          `,
-        }}
-      />
-      <div className="relative flex items-center justify-center mb-5">
-        {/* Outer pulsing/spinning gradient ring */}
-        <div className="absolute w-20 h-20 rounded-full border-[3px] border-indigo-600/10 border-t-indigo-600 animate-spin" />
-        
-        {/* Inner reverse spin ring */}
-        <div className="absolute w-14 h-14 rounded-full border-2 border-indigo-400/5 border-b-indigo-400/60 animate-spin-reverse" />
-        
-        {/* Centered pulsing dot/icon */}
-        <div className="w-8 h-8 rounded-full bg-indigo-50/50 flex items-center justify-center shadow-sm">
-          <Loader2 className="w-4 h-4 text-indigo-600 animate-spin duration-1000" />
+    <div className="flex flex-col items-center justify-center min-h-[50vh] h-full w-full p-8">
+      <div className="flex items-center justify-center mb-4">
+        <div className="w-10 h-10 rounded-full border-2 border-[#DCDAD4] border-t-[#102A56] animate-spin flex items-center justify-center">
+          <Loader2 className="w-4 h-4 text-[#102A56]" />
         </div>
       </div>
-      
+
       <div className="flex flex-col items-center gap-1">
-        <h3 className="text-sm font-semibold text-slate-800 animate-pulse tracking-wide">
-          Cargando {moduleName}
+        <h3 className="text-xs font-bold text-[#101828] tracking-wide">
+          Cargando {moduleName}...
         </h3>
-        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-          Por favor espera
+        <p className="text-[11px] text-[#5F6875]">
+          Recuperando datos operativos
         </p>
       </div>
     </div>
