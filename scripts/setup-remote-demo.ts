@@ -81,7 +81,9 @@ async function setupRemoteDemo() {
       .select()
       .single();
 
-    if (insertTenantErr) throw insertTenantErr;
+    if (insertTenantErr || !newTenant) {
+      throw insertTenantErr ?? new Error("Failed to insert demo tenant");
+    }
     tenant = newTenant;
   } else {
     console.log(`Demo tenant already exists (ID: ${tenant.id}). Updating metadata...`);
@@ -92,6 +94,10 @@ async function setupRemoteDemo() {
         demo_label: "Datos ficticios para demostración",
       })
       .eq("id", tenant.id);
+  }
+
+  if (!tenant) {
+    throw new Error("Demo tenant could not be resolved.");
   }
 
   const tenantId = tenant.id;
