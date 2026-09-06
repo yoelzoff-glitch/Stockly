@@ -283,6 +283,22 @@ export async function syncProducts(tenantId: string) {
         rawData.fees = feeData?.raw_response;
         rawData.shipping_estimate = shippingData?.raw_response;
 
+        let resolvedAvailableQuantity = typeof item.available_quantity === "number" ? item.available_quantity : 0;
+        if (resolvedAvailableQuantity === 0 && Array.isArray(item.variations) && item.variations.length > 0) {
+          const varQty = item.variations.reduce((acc: number, v: any) => acc + (Number(v.available_quantity) || 0), 0);
+          if (varQty > 0) {
+            resolvedAvailableQuantity = varQty;
+          }
+        }
+
+        let resolvedSoldQuantity = typeof item.sold_quantity === "number" ? item.sold_quantity : 0;
+        if (resolvedSoldQuantity === 0 && Array.isArray(item.variations) && item.variations.length > 0) {
+          const varSold = item.variations.reduce((acc: number, v: any) => acc + (Number(v.sold_quantity) || 0), 0);
+          if (varSold > 0) {
+            resolvedSoldQuantity = varSold;
+          }
+        }
+
         productsToUpsert.push({
           tenant_id: tenantId,
           meli_account_id: meli_account_id,
@@ -292,8 +308,8 @@ export async function syncProducts(tenantId: string) {
           price: item.price,
           base_price: item.base_price,
           original_price: item.original_price,
-          available_quantity: item.available_quantity,
-          sold_quantity: item.sold_quantity,
+          available_quantity: resolvedAvailableQuantity,
+          sold_quantity: resolvedSoldQuantity,
           status: item.status,
           listing_type_id: item.listing_type_id,
           category_id: item.category_id,

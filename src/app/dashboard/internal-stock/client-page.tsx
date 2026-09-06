@@ -14,7 +14,8 @@ import {
   Trash2,
   Layers,
   ShieldAlert,
-  ArrowUpDown
+  ArrowUpDown,
+  RefreshCw
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -64,9 +65,28 @@ export function InternalStockClient({
   const filteredFullProducts = fullProducts.filter(p => {
     const titleMatch = p.title?.toLowerCase().includes(searchTerm.toLowerCase());
     const skuMatch = p.sku?.toLowerCase().includes(searchTerm.toLowerCase());
-    const meliMatch = p.meli_item_id?.toLowerCase().includes(searchTerm.toLowerCase());
+    const meliMatch = p.meli_item_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.publications?.some((pub: any) => pub.meli_item_id?.toLowerCase().includes(searchTerm.toLowerCase()));
     return titleMatch || skuMatch || meliMatch;
   });
+
+  const [isSyncingMeli, setIsSyncingMeli] = useState(false);
+
+  const handleSyncMeli = async () => {
+    setIsSyncingMeli(true);
+    try {
+      const res = await fetch("/api/meli/sync-products", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al sincronizar con Mercado Libre");
+      }
+      window.location.reload();
+    } catch (err: any) {
+      alert("Error al sincronizar: " + err.message);
+    } finally {
+      setIsSyncingMeli(false);
+    }
+  };
 
   // Modals state
   const [adjustingItem, setAdjustingItem] = useState<any | null>(null);
@@ -312,6 +332,16 @@ export function InternalStockClient({
             />
             <Button
               variant="outline"
+              onClick={handleSyncMeli}
+              disabled={isSyncingMeli || isProcessing}
+              className="h-9 px-3 text-xs font-semibold border-[#DCDAD4] hover:bg-[#F5F3EE] text-[#101828] shadow-sm"
+              title="Sincronizar stock y publicaciones con Mercado Libre"
+            >
+              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 text-[#5F6875] ${isSyncingMeli ? "animate-spin text-[#102A56]" : ""}`} />
+              {isSyncingMeli ? "Sincronizando..." : "Sincronizar Mercado Libre"}
+            </Button>
+            <Button
+              variant="outline"
               onClick={handleExportExcel}
               className="h-9 px-3 text-xs font-semibold border-[#DCDAD4] hover:bg-[#F5F3EE] text-[#101828] shadow-sm"
             >
@@ -541,7 +571,10 @@ export function InternalStockClient({
             </thead>
             <tbody className="divide-y divide-[#E2E8F0]">
               {filteredFullProducts.map((p) => {
-                const isCritical = (p.available_quantity || 0) <= 5;
+                const stock = p.physicalStockInFull ?? p.available_quantity ?? 0;
+                const isCritical = stock <= 5;
+                const meliId = p.meli_item_id || p.publications?.[0]?.meli_item_id || "—";
+                const totalPubs = p.publications?.length || 1;
 
                 return (
                   <tr key={p.id} className="hover:bg-[#F5F3EE]/30 transition-colors">
@@ -563,7 +596,15 @@ export function InternalStockClient({
                     <td className="px-3 py-3 font-mono text-[11px] text-[#5F6875]">
                       <span>{p.sku || "Sin SKU"}</span>
                       <span className="mx-1">•</span>
-                      <span>{p.meli_item_id}</span>
+                      <span>{meliId}</span>
+                      {totalPubs > 1 && (
+                        <span
+                          className="ml-1.5 text-[10px] text-[#5F6875] bg-[#F2F4F7] px-1.5 py-0.5 rounded font-sans"
+                          title={`${totalPubs} publicaciones vinculadas al mismo stock de FULL`}
+                        >
+                          +{totalPubs - 1} pub.
+                        </span>
+                      )}
                     </td>
 
                     <td className="px-3 py-3 text-center">
@@ -571,7 +612,7 @@ export function InternalStockClient({
                         className={`font-bold tabular-nums text-sm ${isCritical ? 'text-[#D92D20]' : 'text-[#101828]'}`}
                         style={{ fontVariantNumeric: "tabular-nums" }}
                       >
-                        {p.available_quantity ?? 0} u.
+                        {stock} u.
                       </span>
                     </td>
 

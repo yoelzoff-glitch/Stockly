@@ -509,7 +509,10 @@ export async function getFullStockData() {
     .select("id, title, sku, meli_item_id, available_quantity, sold_quantity, price, thumbnail_url, raw_data, status, permalink")
     .eq("tenant_id", profile.tenant_id);
 
-  const fullProducts = (products || []).filter(p => p.raw_data?.shipping?.logistic_type === "fulfillment");
+  const fullProducts = (products || []).filter(p =>
+    p.raw_data?.shipping?.logistic_type === "fulfillment" ||
+    p.raw_data?.logistic_type === "fulfillment"
+  );
 
   // Group by normalized SKU so shared listings (Clásica vs Premium / Cuotas) do not double-count physical stock
   const { normalizeSku } = await import("@/services/products/sku/normalizeSku");
@@ -523,9 +526,11 @@ export async function getFullStockData() {
     if (!skuGroupMap.has(groupKey)) {
       skuGroupMap.set(groupKey, {
         id: p.id,
+        meli_item_id: p.meli_item_id,
         sku: rawSku || "Sin SKU",
         title: p.title,
         thumbnail_url: p.thumbnail_url,
+        available_quantity: p.available_quantity || 0,
         physicalStockInFull: p.available_quantity || 0,
         totalSold: p.sold_quantity || 0,
         publications: [p],
@@ -537,6 +542,10 @@ export async function getFullStockData() {
       group.totalSold += (p.sold_quantity || 0);
       group.prices.push(p.price);
       group.physicalStockInFull = Math.max(group.physicalStockInFull, p.available_quantity || 0);
+      group.available_quantity = group.physicalStockInFull;
+      if (!group.meli_item_id && p.meli_item_id) {
+        group.meli_item_id = p.meli_item_id;
+      }
     }
   });
 
