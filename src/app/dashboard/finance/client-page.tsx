@@ -43,6 +43,9 @@ export default function FinanceClientPage({
     envios,
     promosCuotas,
     totalCupones,
+    totalPackaging = 0,
+    totalPromociones = 0,
+    descuentosYCupones = totalCupones,
     cancellationsAmount: cancelacionesAmount,
     gananciaNeta,
     margenNeto,
@@ -235,20 +238,27 @@ export default function FinanceClientPage({
           </div>
         </div>
 
-        {/* Cupones y Promos */}
+        {/* Descuentos, Cupones y Costos Extra */}
         <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-4 flex flex-col justify-between">
           <div>
             <span className="text-[11px] font-semibold uppercase tracking-wider text-[#5F6875] block">
-              Descuentos y Cupones
+              {totalPackaging > 0 ? "Descuentos y Costos Extra" : "Descuentos y Cupones"}
             </span>
             <div className="text-2xl font-bold font-mono text-[#D92D20] mt-1.5" style={{ fontVariantNumeric: "tabular-nums" }}>
-              -${(totalCupones + promosCuotas).toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+              -${promosCuotas.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
             </div>
           </div>
-          <div className="mt-3 pt-3 border-t border-[#DCDAD4]">
-            <p className="text-[11px] text-[#5F6875]">
-              Cupones cofinanciados y promociones comerciales
-            </p>
+          <div className="mt-3 pt-3 border-t border-[#DCDAD4] text-[11px] text-[#5F6875] space-y-1">
+            <div className="flex justify-between font-mono">
+              <span className="font-sans">Cupones y promociones:</span>
+              <span className="font-semibold text-[#101828]">-${(totalCupones + totalPromociones).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
+            </div>
+            {totalPackaging > 0 && (
+              <div className="flex justify-between font-mono">
+                <span className="font-sans">Embalaje operativo:</span>
+                <span className="font-semibold text-[#101828]">-${totalPackaging.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
+              </div>
+            )}
           </div>
         </div>
 

@@ -33,6 +33,9 @@ export interface FinancialData {
   envios: number;
   promosCuotas: number;
   totalCupones: number;
+  totalPackaging: number;
+  totalPromociones: number;
+  descuentosYCupones: number;
   cancellationsAmount: number;
   gananciaNeta: number;
   margenNeto: number;
@@ -104,6 +107,8 @@ export async function getFinancialData(
   let envios = 0;
   let promosCuotas = 0;
   let totalCupones = 0;
+  let totalPackaging = 0;
+  let totalPromociones = 0;
   let totalUnitsSold = 0;
   let unitsWithCost = 0;
 
@@ -281,7 +286,9 @@ export async function getFinancialData(
       } else {
         itemShipping = Number(item.estimated_shipping_cost) || 0;
       }
-      let itemExtra = orderPackagingCost * qty;
+      const itemPackaging = orderPackagingCost * qty;
+      totalPackaging += itemPackaging;
+      let itemExtra = itemPackaging;
 
       if (couponAmount > 0 && amount > 0) {
         const itemTotalOriginal = Number(item.total_price) || 0;
@@ -305,7 +312,9 @@ export async function getFinancialData(
         if (itemShipping === 0 && actualShippingCost === null) {
           itemShipping = Number(p.estimated_shipping_cost || 0) * qty;
         }
-        itemExtra += (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * qty;
+        const itemPromo = (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * qty;
+        totalPromociones += itemPromo;
+        itemExtra += itemPromo;
       }
 
       orderCost += itemCost;
@@ -356,7 +365,9 @@ export async function getFinancialData(
       }
       
       const couponAmount = Number(raw?.coupon?.amount) || (raw?.payments && raw.payments.length > 0 ? Number(raw.payments[0].coupon_amount) : 0) || 0;
-      let itemExtra = (orderPackagingCost * rawQty) + couponAmount;
+      const orderPkg = orderPackagingCost * rawQty;
+      totalPackaging += orderPkg;
+      let itemExtra = orderPkg + couponAmount;
 
       if (p) {
         if (p.cost) {
@@ -369,7 +380,9 @@ export async function getFinancialData(
         if (orderShipping === 0) {
           orderShipping = Number(p.estimated_shipping_cost || 0) * rawQty;
         }
-        itemExtra += (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * rawQty;
+        const itemPromo = (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * rawQty;
+        totalPromociones += itemPromo;
+        itemExtra += itemPromo;
       }
 
       orderExtra = itemExtra;
@@ -615,6 +628,9 @@ export async function getFinancialData(
     unitsWithCost,
     costAccuracyPercent,
     totalCupones,
+    totalPackaging,
+    totalPromociones,
+    descuentosYCupones: totalCupones + totalPromociones,
     productAgg,
     tableData,
     monthlyExpensesTotal: Number(monthlyExpensesTotal.toFixed(2)),
