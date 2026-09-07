@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS public.tenants (
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   is_demo boolean NOT NULL DEFAULT false,
   demo_label text,
-  notifications_watermark_at timestamp with time zone DEFAULT now(),
+  notifications_watermark_at timestamp with time zone NOT NULL DEFAULT now(),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT tenants_pkey PRIMARY KEY (id)
@@ -343,8 +343,8 @@ CREATE TABLE IF NOT EXISTS public.alerts (
   CONSTRAINT alerts_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_dedupe_key_unique
-  ON public.alerts (dedupe_key)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_tenant_dedupe_unique
+  ON public.alerts (tenant_id, dedupe_key)
   WHERE dedupe_key IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.audit_logs (
@@ -1472,9 +1472,14 @@ CREATE INDEX IF NOT EXISTS idx_products_tenant_status_updated
 CREATE INDEX IF NOT EXISTS idx_alerts_tenant_unread_created
   ON public.alerts (tenant_id, is_read, created_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_alerts_tenant_active_feed
+  ON public.alerts (tenant_id, status, is_read, created_at DESC);
+
 CREATE INDEX IF NOT EXISTS idx_operation_runs_tenant_op_started
   ON public.operation_runs (tenant_id, operation_type, started_at DESC);
 
-
-
-
+-- Sprint 12: Alerts permissions hardening
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.alerts FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.alerts TO authenticated;
+GRANT UPDATE (is_read, read_at) ON TABLE public.alerts TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.alerts TO service_role;

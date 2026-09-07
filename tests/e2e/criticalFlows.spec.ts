@@ -7,8 +7,56 @@ const dbUrl = process.env.DATABASE_URL_TEST || "postgresql://postgres:password@1
 test.describe("Sprint 7 — Critical E2E Workflows", () => {
   let sql: postgres.Sql;
 
-  test.beforeAll(() => {
-    sql = postgres(dbUrl, { max: 5 });
+  test.beforeAll(async () => {
+    sql = postgres(dbUrl, { max: 1 });
+
+    // Self-healing schema check for fresh disposable test databases
+    const tables = await sql`
+      SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenants'
+    `;
+    if (tables.length === 0) {
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const schemaSql = fs.readFileSync(path.resolve(__dirname, "../fixtures/testSchema.sql"), "utf-8");
+      await sql.unsafe(schemaSql);
+      const sprint12Sql = fs.readFileSync(
+        path.resolve(__dirname, "../../supabase/migrations/20260912000000_sprint12_notifications_center.sql"),
+        "utf-8"
+      );
+      await sql.unsafe(sprint12Sql);
+    }
+
+    // Ensure at least 2 tenants exist for isolation assertions
+    const tenants = await sql`SELECT id FROM public.tenants LIMIT 2`;
+    if (tenants.length < 2) {
+      await sql`
+        INSERT INTO public.tenants (id, name, slug, plan, status, notifications_watermark_at)
+        VALUES
+          ('00000000-0000-0000-0000-000000000001'::uuid, 'Store Alpha', 'store-alpha', 'pro', 'active', now()),
+          ('00000000-0000-0000-0000-000000000002'::uuid, 'Store Beta', 'store-beta', 'pro', 'active', now())
+        ON CONFLICT (id) DO NOTHING
+      `;
+    }
+
+    // Ensure plans_config exists
+    await sql`
+      INSERT INTO public.plans_config (plan_key, display_name, ai_credits_limit, automation_limit, whatsapp_limit, sku_limit)
+      VALUES
+        ('free', 'Plan Free', 100, 10, 50, 100),
+        ('pro', 'Plan Pro', 1000, 100, 500, 2000)
+      ON CONFLICT (plan_key) DO NOTHING
+    `;
+
+    // Ensure at least 1 meli_account exists
+    const [t1] = await sql`SELECT id FROM public.tenants LIMIT 1`;
+    const accounts = await sql`SELECT id FROM public.meli_accounts LIMIT 1`;
+    if (accounts.length === 0 && t1) {
+      await sql`
+        INSERT INTO public.meli_accounts (tenant_id, meli_user_id, status)
+        VALUES (${t1.id}::uuid, '123456789', 'connected')
+        ON CONFLICT DO NOTHING
+      `;
+    }
   });
 
   test.afterAll(async () => {
@@ -204,5 +252,96 @@ test.describe("Sprint 7 — Critical E2E Workflows", () => {
     const sessionState = { active: false, token: null };
     expect(sessionState.active).toBe(false);
     expect(sessionState.token).toBeNull();
+  });
+
+  test("Flow 12: Notification Center compound index enforces idempotency per tenant", async () => {
+    const tenants = await sql`SELECT id FROM public.tenants LIMIT 2`;
+    if (tenants.length >= 1) {
+      const tenantA = tenants[0].id;
+      const dedupeKey = `e2e_test_sale_created_${Date.now()}`;
+
+      // Insert first alert
+      const [inserted1] = await sql`
+        INSERT INTO public.alerts (
+          tenant_id, title, type, category, severity, dedupe_key, status
+        ) VALUES (
+          ${tenantA}::uuid, 'Venta E2E Test', 'sale_created', 'activity', 'info', ${dedupeKey}, 'open'
+        ) RETURNING id, dedupe_key
+      `;
+      expect(inserted1.id).toBeDefined();
+
+      // Attempt duplicate insertion for same tenant -> rejected by idx_alerts_tenant_dedupe_unique
+      let duplicateThrew = false;
+      try {
+        await sql`
+          INSERT INTO public.alerts (
+            tenant_id, title, type, category, severity, dedupe_key, status
+          ) VALUES (
+            ${tenantA}::uuid, 'Venta E2E Duplicada', 'sale_created', 'activity', 'info', ${dedupeKey}, 'open'
+          )
+        `;
+      } catch (err: any) {
+        duplicateThrew = true;
+        expect(err.code).toBe("23505");
+      }
+      expect(duplicateThrew).toBe(true);
+
+      // Clean up test alert
+      await sql`DELETE FROM public.alerts WHERE id = ${inserted1.id}::uuid`;
+    }
+  });
+
+  test("Flow 13: Watermark on tenants table is NOT NULL and active", async () => {
+    const watermarkColumns = await sql`
+      SELECT column_name, is_nullable, column_default
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'tenants'
+        AND column_name = 'notifications_watermark_at'
+    `;
+    expect(watermarkColumns.length).toBe(1);
+    expect(watermarkColumns[0].is_nullable).toBe("NO");
+    expect(watermarkColumns[0].column_default).toContain("now()");
+  });
+
+  test("Flow 14: Marking as read does NOT resolve operational alert", async () => {
+    const tenants = await sql`SELECT id FROM public.tenants LIMIT 1`;
+    if (tenants.length >= 1) {
+      const tenantId = tenants[0].id;
+      const dedupeKey = `e2e_missing_costs_${Date.now()}`;
+
+      const [alert] = await sql`
+        INSERT INTO public.alerts (
+          tenant_id, title, type, category, severity, dedupe_key, status, is_read
+        ) VALUES (
+          ${tenantId}::uuid, 'Hay 5 productos sin costo', 'missing_costs', 'attention', 'warning', ${dedupeKey}, 'open', false
+        ) RETURNING id, status, is_read
+      `;
+
+      // User marks as read
+      const [updated] = await sql`
+        UPDATE public.alerts
+        SET is_read = true, read_at = now()
+        WHERE id = ${alert.id}::uuid
+        RETURNING id, status, is_read, read_at
+      `;
+
+      expect(updated.is_read).toBe(true);
+      expect(updated.status).toBe("open"); // Must remain open!
+      expect(updated.read_at).not.toBeNull();
+
+      // Condition resolved by business reconciler
+      const [resolved] = await sql`
+        UPDATE public.alerts
+        SET status = 'resolved', resolved_at = now()
+        WHERE id = ${alert.id}::uuid
+        RETURNING id, status, resolved_at
+      `;
+      expect(resolved.status).toBe("resolved");
+      expect(resolved.resolved_at).not.toBeNull();
+
+      // Clean up
+      await sql`DELETE FROM public.alerts WHERE id = ${alert.id}::uuid`;
+    }
   });
 });

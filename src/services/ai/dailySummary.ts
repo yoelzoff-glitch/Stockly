@@ -41,20 +41,19 @@ export async function getOrCreateDailySummary(tenantId: string): Promise<string 
   const timezone = tenant?.timezone || 'America/Argentina/Buenos_Aires';
   const todayStart = getMidnightInTimezone(new Date(), timezone);
 
-  // 1. Check if we already have a summary today
+  const dedupeKey = `tenant:${tenantId}:cache:daily_summary`;
+
+  // 1. Check if we already have a fresh cached summary
   const { data: existing } = await supabase
     .from("alerts")
-    .select("id, body, created_at")
+    .select("id, body, created_at, updated_at")
     .eq("tenant_id", tenantId)
-    .eq("severity", "info")
-    .like("title", "Resumen Diario%")
-    .gte("created_at", todayStart.toISOString())
-    .order("created_at", { ascending: false })
-    .limit(1)
+    .eq("dedupe_key", dedupeKey)
     .maybeSingle();
 
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-  if (existing?.body && new Date(existing.created_at) > oneHourAgo) {
+  const lastTime = existing?.updated_at || existing?.created_at;
+  if (existing?.body && lastTime && new Date(lastTime) > oneHourAgo && new Date(lastTime) >= todayStart) {
     return existing.body;
   }
 
@@ -109,19 +108,9 @@ Atención: Z productos tienen bajo stock."`;
 
     if (!summaryText) return null;
 
-    // 3. Save as archived cache record for Dashboard widget without ringing the notification bell
-    if (existing) {
-      await supabase
-        .from("alerts")
-        .update({
-          body: summaryText,
-          status: "archived",
-          is_read: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", existing.id);
-    } else {
-      await supabase.from("alerts").insert({
+    // 3. Save as single bounded cache record per tenant using dedupe_key (zero table bloat)
+    await supabase.from("alerts").upsert(
+      {
         tenant_id: tenantId,
         type: "daily_summary_archived",
         category: "activity",
@@ -131,8 +120,13 @@ Atención: Z productos tienen bajo stock."`;
         title: `Resumen Diario - ${new Date().toLocaleDateString("es-AR")}`,
         body: summaryText,
         severity: "info",
-      });
-    }
+        dedupe_key: dedupeKey,
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "tenant_id, dedupe_key",
+      }
+    );
 
     return summaryText;
 

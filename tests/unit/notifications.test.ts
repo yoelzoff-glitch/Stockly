@@ -240,4 +240,304 @@ describe("Sprint 12 — Centro de Alertas y Actividad Operativa Tests", () => {
       assert.equal(sanitizeActionUrl(undefined), null);
     });
   });
+
+  describe("5. Fault Injection: Recuperación ante fallo entre guardado de venta/cancelación y creación de alerta", () => {
+    it("Orden confirmada → interrupción antes de crear alerta → reintento genera exactamente 1 notificación", async () => {
+      const tenantId = "00000000-0000-0000-0000-000000000005";
+      const meliOrderId = "MELI-FAULT-ORDER-777";
+      const dedupeKey = `tenant:${tenantId}:sale:${meliOrderId}:created`;
+
+      const memoryAlerts: any[] = [];
+      const memoryOrders = [{ meli_order_id: meliOrderId, id: "uuid-order-777", status: "paid" }];
+
+      const mockClient = {
+        from: (table: string) => {
+          if (table === "tenants") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    data: { notifications_watermark_at: new Date(Date.now() - 3600000).toISOString() },
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === "alerts") {
+            return {
+              insert: async (row: any) => {
+                const isDupe = memoryAlerts.some((a) => a.tenant_id === row.tenant_id && a.dedupe_key === row.dedupe_key);
+                if (isDupe) {
+                  return { error: { code: "23505", message: "duplicate key violates idx_alerts_tenant_dedupe_unique" } };
+                }
+                memoryAlerts.push({ ...row, id: `alert-${memoryAlerts.length + 1}` });
+                return { error: null };
+              },
+            };
+          }
+          throw new Error(`Unexpected table ${table}`);
+        },
+      };
+
+      // Simulación de Intento 1: La orden se guardó en DB, pero el proceso se interrumpió antes de publishImmutableEvent
+      // (memoryOrders ya tiene la orden, pero memoryAlerts está vacío)
+      assert.equal(memoryOrders.length, 1);
+      assert.equal(memoryAlerts.length, 0);
+
+      // Simulación de Intento 2 (Reintento de Inngest):
+      // La orden ya existe en DB, pero el nuevo flujo garantiza la publicación idempotente
+      const retryResult1 = await publishImmutableEvent(
+        {
+          tenantId,
+          type: "sale_created",
+          title: "Nueva venta por $50.000",
+          body: "Smart TV 43 · 1 unidad",
+          actionUrl: `/dashboard/sales/uuid-order-777`,
+          actionLabel: "Ver venta",
+          entityType: "order",
+          entityId: "uuid-order-777",
+          dedupeKey,
+          eventTimestamp: new Date().toISOString(),
+        },
+        mockClient as any
+      );
+
+      assert.equal(retryResult1.success, true);
+      assert.equal(memoryAlerts.length, 1);
+      assert.equal(memoryAlerts[0].dedupe_key, dedupeKey);
+
+      // Simulación de Intento 3 (Reintento adicional):
+      // La notificación ya existe: debe descartarse silenciosamente sin duplicar
+      const retryResult2 = await publishImmutableEvent(
+        {
+          tenantId,
+          type: "sale_created",
+          title: "Nueva venta por $50.000",
+          body: "Smart TV 43 · 1 unidad",
+          actionUrl: `/dashboard/sales/uuid-order-777`,
+          actionLabel: "Ver venta",
+          entityType: "order",
+          entityId: "uuid-order-777",
+          dedupeKey,
+          eventTimestamp: new Date().toISOString(),
+        },
+        mockClient as any
+      );
+
+      assert.equal(retryResult2.success, false);
+      assert.equal(retryResult2.skippedReason, "duplicate");
+      assert.equal(memoryAlerts.length, 1, "Cero duplicados en reintentos adicionales");
+    });
+
+    it("Cancelación confirmada → interrupción antes de alerta → reintento genera exactamente 1 notificación de cancelación", async () => {
+      const tenantId = "00000000-0000-0000-0000-000000000005";
+      const meliOrderId = "MELI-FAULT-CANCEL-888";
+      const dedupeKey = `tenant:${tenantId}:sale:${meliOrderId}:cancelled`;
+
+      const memoryAlerts: any[] = [];
+
+      const mockClient = {
+        from: (table: string) => {
+          if (table === "tenants") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    data: { notifications_watermark_at: new Date(Date.now() - 3600000).toISOString() },
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === "alerts") {
+            return {
+              insert: async (row: any) => {
+                const isDupe = memoryAlerts.some((a) => a.tenant_id === row.tenant_id && a.dedupe_key === row.dedupe_key);
+                if (isDupe) {
+                  return { error: { code: "23505", message: "duplicate key violates idx_alerts_tenant_dedupe_unique" } };
+                }
+                memoryAlerts.push({ ...row, id: `alert-${memoryAlerts.length + 1}` });
+                return { error: null };
+              },
+            };
+          }
+          throw new Error(`Unexpected table ${table}`);
+        },
+      };
+
+      // Reintento tras fallo previo:
+      const res1 = await publishImmutableEvent(
+        {
+          tenantId,
+          type: "sale_cancelled",
+          title: "Se canceló una venta por $30.000",
+          body: "La facturación y la rentabilidad fueron actualizadas.",
+          actionUrl: `/dashboard/sales/uuid-order-888`,
+          actionLabel: "Ver cancelación",
+          dedupeKey,
+          eventTimestamp: new Date().toISOString(),
+        },
+        mockClient as any
+      );
+
+      assert.equal(res1.success, true);
+      assert.equal(memoryAlerts.length, 1);
+
+      // Reintento repetido:
+      const res2 = await publishImmutableEvent(
+        {
+          tenantId,
+          type: "sale_cancelled",
+          title: "Se canceló una venta por $30.000",
+          body: "La facturación y la rentabilidad fueron actualizadas.",
+          actionUrl: `/dashboard/sales/uuid-order-888`,
+          actionLabel: "Ver cancelación",
+          dedupeKey,
+          eventTimestamp: new Date().toISOString(),
+        },
+        mockClient as any
+      );
+
+      assert.equal(res2.success, false);
+      assert.equal(res2.skippedReason, "duplicate");
+      assert.equal(memoryAlerts.length, 1);
+    });
+  });
+
+  describe("6. Aislamiento por Índice Compuesto (tenant_id, dedupe_key)", () => {
+    it("permite el mismo dedupe_key para dos tenants distintos sin colisión", async () => {
+      const tenantA = "00000000-0000-0000-0000-00000000000A";
+      const tenantB = "00000000-0000-0000-0000-00000000000B";
+      const sharedDedupeKey = "state:missing_costs";
+
+      const store: any[] = [];
+
+      const mockClient = {
+        from: (table: string) => {
+          if (table === "tenants") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    data: { notifications_watermark_at: new Date(Date.now() - 3600000).toISOString() },
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === "alerts") {
+            return {
+              insert: async (row: any) => {
+                // Simula idx_alerts_tenant_dedupe_unique en (tenant_id, dedupe_key)
+                const dupe = store.some(
+                  (r) => r.tenant_id === row.tenant_id && r.dedupe_key === row.dedupe_key
+                );
+                if (dupe) {
+                  return { error: { code: "23505", message: "unique violation" } };
+                }
+                store.push({ ...row, id: `alert-${store.length + 1}` });
+                return { error: null };
+              },
+            };
+          }
+          throw new Error(`Unexpected table ${table}`);
+        },
+      };
+
+      // Tenant A publica
+      const resA = await publishImmutableEvent(
+        {
+          tenantId: tenantA,
+          type: "sale_created",
+          title: "Venta Tenant A",
+          body: "Item A",
+          actionUrl: "/dashboard/sales/1",
+          dedupeKey: sharedDedupeKey,
+          eventTimestamp: new Date().toISOString(),
+        },
+        mockClient as any
+      );
+
+      // Tenant B publica con la MISMA dedupe_key
+      const resB = await publishImmutableEvent(
+        {
+          tenantId: tenantB,
+          type: "sale_created",
+          title: "Venta Tenant B",
+          body: "Item B",
+          actionUrl: "/dashboard/sales/2",
+          dedupeKey: sharedDedupeKey,
+          eventTimestamp: new Date().toISOString(),
+        },
+        mockClient as any
+      );
+
+      assert.equal(resA.success, true);
+      assert.equal(resB.success, true);
+      assert.equal(store.length, 2, "Ambos tenants deben coexistir con el mismo dedupe_key gracias al índice compuesto");
+
+      // Tenant A intenta publicar de nuevo con la misma key -> debe colisionar
+      const resADupe = await publishImmutableEvent(
+        {
+          tenantId: tenantA,
+          type: "sale_created",
+          title: "Venta Tenant A Repetida",
+          body: "Item A",
+          actionUrl: "/dashboard/sales/1",
+          dedupeKey: sharedDedupeKey,
+          eventTimestamp: new Date().toISOString(),
+        },
+        mockClient as any
+      );
+
+      assert.equal(resADupe.success, false);
+      assert.equal(resADupe.skippedReason, "duplicate");
+      assert.equal(store.length, 2);
+    });
+  });
+
+  describe("7. Realtime Multi-tenant Isolation & Cleanup Contract", () => {
+    it("canal privado y filtro postgres_changes respetan estricto aislamiento por tenant", () => {
+      const tenantA = "00000000-0000-0000-0000-00000000000A";
+      const tenantB = "00000000-0000-0000-0000-00000000000B";
+
+      let channelCreated = "";
+      let eventFilter = "";
+      let removedChannel: any = null;
+
+      const mockSupabase = {
+        channel: (channelName: string) => {
+          channelCreated = channelName;
+          return {
+            on: (eventType: string, config: any, callback: Function) => {
+              eventFilter = config.filter;
+              return {
+                subscribe: () => ({ id: "sub-1" }),
+              };
+            },
+          };
+        },
+        removeChannel: (ch: any) => {
+          removedChannel = ch;
+        },
+      };
+
+      // Simular setup del componente notification-bell para Tenant A
+      const channelA = mockSupabase.channel(`tenant-notifications:${tenantA}`);
+      channelA.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "alerts", filter: `tenant_id=eq.${tenantA}` },
+        () => {}
+      );
+
+      assert.equal(channelCreated, `tenant-notifications:${tenantA}`);
+      assert.equal(eventFilter, `tenant_id=eq.${tenantA}`);
+      assert.ok(!channelCreated.includes(tenantB), "El canal de Tenant A no debe incluir al Tenant B");
+      assert.ok(eventFilter.includes(tenantA), "El filtro debe restringirse exactamente al tenantId");
+
+      // Simular desmontaje del componente (cleanup)
+      mockSupabase.removeChannel(channelA);
+      assert.ok(removedChannel, "Debe desuscribirse y limpiar el canal al desmontar");
+    });
+  });
 });

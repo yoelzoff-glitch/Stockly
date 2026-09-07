@@ -3,7 +3,9 @@
 -- Migración: Ampliación de alerts y watermark temporal en tenants
 -- =====================================================================
 
--- 1. Watermark temporal de activación por tenant
+BEGIN;
+
+-- 1. Watermark temporal de activación por tenant (NOT NULL con default NOW())
 ALTER TABLE public.tenants
   ADD COLUMN IF NOT EXISTS notifications_watermark_at TIMESTAMPTZ DEFAULT NOW();
 
@@ -11,6 +13,11 @@ ALTER TABLE public.tenants
 UPDATE public.tenants
 SET notifications_watermark_at = NOW()
 WHERE notifications_watermark_at IS NULL;
+
+-- Asegurar constraint NOT NULL y default
+ALTER TABLE public.tenants
+  ALTER COLUMN notifications_watermark_at SET DEFAULT NOW(),
+  ALTER COLUMN notifications_watermark_at SET NOT NULL;
 
 -- 2. Ampliación de columnas en public.alerts
 ALTER TABLE public.alerts
@@ -53,9 +60,12 @@ BEGIN
   END IF;
 END $$;
 
--- 3. Unicidad atómica para dedupe_key (ignora nulls)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_dedupe_key_unique
-  ON public.alerts (dedupe_key)
+-- 3. Unicidad atómica para dedupe_key POR TENANT (ignora nulls)
+DROP INDEX IF EXISTS public.idx_alerts_dedupe_key_unique;
+DROP INDEX IF EXISTS public.idx_alerts_tenant_dedupe_unique;
+
+CREATE UNIQUE INDEX idx_alerts_tenant_dedupe_unique
+  ON public.alerts (tenant_id, dedupe_key)
   WHERE dedupe_key IS NOT NULL;
 
 -- Índice para consultas activas de la campana y la página de notificaciones
@@ -82,10 +92,37 @@ SET category = 'attention',
     type = 'legacy_alert'
 WHERE type = 'custom' AND status = 'open';
 
--- 5. Hardening de permisos y RLS
--- Los usuarios autenticados solo pueden SELECT y UPDATE (is_read, read_at)
--- Las inserciones de sistema y resoluciones se realizan con service_role o server actions de backend
-REVOKE INSERT, DELETE ON TABLE public.alerts FROM authenticated;
+-- 5. Hardening estricto de permisos y RLS
+-- Revocar todos los permisos de mutación generales primero
+REVOKE INSERT, UPDATE, DELETE
+ON TABLE public.alerts
+FROM PUBLIC, anon, authenticated;
 
--- Permitir únicamente actualizar campos de lectura por el usuario autenticado
-GRANT UPDATE (is_read, read_at) ON public.alerts TO authenticated;
+-- Otorgar únicamente lectura y actualización de lectura a authenticated
+GRANT SELECT ON TABLE public.alerts TO authenticated;
+GRANT UPDATE (is_read, read_at)
+ON TABLE public.alerts
+TO authenticated;
+
+-- Service role retiene control total para backend workers
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON TABLE public.alerts
+TO service_role;
+
+-- 6. Supabase Realtime publication
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = 'alerts'
+    ) THEN
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.alerts;
+    END IF;
+  END IF;
+END $$;
+
+COMMIT;

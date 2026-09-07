@@ -52,7 +52,7 @@
     "verify:sprint8:disposable": "node scripts/verify-with-disposable-db.js verify:sprint8",
     "verify:sprint11": "npm run typecheck && npm run test && npm run audit:auth && npm run audit:rls && npm run audit:webhooks && npm run audit:billing && npm run audit:demo && npm run test:demo:integration && npm run build",
     "verify:sprint11:disposable": "node scripts/verify-with-disposable-db.js verify:sprint11",
-    "verify:sprint12": "npm run typecheck && npm run test && npm run audit:auth && npm run audit:rls && npm run audit:webhooks && npm run audit:billing && npm run audit:demo && npm run audit:notifications && npm run build",
+    "verify:sprint12": "npm run typecheck && npm run test && npm run audit:auth && npm run audit:rls && npm run audit:webhooks && npm run audit:billing && npm run audit:demo && npm run audit:notifications && npm run test:e2e && npm run build",
     "verify:sprint12:disposable": "node scripts/verify-with-disposable-db.js verify:sprint12",
     "check:env": "tsx scripts/check-env.ts",
     "dev": "next dev",

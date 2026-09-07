@@ -27,18 +27,32 @@ function runNotificationsAudit() {
     });
   } else {
     const migrationContent = fs.readFileSync(migration12Path, "utf-8");
-    if (!migrationContent.includes("idx_alerts_dedupe_key_unique")) {
+    if (!migrationContent.includes("idx_alerts_tenant_dedupe_unique") || !migrationContent.includes("(tenant_id, dedupe_key)")) {
       violations.push({
-        category: "MISSING_UNIQUE_INDEX",
+        category: "MISSING_COMPOUND_UNIQUE_INDEX",
         file: "supabase/migrations/20260912000000_sprint12_notifications_center.sql",
-        message: "Unique index on (tenant_id, dedupe_key) is required for idempotent notifications.",
+        message: "Compound unique index on (tenant_id, dedupe_key) is required for idempotent notifications.",
       });
     }
-    if (!migrationContent.includes("notifications_watermark_at")) {
+    if (!migrationContent.includes("notifications_watermark_at SET NOT NULL")) {
       violations.push({
-        category: "MISSING_WATERMARK_COLUMN",
+        category: "WATERMARK_NOT_NULL_REQUIRED",
         file: "supabase/migrations/20260912000000_sprint12_notifications_center.sql",
-        message: "notifications_watermark_at column is required on tenants table.",
+        message: "notifications_watermark_at column must be NOT NULL on tenants table.",
+      });
+    }
+    if (!migrationContent.includes("REVOKE INSERT, UPDATE, DELETE")) {
+      violations.push({
+        category: "UPDATE_PERMISSIONS_NOT_REVOKED",
+        file: "supabase/migrations/20260912000000_sprint12_notifications_center.sql",
+        message: "General UPDATE permissions must be explicitly revoked from authenticated before granting column-level UPDATE.",
+      });
+    }
+    if (!migrationContent.includes("BEGIN;") || !migrationContent.includes("COMMIT;")) {
+      violations.push({
+        category: "MISSING_TRANSACTION_BLOCK",
+        file: "supabase/migrations/20260912000000_sprint12_notifications_center.sql",
+        message: "Migration must be wrapped inside a BEGIN / COMMIT transaction block.",
       });
     }
   }

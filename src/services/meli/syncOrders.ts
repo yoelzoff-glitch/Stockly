@@ -346,11 +346,7 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
       const localId = orderMap[meliId];
       if (!localId) continue;
 
-      const existing = existingMap.get(meliId);
-      const isNewOrder = !existing;
-      const isCancelledTransition = existing && existing.status !== "cancelled" && rawOrder.status === "cancelled";
-
-      if (isNewOrder && rawOrder.status !== "cancelled") {
+      if (rawOrder.status !== "cancelled") {
         const firstItem = rawOrder.order_items?.[0];
         const prodTitle = firstItem?.item?.title || "Producto";
         const prodQty = firstItem?.quantity || 1;
@@ -359,6 +355,7 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
         const desc = otherCount > 0 ? `${prodTitle} · ${unitText} (+${otherCount} más)` : `${prodTitle} · ${unitText}`;
         const formattedAmount = `$${Math.round(Number(rawOrder.total_amount) || 0).toLocaleString("es-AR")}`;
 
+        // Idempotent publication: resilient against worker crashes between DB order persist & notification
         await publishImmutableEvent({
           tenantId,
           type: "sale_created",
@@ -378,8 +375,9 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
         }).catch(err => {
           console.error(`Failed to publish sale_created notification for order ${meliId}:`, err);
         });
-      } else if (isCancelledTransition) {
+      } else {
         const formattedAmount = `$${Math.round(Number(rawOrder.total_amount) || 0).toLocaleString("es-AR")}`;
+        // Idempotent publication: guarantees cancelled sale notification delivery
         await publishImmutableEvent({
           tenantId,
           type: "sale_cancelled",
@@ -391,6 +389,7 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
           entityType: "order",
           entityId: localId,
           dedupeKey: `tenant:${tenantId}:sale:${meliId}:cancelled`,
+          eventTimestamp: rawOrder.date_closed || rawOrder.date_created,
           metadata: {
             meli_order_id: meliId,
             total_amount: rawOrder.total_amount,
