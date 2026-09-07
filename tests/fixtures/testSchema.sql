@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS public.tenants (
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   is_demo boolean NOT NULL DEFAULT false,
   demo_label text,
+  notifications_watermark_at timestamp with time zone DEFAULT now(),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT tenants_pkey PRIMARY KEY (id)
@@ -319,12 +320,32 @@ CREATE TABLE IF NOT EXISTS public.alerts (
   body text,
   severity text NOT NULL DEFAULT 'info'::text,
   is_read boolean NOT NULL DEFAULT false,
+  type text NOT NULL DEFAULT 'custom'::text,
+  category text NOT NULL DEFAULT 'attention'::text,
+  source text NOT NULL DEFAULT 'system'::text,
+  action_url text,
+  action_label text,
+  entity_type text,
+  entity_id text,
+  dedupe_key text,
+  status text NOT NULL DEFAULT 'open'::text,
+  read_at timestamp with time zone,
+  resolved_at timestamp with time zone,
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT alerts_pkey PRIMARY KEY (id),
+  CONSTRAINT alerts_category_check CHECK (category IN ('attention', 'activity')),
+  CONSTRAINT alerts_source_check CHECK (source IN ('system', 'platform_admin')),
+  CONSTRAINT alerts_status_check CHECK (status IN ('open', 'resolved', 'archived')),
   CONSTRAINT alerts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
   CONSTRAINT alerts_alert_rule_id_fkey FOREIGN KEY (alert_rule_id) REFERENCES public.alert_rules(id),
   CONSTRAINT alerts_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_dedupe_key_unique
+  ON public.alerts (dedupe_key)
+  WHERE dedupe_key IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.audit_logs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

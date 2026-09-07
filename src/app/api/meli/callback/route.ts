@@ -113,6 +113,23 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL("/dashboard/integrations?meli=error", baseUrl));
     }
 
+    // Auto-resolve integration_disconnected alert on successful reconnect
+    try {
+      const { upsertStateAlert } = await import("@/services/notifications/notificationService");
+      await upsertStateAlert({
+        tenantId: profile.tenant_id,
+        type: "integration_disconnected",
+        title: "Mercado Libre necesita ser reconectado",
+        body: "Reconexión completada.",
+        actionUrl: "/dashboard/integrations",
+        actionLabel: "Revisar integración",
+        dedupeKey: `tenant:${profile.tenant_id}:state:integration_disconnected:mercadolibre`,
+        count: 0,
+      }, supabaseAdmin);
+    } catch (resolveErr: any) {
+      console.error("Failed to auto-resolve integration_disconnected alert:", resolveErr.message);
+    }
+
     return NextResponse.redirect(new URL("/dashboard/integrations?meli=connected", baseUrl));
   } catch (error) {
     console.error("Meli Callback Exception:", error);

@@ -584,6 +584,14 @@ export async function syncProducts(tenantId: string) {
     .update({ last_sync_at: new Date().toISOString() })
     .eq("id", meli_account_id);
 
+  // --- SPRINT 12: Reconciliar alertas agregadas de estado (costos, stock, márgenes) ---
+  try {
+    const { reconcileTenantStateAlerts } = await import("@/services/notifications/notificationService");
+    await reconcileTenantStateAlerts(tenantId, supabase);
+  } catch (reconcileErr: any) {
+    console.error(`[syncProducts] Failed to reconcile state alerts for tenant ${tenantId}:`, reconcileErr.message);
+  }
+
     return productsToUpsert.length;
   } finally {
     releaseLock(lockKey);

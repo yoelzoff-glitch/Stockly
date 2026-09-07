@@ -118,12 +118,25 @@ export async function refreshMeliToken(meliAccountIdOrTenantId: string) {
       })
       .eq("id", account.id);
 
-    await createAlert({
-      tenantId,
-      title: "Conexión expirada con Mercado Libre",
-      body: "No pudimos renovar el token de conexión. Por favor, reconecta tu cuenta desde la sección Integraciones.",
-      severity: "critical"
-    });
+    try {
+      const { upsertStateAlert } = await import("@/services/notifications/notificationService");
+      await upsertStateAlert({
+        tenantId,
+        type: "integration_disconnected",
+        severity: "danger",
+        title: "Mercado Libre necesita ser reconectado",
+        body: "No pudimos renovar el token de conexión. Por favor, reconecta tu cuenta desde Integraciones.",
+        actionUrl: "/dashboard/integrations",
+        actionLabel: "Revisar integración",
+        entityType: "integration",
+        entityId: account.id,
+        dedupeKey: `tenant:${tenantId}:state:integration_disconnected:mercadolibre`,
+        count: 1,
+        metadata: { error: errMsg },
+      });
+    } catch (alertErr: any) {
+      console.error("Failed to upsert integration_disconnected alert:", alertErr.message);
+    }
 
     // Create Audit Log
     await supabaseAdmin.from("audit_logs").insert({

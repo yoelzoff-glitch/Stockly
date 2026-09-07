@@ -109,22 +109,28 @@ Atención: Z productos tienen bajo stock."`;
 
     if (!summaryText) return null;
 
-    // 3. Save it as an alert so it doesn't generate again today
+    // 3. Save as archived cache record for Dashboard widget without ringing the notification bell
     if (existing) {
       await supabase
         .from("alerts")
         .update({
           body: summaryText,
-          created_at: new Date().toISOString()
+          status: "archived",
+          is_read: true,
+          updated_at: new Date().toISOString()
         })
         .eq("id", existing.id);
     } else {
       await supabase.from("alerts").insert({
         tenant_id: tenantId,
-        title: `Resumen Diario - ${new Date().toLocaleDateString()}`,
+        type: "daily_summary_archived",
+        category: "activity",
+        status: "archived",
+        is_read: true,
+        source: "system",
+        title: `Resumen Diario - ${new Date().toLocaleDateString("es-AR")}`,
         body: summaryText,
         severity: "info",
-        is_read: false
       });
     }
 

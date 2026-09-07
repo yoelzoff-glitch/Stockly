@@ -76,6 +76,32 @@ export const syncOrdersTenantJob = inngest.createFunction(
       key: "event.data.tenantId",
       limit: 1,
     },
+    onFailure: async ({ event, error }: { event: any; error: any }) => {
+      const tenantId = (event?.data?.event?.data as any)?.tenantId;
+      if (!tenantId) return;
+
+      try {
+        const { upsertStateAlert } = await import("@/services/notifications/notificationService");
+        await upsertStateAlert({
+          tenantId,
+          type: "sync_failed",
+          severity: "warning",
+          title: "No pudimos actualizar los datos de Mercado Libre",
+          body: `Klyvo agotó los reintentos automáticos. Error: ${error?.message || "Fallo de conexión"}`,
+          actionUrl: "/dashboard/integrations",
+          actionLabel: "Revisar integración",
+          entityType: "integration",
+          dedupeKey: `tenant:${tenantId}:state:sync_failed:sync_orders`,
+          count: 1,
+          metadata: {
+            last_error: error?.message,
+            last_attempt: new Date().toISOString(),
+          },
+        });
+      } catch (alertErr: any) {
+        console.error("Failed to create sync_failed alert on failure:", alertErr.message);
+      }
+    },
   },
   async ({ event, step }) => {
     const tenantId = event.data?.tenantId;
@@ -114,6 +140,24 @@ export const syncOrdersTenantJob = inngest.createFunction(
           });
 
           const syncedCount = await syncOrders(tenantId, specificOrderId);
+
+          // Resolve sync_failed alert on success
+          try {
+            const { upsertStateAlert } = await import("@/services/notifications/notificationService");
+            await upsertStateAlert({
+              tenantId,
+              type: "sync_failed",
+              title: "No pudimos actualizar los datos de Mercado Libre",
+              body: "Klyvo agotó los reintentos automáticos.",
+              actionUrl: "/dashboard/integrations",
+              actionLabel: "Revisar integración",
+              dedupeKey: `tenant:${tenantId}:state:sync_failed:sync_orders`,
+              count: 0,
+            });
+          } catch (e: any) {
+            console.error("Failed to auto-resolve sync_failed alert:", e.message);
+          }
+
           return { tenantId, status: "completed", syncedCount };
         }
       );

@@ -233,6 +233,19 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     };
   });
 
+  // 4.5 Check existing orders for new sales / cancelled transitions
+  const meliOrderIds = rawOrders.map((o: any) => o.id?.toString()).filter(Boolean);
+  const { data: existingOrders } = await supabase
+    .from("orders")
+    .select("id, meli_order_id, status")
+    .eq("tenant_id", tenantId)
+    .in("meli_order_id", meliOrderIds);
+
+  const existingMap = new Map<string, { id: string; status: string }>();
+  existingOrders?.forEach(o => {
+    existingMap.set(o.meli_order_id, { id: o.id, status: o.status });
+  });
+
   // 5. Upsert Orders
   const { data: upsertedOrders, error: upsertError } = await supabase
     .from("orders")
@@ -325,7 +338,73 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
       }
   }
 
-    // --- SPRINT 36: Sincronización automática de envíos ---
+  // --- SPRINT 12: Notificaciones operativas de ventas y cancelaciones ---
+  try {
+    const { publishImmutableEvent } = await import("@/services/notifications/notificationService");
+    for (const rawOrder of rawOrders) {
+      const meliId = rawOrder.id?.toString();
+      const localId = orderMap[meliId];
+      if (!localId) continue;
+
+      const existing = existingMap.get(meliId);
+      const isNewOrder = !existing;
+      const isCancelledTransition = existing && existing.status !== "cancelled" && rawOrder.status === "cancelled";
+
+      if (isNewOrder && rawOrder.status !== "cancelled") {
+        const firstItem = rawOrder.order_items?.[0];
+        const prodTitle = firstItem?.item?.title || "Producto";
+        const prodQty = firstItem?.quantity || 1;
+        const unitText = prodQty === 1 ? "1 unidad" : `${prodQty} unidades`;
+        const otherCount = (rawOrder.order_items?.length || 1) - 1;
+        const desc = otherCount > 0 ? `${prodTitle} · ${unitText} (+${otherCount} más)` : `${prodTitle} · ${unitText}`;
+        const formattedAmount = `$${Math.round(Number(rawOrder.total_amount) || 0).toLocaleString("es-AR")}`;
+
+        await publishImmutableEvent({
+          tenantId,
+          type: "sale_created",
+          title: `Nueva venta por ${formattedAmount}`,
+          body: desc,
+          actionUrl: `/dashboard/sales/${localId}`,
+          actionLabel: "Ver venta",
+          entityType: "order",
+          entityId: localId,
+          dedupeKey: `tenant:${tenantId}:sale:${meliId}:created`,
+          eventTimestamp: rawOrder.date_created,
+          metadata: {
+            meli_order_id: meliId,
+            total_amount: rawOrder.total_amount,
+            items_count: rawOrder.order_items?.length || 0,
+          },
+        }).catch(err => {
+          console.error(`Failed to publish sale_created notification for order ${meliId}:`, err);
+        });
+      } else if (isCancelledTransition) {
+        const formattedAmount = `$${Math.round(Number(rawOrder.total_amount) || 0).toLocaleString("es-AR")}`;
+        await publishImmutableEvent({
+          tenantId,
+          type: "sale_cancelled",
+          title: `Se canceló una venta por ${formattedAmount}`,
+          body: "La facturación y la rentabilidad fueron actualizadas.",
+          severity: "warning",
+          actionUrl: `/dashboard/sales/${localId}`,
+          actionLabel: "Ver cancelación",
+          entityType: "order",
+          entityId: localId,
+          dedupeKey: `tenant:${tenantId}:sale:${meliId}:cancelled`,
+          metadata: {
+            meli_order_id: meliId,
+            total_amount: rawOrder.total_amount,
+          },
+        }).catch(err => {
+          console.error(`Failed to publish sale_cancelled notification for order ${meliId}:`, err);
+        });
+      }
+    }
+  } catch (notifErr: any) {
+    console.error("Error dispatching sale notifications in syncOrders:", notifErr);
+  }
+
+  // --- SPRINT 36: Sincronización automática de envíos ---
     await syncShipments(tenantId).catch((err) => {
       console.error(`Failed to sync shipments during syncOrders for tenant ${tenantId}:`, err);
     });
