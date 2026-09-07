@@ -97,36 +97,44 @@ Formato deseado (ejemplo aproximado):
 Top producto: Y.
 Atención: Z productos tienen bajo stock."`;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      max_tokens: 150,
-      temperature: 0.7,
-    });
-
-    const summaryText = completion.choices[0]?.message?.content?.trim();
+    let summaryText: string | undefined;
+    if (process.env.OPENAI_API_KEY) {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 150,
+        temperature: 0.7,
+      });
+      summaryText = completion.choices[0]?.message?.content?.trim();
+    } else {
+      summaryText = `📊 Ventas hoy: $${salesToday}. Top producto: ${topProduct}. ${lowStockCount} productos con bajo stock.`;
+    }
 
     if (!summaryText) return null;
 
-    // 3. Save as single bounded cache record per tenant using dedupe_key (zero table bloat)
-    await supabase.from("alerts").upsert(
-      {
-        tenant_id: tenantId,
-        type: "daily_summary_archived",
-        category: "activity",
-        status: "archived",
-        is_read: true,
-        source: "system",
-        title: `Resumen Diario - ${new Date().toLocaleDateString("es-AR")}`,
-        body: summaryText,
-        severity: "info",
-        dedupe_key: dedupeKey,
-        updated_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "tenant_id, dedupe_key",
-      }
-    );
+    // 3. Save as single bounded cache record per tenant using transactional RPC (bypassing PostgREST 42P10 error)
+    const { error: rpcErr } = await supabase.rpc("upsert_alert_dedupe", {
+      p_tenant_id: tenantId,
+      p_type: "daily_summary_archived",
+      p_category: "activity",
+      p_severity: "info",
+      p_source: "system",
+      p_title: `Resumen Diario - ${new Date().toLocaleDateString("es-AR")}`,
+      p_body: summaryText,
+      p_action_url: null,
+      p_action_label: null,
+      p_entity_type: null,
+      p_entity_id: null,
+      p_dedupe_key: dedupeKey,
+      p_status: "archived",
+      p_is_read: true,
+      p_metadata: {},
+    });
+
+    if (rpcErr) {
+      logger.error(rpcErr, "DAILY_SUMMARY_UPSERT_RPC_FAILED");
+      throw rpcErr;
+    }
 
     return summaryText;
 

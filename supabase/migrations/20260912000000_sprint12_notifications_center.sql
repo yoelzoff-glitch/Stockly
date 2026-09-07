@@ -125,4 +125,57 @@ BEGIN
   END IF;
 END $$;
 
+-- 7. RPC transaccional para upsert con dedupe_key (evita error PostgreSQL 42P10 ante índices parciales)
+CREATE OR REPLACE FUNCTION public.upsert_alert_dedupe(
+  p_tenant_id uuid,
+  p_type text,
+  p_category text,
+  p_severity text,
+  p_source text,
+  p_title text,
+  p_body text,
+  p_action_url text DEFAULT NULL,
+  p_action_label text DEFAULT NULL,
+  p_entity_type text DEFAULT NULL,
+  p_entity_id text DEFAULT NULL,
+  p_dedupe_key text DEFAULT NULL,
+  p_status text DEFAULT 'open',
+  p_is_read boolean DEFAULT false,
+  p_metadata jsonb DEFAULT '{}'::jsonb
+)
+RETURNS public.alerts
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_result public.alerts;
+BEGIN
+  INSERT INTO public.alerts (
+    tenant_id, type, category, severity, source, title, body,
+    action_url, action_label, entity_type, entity_id, dedupe_key,
+    status, is_read, metadata, updated_at
+  ) VALUES (
+    p_tenant_id, p_type, p_category, p_severity, p_source, p_title, p_body,
+    p_action_url, p_action_label, p_entity_type, p_entity_id, p_dedupe_key,
+    p_status, p_is_read, COALESCE(p_metadata, '{}'::jsonb), pg_catalog.now()
+  )
+  ON CONFLICT (tenant_id, dedupe_key)
+  WHERE dedupe_key IS NOT NULL
+  DO UPDATE SET
+    title = EXCLUDED.title,
+    body = EXCLUDED.body,
+    status = EXCLUDED.status,
+    is_read = EXCLUDED.is_read,
+    metadata = EXCLUDED.metadata,
+    updated_at = pg_catalog.now()
+  RETURNING * INTO v_result;
+
+  RETURN v_result;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.upsert_alert_dedupe FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.upsert_alert_dedupe TO authenticated, service_role;
+
 COMMIT;
