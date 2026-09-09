@@ -118,7 +118,19 @@ export interface ProductAdsTotals {
   overallRoas: number | null;
 }
 
-export type AdsTotals = ProductAdsTotals;
+export interface ProductAdsAd {
+  id?: string | number;
+  item_id: string;
+  campaign_id?: string | number;
+  ad_group_id?: string | number;
+  title?: string | null;
+  price?: number | null;
+  status?: string | null;
+  sku?: string | null;
+  thumbnail_url?: string | null;
+  metrics?: Partial<ProductAdsMetricsValues> | null;
+  raw?: any;
+}
 
 export interface AdsDataResult {
   period: string;
@@ -132,6 +144,7 @@ export interface AdsDataResult {
   adGroups: ProductAdsAdGroup[];
   productAdsList: ProductAdsMetrics[];
   totals: ProductAdsTotals;
+  adsError?: string | null;
 
   // Backwards compatibility properties for existing UI / consumers
   totalAdsInvestment: number | null;

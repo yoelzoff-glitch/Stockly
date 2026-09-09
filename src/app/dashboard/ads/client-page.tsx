@@ -367,7 +367,33 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#DCDAD4] bg-[#FFFFFF]">
-                {filteredProducts.length === 0 ? (
+                {adsData.adsError ? (
+                  <tr>
+                    <td colSpan={8} className="p-8 text-center">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <AlertCircle className="w-6 h-6 text-[#D92D20]" />
+                        <div>
+                          <p className="text-xs font-semibold text-[#101828]">
+                            No pudimos obtener las publicaciones anunciadas en este momento.
+                          </p>
+                          <p className="text-[11px] text-[#5F6875] mt-0.5">
+                            {adsData.adsError}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleRefresh}
+                          disabled={isRefreshing}
+                          className="h-8 text-xs border-[#DCDAD4]"
+                        >
+                          <RefreshCw className={`w-3 h-3 mr-1.5 ${isRefreshing ? "animate-spin" : ""}`} />
+                          Reintentar
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredProducts.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="p-0">
                       <OperationalEmptyState
@@ -399,7 +425,7 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
                                 {p.title}
                               </span>
                               <span className="text-[10px] font-mono text-[#5F6875] block mt-0.5">
-                                {p.sku ? `SKU: ${p.sku}` : `MLA: ${p.meli_item_id}`}
+                                {p.sku && !p.sku.startsWith("MLA") ? `SKU: ${p.sku}` : p.sku || `MLA: ${p.meli_item_id}`}
                               </span>
                             </div>
                           </div>

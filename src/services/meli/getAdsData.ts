@@ -7,15 +7,41 @@ import {
   ProductAdsMetrics,
   AdsAvailability,
   MeliAdsAdGroup,
+  ProductAdsAd,
   getProductAdsAdvertiser,
   getProductAdsCampaigns,
   getProductAdsAdGroups,
+  getProductAdsAds,
   getAdsDateRange,
   getCachedAdsData,
   setCachedAdsData,
   AdsAdvertiserError,
 } from "./ads";
 import { logger } from "@/lib/errors/logger";
+
+// Concurrency helper for bounded parallel requests
+async function runWithConcurrency<T, R>(
+  items: T[],
+  concurrencyLimit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results: R[] = new Array(items.length);
+  let currentIndex = 0;
+
+  const workers = Array.from(
+    { length: Math.min(concurrencyLimit, items.length) },
+    async () => {
+      while (currentIndex < items.length) {
+        const idx = currentIndex++;
+        results[idx] = await fn(items[idx]);
+      }
+    }
+  );
+
+  await Promise.all(workers);
+  return results;
+}
 
 // Export interfaces for backwards compatibility
 export type { AdsCampaignItem as AdsCampaign, ProductAdsMetrics, AdsDataResult };
@@ -155,6 +181,7 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
         averageAcos: null,
         overallRoas: null,
       },
+      adsError: null,
       totalAdsInvestment: null,
       totalAdsRevenue: null,
       totalCleanNetProfit: null,
@@ -212,6 +239,7 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
         averageAcos: null,
         overallRoas: null,
       },
+      adsError: null,
       totalAdsInvestment: null,
       totalAdsRevenue: null,
       totalCleanNetProfit: null,
@@ -300,57 +328,163 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
     };
   });
 
-  // 9. Match Ad Groups to Local DB Products (meli_item_id -> SKU -> no match)
+  // 9. Fetch Real Ads per Ad Group (Concurrency limited to 3 parallel requests)
+  let allAds: ProductAdsAd[] = [];
+  let adsError: string | null = null;
+
+  if (availability.available && siteId && rawAdGroups.length > 0) {
+    try {
+      let anyErrorOccurred = false;
+      const adsPerGroup = await runWithConcurrency(
+        rawAdGroups,
+        3,
+        async (ag) => {
+          try {
+            return await getProductAdsAds({
+              tenantId,
+              siteId: siteId!,
+              adGroupId: ag.id,
+              dateFrom: dateFromString,
+              dateTo: dateToString,
+            });
+          } catch (err: any) {
+            anyErrorOccurred = true;
+            logger.warn({
+              event: "MELI_ADS_GROUP_ADS_FETCH_ERROR",
+              tenantId,
+              siteId,
+              adGroupId: ag.id,
+              error: err?.message,
+            });
+            return [];
+          }
+        }
+      );
+      allAds = adsPerGroup.flat();
+
+      if (anyErrorOccurred && allAds.length === 0) {
+        adsError = "No pudimos obtener las publicaciones anunciadas en este momento.";
+      }
+    } catch (err: any) {
+      logger.error({
+        event: "MELI_ADS_ALL_ADS_FETCH_ERROR",
+        tenantId,
+        siteId,
+        error: err?.message,
+      });
+      adsError = "No pudimos obtener las publicaciones anunciadas en este momento.";
+    }
+  }
+
+  // 10. Build productAdsList from real Ads (meli_item_id -> SKU -> unmatched)
   const productAdsMap: Map<string, ProductAdsMetrics> = new Map();
 
-  for (const ag of rawAdGroups) {
-    const itemIds = ag.item_ids && ag.item_ids.length > 0 ? ag.item_ids : (ag.item_id ? [ag.item_id] : []);
-    const m = ag.metrics || {};
+  for (const ad of allAds) {
+    const cleanItemId = String(ad.item_id).trim();
+    if (!cleanItemId) continue;
+    const itemIdLower = cleanItemId.toLowerCase();
 
-    const agCost = m.cost !== null && m.cost !== undefined ? Number(m.cost) : 0;
-    const agRevenue = m.totalAmount !== null && m.totalAmount !== undefined ? Number(m.totalAmount) : (m.directAmount !== null && m.directAmount !== undefined ? Number(m.directAmount) : 0);
-    const agClicks = m.clicks !== null && m.clicks !== undefined ? Number(m.clicks) : null;
-    const agUnits = m.unitsQuantity !== null && m.unitsQuantity !== undefined ? Number(m.unitsQuantity) : (agRevenue > 0 ? 1 : 0);
+    // Priority 1: Match by meli_item_id
+    let dbMatch = tenantProducts.find(
+      (p) => p.meli_item_id && p.meli_item_id.trim().toLowerCase() === itemIdLower
+    );
 
-    for (const itemId of itemIds) {
-      const cleanItemId = String(itemId).trim();
-      const itemIdLower = cleanItemId.toLowerCase();
-
-      // Priority 1: Match by meli_item_id
-      let dbMatch = tenantProducts.find(
-        (p) => p.meli_item_id && p.meli_item_id.trim().toLowerCase() === itemIdLower
+    // Priority 2: Match by SKU (only if ad payload provides usable SKU)
+    if (!dbMatch && ad.sku) {
+      const adSkuLower = String(ad.sku).trim().toLowerCase();
+      dbMatch = tenantProducts.find(
+        (p) => p.sku && p.sku.trim().toLowerCase() === adSkuLower
       );
+    }
 
-      // Priority 2: Match by SKU (if ad group has SKU field or item id is sku)
-      if (!dbMatch && ag.sku) {
-        const skuLower = String(ag.sku).trim().toLowerCase();
-        dbMatch = tenantProducts.find(
-          (p) => p.sku && p.sku.trim().toLowerCase() === skuLower
-        );
+    logger.debug({
+      event: "MELI_ADS_PRODUCT_MATCH",
+      itemId: cleanItemId,
+      matchedProduct: !!dbMatch,
+    });
+
+    const m = ad.metrics || {};
+    const adCost = m.cost !== null && m.cost !== undefined ? Number(m.cost) : 0;
+    const adRevenue = m.totalAmount !== null && m.totalAmount !== undefined
+      ? Number(m.totalAmount)
+      : (m.directAmount !== null && m.directAmount !== undefined ? Number(m.directAmount) : 0);
+    const adClicks = m.clicks !== null && m.clicks !== undefined ? Number(m.clicks) : null;
+    const adUnits = m.unitsQuantity !== null && m.unitsQuantity !== undefined
+      ? Number(m.unitsQuantity)
+      : (m.directUnitsQuantity !== null && m.directUnitsQuantity !== undefined
+        ? Number(m.directUnitsQuantity)
+        : (adRevenue > 0 ? 1 : 0));
+
+    const unitPrice = dbMatch?.price
+      ? Number(dbMatch.price)
+      : (ad.price !== null && ad.price !== undefined
+        ? Number(ad.price)
+        : (adUnits > 0 && adRevenue > 0 ? Math.round(adRevenue / adUnits) : 0));
+
+    const profitInput = {
+      price: unitPrice,
+      cost: dbMatch?.cost !== null && dbMatch?.cost !== undefined ? Number(dbMatch.cost) : null,
+      estimated_fee: dbMatch?.estimated_fee !== null && dbMatch?.estimated_fee !== undefined ? Number(dbMatch.estimated_fee) : null,
+      extra_fee_amount: dbMatch?.extra_fee_amount !== null && dbMatch?.extra_fee_amount !== undefined ? Number(dbMatch.extra_fee_amount) : null,
+      estimated_shipping_cost: dbMatch?.estimated_shipping_cost !== null && dbMatch?.estimated_shipping_cost !== undefined ? Number(dbMatch.estimated_shipping_cost) : null,
+      promotion_discount_amount: dbMatch?.promotion_discount_amount !== null && dbMatch?.promotion_discount_amount !== undefined ? Number(dbMatch.promotion_discount_amount) : null,
+      estimated_tax: dbMatch?.estimated_tax !== null && dbMatch?.estimated_tax !== undefined ? Number(dbMatch.estimated_tax) : null,
+      packaging_cost: packagingCost,
+    };
+
+    const realProfitRes = calculateRealProfitability(profitInput);
+
+    let cleanNetProfit: number | null = null;
+    let cleanNetMarginPercent: number | null = null;
+
+    if (realProfitRes.profitability_status === "complete" && realProfitRes.real_margin_amount !== null) {
+      const totalUnitCosts =
+        (profitInput.cost || 0) +
+        (profitInput.estimated_fee || 0) +
+        (profitInput.extra_fee_amount || 0) +
+        (profitInput.estimated_shipping_cost || 0) +
+        (profitInput.promotion_discount_amount || 0) +
+        (profitInput.estimated_tax || 0) +
+        packagingCost;
+
+      const unitsForCalc = Math.max(1, adUnits);
+      const grossMarginForUnits = (unitPrice * unitsForCalc) - (totalUnitCosts * unitsForCalc);
+      cleanNetProfit = Math.round(grossMarginForUnits - adCost);
+      cleanNetMarginPercent = adRevenue > 0 ? Number(((cleanNetProfit / adRevenue) * 100).toFixed(1)) : 0;
+    }
+
+    const roas = m.roas !== null && m.roas !== undefined
+      ? Number(m.roas)
+      : (adCost > 0 && adRevenue > 0 ? Number((adRevenue / adCost).toFixed(2)) : null);
+
+    const acos = m.acos !== null && m.acos !== undefined
+      ? Number(m.acos)
+      : (adRevenue > 0 && adCost >= 0 ? Number(((adCost / adRevenue) * 100).toFixed(1)) : null);
+
+    const cpc = m.cpc !== null && m.cpc !== undefined
+      ? Number(m.cpc)
+      : (adClicks && adClicks > 0 && adCost > 0 ? Number((adCost / adClicks).toFixed(2)) : null);
+
+    const existing = productAdsMap.get(cleanItemId);
+    if (existing) {
+      // Aggregate across multiple ad groups
+      existing.ads_units_sold += adUnits;
+      existing.ads_revenue += adRevenue;
+      existing.ads_investment += adCost;
+      if (adClicks !== null) {
+        existing.clics = (existing.clics || 0) + adClicks;
       }
+      existing.cpc = existing.clics && existing.clics > 0 && existing.ads_investment > 0
+        ? Number((existing.ads_investment / existing.clics).toFixed(2))
+        : null;
+      existing.roas = existing.ads_investment > 0
+        ? Number((existing.ads_revenue / existing.ads_investment).toFixed(2))
+        : null;
+      existing.acos_percent = existing.ads_revenue > 0
+        ? Number(((existing.ads_investment / existing.ads_revenue) * 100).toFixed(1))
+        : null;
 
-      const productKey = dbMatch?.id || cleanItemId;
-      const unitPrice = dbMatch?.price
-        ? Number(dbMatch.price)
-        : (agUnits > 0 && agRevenue > 0 ? Math.round(agRevenue / agUnits) : 0);
-
-      const profitInput = {
-        price: unitPrice,
-        cost: dbMatch?.cost !== null && dbMatch?.cost !== undefined ? Number(dbMatch.cost) : null,
-        estimated_fee: dbMatch?.estimated_fee !== null && dbMatch?.estimated_fee !== undefined ? Number(dbMatch.estimated_fee) : null,
-        extra_fee_amount: dbMatch?.extra_fee_amount !== null && dbMatch?.extra_fee_amount !== undefined ? Number(dbMatch.extra_fee_amount) : null,
-        estimated_shipping_cost: dbMatch?.estimated_shipping_cost !== null && dbMatch?.estimated_shipping_cost !== undefined ? Number(dbMatch.estimated_shipping_cost) : null,
-        promotion_discount_amount: dbMatch?.promotion_discount_amount !== null && dbMatch?.promotion_discount_amount !== undefined ? Number(dbMatch.promotion_discount_amount) : null,
-        estimated_tax: dbMatch?.estimated_tax !== null && dbMatch?.estimated_tax !== undefined ? Number(dbMatch.estimated_tax) : null,
-        packaging_cost: packagingCost,
-      };
-
-      const realProfitRes = calculateRealProfitability(profitInput);
-
-      let cleanNetProfit: number | null = null;
-      let cleanNetMarginPercent: number | null = null;
-
-      if (realProfitRes.profitability_status === "complete" && realProfitRes.real_margin_amount !== null) {
+      if (existing.profitability_status === "complete" && profitInput.cost !== null) {
         const totalUnitCosts =
           (profitInput.cost || 0) +
           (profitInput.estimated_fee || 0) +
@@ -360,60 +494,51 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
           (profitInput.estimated_tax || 0) +
           packagingCost;
 
-        const unitsForCalc = Math.max(1, agUnits);
+        const unitsForCalc = Math.max(1, existing.ads_units_sold);
         const grossMarginForUnits = (unitPrice * unitsForCalc) - (totalUnitCosts * unitsForCalc);
-        cleanNetProfit = Math.round(grossMarginForUnits - agCost);
-        cleanNetMarginPercent = agRevenue > 0 ? Number(((cleanNetProfit / agRevenue) * 100).toFixed(1)) : 0;
-      }
+        existing.clean_net_profit = Math.round(grossMarginForUnits - existing.ads_investment);
+        existing.clean_net_margin_percent = existing.ads_revenue > 0
+          ? Number(((existing.clean_net_profit / existing.ads_revenue) * 100).toFixed(1))
+          : 0;
 
-      const roas = (agCost > 0 && agRevenue > 0) ? Number((agRevenue / agCost).toFixed(2)) : (m.roas ?? null);
-      const acos = (agRevenue > 0 && agCost >= 0) ? Number(((agCost / agRevenue) * 100).toFixed(1)) : (m.acos ?? null);
-
-      const existing = productAdsMap.get(productKey);
-      if (existing) {
-        // Aggregate if multiple ad groups point to the same product
-        existing.ads_units_sold += agUnits;
-        existing.ads_revenue += agRevenue;
-        existing.ads_investment += agCost;
-        if (agClicks !== null) existing.clics = (existing.clics || 0) + agClicks;
-        existing.cpc = existing.clics && existing.clics > 0 ? Number((existing.ads_investment / existing.clics).toFixed(2)) : null;
-        existing.roas = existing.ads_investment > 0 ? Number((existing.ads_revenue / existing.ads_investment).toFixed(2)) : null;
-        existing.acos_percent = existing.ads_revenue > 0 ? Number(((existing.ads_investment / existing.ads_revenue) * 100).toFixed(1)) : null;
-        if (cleanNetProfit !== null && existing.clean_net_profit !== null) {
-          existing.clean_net_profit += cleanNetProfit;
-          existing.clean_net_margin_percent = existing.ads_revenue > 0 ? Number(((existing.clean_net_profit / existing.ads_revenue) * 100).toFixed(1)) : 0;
-        }
+        existing.total_product_cost = Math.round(profitInput.cost * unitsForCalc);
+        existing.total_fee_cost = profitInput.estimated_fee !== null ? Math.round(profitInput.estimated_fee * unitsForCalc) : null;
+        existing.total_shipping_cost = profitInput.estimated_shipping_cost !== null ? Math.round(profitInput.estimated_shipping_cost * unitsForCalc) : null;
+        existing.total_packaging_cost = packagingCost > 0 ? Math.round(packagingCost * unitsForCalc) : 0;
       } else {
-        productAdsMap.set(productKey, {
-          product_id: dbMatch?.id || `ad-item-${cleanItemId}`,
-          meli_item_id: cleanItemId,
-          title: dbMatch?.title || ag.name || `Publicación ${cleanItemId}`,
-          sku: dbMatch?.sku || null,
-          thumbnail_url: dbMatch?.thumbnail_url || null,
-          price: unitPrice,
-          cost: profitInput.cost !== null ? Math.round(profitInput.cost) : null,
-          ads_units_sold: agUnits,
-          ads_revenue: agRevenue,
-          clics: agClicks,
-          cpc: agClicks && agClicks > 0 && agCost > 0 ? Number((agCost / agClicks).toFixed(2)) : (m.cpc ?? null),
-          roas,
-          acos_percent: acos,
-          total_product_cost: profitInput.cost !== null ? Math.round(profitInput.cost * Math.max(1, agUnits)) : null,
-          total_fee_cost: profitInput.estimated_fee !== null ? Math.round(profitInput.estimated_fee * Math.max(1, agUnits)) : null,
-          total_shipping_cost: profitInput.estimated_shipping_cost !== null ? Math.round(profitInput.estimated_shipping_cost * Math.max(1, agUnits)) : null,
-          total_packaging_cost: packagingCost > 0 ? Math.round(packagingCost * Math.max(1, agUnits)) : 0,
-          ads_investment: agCost,
-          clean_net_profit: cleanNetProfit,
-          clean_net_margin_percent: cleanNetMarginPercent,
-          profitability_status: realProfitRes.profitability_status,
-        });
+        existing.clean_net_profit = null;
+        existing.clean_net_margin_percent = null;
       }
+    } else {
+      productAdsMap.set(cleanItemId, {
+        product_id: dbMatch?.id || cleanItemId,
+        meli_item_id: cleanItemId,
+        title: dbMatch?.title || ad.title || `Publicación ${cleanItemId}`,
+        sku: dbMatch?.sku || cleanItemId,
+        thumbnail_url: dbMatch?.thumbnail_url || null,
+        price: unitPrice,
+        cost: profitInput.cost !== null ? Math.round(profitInput.cost) : null,
+        ads_units_sold: adUnits,
+        ads_revenue: adRevenue,
+        clics: adClicks,
+        cpc,
+        roas,
+        acos_percent: acos,
+        total_product_cost: profitInput.cost !== null ? Math.round(profitInput.cost * Math.max(1, adUnits)) : null,
+        total_fee_cost: profitInput.estimated_fee !== null ? Math.round(profitInput.estimated_fee * Math.max(1, adUnits)) : null,
+        total_shipping_cost: profitInput.estimated_shipping_cost !== null ? Math.round(profitInput.estimated_shipping_cost * Math.max(1, adUnits)) : null,
+        total_packaging_cost: packagingCost > 0 ? Math.round(packagingCost * Math.max(1, adUnits)) : 0,
+        ads_investment: adCost,
+        clean_net_profit: cleanNetProfit,
+        clean_net_margin_percent: cleanNetMarginPercent,
+        profitability_status: realProfitRes.profitability_status,
+      });
     }
   }
 
   const productAdsList = Array.from(productAdsMap.values());
 
-  // 10. Compute Real Totals using official metrics_summary when available
+  // 11. Compute Real Totals using official metrics_summary when available
   let totalInvestment: number | null = null;
   let totalRevenue: number | null = null;
   let averageAcos: number | null = null;
@@ -480,6 +605,7 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
       averageAcos,
       overallRoas,
     },
+    adsError,
     totalAdsInvestment: totalInvestment,
     totalAdsRevenue: totalRevenue,
     totalCleanNetProfit,
