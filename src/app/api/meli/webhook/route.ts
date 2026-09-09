@@ -168,7 +168,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (inngestEventName) {
-      await inngest.send({
+      // 1. Dispatch to Inngest (resilient to missing Inngest dev/cloud daemon)
+      inngest.send({
         name: inngestEventName as any,
         data: {
           tenantId,
@@ -176,8 +177,51 @@ export async function POST(req: NextRequest) {
           eventId: claim.eventId,
           correlationId,
         },
+      }).catch((e) => {
+        logger.info({ event: "INNGEST_SEND_NON_BLOCKING", error: e?.message });
       });
-      await updateWebhookEventStatus(claim.eventId, "queued");
+
+      // 2. Direct asynchronous execution ensuring immediate DB persistence
+      if (topic === "orders_v2" || topic === "orders") {
+        const specificOrderId = resource.split("/").pop();
+        import("@/services/meli/syncOrders")
+          .then(({ syncOrders }) => syncOrders(tenantId, specificOrderId))
+          .then(async () => {
+            await updateWebhookEventStatus(claim.eventId, "completed");
+          })
+          .catch(async (err) => {
+            logger.error({
+              event: "WEBHOOK_DIRECT_SYNC_ORDER_ERROR",
+              tenantId,
+              specificOrderId,
+              error: err,
+              message: err?.message,
+            });
+            await updateWebhookEventStatus(claim.eventId, "retrying", {
+              lastErrorCode: "SYNC_ORDER_ERROR",
+              lastErrorMessage: err?.message,
+              incrementAttempts: true,
+            });
+          });
+      } else if (topic === "shipments") {
+        const shipmentId = resource.split("/").pop();
+        import("@/services/meli/syncShipments")
+          .then(({ syncShipments }) => syncShipments(tenantId, shipmentId))
+          .then(async () => {
+            await updateWebhookEventStatus(claim.eventId, "completed");
+          })
+          .catch(async (err) => {
+            logger.error({
+              event: "WEBHOOK_DIRECT_SYNC_SHIPMENT_ERROR",
+              tenantId,
+              shipmentId,
+              error: err,
+              message: err?.message,
+            });
+          });
+      } else {
+        await updateWebhookEventStatus(claim.eventId, "queued");
+      }
     } else {
       await updateWebhookEventStatus(claim.eventId, "ignored", {
         lastErrorCode: "UNHANDLED_TOPIC",

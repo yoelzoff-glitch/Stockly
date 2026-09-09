@@ -416,6 +416,12 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
       console.error(`Failed to sync cancellations during syncOrders for tenant ${tenantId}:`, err);
     });
 
+    // Actualizar timestamp de última sincronización en meli_accounts
+    await supabase
+      .from("meli_accounts")
+      .update({ last_sync_at: syncTimestamp, updated_at: syncTimestamp })
+      .eq("tenant_id", tenantId);
+
     return ordersToUpsert.length;
   } finally {
     // Release in-memory lock
