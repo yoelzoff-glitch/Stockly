@@ -56,12 +56,12 @@ export function FounderStory() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
               <Founder
                 name="Yoel Zoff"
-                role="Co-Founder & CTO"
+                role="Co-founder & CTO / Lead Developer"
                 area="Producto, desarrollo, arquitectura e infraestructura"
               />
               <Founder
                 name="Juan Peyret"
-                role="Co-Founder"
+                role="Co-founder & Head of Strategy & Brand"
                 area="Branding y estrategia comercial"
               />
             </div>
