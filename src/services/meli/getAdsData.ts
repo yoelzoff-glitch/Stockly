@@ -1,87 +1,35 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { meliFetch } from "./client";
+import { isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 import { calculateRealProfitability } from "@/services/profitability/calculateRealProfitability";
+import {
+  AdsDataResult,
+  AdsCampaignItem,
+  ProductAdsMetrics,
+  AdsAvailability,
+  MeliAdsAdGroup,
+  getProductAdsAdvertiser,
+  getProductAdsCampaigns,
+  getProductAdsAdGroups,
+  getAdsDateRange,
+  getCachedAdsData,
+  setCachedAdsData,
+  AdsAdvertiserError,
+} from "./ads";
+import { logger } from "@/lib/errors/logger";
 
-export interface AdsCampaign {
-  id: string;
-  name: string;
-  status: "active" | "paused" | "ended";
-  daily_budget: number | null;
-  consumed_budget: number | null;
-  revenue: number | null;
-  acos: number | null;
-  roas: number | null;
-  impressions?: number | null;
-  clics?: number | null;
-  net_profit: number | null;
-}
+// Export interfaces for backwards compatibility
+export type { AdsCampaignItem as AdsCampaign, ProductAdsMetrics, AdsDataResult };
 
-export interface ProductAdsMetrics {
-  product_id: string;
-  meli_item_id: string;
-  title: string;
-  sku: string | null;
-  thumbnail_url: string | null;
-  price: number;
-  cost: number | null;
-  ads_units_sold: number;
-  ads_revenue: number;
-  clics: number | null;
-  cpc: number | null;
-  roas: number | null;
-  acos_percent: number | null;
-  total_product_cost: number | null;
-  total_fee_cost: number | null;
-  total_shipping_cost: number | null;
-  total_packaging_cost: number | null;
-  ads_investment: number;
-  clean_net_profit: number | null;
-  clean_net_margin_percent: number | null;
-  profitability_status: "complete" | "missing_cost" | "missing_fee" | "missing_shipping" | "unknown";
-}
+export async function getAdsData(tenantId: string, period: string = "30days"): Promise<AdsDataResult> {
+  const supabase = createAdminClient();
 
-function getDateRangeForPeriod(period: string): { dateFrom: Date | null; dateTo: Date; periodLabel: string } {
-  const now = new Date();
-  let dateTo = new Date();
-  let dateFrom: Date | null = null;
-  let periodLabel = "Últimos 30 días";
-
-  if (period === "today") {
-    dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    periodLabel = "Hoy";
-  } else if (period === "7days") {
-    dateFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    periodLabel = "Últimos 7 días";
-  } else if (period === "this_month") {
-    dateFrom = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-    periodLabel = "Este Mes";
-  } else if (period === "last_month") {
-    dateFrom = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-    dateTo = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-    periodLabel = "Mes Anterior";
-  } else if (period === "all") {
-    dateFrom = null;
-    periodLabel = "Histórico Completo";
-  } else {
-    dateFrom = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    periodLabel = "Últimos 30 días";
+  // 1. Check in-memory short cache (60s)
+  const cached = getCachedAdsData<AdsDataResult>(tenantId, period);
+  if (cached) {
+    return cached;
   }
 
-  return { dateFrom, dateTo, periodLabel };
-}
-
-export async function getAdsData(tenantId: string, period: string = "30days") {
-  const supabase = createAdminClient();
-  const { dateFrom, dateTo, periodLabel } = getDateRangeForPeriod(period);
-
-  // 1. Fetch connected Meli Account for tenant
-  const { data: meliAccount } = await supabase
-    .from("meli_accounts")
-    .select("id, meli_user_id, access_token")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-
-  // 2. Fetch tenant metadata for operational costs
+  // 2. Fetch tenant metadata
   const { data: tenantData } = await supabase
     .from("tenants")
     .select("metadata")
@@ -90,8 +38,134 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
 
   const tenantMetadata = (tenantData?.metadata as any) || {};
   const packagingCost = Number(tenantMetadata.packaging_cost) || 0;
+  const timezone = tenantMetadata.timezone || "America/Argentina/Buenos_Aires";
 
-  // 3. Fetch products from Supabase DB for this tenant
+  const { dateFrom, dateTo, dateFromString, dateToString, periodLabel } = getAdsDateRange(period, timezone);
+
+  // 3. Demo Tenant Safety Handling
+  if (await isDemoTenant(tenantId, supabase)) {
+    const demoResult: AdsDataResult = {
+      period,
+      periodLabel,
+      availability: {
+        available: true,
+      },
+      advertiser: {
+        advertiserId: 999999999,
+        siteId: "MLA",
+      },
+      campaigns: [
+        {
+          id: "demo-camp-01",
+          name: "Campaña Principal - Rentabilidad",
+          status: "active",
+          daily_budget: 15000,
+          consumed_budget: 12400,
+          revenue: 98500,
+          acos: 12.59,
+          roas: 7.94,
+          impressions: 45200,
+          clics: 1850,
+          units_sold: 14,
+          net_profit: 34200,
+        },
+        {
+          id: "demo-camp-02",
+          name: "Campaña Liquidación y Novedades",
+          status: "active",
+          daily_budget: 8000,
+          consumed_budget: 6800,
+          revenue: 38200,
+          acos: 17.8,
+          roas: 5.62,
+          impressions: 18900,
+          clics: 740,
+          units_sold: 5,
+          net_profit: 9100,
+        },
+      ],
+      adGroups: [],
+      productAdsList: [
+        {
+          product_id: "demo-p1",
+          meli_item_id: "MLA900000001",
+          title: "Auriculares Inalámbricos Bluetooth Pro",
+          sku: "AUR-BT-PRO",
+          thumbnail_url: "https://http2.mlstatic.com/D_NQ_NP_2X_841077-MLA44347821743_122020-F.webp",
+          price: 24999,
+          cost: 11000,
+          ads_units_sold: 4,
+          ads_revenue: 99996,
+          clics: 320,
+          cpc: 38.75,
+          roas: 8.06,
+          acos_percent: 12.4,
+          total_product_cost: 44000,
+          total_fee_cost: 13000,
+          total_shipping_cost: 8000,
+          total_packaging_cost: packagingCost * 4,
+          ads_investment: 12400,
+          clean_net_profit: 22596,
+          clean_net_margin_percent: 22.6,
+          profitability_status: "complete",
+        },
+      ],
+      totals: {
+        investment: 19200,
+        revenue: 136700,
+        cleanNetProfit: 43300,
+        averageAcos: 14.05,
+        overallRoas: 7.12,
+      },
+      totalAdsInvestment: 19200,
+      totalAdsRevenue: 136700,
+      totalCleanNetProfit: 43300,
+      averageAcos: 14.05,
+      overallRoas: 7.12,
+      liveAdsAvailable: true,
+    };
+
+    return demoResult;
+  }
+
+  // 4. Fetch connected Meli Account
+  const { data: meliAccount } = await supabase
+    .from("meli_accounts")
+    .select("id, meli_user_id, access_token, status")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+  if (!meliAccount || !meliAccount.access_token) {
+    const emptyResult: AdsDataResult = {
+      period,
+      periodLabel,
+      availability: {
+        available: false,
+        reason: "no_meli_account",
+        message: "No hay una cuenta de Mercado Libre conectada para este tenant.",
+      },
+      advertiser: { advertiserId: null, siteId: null },
+      campaigns: [],
+      adGroups: [],
+      productAdsList: [],
+      totals: {
+        investment: null,
+        revenue: null,
+        cleanNetProfit: null,
+        averageAcos: null,
+        overallRoas: null,
+      },
+      totalAdsInvestment: null,
+      totalAdsRevenue: null,
+      totalCleanNetProfit: null,
+      averageAcos: null,
+      overallRoas: null,
+      liveAdsAvailable: false,
+    };
+    return emptyResult;
+  }
+
+  // 5. Fetch DB Products for tenant
   const { data: dbProducts } = await supabase
     .from("products")
     .select("id, meli_item_id, title, sku, price, cost, estimated_fee, extra_fee_amount, estimated_shipping_cost, promotion_discount_amount, estimated_tax, thumbnail_url")
@@ -99,307 +173,302 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
 
   const tenantProducts = dbProducts || [];
 
-  // 4. Query live Mercado Libre Advertising API endpoints
-  let liveAdsFetched = false;
-  let campaignsList: AdsCampaign[] = [];
-  let totalAdsInvestmentCalculated: number | null = null;
-  let totalAdsRevenueCalculated: number | null = null;
-  let rawAdsProductsList: any[] = [];
+  // 6. Obtain Advertiser and Site ID (No fallback to meli_user_id!)
   let advertiserId: number | null = null;
+  let siteId: string | null = null;
+  let availability: AdsAvailability = { available: true };
 
-  if (meliAccount?.access_token && meliAccount?.meli_user_id) {
-    // Query advertiser ID
-    try {
-      const advRes = await meliFetch({ tenantId, endpoint: "/advertising/advertisers?product_id=PADS" });
-      if (advRes?.advertisers?.[0]?.advertiser_id) {
-        advertiserId = Number(advRes.advertisers[0].advertiser_id);
-      }
-    } catch (_) {}
-
-    const targetAdvId = advertiserId || meliAccount.meli_user_id;
-
-    const apiEndpoints = [
-      `/advertising/product_ads/campaigns/search?advertiser_id=${targetAdvId}`,
-      `/advertising/advertisers/${targetAdvId}/product_ads/campaigns`,
-      `/advertising/product_ads/advertisers/${targetAdvId}/campaigns`,
-      `/advertising/product_ads/campaigns/search?user_id=${meliAccount.meli_user_id}`
-    ];
-
-    for (const ep of apiEndpoints) {
-      try {
-        const meliAdsRes = await meliFetch({ tenantId, endpoint: ep });
-
-        if (meliAdsRes && (Array.isArray(meliAdsRes.results) || Array.isArray(meliAdsRes))) {
-          const rawCampaigns = Array.isArray(meliAdsRes.results) ? meliAdsRes.results : meliAdsRes;
-          if (rawCampaigns.length > 0) {
-            let runningSpent = 0;
-            let runningRevenue = 0;
-
-            campaignsList = rawCampaigns.map((c: any) => {
-              const consumed = c.consumed_budget !== undefined ? Number(c.consumed_budget) : (c.metrics?.cost !== undefined ? Number(c.metrics.cost) : null);
-              const rev = c.revenue !== undefined ? Number(c.revenue) : (c.metrics?.revenue !== undefined ? Number(c.metrics.revenue) : null);
-
-              if (consumed !== null) runningSpent += consumed;
-              if (rev !== null) runningRevenue += rev;
-
-              const campRoas = (rev !== null && consumed !== null && consumed > 0) ? Number((rev / consumed).toFixed(2)) : null;
-              const campAcos = (rev !== null && rev > 0 && consumed !== null) ? Number(((consumed / rev) * 100).toFixed(2)) : null;
-
-              return {
-                id: String(c.id || `camp-${c.name}`),
-                name: String(c.name || "Campaña Product ADS"),
-                status: c.status === "active" ? "active" : "paused",
-                daily_budget: c.budget !== undefined ? Number(c.budget) : (c.daily_budget !== undefined ? Number(c.daily_budget) : null),
-                consumed_budget: consumed,
-                revenue: rev,
-                acos: campAcos,
-                roas: campRoas,
-                impressions: c.metrics?.impressions !== undefined ? Number(c.metrics.impressions) : null,
-                clics: c.metrics?.clics !== undefined ? Number(c.metrics.clics) : null,
-                net_profit: (rev !== null && consumed !== null) ? Math.round(rev - consumed) : null
-              };
-            });
-
-            totalAdsInvestmentCalculated = runningSpent;
-            totalAdsRevenueCalculated = runningRevenue;
-            liveAdsFetched = true;
-            break;
-          }
-        }
-      } catch (e: any) {
-        console.log(`[getAdsData] Live MeLi Ads API endpoint ${ep} fallback:`, e?.message || e);
-      }
-    }
-
-    // Attempt to fetch advertised products for the advertiser
-    try {
-      const adsRes = await meliFetch({
-        tenantId,
-        endpoint: `/advertising/advertisers/${targetAdvId}/product_ads/ads`
-      });
-      if (adsRes && (Array.isArray(adsRes.results) || Array.isArray(adsRes))) {
-        rawAdsProductsList = Array.isArray(adsRes.results) ? adsRes.results : adsRes;
-      }
-    } catch (_) {}
-  }
-
-  // 5. Query non-cancelled orders for tenant strictly in date range from Supabase DB
-  let ordersQuery = supabase
-    .from("orders")
-    .select("id, total_amount, date_created, status, raw_data")
-    .eq("tenant_id", tenantId)
-    .neq("status", "cancelled")
-    .lte("date_created", dateTo.toISOString());
-
-  if (dateFrom) {
-    ordersQuery = ordersQuery.gte("date_created", dateFrom.toISOString());
-  }
-
-  const { data: tenantOrders } = await ordersQuery;
-  const activeOrders = tenantOrders || [];
-
-  // Strictly filter orders with explicit advertising attribution tags
-  const adsAttributedOrders = activeOrders.filter(o => {
-    const rawStr = JSON.stringify(o.raw_data || {});
-    return rawStr.includes("advertising") || rawStr.includes("ads") || o.raw_data?.tags?.includes("advertising");
-  });
-
-  if (!liveAdsFetched) {
-    if (adsAttributedOrders.length > 0) {
-      totalAdsRevenueCalculated = adsAttributedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
-      totalAdsInvestmentCalculated = Math.round(totalAdsRevenueCalculated * 0.1127);
-    } else {
-      totalAdsRevenueCalculated = null;
-      totalAdsInvestmentCalculated = null;
-    }
-  }
-
-  // 6. Fetch order items for attributed advertising orders (or active orders if attributed)
-  const targetOrders = adsAttributedOrders.length > 0 ? adsAttributedOrders : activeOrders;
-  const { data: orderItems } = targetOrders.length > 0
-    ? await supabase
-        .from("order_items")
-        .select("order_id, meli_item_id, sku, title, quantity, total_price, unit_cost, estimated_fee, estimated_shipping_cost")
-        .in("order_id", targetOrders.map(o => o.id))
-    : { data: [] };
-
-  // Map order items per product (SKU / meli_item_id)
-  const itemAggMap: Record<string, {
-    meli_item_id: string;
-    sku: string | null;
-    title: string;
-    unitsSold: number;
-    revenue: number;
-    cost: number | null;
-    fee: number | null;
-    extraFee: number | null;
-    shipping: number | null;
-    promoDiscount: number | null;
-    tax: number | null;
-    thumbnail_url: string | null;
-    product_id: string;
-    clics: number | null;
-    adsInvestment: number | null;
-  }> = {};
-
-  (orderItems || []).forEach(item => {
-    const itemSkuKey = (item.sku || "").toLowerCase();
-    const itemIdKey = (item.meli_item_id || "").toLowerCase();
-    const itemKey = itemSkuKey || itemIdKey || item.order_id || "unknown";
-
-    const dbProdMatch = tenantProducts.find(p =>
-      (p.sku && p.sku.toLowerCase() === itemSkuKey) ||
-      (p.meli_item_id && p.meli_item_id.toLowerCase() === itemIdKey)
-    );
-
-    const price = Number(item.total_price || (dbProdMatch?.price ? Number(dbProdMatch.price) * Number(item.quantity || 1) : 0));
-    const qty = Number(item.quantity) || 1;
-
-    if (!itemAggMap[itemKey]) {
-      itemAggMap[itemKey] = {
-        meli_item_id: item.meli_item_id || dbProdMatch?.meli_item_id || "",
-        sku: item.sku || dbProdMatch?.sku || null,
-        title: item.title || dbProdMatch?.title || "Producto",
-        unitsSold: 0,
-        revenue: 0,
-        cost: dbProdMatch?.cost !== null && dbProdMatch?.cost !== undefined ? Number(dbProdMatch.cost) : (item.unit_cost !== null && item.unit_cost !== undefined ? Number(item.unit_cost) : null),
-        fee: dbProdMatch?.estimated_fee !== null && dbProdMatch?.estimated_fee !== undefined ? Number(dbProdMatch.estimated_fee) : (item.estimated_fee !== null && item.estimated_fee !== undefined ? Number(item.estimated_fee) : null),
-        extraFee: dbProdMatch?.extra_fee_amount !== null && dbProdMatch?.extra_fee_amount !== undefined ? Number(dbProdMatch.extra_fee_amount) : null,
-        shipping: dbProdMatch?.estimated_shipping_cost !== null && dbProdMatch?.estimated_shipping_cost !== undefined ? Number(dbProdMatch.estimated_shipping_cost) : (item.estimated_shipping_cost !== null && item.estimated_shipping_cost !== undefined ? Number(item.estimated_shipping_cost) : null),
-        promoDiscount: dbProdMatch?.promotion_discount_amount !== null && dbProdMatch?.promotion_discount_amount !== undefined ? Number(dbProdMatch.promotion_discount_amount) : null,
-        tax: dbProdMatch?.estimated_tax !== null && dbProdMatch?.estimated_tax !== undefined ? Number(dbProdMatch.estimated_tax) : null,
-        thumbnail_url: dbProdMatch?.thumbnail_url || null,
-        product_id: dbProdMatch?.id || item.order_id,
-        clics: null,
-        adsInvestment: null
-      };
-    }
-
-    const target = itemAggMap[itemKey];
-    target.unitsSold += qty;
-    target.revenue += price;
-  });
-
-  // Merge live rawAdsProductsList if returned by API
-  if (rawAdsProductsList.length > 0) {
-    rawAdsProductsList.forEach((rawAd: any) => {
-      const itemKey = (rawAd.sku || rawAd.item_id || "").toLowerCase();
-      if (itemAggMap[itemKey]) {
-        itemAggMap[itemKey].clics = rawAd.clics !== undefined ? Number(rawAd.clics) : null;
-        itemAggMap[itemKey].adsInvestment = rawAd.cost !== undefined ? Number(rawAd.cost) : null;
-      }
-    });
-  }
-
-  // Filter STRICTLY items that have attributed ADS sales or belong to rawAdsProductsList
-  const aggregatedItemsList = Object.values(itemAggMap).filter(item =>
-    item.unitsSold > 0 || (rawAdsProductsList.length > 0 && rawAdsProductsList.some((r: any) => (r.sku || r.item_id || "").toLowerCase() === (item.sku || item.meli_item_id || "").toLowerCase()))
-  );
-
-  // Build productAdsList using LibretaX's official calculateRealProfitability function
-  const productAdsList: ProductAdsMetrics[] = aggregatedItemsList.map((item, idx) => {
-    const unitsSold = item.unitsSold;
-    const adsRevenue = item.revenue;
-    const unitPrice = unitsSold > 0 ? Math.round(adsRevenue / unitsSold) : 0;
-
-    let adsInvestmentForItem = item.adsInvestment;
-    if (adsInvestmentForItem === null) {
-      if (totalAdsInvestmentCalculated !== null && totalAdsRevenueCalculated !== null && totalAdsRevenueCalculated > 0) {
-        const revenueShare = adsRevenue / totalAdsRevenueCalculated;
-        adsInvestmentForItem = Math.round(totalAdsInvestmentCalculated * revenueShare);
-      } else {
-        adsInvestmentForItem = 0;
-      }
-    }
-
-    const profitInput = {
-      price: unitPrice,
-      cost: item.cost,
-      estimated_fee: item.fee,
-      extra_fee_amount: item.extraFee,
-      estimated_shipping_cost: item.shipping,
-      promotion_discount_amount: item.promoDiscount,
-      estimated_tax: item.tax,
-      packaging_cost: packagingCost
+  try {
+    const advInfo = await getProductAdsAdvertiser(tenantId);
+    advertiserId = advInfo.advertiserId;
+    siteId = advInfo.siteId;
+  } catch (err: any) {
+    const reason = err instanceof AdsAdvertiserError ? err.reason : "advertiser_not_available";
+    availability = {
+      available: false,
+      reason,
+      message: err.message || "No se pudo obtener información del anunciante de Mercado Libre.",
     };
 
-    const realProfitRes = calculateRealProfitability(profitInput);
+    logger.warn({
+      event: "MELI_ADS_UNAVAILABLE",
+      tenantId,
+      reason,
+      message: err.message,
+    });
 
-    let cleanNetProfitForItem: number | null = null;
-    let cleanNetMarginPercentForItem: number | null = null;
+    const unavailableResult: AdsDataResult = {
+      period,
+      periodLabel,
+      availability,
+      advertiser: { advertiserId: null, siteId: null },
+      campaigns: [],
+      adGroups: [],
+      productAdsList: [],
+      totals: {
+        investment: null,
+        revenue: null,
+        cleanNetProfit: null,
+        averageAcos: null,
+        overallRoas: null,
+      },
+      totalAdsInvestment: null,
+      totalAdsRevenue: null,
+      totalCleanNetProfit: null,
+      averageAcos: null,
+      overallRoas: null,
+      liveAdsAvailable: false,
+    };
 
-    if (realProfitRes.profitability_status === "complete" && realProfitRes.real_margin_amount !== null) {
-      const totalUnitCosts = (item.cost || 0) + (item.fee || 0) + (item.extraFee || 0) + (item.shipping || 0) + (item.promoDiscount || 0) + (item.tax || 0) + packagingCost;
-      const grossMarginForUnits = (unitPrice * unitsSold) - (totalUnitCosts * unitsSold);
-      cleanNetProfitForItem = Math.round(grossMarginForUnits - adsInvestmentForItem);
-      cleanNetMarginPercentForItem = adsRevenue > 0 ? Number(((cleanNetProfitForItem / adsRevenue) * 100).toFixed(1)) : 0;
+    setCachedAdsData(tenantId, period, unavailableResult, 30000);
+    return unavailableResult;
+  }
+
+  // 7. Fetch Campaigns & Ad Groups via API v2
+  let rawCampaigns: any[] = [];
+  let rawAdGroups: MeliAdsAdGroup[] = [];
+
+  try {
+    rawCampaigns = await getProductAdsCampaigns({
+      tenantId,
+      siteId,
+      advertiserId,
+      dateFrom: dateFromString,
+      dateTo: dateToString,
+    });
+  } catch (campErr: any) {
+    logger.error({
+      event: "MELI_ADS_CAMPAIGNS_ERROR",
+      tenantId,
+      siteId,
+      advertiserId,
+      error: campErr?.message,
+    });
+    // If campaigns fail, mark availability as network/external error
+    availability = {
+      available: false,
+      reason: campErr?.statusCode === 403 ? "advertising_permission_missing" : "network_error",
+      message: campErr?.message || "Error al obtener campañas de Product Ads.",
+    };
+  }
+
+  if (availability.available) {
+    try {
+      rawAdGroups = await getProductAdsAdGroups({
+        tenantId,
+        siteId,
+        advertiserId,
+        dateFrom: dateFromString,
+        dateTo: dateToString,
+      });
+    } catch (adGroupErr: any) {
+      logger.error({
+        event: "MELI_ADS_ADGROUPS_ERROR",
+        tenantId,
+        siteId,
+        advertiserId,
+        error: adGroupErr?.message,
+      });
+      // Soft-fail ad groups if campaigns succeeded, but log error
     }
+  }
 
-    const roasForItem = (adsInvestmentForItem > 0 && adsRevenue > 0) ? Number((adsRevenue / adsInvestmentForItem).toFixed(2)) : null;
-    const acosForItem = (adsRevenue > 0 && adsInvestmentForItem >= 0) ? Number(((adsInvestmentForItem / adsRevenue) * 100).toFixed(1)) : null;
+  // 8. Map Campaigns to UI representation
+  const campaignsList: AdsCampaignItem[] = rawCampaigns.map((c) => {
+    const consumed = c.consumed_budget !== undefined && c.consumed_budget !== null ? Number(c.consumed_budget) : (c.metrics?.cost ?? null);
+    const rev = c.metrics?.totalAmount !== undefined && c.metrics?.totalAmount !== null ? Number(c.metrics.totalAmount) : (c.revenue ?? null);
+
+    const roas = c.metrics?.roas ?? ((rev !== null && consumed !== null && consumed > 0) ? Number((rev / consumed).toFixed(2)) : null);
+    const acos = c.metrics?.acos ?? ((rev !== null && rev > 0 && consumed !== null) ? Number(((consumed / rev) * 100).toFixed(2)) : null);
 
     return {
-      product_id: item.product_id || `ad-prod-${idx}`,
-      meli_item_id: item.meli_item_id,
-      title: item.title,
-      sku: item.sku,
-      thumbnail_url: item.thumbnail_url,
-      price: unitPrice,
-      cost: item.cost !== null ? Math.round(item.cost) : null,
-      ads_units_sold: unitsSold,
-      ads_revenue: adsRevenue,
-      clics: item.clics,
-      cpc: (item.clics && item.clics > 0 && adsInvestmentForItem) ? Number((adsInvestmentForItem / item.clics).toFixed(2)) : null,
-      roas: roasForItem,
-      acos_percent: acosForItem,
-      total_product_cost: item.cost !== null ? Math.round(item.cost * unitsSold) : null,
-      total_fee_cost: item.fee !== null ? Math.round(item.fee * unitsSold) : null,
-      total_shipping_cost: item.shipping !== null ? Math.round(item.shipping * unitsSold) : null,
-      total_packaging_cost: packagingCost > 0 ? Math.round(packagingCost * unitsSold) : 0,
-      ads_investment: adsInvestmentForItem,
-      clean_net_profit: cleanNetProfitForItem,
-      clean_net_margin_percent: cleanNetMarginPercentForItem,
-      profitability_status: realProfitRes.profitability_status
+      id: String(c.id),
+      name: String(c.name || `Campaña ${c.id}`),
+      status: c.status === "active" ? "active" : "paused",
+      daily_budget: c.daily_budget !== undefined ? c.daily_budget : (c.budget !== undefined ? c.budget : null),
+      consumed_budget: consumed,
+      revenue: rev,
+      acos,
+      roas,
+      impressions: c.metrics?.impressions ?? null,
+      clics: c.metrics?.clicks ?? null,
+      units_sold: c.metrics?.unitsQuantity ?? null,
+      net_profit: (rev !== null && consumed !== null) ? Math.round(rev - consumed) : null,
     };
   });
 
-  const completeProfits = productAdsList.filter(p => p.clean_net_profit !== null);
-  const totalCleanNetProfit = completeProfits.length > 0 ? completeProfits.reduce((sum, item) => sum + (item.clean_net_profit || 0), 0) : null;
+  // 9. Match Ad Groups to Local DB Products (meli_item_id -> SKU -> no match)
+  const productAdsMap: Map<string, ProductAdsMetrics> = new Map();
 
-  const overallRoas = (totalAdsInvestmentCalculated !== null && totalAdsInvestmentCalculated > 0 && totalAdsRevenueCalculated !== null)
-    ? Number((totalAdsRevenueCalculated / totalAdsInvestmentCalculated).toFixed(2))
-    : null;
+  for (const ag of rawAdGroups) {
+    const itemIds = ag.item_ids && ag.item_ids.length > 0 ? ag.item_ids : (ag.item_id ? [ag.item_id] : []);
+    const m = ag.metrics || {};
 
-  const averageAcos = (totalAdsRevenueCalculated !== null && totalAdsRevenueCalculated > 0 && totalAdsInvestmentCalculated !== null)
-    ? Number(((totalAdsInvestmentCalculated / totalAdsRevenueCalculated) * 100).toFixed(2))
-    : null;
+    const agCost = m.cost !== null && m.cost !== undefined ? Number(m.cost) : 0;
+    const agRevenue = m.totalAmount !== null && m.totalAmount !== undefined ? Number(m.totalAmount) : (m.directAmount !== null && m.directAmount !== undefined ? Number(m.directAmount) : 0);
+    const agClicks = m.clicks !== null && m.clicks !== undefined ? Number(m.clicks) : null;
+    const agUnits = m.unitsQuantity !== null && m.unitsQuantity !== undefined ? Number(m.unitsQuantity) : (agRevenue > 0 ? 1 : 0);
 
-  if (campaignsList.length === 0 && (totalAdsRevenueCalculated !== null || totalAdsInvestmentCalculated !== null)) {
-    campaignsList = [
-      {
-        id: "camp-product-ads",
-        name: "Campaña Product ADS",
-        status: "active",
-        daily_budget: totalAdsInvestmentCalculated !== null ? Math.round(totalAdsInvestmentCalculated / 30) : null,
-        consumed_budget: totalAdsInvestmentCalculated,
-        revenue: totalAdsRevenueCalculated,
-        acos: averageAcos,
-        roas: overallRoas,
-        net_profit: totalCleanNetProfit
+    for (const itemId of itemIds) {
+      const cleanItemId = String(itemId).trim();
+      const itemIdLower = cleanItemId.toLowerCase();
+
+      // Priority 1: Match by meli_item_id
+      let dbMatch = tenantProducts.find(
+        (p) => p.meli_item_id && p.meli_item_id.trim().toLowerCase() === itemIdLower
+      );
+
+      // Priority 2: Match by SKU (if ad group has SKU field or item id is sku)
+      if (!dbMatch && ag.sku) {
+        const skuLower = String(ag.sku).trim().toLowerCase();
+        dbMatch = tenantProducts.find(
+          (p) => p.sku && p.sku.trim().toLowerCase() === skuLower
+        );
       }
-    ];
+
+      const productKey = dbMatch?.id || cleanItemId;
+      const unitPrice = dbMatch?.price
+        ? Number(dbMatch.price)
+        : (agUnits > 0 && agRevenue > 0 ? Math.round(agRevenue / agUnits) : 0);
+
+      const profitInput = {
+        price: unitPrice,
+        cost: dbMatch?.cost !== null && dbMatch?.cost !== undefined ? Number(dbMatch.cost) : null,
+        estimated_fee: dbMatch?.estimated_fee !== null && dbMatch?.estimated_fee !== undefined ? Number(dbMatch.estimated_fee) : null,
+        extra_fee_amount: dbMatch?.extra_fee_amount !== null && dbMatch?.extra_fee_amount !== undefined ? Number(dbMatch.extra_fee_amount) : null,
+        estimated_shipping_cost: dbMatch?.estimated_shipping_cost !== null && dbMatch?.estimated_shipping_cost !== undefined ? Number(dbMatch.estimated_shipping_cost) : null,
+        promotion_discount_amount: dbMatch?.promotion_discount_amount !== null && dbMatch?.promotion_discount_amount !== undefined ? Number(dbMatch.promotion_discount_amount) : null,
+        estimated_tax: dbMatch?.estimated_tax !== null && dbMatch?.estimated_tax !== undefined ? Number(dbMatch.estimated_tax) : null,
+        packaging_cost: packagingCost,
+      };
+
+      const realProfitRes = calculateRealProfitability(profitInput);
+
+      let cleanNetProfit: number | null = null;
+      let cleanNetMarginPercent: number | null = null;
+
+      if (realProfitRes.profitability_status === "complete" && realProfitRes.real_margin_amount !== null) {
+        const totalUnitCosts =
+          (profitInput.cost || 0) +
+          (profitInput.estimated_fee || 0) +
+          (profitInput.extra_fee_amount || 0) +
+          (profitInput.estimated_shipping_cost || 0) +
+          (profitInput.promotion_discount_amount || 0) +
+          (profitInput.estimated_tax || 0) +
+          packagingCost;
+
+        const unitsForCalc = Math.max(1, agUnits);
+        const grossMarginForUnits = (unitPrice * unitsForCalc) - (totalUnitCosts * unitsForCalc);
+        cleanNetProfit = Math.round(grossMarginForUnits - agCost);
+        cleanNetMarginPercent = agRevenue > 0 ? Number(((cleanNetProfit / agRevenue) * 100).toFixed(1)) : 0;
+      }
+
+      const roas = (agCost > 0 && agRevenue > 0) ? Number((agRevenue / agCost).toFixed(2)) : (m.roas ?? null);
+      const acos = (agRevenue > 0 && agCost >= 0) ? Number(((agCost / agRevenue) * 100).toFixed(1)) : (m.acos ?? null);
+
+      const existing = productAdsMap.get(productKey);
+      if (existing) {
+        // Aggregate if multiple ad groups point to the same product
+        existing.ads_units_sold += agUnits;
+        existing.ads_revenue += agRevenue;
+        existing.ads_investment += agCost;
+        if (agClicks !== null) existing.clics = (existing.clics || 0) + agClicks;
+        existing.cpc = existing.clics && existing.clics > 0 ? Number((existing.ads_investment / existing.clics).toFixed(2)) : null;
+        existing.roas = existing.ads_investment > 0 ? Number((existing.ads_revenue / existing.ads_investment).toFixed(2)) : null;
+        existing.acos_percent = existing.ads_revenue > 0 ? Number(((existing.ads_investment / existing.ads_revenue) * 100).toFixed(1)) : null;
+        if (cleanNetProfit !== null && existing.clean_net_profit !== null) {
+          existing.clean_net_profit += cleanNetProfit;
+          existing.clean_net_margin_percent = existing.ads_revenue > 0 ? Number(((existing.clean_net_profit / existing.ads_revenue) * 100).toFixed(1)) : 0;
+        }
+      } else {
+        productAdsMap.set(productKey, {
+          product_id: dbMatch?.id || `ad-item-${cleanItemId}`,
+          meli_item_id: cleanItemId,
+          title: dbMatch?.title || ag.name || `Publicación ${cleanItemId}`,
+          sku: dbMatch?.sku || null,
+          thumbnail_url: dbMatch?.thumbnail_url || null,
+          price: unitPrice,
+          cost: profitInput.cost !== null ? Math.round(profitInput.cost) : null,
+          ads_units_sold: agUnits,
+          ads_revenue: agRevenue,
+          clics: agClicks,
+          cpc: agClicks && agClicks > 0 && agCost > 0 ? Number((agCost / agClicks).toFixed(2)) : (m.cpc ?? null),
+          roas,
+          acos_percent: acos,
+          total_product_cost: profitInput.cost !== null ? Math.round(profitInput.cost * Math.max(1, agUnits)) : null,
+          total_fee_cost: profitInput.estimated_fee !== null ? Math.round(profitInput.estimated_fee * Math.max(1, agUnits)) : null,
+          total_shipping_cost: profitInput.estimated_shipping_cost !== null ? Math.round(profitInput.estimated_shipping_cost * Math.max(1, agUnits)) : null,
+          total_packaging_cost: packagingCost > 0 ? Math.round(packagingCost * Math.max(1, agUnits)) : 0,
+          ads_investment: agCost,
+          clean_net_profit: cleanNetProfit,
+          clean_net_margin_percent: cleanNetMarginPercent,
+          profitability_status: realProfitRes.profitability_status,
+        });
+      }
+    }
   }
 
-  return {
+  const productAdsList = Array.from(productAdsMap.values());
+
+  // 10. Compute Real Totals (Strictly NO invented percentages!)
+  let totalInvestment: number | null = null;
+  let totalRevenue: number | null = null;
+
+  const validCampaignCosts = campaignsList.map((c) => c.consumed_budget).filter((v): v is number => v !== null && !isNaN(v));
+  if (validCampaignCosts.length > 0) {
+    totalInvestment = validCampaignCosts.reduce((acc, v) => acc + v, 0);
+  } else if (productAdsList.length > 0) {
+    totalInvestment = productAdsList.reduce((acc, p) => acc + p.ads_investment, 0);
+  }
+
+  const validCampaignRevenues = campaignsList.map((c) => c.revenue).filter((v): v is number => v !== null && !isNaN(v));
+  if (validCampaignRevenues.length > 0) {
+    totalRevenue = validCampaignRevenues.reduce((acc, v) => acc + v, 0);
+  } else if (productAdsList.length > 0) {
+    totalRevenue = productAdsList.reduce((acc, p) => acc + p.ads_revenue, 0);
+  }
+
+  const completeProfits = productAdsList.filter((p) => p.clean_net_profit !== null);
+  const totalCleanNetProfit = completeProfits.length > 0
+    ? completeProfits.reduce((sum, item) => sum + (item.clean_net_profit || 0), 0)
+    : null;
+
+  const overallRoas = (totalInvestment !== null && totalInvestment > 0 && totalRevenue !== null)
+    ? Number((totalRevenue / totalInvestment).toFixed(2))
+    : null;
+
+  const averageAcos = (totalRevenue !== null && totalRevenue > 0 && totalInvestment !== null)
+    ? Number(((totalInvestment / totalRevenue) * 100).toFixed(2))
+    : null;
+
+  const result: AdsDataResult = {
     period,
     periodLabel,
+    availability,
+    advertiser: {
+      advertiserId,
+      siteId,
+    },
     campaigns: campaignsList,
+    adGroups: rawAdGroups,
     productAdsList,
-    totalAdsInvestment: totalAdsInvestmentCalculated,
-    totalAdsRevenue: totalAdsRevenueCalculated,
+    totals: {
+      investment: totalInvestment,
+      revenue: totalRevenue,
+      cleanNetProfit: totalCleanNetProfit,
+      averageAcos,
+      overallRoas,
+    },
+    totalAdsInvestment: totalInvestment,
+    totalAdsRevenue: totalRevenue,
     totalCleanNetProfit,
     averageAcos,
     overallRoas,
-    liveAdsAvailable: liveAdsFetched
+    liveAdsAvailable: availability.available && (campaignsList.length > 0 || rawAdGroups.length > 0),
   };
+
+  // Cache for 60 seconds
+  setCachedAdsData(tenantId, period, result, 60000);
+
+  return result;
 }

@@ -13,6 +13,7 @@ export interface MeliFetchArgs {
   endpoint: string;
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   body?: any;
+  headers?: Record<string, string>;
   timeoutMs?: number;
   maxRetries?: number;
 }
@@ -45,6 +46,7 @@ export async function meliFetch({
   endpoint,
   method = "GET",
   body,
+  headers,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   maxRetries = MAX_RETRY_ATTEMPTS,
 }: MeliFetchArgs): Promise<any> {
@@ -141,9 +143,10 @@ export async function meliFetch({
     const options: RequestInit = {
       method,
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         Accept: "application/json",
+        ...headers,
+        Authorization: `Bearer ${token}`,
       },
       signal: AbortSignal.timeout(timeoutMs),
     };
