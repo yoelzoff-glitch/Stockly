@@ -168,7 +168,7 @@ function runRlsAudit() {
     });
   }
 
-  // 9. COVERAGE AUDIT: All 38 tables in Migration C + 6 backend tables = 44 tables
+  // 9. COVERAGE AUDIT: All 38 tables in Migration C + 6 backend tables = 44 tables (+ sprint29: full_replenishment_recommendations)
   const canonical44Tables = [
     "tenants", "profiles", "meli_accounts", "products", "orders", "order_items",
     "whatsapp_numbers", "messages", "ai_actions", "product_price_history",
@@ -180,7 +180,7 @@ function runRlsAudit() {
     "monthly_expenses", "plans_config", "competition_snapshots", "action_workflows",
     "workflow_steps", "price_adjustment_workflows", "price_adjustment_details",
     "tenant_feature_flags", "operation_runs", "webhook_events", "usage_events",
-    "operation_leases", "rate_limit_buckets"
+    "operation_leases", "rate_limit_buckets", "full_replenishment_recommendations"
   ];
 
   const sprint3BMigration = migrationFiles.find((m) => m.name.includes("sprint03_b_policies"))?.content || "";
@@ -197,15 +197,17 @@ function runRlsAudit() {
       });
     }
 
-    // Authenticated tables must have explicit RLS policies in Migration B
+    // Authenticated tables must have explicit RLS policies (in Migration B for Sprint 3 tables, or in migration file for later tables)
     const backendOnlyTables = ["tenant_feature_flags", "operation_runs", "webhook_events", "usage_events", "operation_leases", "rate_limit_buckets"];
     if (!backendOnlyTables.includes(tbl)) {
-      const hasPolicyInB = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${tbl}`, "i").test(sprint3BMigration);
-      if (!hasPolicyInB) {
+      const isPostSprint3 = tbl === "full_replenishment_recommendations";
+      const targetMigration = isPostSprint3 ? allSqlContent : sprint3BMigration;
+      const hasPolicy = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${tbl}`, "i").test(targetMigration);
+      if (!hasPolicy) {
         violations.push({
-          file: "supabase/migrations/20260903000001_sprint03_b_policies.sql",
+          file: isPostSprint3 ? "supabase/migrations/*" : "supabase/migrations/20260903000001_sprint03_b_policies.sql",
           category: "MISSING_RLS_POLICY_FOR_ACTIVATED_TABLE",
-          message: `Table '${tbl}' is activated in Sprint 3 but lacks an explicit RLS policy in Migration B!`,
+          message: `Table '${tbl}' is activated but lacks an explicit RLS policy!`,
         });
       }
     }

@@ -1536,3 +1536,46 @@ $$;
 
 REVOKE ALL ON FUNCTION public.upsert_alert_dedupe FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.upsert_alert_dedupe TO authenticated, service_role;
+
+-- Sprint 29: FULL Replenishment Recommendations
+CREATE TABLE IF NOT EXISTS public.full_replenishment_recommendations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  product_id uuid REFERENCES public.products(id) ON DELETE CASCADE,
+  sku text NOT NULL,
+  title text NOT NULL,
+  thumbnail_url text,
+  full_stock integer NOT NULL DEFAULT 0,
+  internal_stock integer,
+  sales_7d integer NOT NULL DEFAULT 0,
+  sales_14d integer NOT NULL DEFAULT 0,
+  sales_30d integer NOT NULL DEFAULT 0,
+  sales_60d integer NOT NULL DEFAULT 0,
+  velocity_7d numeric(10, 3) NOT NULL DEFAULT 0,
+  velocity_14d numeric(10, 3) NOT NULL DEFAULT 0,
+  velocity_30d numeric(10, 3) NOT NULL DEFAULT 0,
+  weighted_velocity numeric(10, 3) NOT NULL DEFAULT 0,
+  forecast_velocity numeric(10, 2) NOT NULL DEFAULT 0,
+  coverage_days numeric(10, 1),
+  target_coverage_days integer NOT NULL DEFAULT 21,
+  safety_days integer NOT NULL DEFAULT 5,
+  recommended_units integer NOT NULL DEFAULT 0,
+  available_to_send integer,
+  priority text NOT NULL DEFAULT 'ok',
+  confidence text NOT NULL DEFAULT 'medium',
+  trend_percent numeric(10, 1),
+  account_trend_percent numeric(10, 1),
+  unit_cost numeric(14, 2),
+  margin_percent numeric(10, 2),
+  capital_required numeric(14, 2),
+  ads_active boolean NOT NULL DEFAULT false,
+  ai_explanation jsonb,
+  dedupe_hash text,
+  calculated_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT full_replenishment_recommendations_tenant_sku_key UNIQUE (tenant_id, sku)
+);
+
+ALTER TABLE public.full_replenishment_recommendations ENABLE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.full_replenishment_recommendations TO authenticated, service_role;
+

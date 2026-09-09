@@ -8,6 +8,7 @@ import { competitorAnalysisJob } from "../../../jobs/competitorAnalysisJob";
 import { cleanupZombieUsersJob } from "../../../jobs/cleanupZombieUsersJob";
 import { applySubscriptionDowngradesJob } from "../../../jobs/applySubscriptionDowngradesJob";
 import { meliShipmentsJob, mercadopagoWebhookJob, whatsappWebhookJob } from "../../../jobs/webhookJobs";
+import { fullReplenishmentAnalysisJob } from "../../../jobs/fullReplenishmentJob";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -24,5 +25,6 @@ export const { GET, POST, PUT } = serve({
     meliShipmentsJob,
     mercadopagoWebhookJob,
     whatsappWebhookJob,
+    fullReplenishmentAnalysisJob,
   ],
 });

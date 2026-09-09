@@ -92,6 +92,12 @@ export const CANONICAL_INNGEST_FUNCTIONS: InngestFunctionDefinition[] = [
     triggerValue: "whatsapp/message.received",
     retries: 3,
   },
+  {
+    id: "full-replenishment-analysis",
+    file: "src/jobs/fullReplenishmentJob.ts",
+    triggerType: "cron",
+    triggerValue: "0 4 * * *",
+  },
 ];
 
 export function auditInngestRegistry(): { passed: boolean; errors: string[] } {

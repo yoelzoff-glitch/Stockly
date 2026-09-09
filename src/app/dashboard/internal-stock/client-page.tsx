@@ -15,7 +15,15 @@ import {
   Layers,
   ShieldAlert,
   ArrowUpDown,
-  RefreshCw
+  RefreshCw,
+  TrendingUp,
+  Sparkles,
+  CheckCircle2,
+  HelpCircle,
+  ChevronRight,
+  DollarSign,
+  Boxes,
+  Send
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -34,8 +42,11 @@ import {
   updateInventoryItemParams,
   getInventoryMovements,
   deleteInventoryItem,
-  bulkUpdateInventoryFromExcel
+  bulkUpdateInventoryFromExcel,
+  recalculateReplenishmentAction,
+  getReplenishmentAIExplanationAction
 } from "./actions";
+import type { ReplenishmentSummary, FullReplenishmentRecommendation } from "@/services/inventory/replenishment/types";
 
 export function InternalStockClient({
   initialItems,
@@ -47,12 +58,14 @@ export function InternalStockClient({
     totalFullUnits: number;
     fullPublicationsCount: number;
     criticalFullCount: number;
+    replenishmentSummary?: ReplenishmentSummary;
   }
 }) {
   const [items, setItems] = useState<any[]>(initialItems);
   const [activeTab, setActiveTab] = useState<"local" | "full">("local");
   const [searchTerm, setSearchTerm] = useState("");
   const [stockFilter, setStockFilter] = useState("all");
+  const [fullFilter, setFullFilter] = useState<"all" | "critical" | "high" | "ok" | "has_internal">("all");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // FULL Data
@@ -60,15 +73,36 @@ export function InternalStockClient({
   const totalFullUnits = initialFullData?.totalFullUnits || 0;
   const fullPubsCount = initialFullData?.fullPublicationsCount || 0;
   const criticalFullCount = initialFullData?.criticalFullCount || 0;
+  const replenishmentSummary = initialFullData?.replenishmentSummary;
 
-  // Filter FULL products
-  const filteredFullProducts = fullProducts.filter(p => {
-    const titleMatch = p.title?.toLowerCase().includes(searchTerm.toLowerCase());
-    const skuMatch = p.sku?.toLowerCase().includes(searchTerm.toLowerCase());
-    const meliMatch = p.meli_item_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.publications?.some((pub: any) => pub.meli_item_id?.toLowerCase().includes(searchTerm.toLowerCase()));
-    return titleMatch || skuMatch || meliMatch;
-  });
+  // State for AI Analysis Modal
+  const [analyzingProduct, setAnalyzingProduct] = useState<any | null>(null);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+
+  // Filter & Sort FULL products (default sort: lowest coverageDays first)
+  const filteredFullProducts = fullProducts
+    .filter(p => {
+      const titleMatch = p.title?.toLowerCase().includes(searchTerm.toLowerCase());
+      const skuMatch = p.sku?.toLowerCase().includes(searchTerm.toLowerCase());
+      const meliMatch = p.meli_item_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.publications?.some((pub: any) => pub.meli_item_id?.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesSearch = titleMatch || skuMatch || meliMatch;
+      if (!matchesSearch) return false;
+
+      const rec: FullReplenishmentRecommendation | undefined = p.replenishment;
+      if (fullFilter === "all") return true;
+      if (fullFilter === "critical") return rec?.priority === "critical";
+      if (fullFilter === "high") return rec?.priority === "high";
+      if (fullFilter === "ok") return rec?.priority === "ok" || rec?.priority === "medium";
+      if (fullFilter === "has_internal") return (rec?.availableToSend ?? 0) > 0;
+      return true;
+    })
+    .sort((a, b) => {
+      const covA = a.replenishment?.coverageDays ?? 999999;
+      const covB = b.replenishment?.coverageDays ?? 999999;
+      return covA - covB;
+    });
 
   const [isSyncingMeli, setIsSyncingMeli] = useState(false);
 
@@ -85,6 +119,45 @@ export function InternalStockClient({
       alert("Error al sincronizar: " + err.message);
     } finally {
       setIsSyncingMeli(false);
+    }
+  };
+
+  const handleRecalculateReplenishment = async () => {
+    setIsRecalculating(true);
+    try {
+      const res = await recalculateReplenishmentAction();
+      if (res.success) {
+        window.location.reload();
+      }
+    } catch (err: any) {
+      alert("Error al recalcular reposición: " + err.message);
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
+
+  const handleOpenAnalysis = (product: any) => {
+    setAnalyzingProduct(product);
+  };
+
+  const handleRequestAiExplanation = async () => {
+    if (!analyzingProduct?.replenishment) return;
+    setIsGeneratingAi(true);
+    try {
+      const res = await getReplenishmentAIExplanationAction(analyzingProduct.replenishment);
+      if (res.success && res.explanation) {
+        setAnalyzingProduct((prev: any) => ({
+          ...prev,
+          replenishment: {
+            ...prev.replenishment,
+            aiExplanation: res.explanation
+          }
+        }));
+      }
+    } catch (err: any) {
+      console.error("AI Explanation error:", err);
+    } finally {
+      setIsGeneratingAi(false);
     }
   };
 
@@ -294,23 +367,34 @@ export function InternalStockClient({
 
   const fullMetrics: MetricItem[] = [
     {
-      label: "Unidades en FULL",
-      value: totalFullUnits.toLocaleString("es-AR"),
-      subtext: "Stock custodiado por Mercado Libre",
-      icon: <Warehouse className="w-4 h-4" />
-    },
-    {
-      label: "Publicaciones FULL",
-      value: fullPubsCount.toString(),
-      subtext: "Publicaciones activas con despacho FULL",
-      icon: <Package className="w-4 h-4" />
-    },
-    {
-      label: "Stock Crítico (≤ 5 u.)",
-      value: criticalFullCount.toString(),
-      subtext: "Riesgo de pausa por falta de inventario",
+      label: "Reposición Urgente (≤ 5d)",
+      value: (replenishmentSummary?.criticalCount ?? criticalFullCount).toString(),
+      subtext: `${replenishmentSummary?.highCount ?? 0} con prioridad alta`,
       icon: <AlertTriangle className="w-4 h-4" />,
-      highlight: criticalFullCount > 0 ? "warning" : "neutral"
+      highlight: (replenishmentSummary?.criticalCount ?? criticalFullCount) > 0 ? "critical" : "neutral"
+    },
+    {
+      label: "Unidades Sugeridas",
+      value: (replenishmentSummary?.totalRecommendedUnits ?? 0).toLocaleString("es-AR"),
+      subtext: `${(replenishmentSummary?.totalAvailableToSendUnits ?? 0).toLocaleString("es-AR")} u. disp. en depósito`,
+      icon: <Boxes className="w-4 h-4" />,
+      highlight: (replenishmentSummary?.totalRecommendedUnits ?? 0) > 0 ? "warning" : "neutral"
+    },
+    {
+      label: "Capital Estimado",
+      value: replenishmentSummary?.estimatedCapitalRequired 
+        ? `$${replenishmentSummary.estimatedCapitalRequired.toLocaleString("es-AR")}`
+        : "$0",
+      subtext: (replenishmentSummary?.productsWithoutCostCount ?? 0) > 0
+        ? `+ ${replenishmentSummary?.productsWithoutCostCount} productos sin costo`
+        : "Para cubrir reposición sugerida",
+      icon: <DollarSign className="w-4 h-4" />
+    },
+    {
+      label: "Stock Custodiado FULL",
+      value: totalFullUnits.toLocaleString("es-AR"),
+      subtext: `${fullPubsCount} productos físicos vinculados`,
+      icon: <Warehouse className="w-4 h-4" />
     }
   ];
 
@@ -330,6 +414,18 @@ export function InternalStockClient({
               accept=".xlsx,.xls,.csv"
               className="hidden"
             />
+            {activeTab === "full" && (
+              <Button
+                variant="outline"
+                onClick={handleRecalculateReplenishment}
+                disabled={isRecalculating || isProcessing}
+                className="h-9 px-3 text-xs font-semibold border-[#DCDAD4] hover:bg-[#F5F3EE] text-[#102A56] shadow-sm"
+                title="Recalcular recomendaciones de reposición para todo el inventario FULL"
+              >
+                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 text-[#102A56] ${isRecalculating ? "animate-spin" : ""}`} />
+                {isRecalculating ? "Recalculando..." : "Recalcular Reposición"}
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={handleSyncMeli}
@@ -392,7 +488,7 @@ export function InternalStockClient({
       {activeTab === "local" ? (
         <MetricStrip metrics={localMetrics} columns={4} />
       ) : (
-        <MetricStrip metrics={fullMetrics} columns={3} />
+        <MetricStrip metrics={fullMetrics} columns={4} />
       )}
 
       {/* Barra de Filtros Operativos */}
@@ -409,6 +505,23 @@ export function InternalStockClient({
                 <option value="all">Todos los componentes</option>
                 <option value="out">Sin stock (Agotados)</option>
                 <option value="low">Bajo stock mínimo</option>
+              </select>
+            </div>
+          )}
+
+          {activeTab === "full" && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875]">Filtro Reposición:</span>
+              <select
+                value={fullFilter}
+                onChange={(e: any) => setFullFilter(e.target.value)}
+                className="h-8 rounded-md border border-[#DCDAD4] bg-white px-2.5 text-xs text-[#101828] font-medium shadow-none focus:outline-none focus:ring-1 focus:ring-[#102A56]"
+              >
+                <option value="all">Todos los productos</option>
+                <option value="critical">🔴 Urgentes (≤ 5 días)</option>
+                <option value="high">🟠 Reponer esta semana (≤ 10 días)</option>
+                <option value="ok">🟢 Sin necesidad (Óptimos)</option>
+                <option value="has_internal">Con stock disponible en depósito</option>
               </select>
             </div>
           )}
@@ -563,21 +676,33 @@ export function InternalStockClient({
           <table className="w-full text-xs text-left border-collapse">
             <thead className="text-[11px] uppercase bg-[#FCFCFA] text-[#5F6875] font-bold border-b border-[#DCDAD4]">
               <tr>
-                <th className="px-4 py-3 font-semibold">Publicación</th>
-                <th className="px-3 py-3 font-semibold">SKU / ID</th>
-                <th className="px-3 py-3 font-semibold text-center">Unidades en Bodega FULL</th>
-                <th className="px-3 py-3 font-semibold text-center">Estado Logístico</th>
+                <th className="px-4 py-3 font-semibold">Producto</th>
+                <th className="px-3 py-3 font-semibold text-center">Stock FULL</th>
+                <th className="px-3 py-3 font-semibold text-center">Ventas 30d</th>
+                <th className="px-3 py-3 font-semibold text-center">Ritmo</th>
+                <th className="px-3 py-3 font-semibold text-center">Cobertura</th>
+                <th className="px-3 py-3 font-semibold text-center">Reposición</th>
+                <th className="px-3 py-3 font-semibold text-center">Prioridad</th>
+                <th className="px-4 py-3 font-semibold text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E2E8F0]">
               {filteredFullProducts.map((p) => {
                 const stock = p.physicalStockInFull ?? p.available_quantity ?? 0;
-                const isCritical = stock <= 5;
                 const meliId = p.meli_item_id || p.publications?.[0]?.meli_item_id || "—";
                 const totalPubs = p.publications?.length || 1;
+                const rec: FullReplenishmentRecommendation | undefined = p.replenishment;
+
+                const sales30d = rec?.sales30d ?? 0;
+                const forecastVelocity = rec?.forecastVelocity ?? 0;
+                const coverageDays = rec?.coverageDays;
+                const recommendedUnits = rec?.recommendedUnits ?? 0;
+                const availableToSend = rec?.availableToSend;
+                const priority = rec?.priority ?? (stock <= 5 ? "critical" : "ok");
 
                 return (
                   <tr key={p.id} className="hover:bg-[#F5F3EE]/30 transition-colors">
+                    {/* Producto */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         {p.thumbnail_url && (
@@ -587,39 +712,118 @@ export function InternalStockClient({
                             className="w-8 h-8 rounded object-cover border border-[#DCDAD4] shrink-0"
                           />
                         )}
-                        <p className="font-semibold text-[#101828] truncate max-w-[320px]" title={p.title}>
-                          {p.title}
-                        </p>
+                        <div className="min-w-0 max-w-[280px]">
+                          <p className="font-semibold text-[#101828] truncate" title={p.title}>
+                            {p.title}
+                          </p>
+                          <div className="flex items-center gap-1 font-mono text-[10px] text-[#5F6875] mt-0.5">
+                            <span>{p.sku || "Sin SKU"}</span>
+                            <span>•</span>
+                            <span>{meliId}</span>
+                            {totalPubs > 1 && (
+                              <span
+                                className="ml-1 text-[9px] text-[#5F6875] bg-[#F2F4F7] px-1 py-0.2 rounded font-sans"
+                                title={`${totalPubs} publicaciones vinculadas al mismo stock físico`}
+                              >
+                                +{totalPubs - 1} pub.
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </td>
 
-                    <td className="px-3 py-3 font-mono text-[11px] text-[#5F6875]">
-                      <span>{p.sku || "Sin SKU"}</span>
-                      <span className="mx-1">•</span>
-                      <span>{meliId}</span>
-                      {totalPubs > 1 && (
-                        <span
-                          className="ml-1.5 text-[10px] text-[#5F6875] bg-[#F2F4F7] px-1.5 py-0.5 rounded font-sans"
-                          title={`${totalPubs} publicaciones vinculadas al mismo stock de FULL`}
-                        >
-                          +{totalPubs - 1} pub.
-                        </span>
-                      )}
-                    </td>
-
+                    {/* Stock FULL */}
                     <td className="px-3 py-3 text-center">
                       <span
-                        className={`font-bold tabular-nums text-sm ${isCritical ? 'text-[#D92D20]' : 'text-[#101828]'}`}
+                        className={`font-bold tabular-nums text-xs ${stock <= 5 ? 'text-[#D92D20]' : 'text-[#101828]'}`}
                         style={{ fontVariantNumeric: "tabular-nums" }}
                       >
                         {stock} u.
                       </span>
                     </td>
 
+                    {/* Ventas 30d */}
+                    <td className="px-3 py-3 text-center font-medium text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                      {sales30d} u.
+                    </td>
+
+                    {/* Ritmo */}
+                    <td className="px-3 py-3 text-center font-medium text-[#5F6875] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
+                      {forecastVelocity > 0 ? `${forecastVelocity.toFixed(2)}/día` : "0,00/día"}
+                    </td>
+
+                    {/* Cobertura */}
                     <td className="px-3 py-3 text-center">
-                      <StatusBadge variant={isCritical ? 'warning' : 'success'}>
-                        {isCritical ? 'Stock Crítico' : 'Stock Óptimo'}
+                      {coverageDays !== null && coverageDays !== undefined ? (
+                        <span
+                          className={`font-bold tabular-nums text-xs ${
+                            coverageDays <= 5 ? "text-[#D92D20]" : coverageDays <= 10 ? "text-[#B54708]" : "text-[#027A48]"
+                          }`}
+                          style={{ fontVariantNumeric: "tabular-nums" }}
+                        >
+                          {coverageDays <= 0 ? "Agotado" : `${Math.round(coverageDays)} días`}
+                        </span>
+                      ) : (
+                        <span className="text-[#5F6875]">—</span>
+                      )}
+                    </td>
+
+                    {/* Reposición */}
+                    <td className="px-3 py-3 text-center">
+                      <div className="flex flex-col items-center">
+                        <span
+                          className={`font-bold tabular-nums text-xs ${recommendedUnits > 0 ? "text-[#102A56]" : "text-[#5F6875]"}`}
+                          style={{ fontVariantNumeric: "tabular-nums" }}
+                        >
+                          {recommendedUnits} u.
+                        </span>
+                        {availableToSend !== null && availableToSend !== undefined && (
+                          <span className="text-[10px] text-[#5F6875] tabular-nums">
+                            {availableToSend >= recommendedUnits ? (
+                              <span className="text-[#027A48]">Disp: {availableToSend} u.</span>
+                            ) : (
+                              <span className="text-[#B54708]">Enviar máx: {availableToSend} u.</span>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Prioridad */}
+                    <td className="px-3 py-3 text-center whitespace-nowrap">
+                      <StatusBadge
+                        variant={
+                          priority === "critical"
+                            ? "critical"
+                            : priority === "high"
+                            ? "warning"
+                            : priority === "medium"
+                            ? "info"
+                            : "success"
+                        }
+                      >
+                        {priority === "critical"
+                          ? "Crítica"
+                          : priority === "high"
+                          ? "Alta"
+                          : priority === "medium"
+                          ? "Media"
+                          : "Óptimo"}
                       </StatusBadge>
+                    </td>
+
+                    {/* Acciones */}
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenAnalysis(p)}
+                        className="h-7 px-2.5 text-xs font-semibold text-[#102A56] hover:bg-[#F5F3EE]"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 mr-1 text-[#102A56]" />
+                        Ver análisis
+                      </Button>
                     </td>
                   </tr>
                 );
@@ -628,6 +832,170 @@ export function InternalStockClient({
           </table>
         </DataTableShell>
       )}
+
+      {/* Modal: Análisis de Reposición Inteligente FULL */}
+      <Dialog open={!!analyzingProduct} onOpenChange={(open) => !open && setAnalyzingProduct(null)}>
+        <DialogContent className="sm:max-w-xl bg-white border border-[#DCDAD4] shadow-xl p-0 overflow-hidden">
+          <DialogHeader className="p-5 pb-3 border-b border-[#E2E8F0] bg-[#FCFCFA]">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#102A56]" />
+              <DialogTitle className="text-base font-bold text-[#101828]">
+                Análisis de Reposición FULL
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-[#5F6875]">
+              {analyzingProduct?.title} • <span className="font-mono">{analyzingProduct?.sku || "Sin SKU"}</span>
+            </DialogDescription>
+          </DialogHeader>
+
+          {analyzingProduct?.replenishment && (() => {
+            const rec: FullReplenishmentRecommendation = analyzingProduct.replenishment;
+            const trend = rec.trendPercent;
+            const accountTrend = rec.accountTrendPercent;
+
+            return (
+              <div className="p-5 space-y-5 max-h-[75vh] overflow-y-auto">
+                {/* Métricas clave en grilla */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 bg-[#F8F9FA] rounded-lg border border-[#E2E8F0] text-center">
+                    <span className="text-[11px] font-semibold text-[#5F6875] uppercase block">Stock FULL</span>
+                    <span className="text-lg font-bold text-[#101828] tabular-nums mt-0.5 block">{rec.fullStock} u.</span>
+                    <span className="text-[10px] text-[#5F6875] block mt-0.5">En custodia MeLi</span>
+                  </div>
+
+                  <div className="p-3 bg-[#F8F9FA] rounded-lg border border-[#E2E8F0] text-center">
+                    <span className="text-[11px] font-semibold text-[#5F6875] uppercase block">Cobertura Actual</span>
+                    <span className={`text-lg font-bold tabular-nums mt-0.5 block ${
+                      (rec.coverageDays ?? 0) <= 5 ? "text-[#D92D20]" : (rec.coverageDays ?? 0) <= 10 ? "text-[#B54708]" : "text-[#027A48]"
+                    }`}>
+                      {rec.coverageDays !== null ? `${Math.round(rec.coverageDays)} días` : "—"}
+                    </span>
+                    <span className="text-[10px] text-[#5F6875] block mt-0.5">
+                      {rec.coverageDays !== null && rec.coverageDays <= 5 ? "🔴 Urgente" : "Ritmo actual"}
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-[#F8F9FA] rounded-lg border border-[#E2E8F0] text-center">
+                    <span className="text-[11px] font-semibold text-[#5F6875] uppercase block">Sugerido Reponer</span>
+                    <span className="text-lg font-bold text-[#102A56] tabular-nums mt-0.5 block">{rec.recommendedUnits} u.</span>
+                    <span className="text-[10px] text-[#5F6875] block mt-0.5">
+                      {rec.availableToSend !== null ? `${rec.availableToSend} u. en depósito` : "Sin stock local"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Desglose de Ventas y Tendencia */}
+                <div className="p-4 rounded-lg border border-[#E2E8F0] bg-white space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#101828]">Historial de Ventas</span>
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="text-[#5F6875]">Tendencia producto:</span>
+                      <span className={`font-bold ${trend && trend > 0 ? "text-[#027A48]" : trend && trend < 0 ? "text-[#D92D20]" : "text-[#5F6875]"}`}>
+                        {trend !== null ? `${trend > 0 ? "+" : ""}${trend}%` : "—"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                    <div className="p-2 bg-[#F8F9FA] rounded">
+                      <span className="text-[10px] text-[#5F6875] block">7 días</span>
+                      <span className="font-bold text-[#101828] tabular-nums">{rec.sales7d} u.</span>
+                    </div>
+                    <div className="p-2 bg-[#F8F9FA] rounded">
+                      <span className="text-[10px] text-[#5F6875] block">14 días</span>
+                      <span className="font-bold text-[#101828] tabular-nums">{rec.sales14d} u.</span>
+                    </div>
+                    <div className="p-2 bg-[#F8F9FA] rounded">
+                      <span className="text-[10px] text-[#5F6875] block">30 días</span>
+                      <span className="font-bold text-[#101828] tabular-nums">{rec.sales30d} u.</span>
+                    </div>
+                    <div className="p-2 bg-[#F8F9FA] rounded">
+                      <span className="text-[10px] text-[#5F6875] block">Ritmo Forecast</span>
+                      <span className="font-bold text-[#102A56] tabular-nums">{rec.forecastVelocity.toFixed(2)} u/d</span>
+                    </div>
+                  </div>
+
+                  {accountTrend !== null && accountTrend !== undefined && (
+                    <p className="text-[11px] text-[#5F6875] pt-1 border-t border-[#F2F4F7]">
+                      Evolución general de la cuenta: <strong className="text-[#101828]">{accountTrend > 0 ? `+${accountTrend}%` : `${accountTrend}%`}</strong> en últimos 30 días.
+                    </p>
+                  )}
+                </div>
+
+                {/* Parámetros de Cobertura y Depósito */}
+                <div className="p-4 rounded-lg border border-[#E2E8F0] bg-[#FAFAF8] space-y-2 text-xs">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#101828] block">Cálculo de Inventario Objetivo</span>
+                  <div className="grid grid-cols-2 gap-y-1 text-[#5F6875]">
+                    <div>Objetivo FULL: <strong className="text-[#101828]">{rec.targetCoverageDays} días</strong></div>
+                    <div>Stock de seguridad: <strong className="text-[#101828]">{rec.safetyDays} días</strong></div>
+                    <div>Stock en depósito local: <strong className="text-[#101828]">{rec.internalStock !== null ? `${rec.internalStock} u.` : "No cargado"}</strong></div>
+                    <div>Disponible para enviar: <strong className="text-[#102A56]">{rec.availableToSend !== null ? `${rec.availableToSend} u.` : "—"}</strong></div>
+                  </div>
+                </div>
+
+                {/* Análisis LibretaX IA */}
+                <div className="p-4 rounded-lg border border-[#DCDAD4] bg-[#F9F9FB] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#102A56]" />
+                      <span className="text-xs font-bold text-[#102A56]">Análisis LibretaX IA</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRequestAiExplanation}
+                      disabled={isGeneratingAi}
+                      className="h-6 px-2 text-[10px] text-[#5F6875] hover:text-[#101828]"
+                      title="Regenerar análisis con IA"
+                    >
+                      <RefreshCw className={`w-3 h-3 mr-1 ${isGeneratingAi ? "animate-spin" : ""}`} />
+                      {isGeneratingAi ? "Generando..." : "Actualizar IA"}
+                    </Button>
+                  </div>
+
+                  <div className="text-xs text-[#344054] leading-relaxed space-y-1.5">
+                    {typeof rec.aiExplanation === "string" ? (
+                      <p>{rec.aiExplanation}</p>
+                    ) : rec.aiExplanation ? (
+                      <>
+                        <p className="font-medium text-[#101828]">
+                          {rec.aiExplanation.recommendationExplanation}
+                        </p>
+                        {rec.aiExplanation.priorityExplanation && (
+                          <p className="text-[#5F6875]">
+                            {rec.aiExplanation.priorityExplanation}
+                          </p>
+                        )}
+                        {rec.aiExplanation.riskSummary && (
+                          <p className="text-[#B54708] text-[11px] font-medium">
+                            ⚠️ {rec.aiExplanation.riskSummary}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p>Análisis en base a las ventas recientes y ritmo de demanda.</p>
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-[#8C93A0] italic">
+                  La recomendación es una estimación basada en ventas históricas, stock y tendencias recientes. La decisión final de envío es humana.
+                </p>
+              </div>
+            );
+          })()}
+
+          <DialogFooter className="p-4 border-t border-[#E2E8F0] bg-[#FCFCFA]">
+            <Button
+              variant="outline"
+              onClick={() => setAnalyzingProduct(null)}
+              className="text-xs font-medium border-[#DCDAD4]"
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal: Ajustar Stock */}
       <Dialog open={!!adjustingItem} onOpenChange={(open) => !open && setAdjustingItem(null)}>

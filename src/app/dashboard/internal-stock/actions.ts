@@ -6,6 +6,15 @@ import { normalizeSku } from "@/services/products/sku/normalizeSku";
 import { recalculateAllProductsByComponent } from "@/services/inventory/recalculateProductCostFromComponents";
 import { revalidatePath } from "next/cache";
 import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
+import {
+  buildReplenishmentSnapshots,
+  calculateReplenishment,
+  explainReplenishmentWithAI,
+  generateRuleBasedExplanation,
+  computeDedupeHash,
+  FullReplenishmentRecommendation,
+  ReplenishmentSummary,
+} from "@/services/inventory/replenishment";
 
 /**
  * Obtiene los items del inventario de depósito para el tenant autenticado.
@@ -553,12 +562,243 @@ export async function getFullStockData() {
   const totalFullUnits = groupedFullProducts.reduce((sum, g) => sum + g.physicalStockInFull, 0);
   const criticalFullCount = groupedFullProducts.filter(g => g.physicalStockInFull <= 5).length;
 
+  // 1. Build replenishment snapshots for the tenant
+  const snapshots = await buildReplenishmentSnapshots(profile.tenant_id, supabase);
+  const snapshotMap = new Map<string, any>();
+  snapshots.forEach(s => {
+    const key = s.sku ? normalizeSku(s.sku) : `no-sku-${s.productId}`;
+    snapshotMap.set(key, s);
+    if (s.productId) snapshotMap.set(s.productId, s);
+  });
+
+  // 2. Fetch any persisted recommendations to read stored ai_explanation
+  const { data: dbRecs } = await supabase
+    .from("full_replenishment_recommendations")
+    .select("*")
+    .eq("tenant_id", profile.tenant_id);
+
+  const dbRecMap = new Map<string, any>();
+  dbRecs?.forEach(r => {
+    if (r.sku) dbRecMap.set(normalizeSku(r.sku), r);
+    if (r.product_id) dbRecMap.set(r.product_id, r);
+  });
+
+  // 3. Attach calculated recommendation to each groupedFullProduct
+  const recommendations: FullReplenishmentRecommendation[] = [];
+
+  groupedFullProducts.forEach(group => {
+    const rawSku = group.sku?.trim();
+    const normSku = rawSku ? normalizeSku(rawSku) : `no-sku-${group.meli_item_id}`;
+    const snap = snapshotMap.get(normSku) || snapshotMap.get(group.id) || {
+      productId: group.id,
+      sku: group.sku,
+      title: group.title,
+      thumbnailUrl: group.thumbnail_url,
+      fullStock: group.physicalStockInFull || 0,
+      internalStock: null,
+      sales7d: 0,
+      sales14d: 0,
+      sales30d: 0,
+      sales60d: 0,
+    };
+
+    const rec = calculateReplenishment(snap);
+    const existing = dbRecMap.get(normSku) || dbRecMap.get(group.id);
+    if (existing?.ai_explanation) {
+      rec.aiExplanation = existing.ai_explanation;
+    } else {
+      rec.aiExplanation = generateRuleBasedExplanation(rec);
+    }
+
+    group.replenishment = rec;
+    recommendations.push(rec);
+  });
+
+  // 4. Compute summary
+  let criticalCount = 0;
+  let highCount = 0;
+  let mediumCount = 0;
+  let okCount = 0;
+  let totalRecommendedUnits = 0;
+  let totalAvailableToSendUnits = 0;
+  let estimatedCapitalRequired = 0;
+  let productsWithoutCostCount = 0;
+
+  recommendations.forEach(r => {
+    if (r.priority === "critical") criticalCount++;
+    else if (r.priority === "high") highCount++;
+    else if (r.priority === "medium") mediumCount++;
+    else okCount++;
+
+    totalRecommendedUnits += r.recommendedUnits;
+    if (r.availableToSend !== null) {
+      totalAvailableToSendUnits += r.availableToSend;
+    }
+
+    if (r.recommendedUnits > 0) {
+      if (r.unitCost !== null && r.unitCost > 0) {
+        estimatedCapitalRequired += (r.recommendedUnits * r.unitCost);
+      } else {
+        productsWithoutCostCount++;
+      }
+    }
+  });
+
+  const replenishmentSummary: ReplenishmentSummary = {
+    criticalCount,
+    highCount,
+    mediumCount,
+    okCount,
+    totalRecommendedUnits,
+    totalAvailableToSendUnits,
+    estimatedCapitalRequired: Math.round(estimatedCapitalRequired),
+    productsWithoutCostCount,
+  };
+
   return {
     fullProducts: groupedFullProducts,
     totalFullUnits,
     fullPublicationsCount: groupedFullProducts.length,
     fullProductsCount: groupedFullProducts.length,
     rawPublicationsCount: fullProducts.length,
-    criticalFullCount
+    criticalFullCount,
+    replenishmentSummary,
   };
+}
+
+/**
+ * Recalcula manualmente todas las recomendaciones de reposición FULL del tenant y actualiza la persistencia.
+ */
+export async function recalculateReplenishmentAction() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.tenant_id) throw new Error("No tenant");
+
+  const snapshots = await buildReplenishmentSnapshots(profile.tenant_id, supabase);
+  const toUpsert: any[] = [];
+
+  for (const snap of snapshots) {
+    const rec = calculateReplenishment(snap);
+    const hash = computeDedupeHash({
+      sku: rec.sku,
+      productId: rec.productId,
+      recommendedUnits: rec.recommendedUnits,
+      sales7d: rec.sales7d,
+      sales30d: rec.sales30d,
+      fullStock: rec.fullStock,
+      priority: rec.priority,
+    });
+    const explanation = generateRuleBasedExplanation(rec);
+
+    toUpsert.push({
+      tenant_id: profile.tenant_id,
+      product_id: rec.productId,
+      sku: rec.sku || `SKU-${rec.productId}`,
+      title: rec.title,
+      thumbnail_url: rec.thumbnailUrl,
+      full_stock: rec.fullStock,
+      internal_stock: rec.internalStock,
+      sales_7d: rec.sales7d,
+      sales_14d: rec.sales14d,
+      sales_30d: rec.sales30d,
+      sales_60d: rec.sales60d,
+      velocity_7d: rec.velocity7,
+      velocity_14d: rec.velocity14,
+      velocity_30d: rec.velocity30,
+      weighted_velocity: rec.weightedVelocity,
+      forecast_velocity: rec.forecastVelocity,
+      coverage_days: rec.coverageDays,
+      target_coverage_days: rec.targetCoverageDays,
+      safety_days: rec.safetyDays,
+      recommended_units: rec.recommendedUnits,
+      available_to_send: rec.availableToSend,
+      priority: rec.priority,
+      confidence: rec.confidence,
+      trend_percent: rec.trendPercent,
+      account_trend_percent: rec.accountTrendPercent,
+      unit_cost: rec.unitCost,
+      margin_percent: rec.marginPercent,
+      capital_required: rec.capitalRequired,
+      ads_active: rec.adsActive,
+      ai_explanation: explanation,
+      dedupe_hash: hash,
+      calculated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  if (toUpsert.length > 0) {
+    const { error } = await supabase
+      .from("full_replenishment_recommendations")
+      .upsert(toUpsert, {
+        onConflict: "tenant_id,sku",
+      });
+
+    if (error) {
+      console.error("Error upserting full replenishment recommendations:", error);
+    }
+  }
+
+  revalidatePath("/dashboard/internal-stock");
+  return { success: true, count: toUpsert.length };
+}
+
+/**
+ * Obtiene o genera la explicación enriquecida con OpenAI para una recomendación específica.
+ */
+export async function getReplenishmentAIExplanationAction(rec: FullReplenishmentRecommendation) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.tenant_id) throw new Error("No tenant");
+
+  const hash = computeDedupeHash({
+    sku: rec.sku,
+    productId: rec.productId,
+    recommendedUnits: rec.recommendedUnits,
+    sales7d: rec.sales7d,
+    sales30d: rec.sales30d,
+    fullStock: rec.fullStock,
+    priority: rec.priority,
+  });
+
+  const { data: existing } = await supabase
+    .from("full_replenishment_recommendations")
+    .select("ai_explanation, dedupe_hash")
+    .eq("tenant_id", profile.tenant_id)
+    .eq("sku", rec.sku || `SKU-${rec.productId}`)
+    .maybeSingle();
+
+  if (existing && existing.dedupe_hash === hash && existing.ai_explanation) {
+    return existing.ai_explanation;
+  }
+
+  const aiExplanation = await explainReplenishmentWithAI(rec);
+
+  await supabase
+    .from("full_replenishment_recommendations")
+    .update({
+      ai_explanation: aiExplanation,
+      dedupe_hash: hash,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("tenant_id", profile.tenant_id)
+    .eq("sku", rec.sku || `SKU-${rec.productId}`);
+
+  return aiExplanation;
 }
