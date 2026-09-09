@@ -7,3 +7,4 @@ export * from "./dateRange";
 export * from "./metrics";
 export * from "./cache";
 export * from "./ads";
+export * from "./groupProductAdsForDisplay";

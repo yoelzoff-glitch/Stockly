@@ -16,6 +16,7 @@ import {
   getCachedAdsData,
   setCachedAdsData,
   AdsAdvertiserError,
+  groupProductAdsForDisplay,
 } from "./ads";
 import { logger } from "@/lib/errors/logger";
 
@@ -149,6 +150,31 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
       averageAcos: 14.05,
       overallRoas: 7.12,
       liveAdsAvailable: true,
+      groupedProductAdsList: groupProductAdsForDisplay([
+        {
+          product_id: "demo-p1",
+          meli_item_id: "MLA900000001",
+          title: "Auriculares Inalámbricos Bluetooth Pro",
+          sku: "AUR-BT-PRO",
+          thumbnail_url: "https://http2.mlstatic.com/D_NQ_NP_2X_841077-MLA44347821743_122020-F.webp",
+          price: 24999,
+          cost: 11000,
+          ads_units_sold: 4,
+          ads_revenue: 99996,
+          clics: 320,
+          cpc: 38.75,
+          roas: 8.06,
+          acos_percent: 12.4,
+          total_product_cost: 44000,
+          total_fee_cost: 13000,
+          total_shipping_cost: 8000,
+          total_packaging_cost: packagingCost * 4,
+          ads_investment: 12400,
+          clean_net_profit: 22596,
+          clean_net_margin_percent: 22.6,
+          profitability_status: "complete",
+        },
+      ]),
     };
 
     return demoResult;
@@ -174,6 +200,7 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
       campaigns: [],
       adGroups: [],
       productAdsList: [],
+      groupedProductAdsList: [],
       totals: {
         investment: null,
         revenue: null,
@@ -195,7 +222,7 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
   // 5. Fetch DB Products for tenant
   const { data: dbProducts } = await supabase
     .from("products")
-    .select("id, meli_item_id, title, sku, price, cost, estimated_fee, extra_fee_amount, estimated_shipping_cost, promotion_discount_amount, estimated_tax, thumbnail_url")
+    .select("id, meli_item_id, title, sku, price, cost, estimated_fee, extra_fee_amount, estimated_shipping_cost, promotion_discount_amount, estimated_tax, thumbnail_url, raw_data")
     .eq("tenant_id", tenantId);
 
   const tenantProducts = dbProducts || [];
@@ -232,6 +259,7 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
       campaigns: [],
       adGroups: [],
       productAdsList: [],
+      groupedProductAdsList: [],
       totals: {
         investment: null,
         revenue: null,
@@ -615,11 +643,13 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
         clean_net_profit: cleanNetProfit,
         clean_net_margin_percent: cleanNetMarginPercent,
         profitability_status: realProfitRes.profitability_status,
+        raw_data: dbMatch?.raw_data || null,
       });
     }
   }
 
   const productAdsList = Array.from(productAdsMap.values());
+  const groupedProductAdsList = groupProductAdsForDisplay(productAdsList, tenantProducts);
 
   // 11. Compute Real Totals using official metrics_summary when available
   let totalInvestment: number | null = null;
@@ -681,6 +711,7 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
     campaigns: campaignsList,
     adGroups: rawAdGroups,
     productAdsList,
+    groupedProductAdsList,
     totals: {
       investment: totalInvestment,
       revenue: totalRevenue,

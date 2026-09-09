@@ -1,17 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Search, AlertCircle, ShieldAlert, ArrowRight } from "lucide-react";
+import {
+  RefreshCw,
+  Search,
+  AlertCircle,
+  ShieldAlert,
+  ArrowRight,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { OperationalPageHeader } from "@/components/operational/page-header";
 import { MetricStrip, MetricItem } from "@/components/operational/metric-strip";
 import { DataTableShell } from "@/components/operational/data-table-shell";
 import { OperationalEmptyState } from "@/components/operational/empty-state";
 import { getAdsDataAction } from "./actions";
-import { AdsDataResult } from "@/services/meli/ads/types";
+import {
+  AdsDataResult,
+  ProductAdsProductGroup,
+  groupProductAdsForDisplay,
+} from "@/services/meli/ads";
 
 interface AdsClientPageProps {
   initialAdsData: AdsDataResult;
@@ -23,6 +36,14 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("30days");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
+
+  const toggleExpanded = (key: string) => {
+    setExpandedKeys((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
 
   const handlePeriodChange = async (periodKey: string) => {
     setSelectedPeriod(periodKey);
@@ -56,17 +77,90 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
     return `${roas.toFixed(2)}x`;
   };
 
-  const filteredProducts = (adsData.productAdsList || []).filter((p) => {
-    const matchesSearch =
-      searchTerm === "" ||
-      (p.title && p.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase()));
+  const formatPriceRange = (minPrice: number | null, maxPrice: number | null) => {
+    if (minPrice === null || maxPrice === null) return "—";
+    if (minPrice === maxPrice) return formatCurrency(minPrice);
+    return `${formatCurrency(minPrice)} – ${formatCurrency(maxPrice)}`;
+  };
 
-    if (statusFilter === "profitable") return matchesSearch && p.profitability_status === "complete";
-    if (statusFilter === "warning") return matchesSearch && p.clean_net_margin_percent !== null && p.clean_net_margin_percent < 15;
-    if (statusFilter === "loss") return matchesSearch && p.clean_net_profit !== null && p.clean_net_profit < 0;
-    if (statusFilter === "missing_cost") return matchesSearch && p.profitability_status === "missing_cost";
-    return matchesSearch;
+  const renderCostRange = (minCost: number | null, maxCost: number | null, missingCostCount?: number) => {
+    if (minCost === null && maxCost === null) {
+      return <StatusBadge variant="danger">Sin costo</StatusBadge>;
+    }
+    const costText =
+      minCost === maxCost
+        ? formatCurrency(minCost)
+        : `${formatCurrency(minCost)} – ${formatCurrency(maxCost)}`;
+
+    return (
+      <div className="flex flex-col items-end">
+        <span>{costText}</span>
+        {missingCostCount !== undefined && missingCostCount > 0 && (
+          <span className="text-[10px] text-[#B54708] font-normal" title={`${missingCostCount} variantes sin costo asignado`}>
+            {missingCostCount} sin costo
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  // Grouped products list
+  const allGroups: ProductAdsProductGroup[] =
+    adsData.groupedProductAdsList && adsData.groupedProductAdsList.length > 0
+      ? adsData.groupedProductAdsList
+      : groupProductAdsForDisplay(adsData.productAdsList || []);
+
+  const totalGroupsCount = allGroups.length;
+  const totalPublicationsCount = (adsData.productAdsList || []).length;
+
+  const filteredGroups = allGroups.filter((group) => {
+    const cleanSearch = searchTerm.trim().toLowerCase();
+    const matchesSearch =
+      cleanSearch === "" ||
+      (group.title && group.title.toLowerCase().includes(cleanSearch)) ||
+      group.publications.some(
+        (p) =>
+          (p.title && p.title.toLowerCase().includes(cleanSearch)) ||
+          (p.sku && p.sku.toLowerCase().includes(cleanSearch)) ||
+          (p.meli_item_id && p.meli_item_id.toLowerCase().includes(cleanSearch))
+      );
+
+    if (!matchesSearch) return false;
+
+    if (statusFilter === "profitable") {
+      return (
+        (group.cleanNetProfit !== null && group.cleanNetProfit > 0) ||
+        group.publications.some((p) => p.profitability_status === "complete" && (p.clean_net_profit || 0) > 0)
+      );
+    }
+    if (statusFilter === "warning") {
+      const groupMargin =
+        group.totalRevenue > 0 && group.cleanNetProfit !== null
+          ? (group.cleanNetProfit / group.totalRevenue) * 100
+          : null;
+      return (
+        (groupMargin !== null && groupMargin < 15) ||
+        group.publications.some(
+          (p) => p.clean_net_margin_percent !== null && p.clean_net_margin_percent < 15
+        )
+      );
+    }
+    if (statusFilter === "loss") {
+      return (
+        (group.cleanNetProfit !== null && group.cleanNetProfit < 0) ||
+        group.publications.some((p) => p.clean_net_profit !== null && p.clean_net_profit < 0)
+      );
+    }
+    if (statusFilter === "missing_cost") {
+      return (
+        (group.missingCostCount && group.missingCostCount > 0) ||
+        group.publications.some(
+          (p) => p.profitability_status === "missing_cost" || p.cost === null || p.cost === undefined
+        )
+      );
+    }
+
+    return true;
   });
 
   const metricItems: MetricItem[] = [
@@ -326,7 +420,10 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-semibold text-[#101828]">Publicaciones Anunciadas en Product Ads</h3>
-            <p className="text-xs text-[#5F6875]">Rendimiento comercial individual, gasto de pauta y margen neto limpio por producto.</p>
+            <p className="text-xs text-[#5F6875]">
+              {totalGroupsCount} {totalGroupsCount === 1 ? "producto" : "productos"} · {totalPublicationsCount} {totalPublicationsCount === 1 ? "publicación" : "publicaciones"}
+              {filteredGroups.length !== totalGroupsCount && ` (${filteredGroups.length} mostrados)`}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
@@ -356,7 +453,7 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
             <table className="w-full text-xs text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#DCDAD4] bg-[#FCFCFA] text-[11px] font-semibold text-[#5F6875] uppercase tracking-wider">
-                  <th className="px-4 py-2.5">Publicación & SKU</th>
+                  <th className="px-4 py-2.5">Producto</th>
                   <th className="px-3 py-2.5 text-right">Precio Venta</th>
                   <th className="px-3 py-2.5 text-right">Costo CMV</th>
                   <th className="px-3 py-2.5 text-center">Ventas Ads</th>
@@ -393,7 +490,7 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
                       </div>
                     </td>
                   </tr>
-                ) : filteredProducts.length === 0 ? (
+                ) : filteredGroups.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="p-0">
                       <OperationalEmptyState
@@ -403,66 +500,198 @@ export function AdsClientPage({ initialAdsData }: AdsClientPageProps) {
                     </td>
                   </tr>
                 ) : (
-                  filteredProducts.map((p) => {
-                    const hasLoss = p.clean_net_profit !== null && p.clean_net_profit < 0;
+                  filteredGroups.map((group) => {
+                    const isExpanded = !!expandedKeys[group.key];
+                    const hasMultiple = group.publicationCount > 1;
+                    const hasLoss = group.cleanNetProfit !== null && group.cleanNetProfit < 0;
+
                     return (
-                      <tr key={p.product_id} className="hover:bg-[#F5F3EE]/50 transition-colors">
-                        <td className="px-4 py-2.5 max-w-[280px]">
-                          <div className="flex items-center gap-2.5">
-                            {p.thumbnail_url ? (
-                              <img
-                                src={p.thumbnail_url}
-                                alt={p.title}
-                                className="h-9 w-9 rounded object-cover border border-[#DCDAD4] bg-[#FCFCFA] shrink-0"
-                              />
-                            ) : (
-                              <div className="h-9 w-9 rounded bg-[#F5F3EE] border border-[#DCDAD4] flex items-center justify-center text-[10px] font-mono text-[#5F6875] shrink-0">
-                                ADS
+                      <Fragment key={group.key}>
+                        <tr className="hover:bg-[#F5F3EE]/50 transition-colors border-b border-[#DCDAD4]">
+                          <td className="px-4 py-2.5 max-w-[320px]">
+                            <div className="flex items-start gap-2.5">
+                              {hasMultiple ? (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpanded(group.key)}
+                                  className="p-1 rounded hover:bg-[#DCDAD4]/40 text-[#102A56] mt-0.5 shrink-0 transition-colors"
+                                  title={isExpanded ? "Colapsar variantes" : "Desglosar variantes"}
+                                >
+                                  {isExpanded ? (
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              ) : (
+                                <div className="w-5 shrink-0" />
+                              )}
+
+                              {group.thumbnailUrl ? (
+                                <img
+                                  src={group.thumbnailUrl}
+                                  alt={group.title}
+                                  className={`h-9 w-9 rounded object-cover border border-[#DCDAD4] bg-[#FCFCFA] shrink-0 ${
+                                    hasMultiple ? "cursor-pointer hover:opacity-80 transition-opacity" : ""
+                                  }`}
+                                  onClick={() => hasMultiple && toggleExpanded(group.key)}
+                                />
+                              ) : (
+                                <div className="h-9 w-9 rounded bg-[#F5F3EE] border border-[#DCDAD4] flex items-center justify-center text-[10px] font-mono text-[#5F6875] shrink-0">
+                                  ADS
+                                </div>
+                              )}
+
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span
+                                    className={`font-medium text-[#101828] truncate block ${
+                                      hasMultiple ? "cursor-pointer hover:underline" : ""
+                                    }`}
+                                    title={group.title}
+                                    onClick={() => hasMultiple && toggleExpanded(group.key)}
+                                  >
+                                    {group.title}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[11px] text-[#5F6875]">
+                                    {group.publicationCount === 1
+                                      ? "1 publicación"
+                                      : `${group.publicationCount} publicaciones`}
+                                  </span>
+                                  {hasMultiple && (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleExpanded(group.key)}
+                                      className="text-[11px] text-[#102A56] font-semibold hover:underline"
+                                    >
+                                      {isExpanded ? "Ocultar" : "Ver detalle"}
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                            )}
-                            <div className="truncate">
-                              <span className="block font-medium text-[#101828] truncate" title={p.title}>
-                                {p.title}
-                              </span>
-                              <span className="text-[10px] font-mono text-[#5F6875] block mt-0.5">
-                                {p.sku && !p.sku.startsWith("MLA") ? `SKU: ${p.sku}` : p.sku || `MLA: ${p.meli_item_id}`}
-                              </span>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2.5 text-right font-mono text-[#101828]" style={{ fontVariantNumeric: "tabular-nums" }}>
-                          {formatCurrency(p.price)}
-                        </td>
-                        <td className="px-3 py-2.5 text-right font-mono text-[#5F6875]" style={{ fontVariantNumeric: "tabular-nums" }}>
-                          {p.cost !== null && p.cost !== undefined ? (
-                            formatCurrency(p.cost)
-                          ) : (
-                            <StatusBadge variant="danger">Sin costo</StatusBadge>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 text-center font-mono text-[#101828]" style={{ fontVariantNumeric: "tabular-nums" }}>
-                          {p.ads_units_sold} u.
-                        </td>
-                        <td className="px-3 py-2.5 text-right font-mono font-bold text-[#101828]" style={{ fontVariantNumeric: "tabular-nums" }}>
-                          {formatCurrency(p.ads_revenue)}
-                        </td>
-                        <td className="px-3 py-2.5 text-right font-mono text-[#D92D20] font-medium" style={{ fontVariantNumeric: "tabular-nums" }}>
-                          -{formatCurrency(p.ads_investment)}
-                        </td>
-                        <td className="px-3 py-2.5 text-center font-mono" style={{ fontVariantNumeric: "tabular-nums" }}>
-                          <span className="text-xs font-semibold text-[#101828]">{formatPercent(p.acos_percent)} ACOS</span>
-                          <span className="text-[10px] text-[#5F6875] block">({formatRoas(p.roas)} ROAS)</span>
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-mono font-bold" style={{ fontVariantNumeric: "tabular-nums" }}>
-                          {p.clean_net_profit !== null && p.clean_net_profit !== undefined ? (
-                            <span className={hasLoss ? "text-[#D92D20]" : "text-[#198754]"}>
-                              {formatCurrency(p.clean_net_profit)}
+                          </td>
+
+                          {/* Precio Venta */}
+                          <td className="px-3 py-2.5 text-right font-mono text-[#101828]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            {formatPriceRange(group.minPrice, group.maxPrice)}
+                          </td>
+
+                          {/* Costo CMV */}
+                          <td className="px-3 py-2.5 text-right font-mono text-[#5F6875]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            {renderCostRange(group.minCost, group.maxCost, group.missingCostCount)}
+                          </td>
+
+                          {/* Ventas Ads */}
+                          <td className="px-3 py-2.5 text-center font-mono text-[#101828]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            {group.totalUnits} u.
+                          </td>
+
+                          {/* Facturación Ads */}
+                          <td className="px-3 py-2.5 text-right font-mono font-bold text-[#101828]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            {formatCurrency(group.totalRevenue)}
+                          </td>
+
+                          {/* Inversión Ads */}
+                          <td className="px-3 py-2.5 text-right font-mono text-[#D92D20] font-medium" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            {group.totalInvestment > 0 ? `-${formatCurrency(group.totalInvestment)}` : "$0"}
+                          </td>
+
+                          {/* ACOS / ROAS */}
+                          <td className="px-3 py-2.5 text-center font-mono" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            <span className="text-xs font-semibold text-[#101828]">
+                              {group.acos !== null ? `${formatPercent(group.acos)} ACOS` : "—"}
                             </span>
-                          ) : (
-                            <span className="text-[#5F6875]">—</span>
-                          )}
-                        </td>
-                      </tr>
+                            <span className="text-[10px] text-[#5F6875] block">
+                              ({group.roas !== null ? `${formatRoas(group.roas)} ROAS` : "—"})
+                            </span>
+                          </td>
+
+                          {/* Ganancia Neta */}
+                          <td className="px-4 py-2.5 text-right font-mono font-bold" style={{ fontVariantNumeric: "tabular-nums" }}>
+                            {group.cleanNetProfit !== null ? (
+                              <span className={hasLoss ? "text-[#D92D20]" : "text-[#198754]"}>
+                                {formatCurrency(group.cleanNetProfit)}
+                              </span>
+                            ) : group.totalRevenue > 0 && (group.missingCostCount ?? 0) > 0 ? (
+                              <div className="flex flex-col items-end" title="Rentabilidad incompleta por publicaciones sin costo asignado">
+                                <span className="text-[#5F6875]">—</span>
+                                <span className="text-[9px] text-[#B54708] font-normal tracking-tight">Incompleta</span>
+                              </div>
+                            ) : (
+                              <span className="text-[#5F6875]">—</span>
+                            )}
+                          </td>
+                        </tr>
+
+                        {/* Expanded Child Rows */}
+                        {isExpanded &&
+                          group.publications.map((p) => {
+                            const pHasLoss = p.clean_net_profit !== null && p.clean_net_profit < 0;
+                            return (
+                              <tr
+                                key={p.meli_item_id || p.product_id}
+                                className="bg-[#FBFBFA] border-b border-[#EAE8E3]/80 hover:bg-[#F5F3EE]/40 transition-colors text-[11px]"
+                              >
+                                <td className="py-2 pl-11 pr-3 max-w-[320px]">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-[#8C95A6] shrink-0" />
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1.5 font-mono text-[11px] text-[#101828]">
+                                        <span className="font-semibold">{p.meli_item_id}</span>
+                                        {p.sku && !p.sku.startsWith("MLA") && (
+                                          <>
+                                            <span className="text-[#A3ABB8]">·</span>
+                                            <span className="text-[#5F6875]">SKU: {p.sku}</span>
+                                          </>
+                                        )}
+                                      </div>
+                                      {p.title && p.title !== group.title && (
+                                        <p className="text-[10px] text-[#717680] truncate max-w-[260px]" title={p.title}>
+                                          {p.title}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2 text-right font-mono text-[#5F6875]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                                  {formatCurrency(p.price)}
+                                </td>
+                                <td className="px-3 py-2 text-right font-mono text-[#5F6875]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                                  {p.cost !== null && p.cost !== undefined ? (
+                                    formatCurrency(p.cost)
+                                  ) : (
+                                    <span className="text-[10px] text-[#D92D20]">Sin costo</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-center font-mono text-[#5F6875]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                                  {p.ads_units_sold} u.
+                                </td>
+                                <td className="px-3 py-2 text-right font-mono text-[#101828]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                                  {formatCurrency(p.ads_revenue)}
+                                </td>
+                                <td className="px-3 py-2 text-right font-mono text-[#D92D20]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                                  {p.ads_investment > 0 ? `-${formatCurrency(p.ads_investment)}` : "$0"}
+                                </td>
+                                <td className="px-3 py-2 text-center font-mono text-[#5F6875]" style={{ fontVariantNumeric: "tabular-nums" }}>
+                                  <span>{formatPercent(p.acos_percent)}</span>
+                                  <span className="text-[10px] text-[#8C95A6] block">({formatRoas(p.roas)})</span>
+                                </td>
+                                <td className="px-4 py-2 text-right font-mono font-medium" style={{ fontVariantNumeric: "tabular-nums" }}>
+                                  {p.clean_net_profit !== null && p.clean_net_profit !== undefined ? (
+                                    <span className={pHasLoss ? "text-[#D92D20]" : "text-[#198754]"}>
+                                      {formatCurrency(p.clean_net_profit)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[#8C95A6]">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </Fragment>
                     );
                   })
                 )}

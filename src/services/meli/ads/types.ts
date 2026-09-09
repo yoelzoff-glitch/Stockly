@@ -108,6 +108,29 @@ export interface ProductAdsMetrics {
   clean_net_profit: number | null;
   clean_net_margin_percent: number | null;
   profitability_status: "complete" | "missing_cost" | "missing_fee" | "missing_shipping" | "unknown";
+  raw_data?: any;
+  group_key?: string;
+}
+
+export interface ProductAdsProductGroup {
+  key: string;
+  representative: ProductAdsMetrics;
+  publications: ProductAdsMetrics[];
+  publicationCount: number;
+  title: string;
+  thumbnailUrl: string | null;
+  minPrice: number | null;
+  maxPrice: number | null;
+  minCost: number | null;
+  maxCost: number | null;
+  totalUnits: number;
+  totalRevenue: number;
+  totalInvestment: number;
+  totalClicks: number | null;
+  acos: number | null;
+  roas: number | null;
+  cleanNetProfit: number | null;
+  missingCostCount: number;
 }
 
 export interface ProductAdsTotals {
@@ -143,6 +166,7 @@ export interface AdsDataResult {
   campaigns: ProductAdsCampaignItem[];
   adGroups: ProductAdsAdGroup[];
   productAdsList: ProductAdsMetrics[];
+  groupedProductAdsList?: ProductAdsProductGroup[];
   totals: ProductAdsTotals;
   adsError?: string | null;
 

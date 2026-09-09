@@ -10,6 +10,12 @@ import { getAdsDateRange } from "../../src/services/meli/ads/dateRange";
 import { parseAdsMetrics } from "../../src/services/meli/ads/metrics";
 import { getCachedAdsData, setCachedAdsData, clearAllAdsCache } from "../../src/services/meli/ads/cache";
 import { calculateRealProfitability } from "../../src/services/profitability/calculateRealProfitability";
+import {
+  groupProductAdsForDisplay,
+  extractProductGroupKey,
+  selectRepresentativePublication,
+  ProductAdsMetrics,
+} from "../../src/services/meli/ads";
 
 describe("Sprint 25: Product Ads Metrics & Summary Unit Tests", () => {
   let originalFetch: typeof global.fetch;
@@ -725,6 +731,425 @@ describe("Sprint 25: Product Ads Metrics & Summary Unit Tests", () => {
       }
 
       assert.equal(correctProfit, null, "Correct behavior must be null for 0 units");
+    });
+  });
+
+  describe("Sprint 28: Grouping Product Ads by Real Product", () => {
+    const toPubs = (pubs: any[]): ProductAdsMetrics[] => pubs as ProductAdsMetrics[];
+
+    test("40. TEST — DOS VARIANTES MISMO PRODUCTO: groups items with same master_id into 1 group", () => {
+      const pub1 = {
+        product_id: "prod-1",
+        meli_item_id: "MLA101",
+        title: "Dije Ángel de la Guarda Plata 925 - Cadena 45cm",
+        sku: "D 260 AN C145",
+        thumbnail_url: "https://example.com/img1.jpg",
+        price: 104823,
+        cost: 25000,
+        ads_units_sold: 2,
+        ads_revenue: 209646,
+        clics: 40,
+        cpc: 25,
+        roas: 20.96,
+        acos_percent: 4.77,
+        total_product_cost: 50000,
+        total_fee_cost: 20000,
+        total_shipping_cost: 10000,
+        total_packaging_cost: 1000,
+        ads_investment: 10000,
+        clean_net_profit: 128646,
+        clean_net_margin_percent: 61.3,
+        profitability_status: "complete",
+        raw_data: { master_id: "MLA-MASTER-ANGEL" },
+      };
+
+      const pub2 = {
+        product_id: "prod-2",
+        meli_item_id: "MLA102",
+        title: "Dije Ángel de la Guarda Plata 925 - Cadena 50cm",
+        sku: "D 260 AN C150",
+        thumbnail_url: "https://example.com/img2.jpg",
+        price: 102090,
+        cost: 25000,
+        ads_units_sold: 1,
+        ads_revenue: 102090,
+        clics: 20,
+        cpc: 25,
+        roas: 20.42,
+        acos_percent: 4.9,
+        total_product_cost: 25000,
+        total_fee_cost: 10000,
+        total_shipping_cost: 5000,
+        total_packaging_cost: 500,
+        ads_investment: 5000,
+        clean_net_profit: 61590,
+        clean_net_margin_percent: 60.3,
+        profitability_status: "complete",
+        raw_data: { master_id: "MLA-MASTER-ANGEL" },
+      };
+
+      const groups = groupProductAdsForDisplay(toPubs([pub1, pub2]));
+
+      assert.equal(groups.length, 1);
+      assert.equal(groups[0].publicationCount, 2);
+      assert.equal(groups[0].key, "master:mla-master-angel");
+      assert.equal(groups[0].publications.length, 2);
+    });
+
+    test("41. TEST — DOS PRODUCTOS DISTINTOS: never joins items by title similarity", () => {
+      const pubA = {
+        product_id: "prod-a",
+        meli_item_id: "MLA201",
+        title: "Anillo Solitario Plata 925 Circon",
+        sku: "AN-SOL-01",
+        thumbnail_url: "https://example.com/a.jpg",
+        price: 45000,
+        cost: 12000,
+        ads_units_sold: 1,
+        ads_revenue: 45000,
+        clics: 10,
+        cpc: 20,
+        roas: 22.5,
+        acos_percent: 4.4,
+        total_product_cost: 12000,
+        total_fee_cost: 5000,
+        total_shipping_cost: 3000,
+        total_packaging_cost: 500,
+        ads_investment: 2000,
+        clean_net_profit: 24500,
+        clean_net_margin_percent: 54.4,
+        profitability_status: "complete",
+        raw_data: { master_id: "MASTER-ANILLO-SOL" },
+      };
+
+      const pubB = {
+        product_id: "prod-b",
+        meli_item_id: "MLA202",
+        title: "Anillo Solitario Plata 925 Circon Modelo B",
+        sku: "AN-SOL-02",
+        thumbnail_url: "https://example.com/b.jpg",
+        price: 48000,
+        cost: 13000,
+        ads_units_sold: 1,
+        ads_revenue: 48000,
+        clics: 10,
+        cpc: 20,
+        roas: 24.0,
+        acos_percent: 4.1,
+        total_product_cost: 13000,
+        total_fee_cost: 5000,
+        total_shipping_cost: 3000,
+        total_packaging_cost: 500,
+        ads_investment: 2000,
+        clean_net_profit: 26500,
+        clean_net_margin_percent: 55.2,
+        profitability_status: "complete",
+        raw_data: { master_id: "MASTER-ANILLO-MOD-B" },
+      };
+
+      const groups = groupProductAdsForDisplay(toPubs([pubA, pubB]));
+
+      assert.equal(groups.length, 2, "Must create 2 separate groups despite similar titles");
+      assert.equal(groups[0].publicationCount, 1);
+      assert.equal(groups[1].publicationCount, 1);
+    });
+
+    test("42. TEST — MÉTRICAS SUMADAS: aggregates revenue, investment, units and recalculates ACOS/ROAS", () => {
+      const pubA = {
+        product_id: "prod-a",
+        meli_item_id: "MLA301",
+        title: "Producto Test A",
+        sku: "SKU-A",
+        thumbnail_url: null,
+        price: 50000,
+        cost: 10000,
+        ads_units_sold: 2,
+        ads_revenue: 100000,
+        clics: 50,
+        cpc: 200,
+        roas: 10,
+        acos_percent: 10,
+        total_product_cost: 20000,
+        total_fee_cost: 10000,
+        total_shipping_cost: 6000,
+        total_packaging_cost: 1000,
+        ads_investment: 10000,
+        clean_net_profit: 63000,
+        clean_net_margin_percent: 63,
+        profitability_status: "complete",
+        raw_data: { catalog_product_id: "CAT-PROD-TEST" },
+      };
+
+      const pubB = {
+        product_id: "prod-b",
+        meli_item_id: "MLA302",
+        title: "Producto Test B",
+        sku: "SKU-B",
+        thumbnail_url: null,
+        price: 50000,
+        cost: 10000,
+        ads_units_sold: 1,
+        ads_revenue: 50000,
+        clics: 25,
+        cpc: 200,
+        roas: 10,
+        acos_percent: 10,
+        total_product_cost: 10000,
+        total_fee_cost: 5000,
+        total_shipping_cost: 3000,
+        total_packaging_cost: 500,
+        ads_investment: 5000,
+        clean_net_profit: 31500,
+        clean_net_margin_percent: 63,
+        profitability_status: "complete",
+        raw_data: { catalog_product_id: "CAT-PROD-TEST" },
+      };
+
+      const groups = groupProductAdsForDisplay(toPubs([pubA, pubB]));
+
+      assert.equal(groups.length, 1);
+      const g = groups[0];
+      assert.equal(g.totalRevenue, 150000);
+      assert.equal(g.totalInvestment, 150000 * 0.1); // 15000
+      assert.equal(g.totalUnits, 3);
+      assert.equal(g.acos, 10.0);
+      assert.equal(g.roas, 10.0);
+      assert.equal(g.totalClicks, 75);
+    });
+
+    test("43. TEST — RANGO DE PRECIOS: identifies minPrice and maxPrice correctly", () => {
+      const pub1 = {
+        product_id: "p1",
+        meli_item_id: "MLA401",
+        title: "Item 1",
+        sku: "SKU-R-1",
+        thumbnail_url: null,
+        price: 59000,
+        cost: 15000,
+        ads_units_sold: 0,
+        ads_revenue: 0,
+        clics: 0,
+        cpc: null,
+        roas: null,
+        acos_percent: null,
+        total_product_cost: 0,
+        total_fee_cost: 0,
+        total_shipping_cost: 0,
+        total_packaging_cost: 0,
+        ads_investment: 100,
+        clean_net_profit: null,
+        clean_net_margin_percent: null,
+        profitability_status: "complete",
+        raw_data: { family_id: "FAM-RANGE" },
+      };
+
+      const pub2 = { ...pub1, product_id: "p2", meli_item_id: "MLA402", price: 74000 };
+      const pub3 = { ...pub1, product_id: "p3", meli_item_id: "MLA403", price: 102000 };
+
+      const groups = groupProductAdsForDisplay(toPubs([pub1, pub2, pub3]));
+
+      assert.equal(groups.length, 1);
+      assert.equal(groups[0].minPrice, 59000);
+      assert.equal(groups[0].maxPrice, 102000);
+    });
+
+    test("44. TEST — REPRESENTATIVE: highest ads_revenue determines group title and thumbnail", () => {
+      const pubLow = {
+        product_id: "p-low",
+        meli_item_id: "MLA501",
+        title: "Variante Sin Ventas",
+        sku: "SKU-V1",
+        thumbnail_url: "https://example.com/low.jpg",
+        price: 50000,
+        cost: 10000,
+        ads_units_sold: 0,
+        ads_revenue: 0,
+        clics: 10,
+        cpc: 100,
+        roas: null,
+        acos_percent: null,
+        total_product_cost: 0,
+        total_fee_cost: 0,
+        total_shipping_cost: 0,
+        total_packaging_cost: 0,
+        ads_investment: 1000,
+        clean_net_profit: null,
+        clean_net_margin_percent: null,
+        profitability_status: "complete",
+        raw_data: { master_id: "MASTER-REP" },
+      };
+
+      const pubHigh = {
+        product_id: "p-high",
+        meli_item_id: "MLA502",
+        title: "Dije Ángel de la Guarda Plata 925",
+        sku: "SKU-V2",
+        thumbnail_url: "https://example.com/high.jpg",
+        price: 50000,
+        cost: 10000,
+        ads_units_sold: 4,
+        ads_revenue: 385734,
+        clics: 80,
+        cpc: 161,
+        roas: 29.8,
+        acos_percent: 3.35,
+        total_product_cost: 40000,
+        total_fee_cost: 20000,
+        total_shipping_cost: 10000,
+        total_packaging_cost: 2000,
+        ads_investment: 12936,
+        clean_net_profit: 299834,
+        clean_net_margin_percent: 77.7,
+        profitability_status: "complete",
+        raw_data: { master_id: "MASTER-REP" },
+      };
+
+      const pubMid = {
+        product_id: "p-mid",
+        meli_item_id: "MLA503",
+        title: "Variante Media",
+        sku: "SKU-V3",
+        thumbnail_url: "https://example.com/mid.jpg",
+        price: 50000,
+        cost: 10000,
+        ads_units_sold: 1,
+        ads_revenue: 50000,
+        clics: 20,
+        cpc: 100,
+        roas: 25,
+        acos_percent: 4,
+        total_product_cost: 10000,
+        total_fee_cost: 5000,
+        total_shipping_cost: 2500,
+        total_packaging_cost: 500,
+        ads_investment: 2000,
+        clean_net_profit: 30000,
+        clean_net_margin_percent: 60,
+        profitability_status: "complete",
+        raw_data: { master_id: "MASTER-REP" },
+      };
+
+      const groups = groupProductAdsForDisplay(toPubs([pubLow, pubHigh, pubMid]));
+
+      assert.equal(groups.length, 1);
+      assert.equal(groups[0].title, "Dije Ángel de la Guarda Plata 925");
+      assert.equal(groups[0].thumbnailUrl, "https://example.com/high.jpg");
+      assert.equal(groups[0].representative.meli_item_id, "MLA502");
+    });
+
+    test("45. TEST — COSTO INCOMPLETO: active item without cost sets group.cleanNetProfit to null", () => {
+      const pubA = {
+        product_id: "p-a",
+        meli_item_id: "MLA601",
+        title: "Item Con Costo",
+        sku: "SKU-A",
+        thumbnail_url: null,
+        price: 50000,
+        cost: 15000,
+        ads_units_sold: 2,
+        ads_revenue: 100000,
+        clics: 20,
+        cpc: 100,
+        roas: 50,
+        acos_percent: 2,
+        total_product_cost: 30000,
+        total_fee_cost: 10000,
+        total_shipping_cost: 5000,
+        total_packaging_cost: 1000,
+        ads_investment: 2000,
+        clean_net_profit: 52000,
+        clean_net_margin_percent: 52,
+        profitability_status: "complete",
+        raw_data: { master_id: "MASTER-INCOMPLETE" },
+      };
+
+      const pubB = {
+        product_id: "p-b",
+        meli_item_id: "MLA602",
+        title: "Item Sin Costo",
+        sku: "SKU-B",
+        thumbnail_url: null,
+        price: 50000,
+        cost: null, // Cost missing!
+        ads_units_sold: 1,
+        ads_revenue: 50000,
+        clics: 10,
+        cpc: 100,
+        roas: 50,
+        acos_percent: 2,
+        total_product_cost: null,
+        total_fee_cost: null,
+        total_shipping_cost: null,
+        total_packaging_cost: 0,
+        ads_investment: 1000,
+        clean_net_profit: null,
+        clean_net_margin_percent: null,
+        profitability_status: "missing_cost",
+        raw_data: { master_id: "MASTER-INCOMPLETE" },
+      };
+
+      const groups = groupProductAdsForDisplay(toPubs([pubA, pubB]));
+
+      assert.equal(groups.length, 1);
+      assert.equal(groups[0].cleanNetProfit, null, "Must NOT show partial profit when an active item lacks cost");
+      assert.equal(groups[0].missingCostCount, 1);
+    });
+
+    test("46. TEST — SIN ACTIVIDAD: inactive item without cost does NOT invalidate group profit", () => {
+      const pubActive = {
+        product_id: "p-active",
+        meli_item_id: "MLA701",
+        title: "Item Activo",
+        sku: "SKU-ACT",
+        thumbnail_url: null,
+        price: 50000,
+        cost: 15000,
+        ads_units_sold: 2,
+        ads_revenue: 100000,
+        clics: 20,
+        cpc: 100,
+        roas: 50,
+        acos_percent: 2,
+        total_product_cost: 30000,
+        total_fee_cost: 10000,
+        total_shipping_cost: 5000,
+        total_packaging_cost: 1000,
+        ads_investment: 2000,
+        clean_net_profit: 52000,
+        clean_net_margin_percent: 52,
+        profitability_status: "complete",
+        raw_data: { master_id: "MASTER-INACTIVE-TEST" },
+      };
+
+      const pubInactiveNoCost = {
+        product_id: "p-inactive",
+        meli_item_id: "MLA702",
+        title: "Item Inactivo Sin Costo",
+        sku: "SKU-INACT",
+        thumbnail_url: null,
+        price: 50000,
+        cost: null, // No cost, but 0 sales and 0 revenue!
+        ads_units_sold: 0,
+        ads_revenue: 0,
+        clics: 0,
+        cpc: null,
+        roas: null,
+        acos_percent: null,
+        total_product_cost: 0,
+        total_fee_cost: 0,
+        total_shipping_cost: 0,
+        total_packaging_cost: 0,
+        ads_investment: 0,
+        clean_net_profit: null,
+        clean_net_margin_percent: null,
+        profitability_status: "missing_cost",
+        raw_data: { master_id: "MASTER-INACTIVE-TEST" },
+      };
+
+      const groups = groupProductAdsForDisplay(toPubs([pubActive, pubInactiveNoCost]));
+
+      assert.equal(groups.length, 1);
+      assert.equal(groups[0].cleanNetProfit, 52000, "Active item profit should be preserved because inactive item has 0 units and 0 revenue");
     });
   });
 });
