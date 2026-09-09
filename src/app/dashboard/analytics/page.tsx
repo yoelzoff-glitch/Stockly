@@ -118,7 +118,83 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   );
 
   const currentMonthProfit = currentMonthFinancials.gananciaNeta;
-  const monthlyProjection = (currentMonthProfit / daysElapsed) * 30;
+
+  // Robust Monthly Profit Forecast (Sprint 30)
+  const {
+    calculateMonthlyProfitForecast,
+    buildDailyProfitSeries,
+    getDaysInMonth,
+  } = await import("@/services/analytics/forecast");
+  const { logger } = await import("@/lib/errors/logger");
+
+  const forecastStartTime = Date.now();
+  let monthlyForecastData;
+
+  try {
+    const historicalSeries = await buildDailyProfitSeries(
+      supabase,
+      tenantId,
+      90,
+      timezone,
+      packagingCost,
+      ignoredOrderIds
+    );
+
+    monthlyForecastData = calculateMonthlyProfitForecast({
+      historicalSeries,
+      currentYear: tenantYear,
+      currentMonth: tenantMonth,
+      currentDay: tenantDay,
+      actualProfitMTD: currentMonthProfit,
+    });
+
+    logger.info({
+      event: "MONTHLY_PROFIT_FORECAST_CALCULATED",
+      tenantId,
+      historicalDays: historicalSeries.length,
+      daysElapsed: monthlyForecastData.daysElapsed,
+      daysRemaining: monthlyForecastData.daysRemaining,
+      actualMTD: monthlyForecastData.actualProfitMTD,
+      forecastExpected: monthlyForecastData.forecastExpected,
+      forecastLow: monthlyForecastData.forecastLow,
+      forecastHigh: monthlyForecastData.forecastHigh,
+      trendFactor: monthlyForecastData.trendFactor,
+      confidence: monthlyForecastData.confidence,
+      outlierCount: monthlyForecastData.outlierDaysCount,
+      durationMs: Date.now() - forecastStartTime,
+    });
+  } catch (err: any) {
+    // Safe Fallback: never break Analytics
+    const daysInMonth = getDaysInMonth(tenantYear, tenantMonth);
+    const fallbackExpected = Math.round((currentMonthProfit / daysElapsed) * daysInMonth);
+
+    monthlyForecastData = {
+      actualProfitMTD: currentMonthProfit,
+      forecastExpected: fallbackExpected,
+      forecastLow: Math.max(currentMonthProfit, Math.round(fallbackExpected * 0.85)),
+      forecastHigh: Math.round(fallbackExpected * 1.15),
+      expectedRemainingProfit: Math.max(0, fallbackExpected - currentMonthProfit),
+      daysElapsed,
+      daysRemaining: Math.max(0, daysInMonth - daysElapsed),
+      daysInMonth,
+      trendPercent: 0,
+      trendFactor: 1.0,
+      confidence: "low" as const,
+      weekdayBaselines: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+      outlierDaysCount: 0,
+      methodologyVersion: "v1-fallback",
+    };
+
+    logger.warn({
+      event: "MONTHLY_PROFIT_FORECAST_FALLBACK",
+      tenantId,
+      daysElapsed,
+      actualMTD: currentMonthProfit,
+      forecastExpected: fallbackExpected,
+      durationMs: Date.now() - forecastStartTime,
+      error: err?.message,
+    });
+  }
 
   // Logistics & cancellations metrics
   const totalCancellations = cancellations?.length || 0;
@@ -339,9 +415,38 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
       subtext: `Ticket promedio: $${averageTicket.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
     },
     {
-      label: "Proyección del Mes",
-      value: `$${monthlyProjection.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`,
-      subtext: `Ganancia proyectada (${daysElapsed}d transcurridos)`
+      label: "Proyección de Cierre",
+      value: (
+        <div className="flex items-baseline gap-1.5 flex-wrap">
+          <span>${monthlyForecastData.forecastExpected.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
+          <span
+            className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${
+              monthlyForecastData.trendPercent > 0
+                ? "bg-[#ECFDF3] text-[#027A48]"
+                : monthlyForecastData.trendPercent < 0
+                ? "bg-[#FEF3F2] text-[#B42318]"
+                : "bg-[#F2F4F7] text-[#5F6875]"
+            }`}
+            title={`Tendencia reciente: ${monthlyForecastData.trendPercent > 0 ? "+" : ""}${monthlyForecastData.trendPercent}%`}
+          >
+            {monthlyForecastData.trendPercent > 0
+              ? `↑ +${monthlyForecastData.trendPercent}%`
+              : monthlyForecastData.trendPercent < 0
+              ? `↓ ${monthlyForecastData.trendPercent}%`
+              : `→ 0%`}
+          </span>
+        </div>
+      ),
+      subtext: (
+        <div className="space-y-0.5 text-[11px] text-[#5F6875]">
+          <div>
+            Rango: ${monthlyForecastData.forecastLow.toLocaleString("es-AR", { maximumFractionDigits: 0 })} – ${monthlyForecastData.forecastHigh.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+          </div>
+          <div className="text-[10px] text-[#8C93A0]">
+            Confianza: <strong className="capitalize text-[#5F6875]">{monthlyForecastData.confidence === "high" ? "Alta" : monthlyForecastData.confidence === "medium" ? "Media" : "Baja"}</strong> ({monthlyForecastData.daysRemaining}d restantes)
+          </div>
+        </div>
+      ),
     },
     {
       label: "Fugas / Cancelaciones",
