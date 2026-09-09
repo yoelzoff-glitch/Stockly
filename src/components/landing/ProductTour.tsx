@@ -4,9 +4,8 @@ interface TourStep {
   tag: string;
   title: string;
   description: string;
-  imageSrc?: string;
+  imageSrc: string;
   imageAlt: string;
-  placeholderText?: string;
   bulletPoints: string[];
 }
 
@@ -16,8 +15,8 @@ const steps: TourStep[] = [
     title: "Entendé tu rentabilidad",
     description:
       "Visualizá la facturación bruta, las comisiones retenidas, los costos de envío y el resultado neto real de tu cuenta en una sola vista diaria o mensual.",
-    imageSrc: "/dashboard-analytics-v2.png",
-    imageAlt: "Vista de analíticas y rentabilidad neta de LibretaX",
+    imageSrc: "/libretax-dashboard-overview-v3.webp",
+    imageAlt: "Dashboard de rentabilidad y ventas de LibretaX",
     bulletPoints: [
       "Total vendido vs. ganancia neta en pesos al centavo.",
       "Desglose de comisiones, envíos y descuentos por período.",
@@ -29,8 +28,8 @@ const steps: TourStep[] = [
     title: "Detectá costos faltantes",
     description:
       "Identificá qué productos de tu catálogo no tienen asignado su costo de compra o reposición para que ningún cálculo de margen quede incompleto.",
-    imageSrc: "/dashboard-product-management-v2.png",
-    imageAlt: "Gestión de catálogo y asignación de costos unitarios",
+    imageSrc: "/libretax-catalog-costs-v3.webp",
+    imageAlt: "Gestión de productos, costos y márgenes en LibretaX",
     bulletPoints: [
       "Alerta visual en publicaciones sin costo cargado.",
       "Cálculo de rentabilidad estimada por unidad vendida.",
@@ -42,8 +41,8 @@ const steps: TourStep[] = [
     title: "Medí publicidad con margen",
     description:
       "Evaluá si la inversión en Mercado Libre Ads realmente genera ganancia o si el ACOS está absorbiendo todo el margen de tus productos más vendidos.",
-    imageAlt: "Auditoría de inversión publicitaria y margen de Mercado Libre Ads",
-    placeholderText: "Marco preparado para captura sanitizada de Mercado Libre Ads",
+    imageSrc: "/libretax-mercadolibre-ads-v3.webp",
+    imageAlt: "Análisis de Mercado Libre Ads y rentabilidad en LibretaX",
     bulletPoints: [
       "Cruce directo entre gasto publicitario y ganancia real.",
       "Identificación de campañas que canibalizan el margen neto.",
@@ -55,8 +54,8 @@ const steps: TourStep[] = [
     title: "Controlá promociones y stock",
     description:
       "Administrá tus insumos físicos y depósitos. Cuando vendés un combo en Mercado Libre, LibretaX descuenta los componentes individuales para prevenir quiebres de inventario.",
-    imageSrc: "/dashboard-internal-stock-v2.png",
-    imageAlt: "Control de stock interno y componentes de depósito",
+    imageSrc: "/libretax-internal-stock-v3.webp",
+    imageAlt: "Gestión de depósito y stock interno en LibretaX",
     bulletPoints: [
       "Inventario físico desacoplado de las publicaciones publicadas.",
       "Descuento automático de piezas individuales al vender combos.",
@@ -138,33 +137,16 @@ export function ProductTour() {
                       </span>
                     </div>
 
-                    {step.imageSrc ? (
-                      <div className="relative rounded-lg overflow-hidden border border-[#DCDAD4] bg-white">
-                        <Image
-                          src={step.imageSrc}
-                          alt={step.imageAlt}
-                          width={1200}
-                          height={750}
-                          className="w-full h-auto object-cover object-top block"
-                          priority={idx === 0}
-                        />
-                      </div>
-                    ) : (
-                      /* Prepared frame for future sanitized capture */
-                      <div className="rounded-lg border border-dashed border-[#DCDAD4] bg-white p-8 md:p-12 text-center flex flex-col items-center justify-center min-h-[300px] space-y-4">
-                        <div className="w-12 h-12 rounded-lg bg-[#F5F3EE] border border-[#DCDAD4] flex items-center justify-center text-[#102A56] font-bold text-sm">
-                          ADS
-                        </div>
-                        <div className="max-w-md space-y-1">
-                          <p className="text-sm font-semibold text-[#101828]">
-                            {step.placeholderText}
-                          </p>
-                          <p className="text-xs text-[#5F6875]">
-                            Auditoría de ACOS, atribución de ventas y rentabilidad neta publicitaria en tiempo real.
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                    <div className="relative rounded-lg overflow-hidden border border-[#DCDAD4] bg-white">
+                      <Image
+                        src={step.imageSrc}
+                        alt={step.imageAlt}
+                        width={1200}
+                        height={750}
+                        className="w-full h-auto object-cover object-top block"
+                        priority={idx === 0}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
