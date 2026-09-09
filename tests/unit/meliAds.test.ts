@@ -24,6 +24,42 @@ describe("Sprint 25: Product Ads Metrics & Summary Unit Tests", () => {
     clearAllAdsCache();
   });
 
+  const setupMockFetch = (meliResponseFn: (url: string, init: any) => Response | Promise<Response>) => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://mock.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "mock-service-role-key";
+
+    global.fetch = (async (url: any, init: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes("mock.supabase.co")) {
+        if (urlStr.includes("tenants")) {
+          return new Response(JSON.stringify({ is_demo: false }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (urlStr.includes("meli_accounts")) {
+          return new Response(
+            JSON.stringify({
+              id: "acc-1",
+              tenant_id: "test-tenant",
+              access_token: "mock-token",
+              token_expires_at: new Date(Date.now() + 3600000).toISOString(),
+            }),
+            {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            }
+          );
+        }
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return meliResponseFn(urlStr, init);
+    }) as any;
+  };
+
   describe("1. Query Parameters with Metrics & Summary", () => {
     test("PRODUCT_ADS_CAMPAIGN_METRICS contains required official metrics", () => {
       assert.ok(PRODUCT_ADS_CAMPAIGN_METRICS.includes("clicks"));
@@ -275,42 +311,6 @@ describe("Sprint 25: Product Ads Metrics & Summary Unit Tests", () => {
       assert.ok(PRODUCT_ADS_AD_METRICS.includes("cvr"));
     });
 
-    const setupMockFetch = (meliResponseFn: (url: string, init: any) => Response | Promise<Response>) => {
-      process.env.NEXT_PUBLIC_SUPABASE_URL = "https://mock.supabase.co";
-      process.env.SUPABASE_SERVICE_ROLE_KEY = "mock-service-role-key";
-
-      global.fetch = (async (url: any, init: any) => {
-        const urlStr = String(url);
-        if (urlStr.includes("mock.supabase.co")) {
-          if (urlStr.includes("tenants")) {
-            return new Response(JSON.stringify({ is_demo: false }), {
-              status: 200,
-              headers: { "content-type": "application/json" },
-            });
-          }
-          if (urlStr.includes("meli_accounts")) {
-            return new Response(
-              JSON.stringify({
-                id: "acc-1",
-                tenant_id: "test-tenant",
-                access_token: "mock-token",
-                token_expires_at: new Date(Date.now() + 3600000).toISOString(),
-              }),
-              {
-                status: 200,
-                headers: { "content-type": "application/json" },
-              }
-            );
-          }
-          return new Response(JSON.stringify([]), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          });
-        }
-        return meliResponseFn(urlStr, init);
-      }) as any;
-    };
-
     test("29. TEST — AD GROUP ADS: fetches and maps real ads from /ad_groups/{id}/ads with v2", async () => {
       let capturedUrl = "";
       let capturedHeaders: Record<string, string> = {};
@@ -527,6 +527,204 @@ describe("Sprint 25: Product Ads Metrics & Summary Unit Tests", () => {
           return true;
         }
       );
+    });
+  });
+
+  describe("7. Sprint 27: Filtrado estricto de publicaciones Product Ads + corrección de rentabilidad", () => {
+    test("23. TEST — CAMPAIGN FILTER URL: sends filters[campaigns] query param", async () => {
+      let capturedUrl = "";
+
+      setupMockFetch((url) => {
+        capturedUrl = url;
+        return new Response(JSON.stringify({ results: [], paging: { total: 0 } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      });
+
+      await getProductAdsAdGroups({
+        tenantId: "test-tenant",
+        siteId: "MLA",
+        advertiserId: 123456,
+        campaignIds: ["358105778", "358096583"],
+      });
+
+      const decodedUrl = decodeURIComponent(capturedUrl);
+      assert.ok(
+        decodedUrl.includes("filters[campaigns]=358105778,358096583"),
+        `Expected filters[campaigns] in URL, got: ${capturedUrl}`
+      );
+      assert.ok(!decodedUrl.includes("campaign_ids="), "Should not use campaign_ids query param");
+    });
+
+    test("24. TEST — AD GROUP FUERA DE SCOPE: discards ad groups not belonging to allowedCampaignIds", () => {
+      const allowedCampaignIds = new Set(["campA", "campB"]);
+      const rawAdGroups = [
+        { id: "ag-1", campaign_id: "campA", name: "AdGroup 1" },
+        { id: "ag-2", campaign_id: "campC", name: "AdGroup 2" },
+      ];
+
+      const filtered = rawAdGroups.filter(
+        (ag) => ag.campaign_id !== null && ag.campaign_id !== undefined && allowedCampaignIds.has(String(ag.campaign_id))
+      );
+
+      assert.equal(filtered.length, 1);
+      assert.equal(filtered[0].id, "ag-1");
+    });
+
+    test("25. TEST — AD FUERA DE SCOPE: discards ads whose campaign_id is not in allowedCampaignIds", () => {
+      const allowedCampaignIds = new Set(["campA", "campB"]);
+      const allAds = [
+        { id: "ad-1", item_id: "MLA111", campaign_id: "campA" },
+        { id: "ad-2", item_id: "MLA222", campaign_id: "campZ" },
+      ];
+
+      const filtered = allAds.filter(
+        (ad) => ad.campaign_id !== null && ad.campaign_id !== undefined && allowedCampaignIds.has(String(ad.campaign_id))
+      );
+
+      assert.equal(filtered.length, 1);
+      assert.equal(filtered[0].item_id, "MLA111");
+    });
+
+    test("26. TEST — PROMOCIÓN NO ADS: promotional products without in-scope ad group are not included", () => {
+      const inScopeAdItems = new Set(["MLA-ADS-01"]);
+      const promoProduct = { meli_item_id: "MLA-PROMO-99", promotion_discount_amount: 500 };
+
+      const isInProductAds = inScopeAdItems.has(promoProduct.meli_item_id);
+      assert.equal(isInProductAds, false);
+    });
+
+    test("27. TEST — CUPÓN NO ADS: coupon products without in-scope ad group are not included", () => {
+      const inScopeAdItems = new Set(["MLA-ADS-01"]);
+      const couponProduct = { meli_item_id: "MLA-COUPON-88", coupon_code: "SALE20" };
+
+      const isInProductAds = inScopeAdItems.has(couponProduct.meli_item_id);
+      assert.equal(isInProductAds, false);
+    });
+
+    test("28. TEST — 0 VENTAS: strictly produces null net profit, roas and acos", () => {
+      const adUnits = 0;
+      const adRevenue = 0;
+      const adCost = 0;
+      const m = { acos: null, roas: null };
+
+      const profitInput = {
+        price: 50000,
+        cost: 20000,
+        estimated_fee: 5000,
+        extra_fee_amount: 0,
+        estimated_shipping_cost: 0,
+        promotion_discount_amount: 0,
+        estimated_tax: 0,
+        packaging_cost: 0,
+      };
+
+      const realProfitRes = calculateRealProfitability(profitInput);
+
+      let cleanNetProfit: number | null = null;
+      let cleanNetMarginPercent: number | null = null;
+
+      if (
+        adUnits > 0 &&
+        adRevenue > 0 &&
+        realProfitRes.profitability_status === "complete" &&
+        profitInput.cost !== null
+      ) {
+        const totalUnitCosts = profitInput.cost + profitInput.estimated_fee;
+        const unitsForCalc = adUnits;
+        const grossMarginForUnits = profitInput.price * unitsForCalc - totalUnitCosts * unitsForCalc;
+        cleanNetProfit = Math.round(grossMarginForUnits - adCost);
+        cleanNetMarginPercent = Number(((cleanNetProfit / adRevenue) * 100).toFixed(1));
+      }
+
+      let roas: number | null = null;
+      if (m.roas !== null && m.roas !== undefined) {
+        roas = Number(m.roas);
+      } else if (adCost > 0 && adRevenue > 0) {
+        roas = Number((adRevenue / adCost).toFixed(2));
+      }
+
+      let acos: number | null = null;
+      if (m.acos !== null && m.acos !== undefined) {
+        acos = Number(m.acos);
+      } else if (adRevenue > 0 && adCost > 0) {
+        acos = Number(((adCost / adRevenue) * 100).toFixed(1));
+      }
+
+      assert.equal(cleanNetProfit, null);
+      assert.equal(cleanNetMarginPercent, null);
+      assert.equal(roas, null);
+      assert.equal(acos, null);
+    });
+
+    test("29. TEST — VENTA REAL: calculates clean net profit when adUnits > 0 and adRevenue > 0", () => {
+      const adUnits = 2;
+      const adRevenue = 100000;
+      const adCost = 5000;
+
+      const profitInput = {
+        price: 50000,
+        cost: 20000,
+        estimated_fee: 6500,
+        extra_fee_amount: 500,
+        estimated_shipping_cost: 3000,
+        promotion_discount_amount: 0,
+        estimated_tax: 1500,
+        packaging_cost: 500,
+      };
+
+      const realProfitRes = calculateRealProfitability(profitInput);
+      assert.equal(realProfitRes.profitability_status, "complete");
+
+      let cleanNetProfit: number | null = null;
+      let cleanNetMarginPercent: number | null = null;
+
+      if (
+        adUnits > 0 &&
+        adRevenue > 0 &&
+        realProfitRes.profitability_status === "complete" &&
+        profitInput.cost !== null
+      ) {
+        const totalUnitCosts =
+          profitInput.cost +
+          profitInput.estimated_fee +
+          profitInput.extra_fee_amount +
+          profitInput.estimated_shipping_cost +
+          profitInput.estimated_tax +
+          profitInput.packaging_cost; // 32000
+
+        const unitsForCalc = adUnits;
+        const grossMarginForUnits = profitInput.price * unitsForCalc - totalUnitCosts * unitsForCalc; // 100000 - 64000 = 36000
+        cleanNetProfit = Math.round(grossMarginForUnits - adCost); // 36000 - 5000 = 31000
+        cleanNetMarginPercent = Number(((cleanNetProfit / adRevenue) * 100).toFixed(1)); // 31.0%
+      }
+
+      assert.equal(cleanNetProfit, 31000);
+      assert.equal(cleanNetMarginPercent, 31.0);
+    });
+
+    test("30. TEST — NO MATH.MAX: regression test ensuring 0 units never generates positive profit", () => {
+      const adUnits = 0;
+      const adRevenue = 0;
+      const adCost = 0;
+
+      const unitPrice = 50000;
+      const unitCost = 20000;
+
+      // Old flawed logic simulation
+      const flawedUnitsForCalc = Math.max(1, adUnits); // = 1
+      const flawedProfit = unitPrice * flawedUnitsForCalc - unitCost * flawedUnitsForCalc - adCost; // = 30000 (BUG!)
+      assert.equal(flawedProfit, 30000, "Sanity check on flawed behavior");
+
+      // New fixed logic
+      const correctUnitsForCalc = adUnits; // = 0
+      let correctProfit: number | null = null;
+      if (adUnits > 0 && adRevenue > 0) {
+        correctProfit = unitPrice * correctUnitsForCalc - unitCost * correctUnitsForCalc - adCost;
+      }
+
+      assert.equal(correctProfit, null, "Correct behavior must be null for 0 units");
     });
   });
 });

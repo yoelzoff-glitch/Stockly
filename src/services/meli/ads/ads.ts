@@ -24,6 +24,7 @@ export interface GetProductAdsAdsArgs {
   tenantId: string;
   siteId: string;
   adGroupId: string | number;
+  campaignId?: string | number;
   dateFrom?: string | null;
   dateTo?: string | null;
   limit?: number;
@@ -33,6 +34,7 @@ export async function getProductAdsAds({
   tenantId,
   siteId,
   adGroupId,
+  campaignId,
   dateFrom,
   dateTo,
   limit = 50,
@@ -43,6 +45,7 @@ export async function getProductAdsAds({
     tenantId,
     siteId,
     adGroupId,
+    campaignId,
   });
 
   const allAds: ProductAdsAd[] = [];
@@ -82,7 +85,7 @@ export async function getProductAdsAds({
           allAds.push({
             id: raw.id ?? itemId,
             item_id: itemId,
-            campaign_id: raw.campaign_id,
+            campaign_id: raw.campaign_id ?? campaignId ?? null,
             ad_group_id: raw.ad_group_id ?? adGroupId,
             title: raw.title ?? raw.name ?? null,
             price: raw.price !== undefined && raw.price !== null ? Number(raw.price) : null,

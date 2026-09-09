@@ -283,14 +283,54 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
     };
   }
 
+  // 8. Extract real Product Ads Campaign IDs
+  const productAdsCampaignIds = rawCampaigns
+    .map((campaign) => campaign.id)
+    .filter((id) => id !== null && id !== undefined)
+    .map(String);
+
+  logger.info({
+    event: "MELI_ADS_CAMPAIGN_SCOPE",
+    tenantId,
+    campaignIds: productAdsCampaignIds,
+    campaignCount: productAdsCampaignIds.length,
+  });
+
+  const allowedCampaignIds = new Set(productAdsCampaignIds.map(String));
+
   if (availability.available) {
     try {
       rawAdGroups = await getProductAdsAdGroups({
         tenantId,
         siteId,
         advertiserId,
+        campaignIds: productAdsCampaignIds,
         dateFrom: dateFromString,
         dateTo: dateToString,
+      });
+
+      // Defensive in-memory filtering for Ad Groups
+      const totalReceivedAdGroups = rawAdGroups.length;
+      rawAdGroups = rawAdGroups.filter((ag) => {
+        const inScope =
+          ag.campaign_id !== null &&
+          ag.campaign_id !== undefined &&
+          allowedCampaignIds.has(String(ag.campaign_id));
+        if (!inScope) {
+          logger.warn({
+            event: "MELI_ADS_OUT_OF_SCOPE_ADGROUP_DROPPED",
+            tenantId,
+            adGroupId: ag.id,
+            campaignId: ag.campaign_id,
+          });
+        }
+        return inScope;
+      });
+
+      logger.info({
+        event: "MELI_ADS_ADGROUP_SCOPE",
+        receivedCount: totalReceivedAdGroups,
+        filteredCount: rawAdGroups.length,
       });
     } catch (adGroupErr: any) {
       logger.error({
@@ -304,7 +344,7 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
     }
   }
 
-  // 8. Map Campaigns to UI representation
+  // 9. Map Campaigns to UI representation
   const campaignsList: AdsCampaignItem[] = rawCampaigns.map((c) => {
     const consumed = c.consumed_budget !== undefined && c.consumed_budget !== null ? Number(c.consumed_budget) : (c.metrics?.cost ?? null);
     const rev = c.metrics?.totalAmount !== undefined && c.metrics?.totalAmount !== null ? Number(c.metrics.totalAmount) : (c.revenue ?? null);
@@ -328,7 +368,7 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
     };
   });
 
-  // 9. Fetch Real Ads per Ad Group (Concurrency limited to 3 parallel requests)
+  // 10. Fetch Real Ads per Ad Group (Concurrency limited to 3 parallel requests)
   let allAds: ProductAdsAd[] = [];
   let adsError: string | null = null;
 
@@ -344,6 +384,7 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
               tenantId,
               siteId: siteId!,
               adGroupId: ag.id,
+              campaignId: ag.campaign_id,
               dateFrom: dateFromString,
               dateTo: dateToString,
             });
@@ -362,6 +403,25 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
       );
       allAds = adsPerGroup.flat();
 
+      // Defensive in-memory filtering for Ads
+      const totalReceivedAds = allAds.length;
+      allAds = allAds.filter((ad) => {
+        if (
+          ad.campaign_id !== null &&
+          ad.campaign_id !== undefined &&
+          !allowedCampaignIds.has(String(ad.campaign_id))
+        ) {
+          return false;
+        }
+        return true;
+      });
+
+      logger.info({
+        event: "MELI_ADS_AD_SCOPE",
+        receivedCount: totalReceivedAds,
+        filteredCount: allAds.length,
+      });
+
       if (anyErrorOccurred && allAds.length === 0) {
         adsError = "No pudimos obtener las publicaciones anunciadas en este momento.";
       }
@@ -376,7 +436,7 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
     }
   }
 
-  // 10. Build productAdsList from real Ads (meli_item_id -> SKU -> unmatched)
+  // 11. Build productAdsList from real Ads (meli_item_id -> SKU -> unmatched)
   const productAdsMap: Map<string, ProductAdsMetrics> = new Map();
 
   for (const ad of allAds) {
@@ -413,7 +473,7 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
       ? Number(m.unitsQuantity)
       : (m.directUnitsQuantity !== null && m.directUnitsQuantity !== undefined
         ? Number(m.directUnitsQuantity)
-        : (adRevenue > 0 ? 1 : 0));
+        : 0);
 
     const unitPrice = dbMatch?.price
       ? Number(dbMatch.price)
@@ -437,7 +497,12 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
     let cleanNetProfit: number | null = null;
     let cleanNetMarginPercent: number | null = null;
 
-    if (realProfitRes.profitability_status === "complete" && realProfitRes.real_margin_amount !== null) {
+    if (
+      adUnits > 0 &&
+      adRevenue > 0 &&
+      realProfitRes.profitability_status === "complete" &&
+      profitInput.cost !== null
+    ) {
       const totalUnitCosts =
         (profitInput.cost || 0) +
         (profitInput.estimated_fee || 0) +
@@ -447,23 +512,32 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
         (profitInput.estimated_tax || 0) +
         packagingCost;
 
-      const unitsForCalc = Math.max(1, adUnits);
+      const unitsForCalc = adUnits;
       const grossMarginForUnits = (unitPrice * unitsForCalc) - (totalUnitCosts * unitsForCalc);
       cleanNetProfit = Math.round(grossMarginForUnits - adCost);
-      cleanNetMarginPercent = adRevenue > 0 ? Number(((cleanNetProfit / adRevenue) * 100).toFixed(1)) : 0;
+      cleanNetMarginPercent = Number(((cleanNetProfit / adRevenue) * 100).toFixed(1));
     }
 
-    const roas = m.roas !== null && m.roas !== undefined
-      ? Number(m.roas)
-      : (adCost > 0 && adRevenue > 0 ? Number((adRevenue / adCost).toFixed(2)) : null);
+    let roas: number | null = null;
+    if (m.roas !== null && m.roas !== undefined) {
+      roas = Number(m.roas);
+    } else if (adCost > 0 && adRevenue > 0) {
+      roas = Number((adRevenue / adCost).toFixed(2));
+    }
 
-    const acos = m.acos !== null && m.acos !== undefined
-      ? Number(m.acos)
-      : (adRevenue > 0 && adCost >= 0 ? Number(((adCost / adRevenue) * 100).toFixed(1)) : null);
+    let acos: number | null = null;
+    if (m.acos !== null && m.acos !== undefined) {
+      acos = Number(m.acos);
+    } else if (adRevenue > 0 && adCost > 0) {
+      acos = Number(((adCost / adRevenue) * 100).toFixed(1));
+    }
 
-    const cpc = m.cpc !== null && m.cpc !== undefined
-      ? Number(m.cpc)
-      : (adClicks && adClicks > 0 && adCost > 0 ? Number((adCost / adClicks).toFixed(2)) : null);
+    let cpc: number | null = null;
+    if (m.cpc !== null && m.cpc !== undefined) {
+      cpc = Number(m.cpc);
+    } else if (adClicks && adClicks > 0 && adCost > 0) {
+      cpc = Number((adCost / adClicks).toFixed(2));
+    }
 
     const existing = productAdsMap.get(cleanItemId);
     if (existing) {
@@ -477,14 +551,19 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
       existing.cpc = existing.clics && existing.clics > 0 && existing.ads_investment > 0
         ? Number((existing.ads_investment / existing.clics).toFixed(2))
         : null;
-      existing.roas = existing.ads_investment > 0
+      existing.roas = existing.ads_investment > 0 && existing.ads_revenue > 0
         ? Number((existing.ads_revenue / existing.ads_investment).toFixed(2))
         : null;
-      existing.acos_percent = existing.ads_revenue > 0
+      existing.acos_percent = existing.ads_revenue > 0 && existing.ads_investment > 0
         ? Number(((existing.ads_investment / existing.ads_revenue) * 100).toFixed(1))
         : null;
 
-      if (existing.profitability_status === "complete" && profitInput.cost !== null) {
+      if (
+        existing.ads_units_sold > 0 &&
+        existing.ads_revenue > 0 &&
+        existing.profitability_status === "complete" &&
+        profitInput.cost !== null
+      ) {
         const totalUnitCosts =
           (profitInput.cost || 0) +
           (profitInput.estimated_fee || 0) +
@@ -494,12 +573,10 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
           (profitInput.estimated_tax || 0) +
           packagingCost;
 
-        const unitsForCalc = Math.max(1, existing.ads_units_sold);
+        const unitsForCalc = existing.ads_units_sold;
         const grossMarginForUnits = (unitPrice * unitsForCalc) - (totalUnitCosts * unitsForCalc);
         existing.clean_net_profit = Math.round(grossMarginForUnits - existing.ads_investment);
-        existing.clean_net_margin_percent = existing.ads_revenue > 0
-          ? Number(((existing.clean_net_profit / existing.ads_revenue) * 100).toFixed(1))
-          : 0;
+        existing.clean_net_margin_percent = Number(((existing.clean_net_profit / existing.ads_revenue) * 100).toFixed(1));
 
         existing.total_product_cost = Math.round(profitInput.cost * unitsForCalc);
         existing.total_fee_cost = profitInput.estimated_fee !== null ? Math.round(profitInput.estimated_fee * unitsForCalc) : null;
@@ -508,6 +585,12 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
       } else {
         existing.clean_net_profit = null;
         existing.clean_net_margin_percent = null;
+        if (existing.ads_units_sold === 0) {
+          existing.total_product_cost = 0;
+          existing.total_fee_cost = 0;
+          existing.total_shipping_cost = 0;
+          existing.total_packaging_cost = 0;
+        }
       }
     } else {
       productAdsMap.set(cleanItemId, {
@@ -524,10 +607,10 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
         cpc,
         roas,
         acos_percent: acos,
-        total_product_cost: profitInput.cost !== null ? Math.round(profitInput.cost * Math.max(1, adUnits)) : null,
-        total_fee_cost: profitInput.estimated_fee !== null ? Math.round(profitInput.estimated_fee * Math.max(1, adUnits)) : null,
-        total_shipping_cost: profitInput.estimated_shipping_cost !== null ? Math.round(profitInput.estimated_shipping_cost * Math.max(1, adUnits)) : null,
-        total_packaging_cost: packagingCost > 0 ? Math.round(packagingCost * Math.max(1, adUnits)) : 0,
+        total_product_cost: profitInput.cost !== null && adUnits > 0 ? Math.round(profitInput.cost * adUnits) : (adUnits === 0 ? 0 : null),
+        total_fee_cost: profitInput.estimated_fee !== null && adUnits > 0 ? Math.round(profitInput.estimated_fee * adUnits) : (adUnits === 0 ? 0 : null),
+        total_shipping_cost: profitInput.estimated_shipping_cost !== null && adUnits > 0 ? Math.round(profitInput.estimated_shipping_cost * adUnits) : (adUnits === 0 ? 0 : null),
+        total_packaging_cost: packagingCost > 0 && adUnits > 0 ? Math.round(packagingCost * adUnits) : 0,
         ads_investment: adCost,
         clean_net_profit: cleanNetProfit,
         clean_net_margin_percent: cleanNetMarginPercent,

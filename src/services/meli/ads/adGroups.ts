@@ -65,7 +65,7 @@ export async function getProductAdsAdGroups({
       queryParams.set("offset", String(offset));
       if (campaignId) queryParams.set("campaign_id", String(campaignId));
       if (campaignIds && campaignIds.length > 0) {
-        queryParams.set("campaign_ids", campaignIds.map(String).join(","));
+        queryParams.set("filters[campaigns]", campaignIds.map(String).join(","));
       }
       if (dateFrom) queryParams.set("date_from", dateFrom);
       if (dateTo) queryParams.set("date_to", dateTo);
