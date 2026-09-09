@@ -684,7 +684,7 @@ async function setupRemoteDemo() {
   console.log("✅ REMOTE SUPABASE DEMO SETUP COMPLETED!");
   console.log("=================================================");
   console.log(`User: ${email}`);
-  console.log(`Password: (Configurada por el usuario: KlyvoDemo)`);
+  console.log(`Password: (Configurada por el usuario: LibretaXDemo)`);
   console.log(`Tenant: Casa Norte (${DEMO_TENANT_SLUG})`);
   console.log(`Tenant ID: ${tenantId}`);
   console.log(`Products: ${insertedProducts.length}`);

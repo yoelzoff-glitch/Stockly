@@ -1,5 +1,5 @@
 -- =====================================================================
--- KLYVO PRODUCTION PREFLIGHT DIAGNOSTIC SCRIPT (READ-ONLY)
+-- LIBRETAX PRODUCTION PREFLIGHT DIAGNOSTIC SCRIPT (READ-ONLY)
 -- Sprint 1/8 Safety Baseline
 -- 
 -- INSTRUCTIONS:

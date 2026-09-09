@@ -1,7 +1,7 @@
 # BASELINE FUNCIONAL Y TÉCNICO DE PRODUCCIÓN (SPRINT 01)
 
 ## 1. Introducción y Propósito
-Este documento establece la línea base (*baseline*) del comportamiento del sistema SaaS Klyvo en producción. Describe el estado funcional exacto de todos los flujos críticos antes de la introducción de las mejoras de seguridad, observabilidad y arquitectura de los Sprints 1 a 8.
+Este documento establece la línea base (*baseline*) del comportamiento del sistema SaaS LibretaX en producción. Describe el estado funcional exacto de todos los flujos críticos antes de la introducción de las mejoras de seguridad, observabilidad y arquitectura de los Sprints 1 a 8.
 
 Cualquier cambio futuro debe ser contrastado contra los comportamientos, tablas y métricas aquí descritos para prevenir regresiones que impacten al usuario en producción.
 
@@ -60,7 +60,7 @@ Cualquier cambio futuro debe ser contrastado contra los comportamientos, tablas 
 * **APIs externas:** Mercado Libre REST API (`/users/{user_id}/items/search`, `/items?ids=...`, `/items/{id}/shipping_options`).
 * **Efectos secundarios:** Actualización de catálogo de publicaciones, cálculo de margen base y margen real, inserción en historial de precios si varió el valor.
 * **Comportamiento esperado:** Productos existentes actualizan `price`, `available_quantity`, `status`, `last_synced_at`. Nuevos productos se insertan.
-* **Métrica / Evidencia de regresión:** Recuento de productos activos en Klyvo coincide con publicaciones activas en Mercado Libre.
+* **Métrica / Evidencia de regresión:** Recuento de productos activos en LibretaX coincide con publicaciones activas en Mercado Libre.
 
 ---
 

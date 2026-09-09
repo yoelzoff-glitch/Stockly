@@ -13,18 +13,18 @@ import { CTA } from "@/components/landing/CTA";
 import { Footer } from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "Klyvo | Rentabilidad y gestión para Mercado Libre",
+  title: "LibretaX | Rentabilidad y gestión para Mercado Libre",
   description:
     "Centralizá ventas, costos, comisiones, promociones, publicidad y stock. Conocé la rentabilidad real de tu operación en Mercado Libre.",
   openGraph: {
     type: "website",
-    title: "Klyvo | Rentabilidad y gestión para Mercado Libre",
+    title: "LibretaX | Rentabilidad y gestión para Mercado Libre",
     description:
       "Centralizá ventas, costos, comisiones, promociones, publicidad y stock. Conocé la rentabilidad real de tu operación en Mercado Libre.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Klyvo | Rentabilidad y gestión para Mercado Libre",
+    title: "LibretaX | Rentabilidad y gestión para Mercado Libre",
     description:
       "Centralizá ventas, costos, comisiones, promociones, publicidad y stock. Conocé la rentabilidad real de tu operación en Mercado Libre.",
   },

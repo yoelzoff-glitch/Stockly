@@ -10,7 +10,7 @@ export function FounderStory() {
           </span>
 
           <h2 className="text-2xl sm:text-3xl font-extrabold text-[#101828] tracking-tight leading-tight">
-            Klyvo nació de un problema real.
+            LibretaX nació de un problema real.
           </h2>
 
           <div className="space-y-4 text-base sm:text-lg text-[#5F6875] leading-relaxed font-normal">
@@ -18,7 +18,7 @@ export function FounderStory() {
               Administrar una cuenta de Mercado Libre implicaba revisar ventas, costos, comisiones, promociones y cupones en distintos lugares. Entender la ganancia real llevaba demasiado tiempo y dependía de planillas que quedaban desactualizadas.
             </p>
             <p>
-              Klyvo nació para reunir toda esa información, reducir el trabajo manual y convertir los datos de la operación en decisiones más claras.
+              LibretaX nació para reunir toda esa información, reducir el trabajo manual y convertir los datos de la operación en decisiones más claras.
             </p>
           </div>
 
@@ -28,7 +28,7 @@ export function FounderStory() {
                 Yoel Zoff
               </p>
               <p className="text-xs font-medium text-[#5F6875]">
-                Creador de Klyvo
+                Creador de LibretaX
               </p>
             </div>
             <span className="text-xs font-mono text-[#5F6875] bg-[#F5F3EE] px-3 py-1 rounded border border-[#DCDAD4]">

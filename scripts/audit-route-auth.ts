@@ -168,7 +168,7 @@ export function runRouteAuthAudit(rootDir = path.resolve(__dirname, "..")): {
 // Execution if run from CLI
 if (require.main === module) {
   console.log("=================================================");
-  console.log("KLYVO SPRINT 2: STATIC ROUTE AUTH AUDIT");
+  console.log("LIBRETAX SPRINT 2: STATIC ROUTE AUTH AUDIT");
   console.log("=================================================\n");
 
   const results = runRouteAuthAudit();

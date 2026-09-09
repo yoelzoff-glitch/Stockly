@@ -9,7 +9,7 @@ import { getFinancialData } from "@/services/finance/getFinancialData";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Contabilidad - Klyvo",
+  title: "Contabilidad - LibretaX",
   description: "Administra tus gastos fijos, temporales y variables para calcular tu rentabilidad real limpia."
 };
 

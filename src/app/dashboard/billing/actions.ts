@@ -17,7 +17,7 @@ export async function upgradePlan(plan: "starter" | "pro" | "ultra") {
     .eq("id", context.userId)
     .single();
 
-  const email = profile?.email || "user@klyvo.com";
+  const email = profile?.email || "user@libretax.com";
   const initPoint = await createSubscriptionPreference(context.tenantId, plan, email);
   return initPoint;
 }

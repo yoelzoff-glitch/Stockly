@@ -1,14 +1,20 @@
 /**
- * Centralized, typed Kill Switches utility for Klyvo.
+ * Centralized, typed Kill Switches utility for LibretaX.
  * 
  * Kill switches allow operators to immediately stop dangerous write operations
  * via environment variables without redeploying code or affecting reads.
  * 
- * Supported variables:
- * - KLYVO_DISABLE_MANUAL_SYNCS: Blocks on-demand manual sync routes.
- * - KLYVO_DISABLE_AI_WRITES: Blocks execution of AI suggested actions/workflows.
- * - KLYVO_DISABLE_MELI_WRITES: Blocks price, stock, or status updates to Mercado Libre.
- * - KLYVO_DISABLE_WHATSAPP_AGENT: Blocks automated AI outbound responses on WhatsApp.
+ * Canonical variables:
+ * - LIBRETAX_DISABLE_MANUAL_SYNCS: Blocks on-demand manual sync routes.
+ * - LIBRETAX_DISABLE_AI_WRITES: Blocks execution of AI suggested actions/workflows.
+ * - LIBRETAX_DISABLE_MELI_WRITES: Blocks price, stock, or status updates to Mercado Libre.
+ * - LIBRETAX_DISABLE_WHATSAPP_AGENT: Blocks automated AI outbound responses on WhatsApp.
+ * 
+ * Backwards compatibility fallbacks (deprecated):
+ * - KLYVO_DISABLE_MANUAL_SYNCS
+ * - KLYVO_DISABLE_AI_WRITES
+ * - KLYVO_DISABLE_MELI_WRITES
+ * - KLYVO_DISABLE_WHATSAPP_AGENT
  */
 
 export interface KillSwitchesState {
@@ -33,25 +39,25 @@ export function parseBooleanEnv(value?: string | null): boolean {
  */
 export function getKillSwitches(): KillSwitchesState {
   return {
-    disableManualSyncs: parseBooleanEnv(process.env.KLYVO_DISABLE_MANUAL_SYNCS),
-    disableAiWrites: parseBooleanEnv(process.env.KLYVO_DISABLE_AI_WRITES),
-    disableMeliWrites: parseBooleanEnv(process.env.KLYVO_DISABLE_MELI_WRITES),
-    disableWhatsappAgent: parseBooleanEnv(process.env.KLYVO_DISABLE_WHATSAPP_AGENT),
+    disableManualSyncs: isManualSyncDisabled(),
+    disableAiWrites: isAiWritesDisabled(),
+    disableMeliWrites: isMeliWritesDisabled(),
+    disableWhatsappAgent: isWhatsappAgentDisabled(),
   };
 }
 
 export function isManualSyncDisabled(): boolean {
-  return parseBooleanEnv(process.env.KLYVO_DISABLE_MANUAL_SYNCS);
+  return parseBooleanEnv(process.env.LIBRETAX_DISABLE_MANUAL_SYNCS) || parseBooleanEnv(process.env.KLYVO_DISABLE_MANUAL_SYNCS);
 }
 
 export function isAiWritesDisabled(): boolean {
-  return parseBooleanEnv(process.env.KLYVO_DISABLE_AI_WRITES);
+  return parseBooleanEnv(process.env.LIBRETAX_DISABLE_AI_WRITES) || parseBooleanEnv(process.env.KLYVO_DISABLE_AI_WRITES);
 }
 
 export function isMeliWritesDisabled(): boolean {
-  return parseBooleanEnv(process.env.KLYVO_DISABLE_MELI_WRITES);
+  return parseBooleanEnv(process.env.LIBRETAX_DISABLE_MELI_WRITES) || parseBooleanEnv(process.env.KLYVO_DISABLE_MELI_WRITES);
 }
 
 export function isWhatsappAgentDisabled(): boolean {
-  return parseBooleanEnv(process.env.KLYVO_DISABLE_WHATSAPP_AGENT);
+  return parseBooleanEnv(process.env.LIBRETAX_DISABLE_WHATSAPP_AGENT) || parseBooleanEnv(process.env.KLYVO_DISABLE_WHATSAPP_AGENT);
 }

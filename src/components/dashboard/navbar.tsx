@@ -32,7 +32,7 @@ export function Navbar({
           </button>
           
           <div className="md:hidden flex items-center">
-            <img src="/logo.png" alt="Klyvo" className="h-7 w-auto" />
+            <img src="/logo.png" alt="LibretaX" className="h-7 w-auto" />
           </div>
 
           {isDemo && (
@@ -61,7 +61,7 @@ export function Navbar({
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-[#F5F3EE] text-[#102A56] border border-[#DCDAD4]"
                 title="Cuenta demostrativa privada"
               >
-                <span>Klyvo Demo</span>
+                <span>LibretaX Demo</span>
               </span>
               <span className="hidden lg:inline-flex items-center text-xs font-medium text-[#5F6875] bg-[#F5F3EE]/80 px-2.5 py-1 rounded border border-[#EAE7DF]">
                 Cuenta demostrativa · Los datos son ficticios
@@ -74,7 +74,7 @@ export function Navbar({
                 className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold bg-[#F5F3EE] text-[#102A56] border border-[#DCDAD4] hover:bg-[#EAE7DF] transition-colors"
                 title="Ver detalles de facturación"
               >
-                <span className="capitalize">Klyvo {plan}</span>
+                <span className="capitalize">LibretaX {plan}</span>
                 {daysRemaining !== null && daysRemaining !== undefined && (
                   <span className="text-[#5F6875]">
                     • {daysRemaining > 0 ? `${daysRemaining}d` : "Vencido"}

@@ -103,7 +103,7 @@ export function ExtraCostsClient({ initialCosts }: { initialCosts: any[] }) {
       <div className="p-4 rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] space-y-2">
         <div className="flex items-center gap-2 text-xs font-semibold text-[#101828]">
           <HelpCircle className="w-4 h-4 text-[#102A56]" />
-          <span>Mecánica del Cálculo de Costos en Klyvo</span>
+          <span>Mecánica del Cálculo de Costos en LibretaX</span>
         </div>
         <p className="text-xs text-[#5F6875] leading-relaxed">
           Los costos adicionales (etiquetas, comisiones bancarias fijas o insumos de empaque) se deducen automáticamente del precio de venta junto con las comisiones de Mercado Libre y los costos de envío. Puedes definir reglas <strong>Globales</strong> (todo el catálogo), <strong>Por Categoría ML</strong> o <strong>Por Producto Específico</strong> (asignando el MLA).

@@ -19,12 +19,12 @@ export const ENV_SPECS: EnvVariableSpec[] = [
   { name: "NEXT_PUBLIC_SUPABASE_ANON_KEY", category: "required", description: "Supabase public anonymous key" },
   { name: "SUPABASE_SERVICE_ROLE_KEY", category: "required", description: "Supabase backend administrative service key" },
 
-  // Healthcheck & Safety (Sprint 1)
+  // Healthcheck & Safety (Sprint 1 / Sprint 19)
   { name: "HEALTHCHECK_TOKEN", category: "required", description: "Secret token to protect /api/health/ready" },
-  { name: "KLYVO_DISABLE_MANUAL_SYNCS", category: "optional", description: "Kill switch for manual product/order syncs" },
-  { name: "KLYVO_DISABLE_AI_WRITES", category: "optional", description: "Kill switch for AI write actions" },
-  { name: "KLYVO_DISABLE_MELI_WRITES", category: "optional", description: "Kill switch for Mercado Libre price/stock writes" },
-  { name: "KLYVO_DISABLE_WHATSAPP_AGENT", category: "optional", description: "Kill switch for WhatsApp auto-responder" },
+  { name: "LIBRETAX_DISABLE_MANUAL_SYNCS", category: "optional", description: "Kill switch for manual product/order syncs (deprecated fallback: KLYVO_DISABLE_MANUAL_SYNCS)" },
+  { name: "LIBRETAX_DISABLE_AI_WRITES", category: "optional", description: "Kill switch for AI write actions (deprecated fallback: KLYVO_DISABLE_AI_WRITES)" },
+  { name: "LIBRETAX_DISABLE_MELI_WRITES", category: "optional", description: "Kill switch for Mercado Libre price/stock writes (deprecated fallback: KLYVO_DISABLE_MELI_WRITES)" },
+  { name: "LIBRETAX_DISABLE_WHATSAPP_AGENT", category: "optional", description: "Kill switch for WhatsApp auto-responder (deprecated fallback: KLYVO_DISABLE_WHATSAPP_AGENT)" },
 
   // Mercado Libre
   { name: "MELI_CLIENT_ID", category: "required", description: "Mercado Libre App ID" },
@@ -87,7 +87,14 @@ export function auditEnvironment(strict = false): {
   let configured = 0;
 
   for (const spec of ENV_SPECS) {
-    const val = process.env[spec.name];
+    let val = process.env[spec.name];
+    
+    // Support backwards compatibility check for killswitches
+    if (!val && spec.name.startsWith("LIBRETAX_DISABLE_")) {
+      const fallbackName = spec.name.replace("LIBRETAX_DISABLE_", "KLYVO_DISABLE_");
+      val = process.env[fallbackName];
+    }
+
     const isConfigured = typeof val === "string" && val.trim().length > 0;
 
     if (isConfigured) {

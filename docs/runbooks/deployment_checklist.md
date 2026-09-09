@@ -17,32 +17,41 @@ graph LR
     E --> F["6. Deploy de Código (Vercel)"]
     F --> G["7. Health Checks (/live & /ready)"]
     G --> H["8. Smoke Tests Funcionales"]
-    H --> I["9. Monitoreo Activo (24h)"]
-    I --> J["10. Activación Gradual de Flags"]
-```
-
-### Paso a Paso Detallado:
-1. **CI Verde:** Pipeline de GitHub Actions 100% exitoso en la rama a mergear (`0 skipped`, typecheck, audits, integraciones, fault injection, backup/recovery, build).
-2. **Revisar Migraciones:** Confirmar que no existan scripts destructivos (`DROP COLUMN`, `RENAME TABLE` sin backwards compatibility).
-3. **Backup / PITR:** Validar último snapshot en Supabase o generar volcado pre-deploy con `pg_dump`.
-4. **Aplicar Migraciones Aditivas:** Ejecutar scripts SQL en Supabase (`supabase db push --linked` o SQL Editor).
-5. **Verificación DB:** Ejecutar queries de validación (grants a `service_role`, `REVOKE` a `anon`/`authenticated`, políticas RLS activas).
-6. **Deploy de Código:** Merge a `main` -> Despliegue automático o manual en Vercel.
-7. **Health Checks:** Validar `/api/health/live` (HTTP 200) y `/api/health/ready` (HTTP 200 con token).
-8. **Smoke Tests:** Validar login, dashboard, órdenes recientes y sincronización con cuenta de prueba o usuario activo.
-9. **Monitoreo:** Observabilidad en Sentry e Inngest durante periodo inicial.
-10. **Activación Gradual de Flags:** Encender nuevos feature flags tenant por tenant si aplica.
+# DEPLOYMENT CHECKLIST & FORWARD RECOVERY — LIBRETAX
+<!-- Sprint 7/8 Operational Reliability & Incident Management -->
 
 ---
 
-## 2. MATRIZ DE MITIGACIÓN Y FORWARD RECOVERY
+## 1. Pre-Deployment Checklist (Staging -> Production)
 
-Ante anomalías detectadas post-deploy, consultar esta matriz para determinar la acción correspondiente:
+El siguiente checklist DEBE completarse y verificarse antes de promocionar cualquier cambio a la rama `main` o disparar un despliegue en Vercel/Supabase:
 
-| Tipo de Incidente | Causa Raíz | Acción Inmediata | Estrategia de Reversión / Recuperación |
-| :--- | :--- | :--- | :--- |
-| **Error en UI / Frontend** | Bug en componente React o cliente | Instant Rollback en Vercel | **Rollback Vercel:** Revertir al despliegue anterior (RTO < 2 min). Las tablas aditivas permanecen intactas en DB. |
-| **Saturación de API de Mercado Libre** | Rate limit excedido o bucle de sync | Activar Kill Switch | **Kill Switch:** Setear `KLYVO_DISABLE_MELI_SYNC=true` en Vercel. Pausa peticiones sin afectar lectura de dashboard. |
+### A. Integridad de Código y Tipos
+- [ ] `npm run typecheck` pasa sin ningún error de TypeScript (`tsc --noEmit`).
+- [ ] `npm run test:ci` pasa el 100% de los tests unitarios deterministas.
+- [ ] `npm run audit:release` verifica que todas las 12 funciones de Inngest, los 11 endpoints de API críticos y las 44 tablas con RLS estén en orden.
+- [ ] Ningún archivo `.env` o `.env.local` ha sido commiteado o rastreado por Git (`git ls-files | grep -E '^\.env'`).
+
+### B. Migraciones de Base de Datos (Supabase)
+- [ ] Todas las migraciones en `supabase/migrations/` son **aditivas e idempotentes** (`IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`).
+- [ ] No existen instrucciones destructivas (`DROP TABLE`, `DROP COLUMN`, `TRUNCATE`) sin un plan de migración en dos fases documentado.
+- [ ] Se ejecutó el preflight check en staging (`supabase/diagnostics/production_preflight.sql`).
+- [ ] Las 44 tablas tienen `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;` y `ALTER TABLE ... FORCE ROW LEVEL SECURITY;`.
+
+### C. Variables de Entorno en Vercel
+- [ ] Se ejecutó `npm run check:env` verificando que todas las variables requeridas (CRÍTICAS) y funcionales estén presentes.
+- [ ] Los secrets de producción (`SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_SECRET_KEY`, `CRON_SECRET`, `HEALTHCHECK_TOKEN`) son independientes y diferentes a los de staging/test.
+- [ ] `NODE_ENV=production` configurado en el proyecto de producción.
+
+---
+
+## 2. Fast Forward-Recovery Playbook
+
+Si tras el despliegue se detecta un fallo que no justifique un rollback completo (o durante el tiempo en que se evalúa), aplicar las siguientes mitigaciones inmediatas:
+
+| Síntoma | Diagnóstico Rápido | Mitigación Inmediata | Instrucción de Ejecución |
+|---|---|---|---|
+| **Saturación de API de Mercado Libre** | Rate limit excedido o bucle de sync | Activar Kill Switch | **Kill Switch:** Setear `LIBRETAX_DISABLE_MANUAL_SYNCS=true` en Vercel. Pausa peticiones sin afectar lectura de dashboard. |
 | **Fallo en Job de Background** | Inngest / worker fallando | Pausar función en Inngest | **Desactivar Jobs:** Pausar función específica en Inngest dashboard mientras se investiga el bug. |
 | **Inconsistencia en Feature Flag** | Nueva lógica causando discrepancias | Apagar Flag | **Volver Flags a `false`:** Desactivar el flag en `public.tenant_feature_flags` o variable de entorno (`billing_webhook_v2=false`). |
 | **Error en Schema de Base de Datos** | Constraint demasiado estricto o bug en RPC | **Forward Migration** | **Forward Migration:** Aplicar un nuevo script SQL correctivo (`ALTER TABLE ... DROP CONSTRAINT`, `CREATE OR REPLACE FUNCTION`). NUNCA eliminar tablas con datos vivos. |

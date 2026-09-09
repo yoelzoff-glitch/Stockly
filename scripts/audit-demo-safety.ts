@@ -9,7 +9,7 @@ interface AuditViolation {
 
 function runDemoSafetyAudit() {
   console.log("=================================================");
-  console.log("KLYVO SPRINT 11: DEMO SAFETY & ISOLATION AUDIT");
+  console.log("LIBRETAX SPRINT 11: DEMO SAFETY & ISOLATION AUDIT");
   console.log("=================================================");
 
   const rootDir = path.resolve(__dirname, "..");

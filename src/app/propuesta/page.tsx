@@ -111,7 +111,7 @@ export default function PropuestaComercialPage() {
                   <Bot className="w-7 h-7 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-black tracking-tight text-white">KLYVO</h1>
+                  <h1 className="text-2xl font-black tracking-tight text-white">LIBRETAX</h1>
                   <p className="text-[10px] text-indigo-300 font-bold tracking-widest uppercase">Operador Inteligente e-Commerce para Mercado Libre</p>
                 </div>
               </div>
@@ -136,7 +136,7 @@ export default function PropuestaComercialPage() {
           <div className="border-b border-slate-800 print:border-slate-300 pb-1.5">
             <h3 className="text-base md:text-lg font-bold text-white print:text-slate-900 flex items-center gap-2">
               <Zap className="w-4 h-4 text-indigo-400 print:text-indigo-600" />
-              El Desafío del Vendedor vs. La Solución Klyvo
+              El Desafío del Vendedor vs. La Solución LibretaX
             </h3>
           </div>
 
@@ -163,7 +163,7 @@ export default function PropuestaComercialPage() {
 
             <div className="print-card bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-4 space-y-2">
               <div className="flex items-center gap-1.5 text-indigo-400 print:text-indigo-700 font-bold text-xs uppercase tracking-wider">
-                <CheckCircle2 className="w-4 h-4" /> La Respuesta de Klyvo
+                <CheckCircle2 className="w-4 h-4" /> La Respuesta de LibretaX
               </div>
               <ul className="space-y-1.5 text-xs text-slate-300 print:text-slate-700">
                 <li className="flex items-start gap-1.5">
@@ -367,7 +367,7 @@ export default function PropuestaComercialPage() {
             <span>Integración Oficial vía API de Mercado Libre. Datos 100% Cifrados.</span>
           </div>
           <div className="font-semibold text-slate-300 print:text-slate-800">
-            Contacto Comercial: contacto@klyvo.app
+            Contacto Comercial: contacto@libretax.com
           </div>
         </footer>
 

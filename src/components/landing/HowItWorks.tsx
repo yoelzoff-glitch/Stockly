@@ -7,12 +7,12 @@ export function HowItWorks() {
       icon: KeyRound,
       title: "Conectás tu cuenta",
       description:
-        "Autorizás la conexión mediante el protocolo oficial OAuth de Mercado Libre. Klyvo nunca solicita ni almacena la contraseña de tu cuenta.",
+        "Autorizás la conexión mediante el protocolo oficial OAuth de Mercado Libre. LibretaX nunca solicita ni almacena la contraseña de tu cuenta.",
     },
     {
       num: "02",
       icon: RefreshCw,
-      title: "Klyvo sincroniza",
+      title: "LibretaX sincroniza",
       description:
         "El sistema importa tu catálogo de publicaciones, órdenes recientes, envíos y cargos asociados para construir la base de indicadores.",
     },
@@ -35,7 +35,7 @@ export function HowItWorks() {
             Paso a paso
           </span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-[#101828] tracking-tight">
-            Cómo funciona Klyvo
+            Cómo funciona LibretaX
           </h2>
           <p className="text-base sm:text-lg text-[#5F6875] leading-relaxed">
             Una integración pensada para empezar a trabajar con datos reales de tu cuenta de forma ordenada y segura.

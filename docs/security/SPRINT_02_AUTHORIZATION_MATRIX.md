@@ -1,7 +1,7 @@
 # SPRINT 2/8 — MATRIZ DE SUPERFICIE DE AUTORIZACIÓN Y AISLAMIENTO DE ENDPOINTS
 
 ## 1. Visión General
-Este documento clasifica e inventaría toda la superficie de ejecución de Klyvo (Rutas API en `src/app/api/**`, Server Actions en `src/actions/**` y `src/app/dashboard/**`, y servicios con cliente administrativo `service_role`).
+Este documento clasifica e inventaría toda la superficie de ejecución de LibretaX (Rutas API en `src/app/api/**`, Server Actions en `src/actions/**` y `src/app/dashboard/**`, y servicios con cliente administrativo `service_role`).
 
 ### Taxonomía de Clasificación:
 * **Usuario Autenticado y Vinculado a Tenant**: Requiere sesión activa del usuario (`supabase.auth.getUser()`) y resolución obligatoria de su tenant en el servidor (`profiles.tenant_id`).

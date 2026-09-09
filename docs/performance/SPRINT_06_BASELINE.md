@@ -2,7 +2,7 @@
 
 ## 1. Context & Architecture Overview
 
-To enable Klyvo to seamlessly operate across multiple concurrent tenants without saturating Supabase, Mercado Libre, Inngest, or serverless compute instances, Sprint 6 introduces:
+To enable LibretaX to seamlessly operate across multiple concurrent tenants without saturating Supabase, Mercado Libre, Inngest, or serverless compute instances, Sprint 6 introduces:
 - **Decoupled multi-tenant job dispatchers:** Replacing bulk `Promise.allSettled` with paginated event fan-out (`concurrency: 1` per tenant).
 - **Atomic distributed leases (`operation_leases`):** Preventing race conditions and redundant execution across webhooks, crons, and manual triggers.
 - **Distributed rate limiting (`rate_limit_buckets`):** Atomic sliding-window rate limiting in shadow mode (`api_rate_limits_v2 = false`).

@@ -15,7 +15,7 @@ export function Hero() {
             </h1>
 
             <p className="text-lg text-[#5F6875] leading-relaxed font-normal max-w-xl">
-              Klyvo reúne tus ventas, costos, comisiones, envíos, promociones, publicidad y stock de Mercado Libre para mostrarte la rentabilidad real de tu negocio.
+              LibretaX reúne tus ventas, costos, comisiones, envíos, promociones, publicidad y stock de Mercado Libre para mostrarte la rentabilidad real de tu negocio.
             </p>
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
@@ -23,7 +23,7 @@ export function Hero() {
                 href="/register"
                 className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold text-white bg-[#102A56] hover:bg-[#0A1D3C] transition-colors shadow-xs"
               >
-                <span>Probar Klyvo</span>
+                <span>Probar LibretaX</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
 

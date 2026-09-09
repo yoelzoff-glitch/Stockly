@@ -11,8 +11,8 @@ export default withSentryConfig(
     // For all available options, see:
     // https://github.com/getsentry/sentry-webpack-plugin#options
     silent: true,
-    org: "stockly",
-    project: "stockly",
+    org: process.env.SENTRY_ORG || "stockly",
+    project: process.env.SENTRY_PROJECT || "stockly",
   },
   {
     // For all available options, see:

@@ -111,7 +111,7 @@ describe("Sprint 3.4 Comprehensive Smoke & Regression Tests Suite", () => {
   });
 
   test("11. WhatsApp Inactive Kill-Switch: guarantees WhatsApp agent remains disabled", () => {
-    const killSwitch = process.env.KLYVO_DISABLE_WHATSAPP_AGENT ?? "true";
+    const killSwitch = process.env.LIBRETAX_DISABLE_WHATSAPP_AGENT ?? process.env.KLYVO_DISABLE_WHATSAPP_AGENT ?? "true";
     assert.equal(killSwitch, "true", "WhatsApp AI Agent must strictly default to disabled (true)");
   });
 

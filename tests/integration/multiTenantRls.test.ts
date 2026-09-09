@@ -6,10 +6,10 @@ import postgres from "postgres";
 
 describe("Sprint 3.5 Multi-Tenant PostgreSQL Real Integration Tests (40 Canonical Tables)", () => {
   const testDbUrl = process.env.DATABASE_URL_TEST;
-  const testSentinel = process.env.KLYVO_RLS_TEST_DB;
+  const testSentinel = process.env.LIBRETAX_RLS_TEST_DB ?? process.env.KLYVO_RLS_TEST_DB;
 
   if (!testDbUrl || testSentinel !== "1") {
-    test.skip("Skipping PostgreSQL integration test: DATABASE_URL_TEST and KLYVO_RLS_TEST_DB=1 not configured in environment", () => {});
+    test.skip("Skipping PostgreSQL integration test: DATABASE_URL_TEST and LIBRETAX_RLS_TEST_DB=1 not configured in environment", () => {});
     return;
   }
 

@@ -9,8 +9,8 @@ try {
   }
 } catch (_) {}
 
-export const DEMO_RANDOM_SEED = "klyvo-casa-norte-v1";
-export const DEMO_TENANT_SLUG = "klyvo-private-demo";
+export const DEMO_RANDOM_SEED = "libretax-casa-norte-v1";
+export const DEMO_TENANT_SLUG = "libretax-private-demo";
 export const DEMO_SEED_VERSION = "casa-norte-v1";
 
 function createPRNG(seedStr: string) {

@@ -76,7 +76,7 @@ export function Sidebar() {
       {/* Brand Header */}
       <div className="h-16 px-5 flex items-center border-b border-[#DCDAD4] shrink-0">
         <Link href="/dashboard" className="flex items-center" aria-label="Ir al Dashboard">
-          <img src="/logo.png" alt="Klyvo" className="h-9 w-auto" />
+          <img src="/logo.png" alt="LibretaX" className="h-9 w-auto" />
         </Link>
       </div>
 

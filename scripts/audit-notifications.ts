@@ -9,7 +9,7 @@ interface AuditViolation {
 
 function runNotificationsAudit() {
   console.log("=================================================");
-  console.log("KLYVO SPRINT 12: NOTIFICATIONS & ALERTS AUDIT");
+  console.log("LIBRETAX SPRINT 12: NOTIFICATIONS & ALERTS AUDIT");
   console.log("=================================================");
 
   const rootDir = path.resolve(__dirname, "..");

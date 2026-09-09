@@ -72,7 +72,7 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
 
   const rawData = order.raw_data as any;
   const payments = rawData?.payments || [];
-  const klyvoCosts = rawData?.klyvo_operational_costs || {};
+  const operationalCosts = rawData?.libretax_operational_costs || rawData?.klyvo_operational_costs || {};
 
   // Financial calculations
   const totalAmount = Number(order.total_amount) || 0;
@@ -91,7 +91,7 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
 
   // Logistics costs
   const shippingCost = Number(shipment?.shipping_cost) || 0;
-  const packagingCost = Number(klyvoCosts.packaging_cost) || 0;
+  const packagingCost = Number(operationalCosts.packaging_cost) || 0;
   const totalLogisticsCost = shippingCost + packagingCost;
 
   // Net Profit & Margin

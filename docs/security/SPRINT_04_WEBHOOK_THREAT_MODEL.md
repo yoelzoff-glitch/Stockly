@@ -1,14 +1,14 @@
 # SPRINT 4: WEBHOOK THREAT MODEL & SECURITY CONTRACT AUDIT
 
 **Document Version:** 1.0.0  
-**Target:** Stockly / Klyvo API Webhook Architecture  
+**Target:** LibretaX API Webhook Architecture  
 **Status:** Audit & Architecture Baseline  
 
 ---
 
 ## 1. Executive Summary & Audit Baseline
 
-This document defines the security threat model, cryptographic verification standards, atomic idempotency mechanisms, and API resilience controls for external webhooks integrated with Stockly/Klyvo:
+This document defines the security threat model, cryptographic verification standards, atomic idempotency mechanisms, and API resilience controls for external webhooks integrated with LibretaX:
 1. **Mercado Libre Webhooks** (`/api/meli/webhook`)
 2. **Mercado Pago Webhooks** (`/api/mercadopago/webhook`)
 3. **WhatsApp Cloud API Webhooks** (`/api/whatsapp/webhook`)
@@ -84,7 +84,7 @@ This document defines the security threat model, cryptographic verification stan
    - `MP_WEBHOOK_SIGNATURE_MODE=observe|enforce` (Default: `observe`)
    - `WHATSAPP_WEBHOOK_SIGNATURE_MODE=observe|enforce` (Default: `observe`)
 2. **Safety Kill-Switches:**
-   - `KLYVO_DISABLE_WHATSAPP_AGENT=true` preserved.
+   - `LIBRETAX_DISABLE_WHATSAPP_AGENT=true` (with `KLYVO_DISABLE_WHATSAPP_AGENT` fallback) preserved.
    - `strict_tenant_authorization=false` preserved for backwards compatibility.
 3. **Audit Gates:**
    - Static webhook audit script (`scripts/audit-webhooks.ts`).

@@ -5,8 +5,8 @@ import { InternalStockClient } from "./client-page";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Inventario y Bodega FULL - Klyvo",
-  description: "Administra el stock físico de depósito local y el inventario almacenado en la bodega FULL de Mercado Libre."
+  title: "Inventario y Bodega FULL - LibretaX",
+  description: "Control de materias primas, insumos y cálculo de stock virtual combo."
 };
 
 export default async function InternalStockPage() {

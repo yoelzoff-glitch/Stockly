@@ -60,7 +60,7 @@ export default async function DashboardPage(props: PageProps) {
           Todavía no conectaste Mercado Libre
         </h2>
         <p className="mt-1.5 mb-6 text-sm text-[#5F6875] max-w-md">
-          Para ver tus métricas de ventas, stock y productos, primero necesitas vincular tu cuenta de Mercado Libre con Klyvo.
+          Para ver tus métricas de ventas, stock y productos, primero necesitas vincular tu cuenta de Mercado Libre con LibretaX.
         </p>
         <Link
           href="/dashboard/get-started"
@@ -503,7 +503,7 @@ export default async function DashboardPage(props: PageProps) {
                 {recentMessages.map((msg, idx) => (
                   <div key={idx} className="p-2.5 rounded-lg bg-[#F5F3EE] text-xs space-y-0.5">
                     <span className="font-bold text-[#101828] uppercase text-[10px] block">
-                      {msg.direction === "inbound" ? "Consulta" : "Klyvo"}
+                      {msg.direction === "inbound" ? "Consulta" : "LibretaX"}
                     </span>
                     <p className="line-clamp-1 text-[#5F6875]">
                       {msg.text}

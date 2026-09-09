@@ -58,7 +58,7 @@ describe("Sprint 7 — Fault Injection & Graceful Degradation Tests", () => {
       const res = await fetch("http://127.0.0.1:59999/api/inngest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "klyvo/order.sync", data: {} }),
+        body: JSON.stringify({ name: "libretax/order.sync", data: {} }),
         signal: AbortSignal.timeout(500),
       }).catch(() => {
         handled = true;
@@ -220,10 +220,15 @@ describe("Sprint 7 — Fault Injection & Graceful Degradation Tests", () => {
   });
 
   it("Fault 10: Kill switch instantly disables failing subsystems without deployment", async () => {
-    process.env.KLYVO_DISABLE_MANUAL_SYNCS = "true";
+    process.env.LIBRETAX_DISABLE_MANUAL_SYNCS = "true";
     assert.equal(isManualSyncDisabled(), true);
 
-    process.env.KLYVO_DISABLE_MANUAL_SYNCS = "false";
+    process.env.LIBRETAX_DISABLE_MANUAL_SYNCS = "false";
     assert.equal(isManualSyncDisabled(), false);
+
+    delete process.env.LIBRETAX_DISABLE_MANUAL_SYNCS;
+    process.env.KLYVO_DISABLE_MANUAL_SYNCS = "true";
+    assert.equal(isManualSyncDisabled(), true);
+    delete process.env.KLYVO_DISABLE_MANUAL_SYNCS;
   });
 });

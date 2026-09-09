@@ -9,7 +9,7 @@ interface Violation {
 
 function runPerformanceAudit() {
   console.log("=================================================");
-  console.log("KLYVO SPRINT 6: SCALABILITY & PERFORMANCE AUDIT");
+  console.log("LIBRETAX SPRINT 6: SCALABILITY & PERFORMANCE AUDIT");
   console.log("=================================================");
 
   const rootDir = path.resolve(__dirname, "..");

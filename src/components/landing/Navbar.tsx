@@ -25,10 +25,10 @@ export function Navbar() {
 
           {/* Logo */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center" aria-label="Klyvo inicio">
+            <Link href="/" className="flex items-center" aria-label="LibretaX inicio">
               <img
                 src="/logo.png"
-                alt="Klyvo"
+                alt="LibretaX"
                 className="h-11 md:h-12 w-auto"
               />
             </Link>
@@ -74,7 +74,7 @@ export function Navbar() {
               href="/register"
               className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#102A56] hover:bg-[#0A1D3C] transition-colors shadow-xs"
             >
-              Probar Klyvo
+              Probar LibretaX
             </Link>
           </div>
 
@@ -141,7 +141,7 @@ export function Navbar() {
               onClick={() => setMobileMenuOpen(false)}
               className="w-full text-center py-2.5 rounded-lg text-sm font-semibold text-white bg-[#102A56]"
             >
-              Probar Klyvo
+              Probar LibretaX
             </Link>
           </div>
         </div>

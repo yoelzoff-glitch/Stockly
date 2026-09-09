@@ -296,7 +296,7 @@ export async function getAdsData(tenantId: string, period: string = "30days") {
     item.unitsSold > 0 || (rawAdsProductsList.length > 0 && rawAdsProductsList.some((r: any) => (r.sku || r.item_id || "").toLowerCase() === (item.sku || item.meli_item_id || "").toLowerCase()))
   );
 
-  // Build productAdsList using Klyvo's official calculateRealProfitability function
+  // Build productAdsList using LibretaX's official calculateRealProfitability function
   const productAdsList: ProductAdsMetrics[] = aggregatedItemsList.map((item, idx) => {
     const unitsSold = item.unitsSold;
     const adsRevenue = item.revenue;

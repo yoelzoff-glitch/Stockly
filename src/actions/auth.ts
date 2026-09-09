@@ -126,7 +126,7 @@ export async function retryPaymentAction() {
     const initPoint = await createSubscriptionPreference(
       user.id, 
       plan as "pro" | "ultra", 
-      user.email || "user@klyvo.com",
+      user.email || "user@libretax.com",
       "user"
     );
     if (initPoint) {

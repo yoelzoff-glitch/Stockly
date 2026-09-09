@@ -185,7 +185,7 @@ export async function getFinancialData(
 
     const couponAmount = Number(raw?.coupon?.amount) || (raw?.payments && raw.payments.length > 0 ? Number(raw.payments[0].coupon_amount) : 0) || 0;
     totalCupones += couponAmount;
-    const orderPackagingCost = Number(raw?.klyvo_operational_costs?.packaging_cost || packagingCost);
+    const orderPackagingCost = Number(raw?.libretax_operational_costs?.packaging_cost || raw?.klyvo_operational_costs?.packaging_cost || packagingCost);
 
     let orderCost = 0;
     let orderFees = 0;
@@ -636,5 +636,5 @@ export async function getFinancialData(
     monthlyExpensesTotal: Number(monthlyExpensesTotal.toFixed(2)),
     gananciaBolsilloLimpia: Number(gananciaBolsilloLimpia.toFixed(2)),
     appliedExpensesBreakdown
-  };
+  };   
 }

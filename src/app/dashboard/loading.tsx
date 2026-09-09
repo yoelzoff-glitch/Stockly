@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 
 export default function DashboardLoading() {
   const pathname = usePathname();
-  const [moduleName, setModuleName] = useState("Klyvo");
+  const [moduleName, setModuleName] = useState("LibretaX");
 
   useEffect(() => {
     if (!pathname) return;
@@ -48,7 +48,7 @@ export default function DashboardLoading() {
     } else if (pathname.startsWith("/dashboard/settings")) {
       setModuleName("Configuración");
     } else {
-      setModuleName("Klyvo");
+      setModuleName("LibretaX");
     }
   }, [pathname]);
 

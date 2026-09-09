@@ -339,7 +339,7 @@ export const whatsappWebhookJob = inngest.createFunction(
         } else {
           await sendText(
             from,
-            "Klyvo solo entiende texto y audios por el momento.",
+            "LibretaX solo entiende texto y audios por el momento.",
             phoneNumberId,
             accessToken
           );

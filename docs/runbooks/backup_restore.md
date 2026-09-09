@@ -2,7 +2,7 @@
 
 ## 1. Visión General y Métricas Objetivas
 
-Este runbook detalla los procedimientos obligatorios para la protección, validación y restauración de datos de Klyvo (Supabase / PostgreSQL), así como la estrategia de reconstrucción de estado ante pérdidas operacionales.
+Este runbook detalla los procedimientos obligatorios para la protección, validación y restauración de datos de LibretaX (Supabase / PostgreSQL), así como la estrategia de reconstrucción de estado ante pérdidas operacionales.
 
 ### Métricas de Recuperación Objetivo (Target SLOs)
 * **RPO Objetivo (Recovery Point Objective):**
@@ -20,7 +20,7 @@ Este runbook detalla los procedimientos obligatorios para la protección, valida
 
 ## 2. Inventario de Datos: Reconstructibles vs. No Reconstructibles
 
-Ante un incidente mayor de pérdida de datos o corrupción, es crítico diferenciar qué información puede resincronizarse desde fuentes externas y cuál existe exclusivamente en la base de datos de Klyvo:
+Ante un incidente mayor de pérdida de datos o corrupción, es crítico diferenciar qué información puede resincronizarse desde fuentes externas y cuál existe exclusivamente en la base de datos de LibretaX:
 
 ### 2.1 Datos Recuperables vía Resincronización (Mercado Libre API)
 Los siguientes datos pueden reconstruirse automáticamente consultando la API de Mercado Libre con los tokens del tenant:
@@ -29,7 +29,7 @@ Los siguientes datos pueden reconstruirse automáticamente consultando la API de
 - Preguntas y mensajes de post-venta (`public.chat_threads`, `public.messages`).
 - Identificadores de compradores y estados de entrega.
 
-### 2.2 Datos Exclusivos de Klyvo (NO RECONSTRUIBLES desde APIs externas)
+### 2.2 Datos Exclusivos de LibretaX (NO RECONSTRUIBLES desde APIs externas)
 Si estos datos se pierden sin un backup válido, **no pueden regenerarse automáticamente**:
 1. **Costos unitarios y márgenes históricos** (`public.inventory_items.unit_cost`, composiciones de SKU).
 2. **Historial de movimientos de inventario internos** (`public.inventory_movements` manuales o ajustes de merma).
@@ -54,7 +54,7 @@ Si estos datos se pierden sin un backup válido, **no pueden regenerarse automá
 # Dump estructurado con compresión y formato custom
 pg_dump "$DATABASE_URL" \
   --format=custom \
-  --file="dumps/klyvo_backup_pre_deploy_$(date +%Y%m%d_%H%M%S).dump" \
+  --file="dumps/libretax_backup_pre_deploy_$(date +%Y%m%d_%H%M%S).dump" \
   --schema=public \
   --no-owner \
   --no-privileges
@@ -64,16 +64,16 @@ pg_dump "$DATABASE_URL" \
 
 ## 4. Procedimiento de Restauración Paso a Paso
 
-1. **Aislamiento:** Activar kill switch de sincronización (`KLYVO_DISABLE_MELI_SYNC=true`) para evitar escrituras concurrentes durante la restauración.
+1. **Aislamiento:** Activar kill switch de sincronización (`LIBRETAX_DISABLE_MANUAL_SYNCS=true`) para evitar escrituras concurrentes durante la restauración.
 2. **Creación de Instancia Destino:**
    - En entorno de contingencia o proyecto Supabase temporal:
    ```bash
    # O en PostgreSQL descartable de prueba:
-   docker run --name klyvo-restore-instance -e POSTGRES_PASSWORD=recovery_pass -p 54322:5432 -d postgres:16
+   docker run --name libretax-restore-instance -e POSTGRES_PASSWORD=recovery_pass -p 54322:5432 -d postgres:16
    ```
 3. **Restauración del Volcado:**
    ```bash
-   pg_restore -d "postgresql://postgres:recovery_pass@localhost:54322/postgres" --clean --if-exists -v "dumps/klyvo_backup.dump"
+   pg_restore -d "postgresql://postgres:recovery_pass@localhost:54322/postgres" --clean --if-exists -v "dumps/libretax_backup.dump"
    ```
 4. **Verificación de Consistencia Post-Restauración:**
    ```sql

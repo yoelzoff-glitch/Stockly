@@ -26,4 +26,4 @@ Esta matriz documenta la compatibilidad teórica y estática de los flujos de la
 | **Alertas Inteligentes** | `alerts` | Server Action / API | `alerts_tenant_update` | ✅ Auditado estáticamente | Permite marcar `is_read`. |
 | **Jobs Inngest / Sync** | `orders`, `products`, `shipments`, `operation_runs` | Inngest Background / `service_role` | `BYPASSRLS` legítimo con filtro tenant | ✅ Auditado estáticamente | Trazabilidad con `operation_runs`. |
 | **Webhooks MeLi / MP** | `orders`, `subscriptions` | Webhook / `service_role` | `BYPASSRLS` legítimo | ⚠️ Validación estricta pendiente Sprint 4 | Pendiente validación criptográfica HMAC en Sprint 4. |
-| **WhatsApp** | `whatsapp_numbers`, `messages` | Desactivado (`KLYVO_DISABLE_WHATSAPP_AGENT=true`) | Tokens protegidos | ✅ Inactivo / Seguro | Agente IA deshabilitado. |
+| **WhatsApp** | `whatsapp_numbers`, `messages` | Desactivado (`LIBRETAX_DISABLE_WHATSAPP_AGENT=true`) | Tokens protegidos | ✅ Inactivo / Seguro | Agente IA deshabilitado. |

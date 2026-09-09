@@ -62,8 +62,8 @@ describe("Critical Endpoints Static & Integration Verification", () => {
       "Sales export CSV must retain exact 58211d3 headers in exact order"
     );
     assert.ok(
-      routeContent.includes("klyvo_ventas_"),
-      "Sales export CSV filename must start with klyvo_ventas_"
+      routeContent.includes("libretax_ventas_"),
+      "Sales export CSV filename must start with libretax_ventas_"
     );
   });
 

@@ -2,7 +2,7 @@
 🚨 LEEME_URGENTE: INSTRUCCIONES OBLIGATORIAS DE CONFIGURACIÓN Y RESUMEN DE CAMBIOS 🚨
 ================================================================================
 
-Este archivo contiene el resumen de las mejoras de seguridad, estabilidad, UX y arquitectura implementadas en Klyvo (Stockly), junto con los pasos OBLIGATORIOS requeridos para su correcta ejecución en producción y desarrollo local.
+Este archivo contiene el resumen de las mejoras de seguridad, estabilidad, UX y arquitectura implementadas en LibretaX, junto con los pasos OBLIGATORIOS requeridos para su correcta ejecución en producción y desarrollo local.
 
 --------------------------------------------------------------------------------
 1. RESUMEN DE CAMBIOS REALIZADOS
@@ -14,7 +14,7 @@ Fase 1: Seguridad y Estabilidad Crítica
 - [X] Limitador de Tasa (Rate Limiting) para Mercado Libre: Creado 'src/services/meli/rateLimiter.ts' con concurrencia controlada (máximo 5 peticiones y delay de 100ms) e integrado con reintentos exponenciales en 'src/services/meli/syncProducts.ts' para evitar errores 429.
 
 Fase 2: Rendimiento de Frontend y UX
-- [X] Streaming en Dashboard (Suspense): Se extrajeron el 'Resumen Diario de IA' y las 'Recomendaciones de Negocio' (Klyvo Recomienda) a Server Components asíncronos independientes ('daily-summary-section.tsx' e 'insights-section.tsx'). Se envuelven en '<Suspense>' usando los placeholders en 'section-skeleton.tsx'. El dashboard ahora carga de forma instantánea.
+- [X] Streaming en Dashboard (Suspense): Se extrajeron el 'Resumen Diario de IA' y las 'Recomendaciones de Negocio' (LibretaX Recomienda) a Server Components asíncronos independientes ('daily-summary-section.tsx' e 'insights-section.tsx'). Se envuelven en '<Suspense>' usando los placeholders en 'section-skeleton.tsx'. El dashboard ahora carga de forma instantánea.
 - [X] Eliminación de recargas bruscas (Flickering): Se reemplazó 'window.location.reload()' por 'router.refresh()' en la tabla de productos ('src/app/dashboard/products/client-page.tsx').
 
 Fase 3: Interactividad y Flujos de Trabajo

@@ -9,7 +9,7 @@ interface Violation {
 
 function runBillingAudit() {
   console.log("=================================================");
-  console.log("KLYVO SPRINT 5: BILLING INTEGRITY & QUOTA AUDIT");
+  console.log("LIBRETAX SPRINT 5: BILLING INTEGRITY & QUOTA AUDIT");
   console.log("=================================================");
 
   const rootDir = path.resolve(__dirname, "..");

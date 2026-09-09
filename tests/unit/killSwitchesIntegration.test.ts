@@ -6,7 +6,7 @@ import path from "node:path";
 describe("Kill Switches Static Integration Checks", () => {
   const rootDir = path.resolve(__dirname, "../..");
 
-  test("KLYVO_DISABLE_MANUAL_SYNCS is integrated in manual sync routes", () => {
+  test("LIBRETAX_DISABLE_MANUAL_SYNCS is integrated in manual sync routes", () => {
     const productsRoute = fs.readFileSync(
       path.join(rootDir, "src/app/api/meli/sync-products/route.ts"),
       "utf-8"
@@ -26,7 +26,7 @@ describe("Kill Switches Static Integration Checks", () => {
     );
   });
 
-  test("KLYVO_DISABLE_AI_WRITES is integrated in AI action confirmation & workflow creation", () => {
+  test("LIBRETAX_DISABLE_AI_WRITES is integrated in AI action confirmation & workflow creation", () => {
     const confirmAction = fs.readFileSync(
       path.join(rootDir, "src/services/ai/actions/confirm.ts"),
       "utf-8"
@@ -46,7 +46,7 @@ describe("Kill Switches Static Integration Checks", () => {
     );
   });
 
-  test("KLYVO_DISABLE_MELI_WRITES is integrated in meliFetch remote writes boundary", () => {
+  test("LIBRETAX_DISABLE_MELI_WRITES is integrated in meliFetch remote writes boundary", () => {
     const meliClient = fs.readFileSync(
       path.join(rootDir, "src/services/meli/client.ts"),
       "utf-8"
@@ -62,7 +62,7 @@ describe("Kill Switches Static Integration Checks", () => {
     );
   });
 
-  test("KLYVO_DISABLE_WHATSAPP_AGENT is integrated in whatsapp processing before AI agent execution", () => {
+  test("LIBRETAX_DISABLE_WHATSAPP_AGENT is integrated in whatsapp processing before AI agent execution", () => {
     const waJob = fs.readFileSync(
       path.join(rootDir, "src/jobs/webhookJobs.ts"),
       "utf-8"

@@ -3,7 +3,7 @@ import { auditEnvironment } from "../src/lib/config/envCheck";
 const isStrict = process.argv.includes("--strict");
 
 console.log("=================================================");
-console.log(`KLYVO ENVIRONMENT DIAGNOSTIC (Strict mode: ${isStrict})`);
+console.log(`LIBRETAX ENVIRONMENT DIAGNOSTIC (Strict mode: ${isStrict})`);
 console.log("=================================================\n");
 
 const audit = auditEnvironment(isStrict);

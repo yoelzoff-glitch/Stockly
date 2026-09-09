@@ -5,8 +5,8 @@ import { AdsClientPage } from "./client-page";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Mercado Libre ADS & Rendimiento Limpio - Klyvo",
-  description: "Monitorea tus campañas de Mercado Libre Product ADS, presupuesto diario, facturación y la ganancia limpia real descontando costo de joya y publicidad."
+  title: "Mercado Libre ADS & Rendimiento Limpio - LibretaX",
+  description: "Auditoría en tiempo real de tu publicidad en Mercado Libre, ACOS real y rendimiento."
 };
 
 export default async function AdsDashboardPage() {

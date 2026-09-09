@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import NotificationsClientPage from "./client-page";
 
 export const metadata = {
-  title: "Actividad y alertas - Klyvo",
+  title: "Actividad y alertas - LibretaX",
   description: "Centro de alertas operativas y registro de actividad de tu negocio.",
 };
 

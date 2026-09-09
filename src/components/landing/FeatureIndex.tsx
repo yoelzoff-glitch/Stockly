@@ -129,7 +129,7 @@ export function FeatureIndex() {
           <Info className="w-5 h-5 text-[#102A56] shrink-0 mt-0.5" />
           <p className="text-xs sm:text-sm leading-relaxed">
             <strong className="text-[#101828] font-semibold">Aclaración operativa importante: </strong>
-            Klyvo no responde automáticamente preguntas de compradores de Mercado Libre. Su foco es la gestión de rentabilidad, costos, inventario y control financiero del vendedor.
+            LibretaX no responde automáticamente preguntas de compradores de Mercado Libre. Su foco es la gestión de rentabilidad, costos, inventario y control financiero del vendedor.
           </p>
         </div>
 

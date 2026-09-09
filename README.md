@@ -1,6 +1,6 @@
-# Klyvo — Plataforma SaaS de gestión y rentabilidad para vendedores de Mercado Libre
+# LibretaX — Plataforma SaaS de gestión y rentabilidad para vendedores de Mercado Libre
 
-Klyvo es una plataforma SaaS multi-tenant diseñada para centralizar la operativa comercial, el control de inventario y el cálculo de rentabilidad neta en tiempo real para vendedores del ecosistema de Mercado Libre. Combina sincronización asíncrona resiliente, auditoría contable por publicación y herramientas de inteligencia artificial bajo estrictos controles de cuota y seguridad transaccional.
+LibretaX es una plataforma SaaS multi-tenant diseñada para centralizar la operativa comercial, el control de inventario y el cálculo de rentabilidad neta en tiempo real para vendedores del ecosistema de Mercado Libre. Combina sincronización asíncrona resiliente, auditoría contable por publicación y herramientas de inteligencia artificial bajo estrictos controles de cuota y seguridad transaccional.
 
 **Estado actual:** `Release Candidate — listo para piloto privado multi-cuenta`
 
@@ -14,7 +14,7 @@ Operar como vendedor profesional en Mercado Libre implica gestionar múltiples v
 - **Procesos manuales y falta de trazabilidad:** Modificaciones de precios o stock realizadas directamente sin registro de auditoría ni validación previa de márgenes.
 - **Riesgo en multi-cuenta:** Operar varios comercios sin un aislamiento estricto de datos expone a fugas de información y colisiones en sincronizaciones concurrentes.
 
-Klyvo nació para resolver estas fricciones operativas unificando la administración en una sola plataforma con respaldo transaccional.
+LibretaX nació para resolver estas fricciones operativas unificando la administración en una sola plataforma con respaldo transaccional.
 
 ---
 
@@ -35,7 +35,7 @@ Klyvo nació para resolver estas fricciones operativas unificando la administrac
 ### Ventas y órdenes
 - **Sincronización idempotente:** Ingesta automática mediante webhooks y reconciliación periódica con detección de duplicados.
 - **Rentabilidad unitaria:** Cálculo detallado por orden (ingreso bruto, comisión ML, costo de envío, descuento comercial, costo de mercadería y ganancia neta).
-- **Exportación contable en streaming:** Descarga de reportes en formato CSV estándar (`klyvo_ventas_YYYY-MM-DD.csv`) optimizado para grandes volúmenes.
+- **Exportación contable en streaming:** Descarga de reportes en formato CSV estándar (`libretax_ventas_YYYY-MM-DD.csv`) optimizado para grandes volúmenes.
 - **Gestión de cancelaciones:** Reversión controlada de stock y ajuste contable ante órdenes canceladas o devueltas.
 
 ### Stock interno y depósitos
@@ -68,7 +68,7 @@ Klyvo nació para resolver estas fricciones operativas unificando la administrac
 - **Acciones con confirmación explícita:** Operaciones críticas requieren validación en dos pasos mediante la palabra `"confirmo"`.
 - **Cuotas atómicas e idempotencia:** Deducción atómica previa vía `consume_tenant_quota` con llaves vinculadas al hash normalizado del payload para evitar sobreconsumo y duplicación de costos.
 
-> **Nota:** Klyvo no responde automáticamente preguntas de compradores en publicaciones de Mercado Libre. Los webhooks del tópico `questions` se registran únicamente con fines de auditoría e ignorados por diseño.
+> **Nota:** LibretaX no responde automáticamente preguntas de compradores en publicaciones de Mercado Libre. Los webhooks del tópico `questions` se registran únicamente con fines de auditoría e ignorados por diseño.
 
 ### Suscripciones y facturación
 - **Planes comerciales:** Esquemas Starter, Pro y Ultra con límites de uso diferenciados.
@@ -80,7 +80,7 @@ Klyvo nació para resolver estas fricciones operativas unificando la administrac
 
 ## 3. Arquitectura técnica
 
-Klyvo está construido como un monolito modular serverless sobre Next.js y PostgreSQL, desacoplando tareas pesadas a través de colas de eventos en segundo plano.
+LibretaX está construido como un monolito modular serverless sobre Next.js y PostgreSQL, desacoplando tareas pesadas a través de colas de eventos en segundo plano.
 
 ```mermaid
 flowchart TD

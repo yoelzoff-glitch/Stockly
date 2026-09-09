@@ -17,8 +17,36 @@ describe("Sprint 4: meliFetch Resilience & Safety Unit Tests", () => {
     );
   });
 
-  test("blocks write operations when KLYVO_DISABLE_MELI_WRITES is true", async () => {
-    const originalEnv = process.env.KLYVO_DISABLE_MELI_WRITES;
+  test("blocks write operations when LIBRETAX_DISABLE_MELI_WRITES is true", async () => {
+    delete process.env.LIBRETAX_DISABLE_MELI_WRITES;
+    delete process.env.KLYVO_DISABLE_MELI_WRITES;
+    process.env.LIBRETAX_DISABLE_MELI_WRITES = "true";
+    try {
+      await assert.rejects(
+        async () => {
+          await meliFetch({
+            tenantId: "00000000-0000-0000-0000-000000000001",
+            endpoint: "/items/MLA123",
+            method: "PUT",
+            body: { price: 1000 },
+          });
+        },
+        (err: any) => {
+          assert.equal(err.name, "AppError");
+          assert.equal(err.statusCode, 403);
+          assert.equal(err.code, "OPERATION_BLOCKED");
+          return true;
+        }
+      );
+    } finally {
+      delete process.env.LIBRETAX_DISABLE_MELI_WRITES;
+      delete process.env.KLYVO_DISABLE_MELI_WRITES;
+    }
+  });
+
+  test("blocks write operations when fallback KLYVO_DISABLE_MELI_WRITES is true", async () => {
+    delete process.env.LIBRETAX_DISABLE_MELI_WRITES;
+    delete process.env.KLYVO_DISABLE_MELI_WRITES;
     process.env.KLYVO_DISABLE_MELI_WRITES = "true";
     try {
       await assert.rejects(
@@ -38,7 +66,8 @@ describe("Sprint 4: meliFetch Resilience & Safety Unit Tests", () => {
         }
       );
     } finally {
-      process.env.KLYVO_DISABLE_MELI_WRITES = originalEnv;
+      delete process.env.LIBRETAX_DISABLE_MELI_WRITES;
+      delete process.env.KLYVO_DISABLE_MELI_WRITES;
     }
   });
 });

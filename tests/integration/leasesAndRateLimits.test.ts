@@ -6,10 +6,10 @@ import postgres from "postgres";
 
 describe("Sprint 6: Distributed Leases, Rate Limits & Scalability Integration Tests", () => {
   const testDbUrl = process.env.DATABASE_URL_TEST;
-  const testSentinel = process.env.KLYVO_RLS_TEST_DB;
+  const testSentinel = process.env.LIBRETAX_RLS_TEST_DB ?? process.env.KLYVO_RLS_TEST_DB;
 
   if (!testDbUrl || testSentinel !== "1") {
-    test.skip("Skipping Scalability integration tests: DATABASE_URL_TEST and KLYVO_RLS_TEST_DB=1 not configured in environment", () => {});
+    test.skip("Skipping Scalability integration tests: DATABASE_URL_TEST and LIBRETAX_RLS_TEST_DB=1 not configured in environment", () => {});
     return;
   }
 

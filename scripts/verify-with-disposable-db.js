@@ -30,6 +30,8 @@ async function main() {
   const env = {
     ...process.env,
     DATABASE_URL_TEST: 'postgresql://postgres:password@127.0.0.1:54322/postgres',
+    LIBRETAX_RLS_TEST_DB: '1',
+    LIBRETAX_WEBHOOK_TEST_DB: '1',
     KLYVO_RLS_TEST_DB: '1',
     KLYVO_WEBHOOK_TEST_DB: '1',
   };

@@ -14,8 +14,8 @@ const faqs: FAQItem[] = [
     a: "Mediante la autorización oficial OAuth 2.0 de Mercado Libre. Al hacer clic en vincular, el sistema te redirige a la pantalla segura de Mercado Libre donde autorizás los permisos necesarios de lectura y sincronización.",
   },
   {
-    q: "¿Klyvo necesita mi contraseña?",
-    a: "No. Klyvo nunca solicita, recibe ni almacena tu contraseña personal de Mercado Libre ni tus credenciales de inicio de sesión.",
+    q: "¿LibretaX necesita mi contraseña?",
+    a: "No. LibretaX nunca solicita, recibe ni almacena tu contraseña personal de Mercado Libre ni tus credenciales de inicio de sesión.",
   },
   {
     q: "¿Cómo calcula la rentabilidad?",
@@ -31,11 +31,11 @@ const faqs: FAQItem[] = [
   },
   {
     q: "¿Puedo desconectar mi cuenta?",
-    a: "Sí. Podés revocar el acceso en cualquier momento desde el panel de integraciones de Klyvo o directamente desde la administración de aplicaciones conectadas en tu perfil de Mercado Libre.",
+    a: "Sí. Podés revocar el acceso en cualquier momento desde el panel de integraciones de LibretaX o directamente desde la administración de aplicaciones conectadas en tu perfil de Mercado Libre.",
   },
   {
-    q: "¿Klyvo modifica precios o stock automáticamente?",
-    a: "Solo cuando configurás reglas operativas de sincronización que vos mismo habilitás voluntariamente. Klyvo no realiza modificaciones sobre tu catálogo sin tu previa autorización.",
+    q: "¿LibretaX modifica precios o stock automáticamente?",
+    a: "Solo cuando configurás reglas operativas de sincronización que vos mismo habilitás voluntariamente. LibretaX no realiza modificaciones sobre tu catálogo sin tu previa autorización.",
   },
   {
     q: "¿Qué sucede si una sincronización falla?",
@@ -60,7 +60,7 @@ export function FAQ() {
             Preguntas frecuentes
           </span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-[#101828] tracking-tight">
-            Respuestas claras sobre el funcionamiento de Klyvo.
+            Respuestas claras sobre el funcionamiento de LibretaX.
           </h2>
           <p className="text-base text-[#5F6875]">
             Información operativa y técnica sobre integración, cálculo de márgenes y seguridad.

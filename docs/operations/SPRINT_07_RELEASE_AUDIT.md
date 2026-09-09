@@ -1,7 +1,7 @@
 # AUDITORÍA DEL RELEASE PIPELINE — SPRINT 7
 
 ## 1. Contexto y Objetivos
-Este documento audita el pipeline de integración continua (CI), las verificaciones locales, los requerimientos de entorno y los mecanismos de despliegue y reversión de Klyvo.
+Este documento audita el pipeline de integración continua (CI), las verificaciones locales, los requerimientos de entorno y los mecanismos de despliegue y reversión de LibretaX.
 
 ---
 
@@ -73,7 +73,7 @@ Para ejecutar el build y los tests sin exponer credenciales de producción ni co
 ## 5. Procedimiento Actual de Rollback
 
 ### 5.1 Rollback de Código (Vercel) — RTO < 2 minutos
-- **Acción:** Acceder al dashboard de Vercel -> Proyecto Klyvo -> Pestaña *Deployments* -> Seleccionar el despliegue anterior estable -> Clic en **Instant Rollback**.
+- **Acción:** Acceder al dashboard de Vercel -> Proyecto LibretaX -> Pestaña *Deployments* -> Seleccionar el despliegue anterior estable -> Clic en **Instant Rollback**.
 - **Impacto:** Restablece inmediatamente el frontend y las funciones serverless sin necesidad de recompilar ni alterar el historial de Git en emergencia.
 
 ### 5.2 Rollback de Base de Datos

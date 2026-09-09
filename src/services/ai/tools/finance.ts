@@ -116,7 +116,7 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
     facturacion += Number(o.total_amount) || 0;
     
     const raw = o.raw_data as any;
-    const orderPackagingCost = Number(raw?.klyvo_operational_costs?.packaging_cost || packagingCostFallback);
+    const orderPackagingCost = Number(raw?.libretax_operational_costs?.packaging_cost || raw?.klyvo_operational_costs?.packaging_cost || packagingCostFallback);
 
     // Obtener ítems para esta orden
     const items = orderItems.filter(i => i.order_id === o.id);

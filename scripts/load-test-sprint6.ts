@@ -32,7 +32,7 @@ function calculatePercentiles(latencies: number[]): LatencyMetrics {
 
 export async function runLoadTestSprint6() {
   console.log("=================================================");
-  console.log("KLYVO SPRINT 6: MULTI-TENANT LOAD & SCALABILITY TEST");
+  console.log("LIBRETAX SPRINT 6: MULTI-TENANT LOAD & SCALABILITY TEST");
   console.log("=================================================");
 
   const testDbUrl = process.env.DATABASE_URL_TEST || "postgres://postgres:postgres@127.0.0.1:54322/postgres";

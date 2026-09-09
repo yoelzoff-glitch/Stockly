@@ -14,19 +14,19 @@ const preApproval = new PreApproval(client);
 
 const PLANS = {
   starter: {
-    title: 'Klyvo Starter ($49.99 USD)',
+    title: 'LibretaX Starter ($49.99 USD)',
     price: 78984, // Equiv ARS a $1580 * 49.99
     promoPrice: 78984,
     trialDays: 15,
   },
   pro: {
-    title: 'Klyvo Pro ($79.99 USD)',
+    title: 'LibretaX Pro ($79.99 USD)',
     price: 126384, // Equiv ARS a $1580 * 79.99
     promoPrice: 126384,
     trialDays: 15,
   },
   ultra: {
-    title: 'Klyvo Ultra ($129.99 USD)',
+    title: 'LibretaX Ultra ($129.99 USD)',
     price: 205384, // Equiv ARS a $1580 * 129.99
     promoPrice: 205384,
     trialDays: 0,
@@ -54,7 +54,7 @@ export async function createSubscriptionPreference(
     if (!planDetails) throw new Error("Plan not found");
 
     const getBaseUrl = () => {
-      let url = "https://klyvo.com"; // Fallback para dev porque MP exige HTTPS válido
+      let url = process.env.NEXT_PUBLIC_APP_URL || "https://libretax.com"; // Fallback para dev porque MP exige HTTPS válido
       if (process.env.NEXTAUTH_URL && !process.env.NEXTAUTH_URL.includes("localhost")) {
         url = process.env.NEXTAUTH_URL.replace(/["']/g, "").replace(/\/$/, "");
       } else if (process.env.VERCEL_URL) {

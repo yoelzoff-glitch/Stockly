@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="klyvo_ventas_${new Date().toISOString().split("T")[0]}.csv"`,
+        "Content-Disposition": `attachment; filename="libretax_ventas_${new Date().toISOString().split("T")[0]}.csv"`,
         [CORRELATION_ID_HEADER]: correlationId,
       },
     });

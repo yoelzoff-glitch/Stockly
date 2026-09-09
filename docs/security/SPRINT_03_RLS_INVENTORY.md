@@ -1,7 +1,7 @@
 # SPRINT 3/8 — INVENTARIO DE SEGURIDAD Y POLÍTICAS RLS EN BASE DE DATOS
 
 ## 1. Resumen de Superficie de Datos
-Este inventario clasifica todas las tablas utilizadas por la aplicación Klyvo en `src/`, determinando la estrategia de Row Level Security (RLS), la fuente de aislamiento del tenant, operaciones CRUD permitidas y protección de datos sensibles.
+Este inventario clasifica todas las tablas utilizadas por la aplicación LibretaX en `src/`, determinando la estrategia de Row Level Security (RLS), la fuente de aislamiento del tenant, operaciones CRUD permitidas y protección de datos sensibles.
 
 ---
 

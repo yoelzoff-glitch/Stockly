@@ -7,7 +7,7 @@ export function CTA() {
       <div className="max-w-[840px] mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
         <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#101828] tracking-tight leading-tight">
           Tu operación ya genera los datos. <br className="hidden sm:inline" />
-          Klyvo te ayuda a entenderlos.
+          LibretaX te ayuda a entenderlos.
         </h2>
 
         <p className="text-base sm:text-lg text-[#5F6875] max-w-xl mx-auto leading-relaxed">
@@ -19,7 +19,7 @@ export function CTA() {
             href="/register"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg text-sm font-semibold text-white bg-[#102A56] hover:bg-[#0A1D3C] transition-colors shadow-xs"
           >
-            <span>Probar Klyvo</span>
+            <span>Probar LibretaX</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
 

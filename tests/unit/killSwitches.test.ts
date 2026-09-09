@@ -13,6 +13,10 @@ describe("Kill Switches Tests", () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
+    delete process.env.LIBRETAX_DISABLE_MANUAL_SYNCS;
+    delete process.env.LIBRETAX_DISABLE_AI_WRITES;
+    delete process.env.LIBRETAX_DISABLE_MELI_WRITES;
+    delete process.env.LIBRETAX_DISABLE_WHATSAPP_AGENT;
     delete process.env.KLYVO_DISABLE_MANUAL_SYNCS;
     delete process.env.KLYVO_DISABLE_AI_WRITES;
     delete process.env.KLYVO_DISABLE_MELI_WRITES;
@@ -59,9 +63,9 @@ describe("Kill Switches Tests", () => {
       assert.equal(isWhatsappAgentDisabled(), false);
     });
 
-    test("activates kill switch when variable is set to true or 1", () => {
-      process.env.KLYVO_DISABLE_MANUAL_SYNCS = "1";
-      process.env.KLYVO_DISABLE_WHATSAPP_AGENT = "true";
+    test("activates kill switch when LIBRETAX variable is set to true or 1", () => {
+      process.env.LIBRETAX_DISABLE_MANUAL_SYNCS = "1";
+      process.env.LIBRETAX_DISABLE_WHATSAPP_AGENT = "true";
 
       const state = getKillSwitches();
       assert.equal(state.disableManualSyncs, true);
@@ -71,6 +75,20 @@ describe("Kill Switches Tests", () => {
 
       assert.equal(isManualSyncDisabled(), true);
       assert.equal(isWhatsappAgentDisabled(), true);
+    });
+
+    test("activates kill switch when fallback KLYVO variable is set", () => {
+      process.env.KLYVO_DISABLE_AI_WRITES = "1";
+      process.env.KLYVO_DISABLE_MELI_WRITES = "true";
+
+      const state = getKillSwitches();
+      assert.equal(state.disableManualSyncs, false);
+      assert.equal(state.disableAiWrites, true);
+      assert.equal(state.disableMeliWrites, true);
+      assert.equal(state.disableWhatsappAgent, false);
+
+      assert.equal(isAiWritesDisabled(), true);
+      assert.equal(isMeliWritesDisabled(), true);
     });
   });
 });

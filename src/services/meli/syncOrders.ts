@@ -205,13 +205,15 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     }
     
     // Inject calculated costs into raw_data
+    const operationalCosts = {
+      packaging_cost: packagingCost,
+      flex_cost: orderFlexCost,
+      total_operational_cost: packagingCost + orderFlexCost
+    };
     const enrichedRawData = {
       ...order,
-      klyvo_operational_costs: {
-        packaging_cost: packagingCost,
-        flex_cost: orderFlexCost,
-        total_operational_cost: packagingCost + orderFlexCost
-      }
+      libretax_operational_costs: operationalCosts,
+      klyvo_operational_costs: operationalCosts,
     };
 
     return {

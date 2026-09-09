@@ -372,7 +372,7 @@ export default function SettingsClientPage({ profile, tenant, meliAccount }: { p
                   Descarga una copia íntegra de tu catálogo, órdenes de venta, costos y movimientos en formato Excel (.xlsx).
                 </p>
                 <div className="pt-1">
-                  <a href="/api/export" download="klyvo_backup.xlsx">
+                  <a href="/api/export" download="libretax_backup.xlsx">
                     <Button variant="outline" size="sm" className="h-8 border-[#DCDAD4] bg-[#FFFFFF] text-xs font-semibold text-[#101828] hover:bg-[#F5F3EE]">
                       Exportar Datos (.xlsx)
                     </Button>

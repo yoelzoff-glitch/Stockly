@@ -5,7 +5,7 @@ import { sanitizeLogData } from "@/lib/observability/sanitizer";
 describe("Sprint 8 — Onboarding, OAuth & Disconnection Lifecycle Tests", () => {
   it("Flow 1-3: Validates tenant registration, slug generation and owner role hierarchy", () => {
     const rawRegistration = {
-      email: "pilot.owner@klyvo.local",
+      email: "pilot.owner@libretax.local",
       tenantName: "Tienda Piloto 1",
       slug: "tienda-piloto-1",
       role: "owner",

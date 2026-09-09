@@ -40,7 +40,7 @@ describe("Tenant Authentication & Authorization Service Tests", () => {
       const mockAuthClient = {
         auth: {
           getUser: async () => ({
-            data: { user: { id: "user-123", email: "test@klyvo.com" } },
+            data: { user: { id: "user-123", email: "test@libretax.com" } },
             error: null,
           }),
         },

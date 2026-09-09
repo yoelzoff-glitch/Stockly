@@ -124,6 +124,6 @@ describe("Sprint 11: Demo Account Safety & Isolation Unit Tests", () => {
   });
 
   test("deterministic seed constant is defined and reproducible", () => {
-    assert.equal(DEMO_RANDOM_SEED, "klyvo-casa-norte-v1");
+    assert.equal(DEMO_RANDOM_SEED, "libretax-casa-norte-v1");
   });
 });

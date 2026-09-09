@@ -116,10 +116,10 @@ export default async function AccountSettingsPage() {
       <div className="rounded-lg border border-[#DCDAD4] bg-[#FCFCFA] p-6 space-y-3 max-w-2xl">
         <h3 className="text-sm font-semibold text-[#101828]">Exportación de Respaldo</h3>
         <p className="text-xs text-[#5F6875] leading-relaxed">
-          Descarga un archivo Excel (.xlsx) con la totalidad de tus publicaciones, pedidos, ventas históricas y comisiones procesadas en Klyvo.
+          Descarga un archivo Excel (.xlsx) con la totalidad de tus publicaciones, pedidos, ventas históricas y comisiones procesadas en LibretaX.
         </p>
         <div className="pt-2">
-          <a href="/api/export" download="klyvo_backup.xlsx">
+          <a href="/api/export" download="libretax_backup.xlsx">
             <Button
               variant="outline"
               size="sm"

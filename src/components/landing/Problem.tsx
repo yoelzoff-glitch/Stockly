@@ -33,7 +33,7 @@ export function Problem() {
             Vender más no siempre significa ganar más.
           </h2>
           <p className="text-base sm:text-lg text-[#5F6875] leading-relaxed">
-            Entre comisiones, envíos, descuentos, publicidad y costos de reposición, el margen puede desaparecer sin que lo veas. Klyvo organiza toda esa información para que puedas decidir con números reales.
+            Entre comisiones, envíos, descuentos, publicidad y costos de reposición, el margen puede desaparecer sin que lo veas. LibretaX organiza toda esa información para que puedas decidir con números reales.
           </p>
         </div>
 

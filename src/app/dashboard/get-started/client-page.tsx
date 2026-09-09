@@ -61,7 +61,7 @@ export default function GetStartedClient({ data }: { data: { steps: ActivationSt
         </div>
 
         <p className="text-[11px] text-[#5F6875]">
-          Cada paso completado habilita una dimensión operativa de cálculo, control de stock y márgenes reales en Klyvo.
+          Cada paso completado habilita una dimensión operativa de cálculo, control de stock y márgenes reales en LibretaX.
         </p>
       </div>
 

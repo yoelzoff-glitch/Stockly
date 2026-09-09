@@ -1,5 +1,5 @@
 -- =====================================================================
--- KLYVO (STOCKLY) - CONSOLIDATED DATABASE SCHEMA SETUP
+-- LIBRETAX - CONSOLIDATED DATABASE SCHEMA SETUP
 -- This script sets up the complete database schema from scratch.
 -- Run this in the SQL Editor of your development Supabase project.
 -- =====================================================================

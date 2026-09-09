@@ -5,7 +5,7 @@ import "./globals.css";
 const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Klyvo - Gestión para Mercado Libre",
+  title: "LibretaX - Gestión para Mercado Libre",
   description: "SaaS multi-tenant para vendedores de Mercado Libre",
 };
 

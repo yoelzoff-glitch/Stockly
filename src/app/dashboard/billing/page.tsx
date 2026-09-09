@@ -162,7 +162,7 @@ export default function BillingPage() {
           <AlertCircle className="h-4 w-4 text-[#D92D20]" />
           <AlertTitle className="text-[#D92D20] font-bold">Suscripción Vencida</AlertTitle>
           <AlertDescription className="text-[#5F6875] text-xs mt-1">
-            Tu plan actual ha expirado. Por favor, regulariza tu suscripción para reanudar el acceso completo a Klyvo.
+            Tu plan actual ha expirado. Por favor, regulariza tu suscripción para reanudar el acceso completo a LibretaX.
             Tus datos de catálogo, costos y configuraciones se encuentran a salvo.
           </AlertDescription>
         </Alert>

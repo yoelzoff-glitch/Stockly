@@ -8,10 +8,10 @@ export function Footer() {
           
           {/* Col 1: Brand & Desc (5 cols) */}
           <div className="md:col-span-5 space-y-4">
-            <Link href="/" aria-label="Klyvo inicio">
+            <Link href="/" aria-label="LibretaX inicio">
               <img
                 src="/logo.png"
-                alt="Klyvo"
+                alt="LibretaX"
                 className="h-10 w-auto"
               />
             </Link>
@@ -71,7 +71,7 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/register" className="hover:text-[#101828] transition-colors">
-                  Registrarse en Klyvo
+                  Registrarse en LibretaX
                 </Link>
               </li>
               <li>
@@ -92,10 +92,10 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t border-[#DCDAD4] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#5F6875]">
           <p>
-            &copy; {new Date().getFullYear()} Klyvo. Todos los derechos reservados.
+            &copy; {new Date().getFullYear()} LibretaX. Todos los derechos reservados.
           </p>
           <p className="text-center sm:text-right">
-            Klyvo no está afiliado a MercadoLibre S.R.L. Integración desarrollada mediante su API pública oficial.
+            LibretaX no está afiliado a MercadoLibre S.R.L. Integración desarrollada mediante su API pública oficial.
           </p>
         </div>
       </div>

@@ -84,7 +84,7 @@ export async function getOrCreateDailySummary(tenantId: string): Promise<string 
     const topProduct = topProducts?.[0]?.title || "Ninguno";
 
     // Call OpenAI to write the summary
-    const prompt = `Eres el asistente inteligente de Klyvo.
+    const prompt = `Eres el asistente inteligente de LibretaX.
 Escribe un breve resumen diario (máximo 4 líneas) para el dueño de la tienda.
 Usa emojis. Sé directo y alentador.
 Datos de hoy:

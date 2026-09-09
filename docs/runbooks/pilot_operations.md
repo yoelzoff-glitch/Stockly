@@ -2,7 +2,7 @@
 
 ## 1. Visión General del Piloto
 
-Este runbook define los procedimientos operativos, checklists de incorporación, monitoreo diario y protocolos de respuesta ante incidentes para la fase de prueba piloto con 3 a 5 cuentas reales de Mercado Libre en Klyvo.
+Este runbook define los procedimientos operativos, checklists de incorporación, monitoreo diario y protocolos de respuesta ante incidentes para la fase de prueba piloto con 3 a 5 cuentas reales de Mercado Libre en LibretaX.
 
 ---
 
@@ -42,7 +42,7 @@ Cada mañana durante la fase piloto, el operador de turno debe verificar:
 ## 4. Diagnóstico y Resolución de Incidencias
 
 ### 4.1 Detección de una Venta que no Aparece
-Si un vendedor reporta que una venta realizada en Mercado Libre no figura en Klyvo:
+Si un vendedor reporta que una venta realizada en Mercado Libre no figura en LibretaX:
 1. Obtener el `meli_order_id` de la venta.
 2. Buscar en la base de datos si el webhook llegó:
    ```sql
@@ -81,6 +81,6 @@ Se detendrá temporalmente el piloto si se cumple cualquiera de las siguientes c
 ### Acciones Inmediatas de Detención:
 ```bash
 # Activar kill switches en variables de Vercel
-KLYVO_DISABLE_MELI_SYNC=true
-KLYVO_DISABLE_MELI_WRITES=true
+LIBRETAX_DISABLE_MANUAL_SYNCS=true
+LIBRETAX_DISABLE_MELI_WRITES=true
 ```

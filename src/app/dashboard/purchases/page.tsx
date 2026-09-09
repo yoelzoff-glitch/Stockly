@@ -5,8 +5,8 @@ import { PurchasesClient } from "./client-page";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Compras Internas - Klyvo",
-  description: "Registra y gestiona las compras físicas de tus componentes en depósito."
+  title: "Compras Internas - LibretaX",
+  description: "Registra y gestiona las compras a tus proveedores con cálculo de Costo Promedio Ponderado (PPP) automático.",
 };
 
 export default async function PurchasesPage() {

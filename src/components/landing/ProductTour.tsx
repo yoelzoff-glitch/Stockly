@@ -17,7 +17,7 @@ const steps: TourStep[] = [
     description:
       "Visualizá la facturación bruta, las comisiones retenidas, los costos de envío y el resultado neto real de tu cuenta en una sola vista diaria o mensual.",
     imageSrc: "/dashboard-analytics-v2.png",
-    imageAlt: "Vista de analíticas y rentabilidad neta de Klyvo",
+    imageAlt: "Vista de analíticas y rentabilidad neta de LibretaX",
     bulletPoints: [
       "Total vendido vs. ganancia neta en pesos al centavo.",
       "Desglose de comisiones, envíos y descuentos por período.",
@@ -54,7 +54,7 @@ const steps: TourStep[] = [
     tag: "04. Depósito & Combos",
     title: "Controlá promociones y stock",
     description:
-      "Administrá tus insumos físicos y depósitos. Cuando vendés un combo en Mercado Libre, Klyvo descuenta los componentes individuales para prevenir quiebres de inventario.",
+      "Administrá tus insumos físicos y depósitos. Cuando vendés un combo en Mercado Libre, LibretaX descuenta los componentes individuales para prevenir quiebres de inventario.",
     imageSrc: "/dashboard-internal-stock-v2.png",
     imageAlt: "Control de stock interno y componentes de depósito",
     bulletPoints: [
@@ -79,7 +79,7 @@ export function ProductTour() {
             Pantallas reales diseñadas para operar todos los días.
           </h2>
           <p className="text-base sm:text-lg text-[#5F6875] leading-relaxed">
-            Sin mockups inventados. Así se ve y organiza la información de tu cuenta adentro de Klyvo.
+            Sin mockups inventados. Así se ve y organiza la información de tu cuenta adentro de LibretaX.
           </p>
         </div>
 
@@ -134,7 +134,7 @@ export function ProductTour() {
                       <span className="w-2.5 h-2.5 rounded-full bg-[#DCDAD4]" />
                       <span className="w-2.5 h-2.5 rounded-full bg-[#DCDAD4]" />
                       <span className="text-[11px] text-[#5F6875] font-mono ml-2 truncate">
-                        app.klyvo.com • {step.title.toLowerCase()}
+                        app.libretax.com • {step.title.toLowerCase()}
                       </span>
                     </div>
 

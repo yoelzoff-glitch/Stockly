@@ -1,14 +1,14 @@
 # SPRINT 5: BILLING INVENTORY, ENTITLEMENTS & SNAPSHOT AUDIT
 
 **Document Version:** 1.0.0  
-**Target:** Stockly / Klyvo Billing & Subscription Architecture  
+**Target:** LibretaX Billing & Subscription Architecture  
 **Status:** Audit & Architecture Baseline  
 
 ---
 
 ## 1. Executive Summary & Existing State
 
-This document audits the billing, plans, quotas, and subscription state of Stockly/Klyvo before implementing Sprint 5 changes:
+This document audits the billing, plans, quotas, and subscription state of LibretaX before implementing Sprint 5 changes:
 1. **Existing Plans:** `starter`, `pro`, `ultra` (with legacy references to `free` and `business` normalized to `starter` and `ultra` respectively).
 2. **Subscriptions Source of Truth:** `subscriptions` table is established as the sole canonical source of truth for plan, status, and expiration. `tenants.plan` remains as a synchronized compatibility mirror.
 3. **Active Production Tenant Protection:** The existing active tenant and real user will retain their current plan, expiration date, and uninterrupted dashboard access throughout this rollout.
@@ -21,9 +21,9 @@ All limits are stored dynamically in `plans_config` and cached with a 5-minute T
 
 | Plan Key | Display Name | AI Credits / Month | Automation Actions / Month | WhatsApp Messages / Month | SKU Publications Limit | Monthly Price (ARS) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`starter`** | Klyvo Starter | 500 | 250 | 300 | 100 | $78,984 |
-| **`pro`** | Klyvo Pro | 1,500 | 800 | 1,500 | 400 | $126,384 |
-| **`ultra`** | Klyvo Ultra | 5,000 | 1,500 | 5,000 | 1,000 | $205,384 |
+| **`starter`** | LibretaX Starter | 500 | 250 | 300 | 100 | $78,984 |
+| **`pro`** | LibretaX Pro | 1,500 | 800 | 1,500 | 400 | $126,384 |
+| **`ultra`** | LibretaX Ultra | 5,000 | 1,500 | 5,000 | 1,000 | $205,384 |
 
 ### Legacy Aliases & Normalization
 - `free` $\rightarrow$ Normalized to `starter` limits with read-only/grace protection.

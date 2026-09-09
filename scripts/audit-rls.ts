@@ -9,7 +9,7 @@ interface Violation {
 
 function runRlsAudit() {
   console.log("=================================================");
-  console.log("KLYVO SPRINT 3.5: EXACT CANONICAL SCHEMA & RLS AUDIT");
+  console.log("LIBRETAX SPRINT 3.5: EXACT CANONICAL SCHEMA & RLS AUDIT");
   console.log("=================================================");
 
   const rootDir = path.resolve(__dirname, "..");

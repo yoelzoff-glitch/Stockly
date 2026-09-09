@@ -8,39 +8,42 @@ Este plan cubre la respuesta y mitigación inmediata ante escenarios de fallo ca
 3. **Corrupción Masiva o Pérdida Accidental de Datos.**
 4. **Desconexión o Bloqueo Prolongado de API de Mercado Libre.**
 
----
+Este plan cubre la respuesta y mitigación inmediata ante escenarios de fallo catastrófico que afecten la disponibilidad o integridad de LibretaX:
 
-## 2. Objetivos de Continuidad del Negocio
-- **RPO Objetivo (Recovery Point Objective):**
-  - `< 1 hora`: Objetivo condicionado a que Point-in-Time Recovery (PITR) esté contratado y habilitado en el proyecto Supabase de producción.
-  - `< 24 horas`: Garantizado mediante backups automáticos y snapshots diarios.
-- **RTO Objetivo (Recovery Time Objective):** Máximo 30 minutos para restablecer servicio en modo degradado o sobre réplica secundaria.
-- **Canal de Comunicación de Crisis:** Canal privado de Slack `#klyvo-incident-command` + Status Page interna.
+1. **Caída total o corrupción de Base de Datos (Supabase/PostgreSQL).**
+2. **Caída del Runtime de Aplicación (Vercel).**
+3. **Saturación / Degradación de APIs Externas (Mercado Libre / OpenAI / Inngest).**
+4. **Fuga de Credenciales o Compromiso de Seguridad.**
 
 ---
 
-## 3. Matriz de Roles y Responsabilidades
+## 1. EQUIPO DE COMUNICACIÓN Y CONTACTOS DE CRISIS
 
-| Rol | Responsable Principal | Suplente | Funciones |
-| :--- | :--- | :--- | :--- |
-| **Incident Commander (IC)** | Tech Lead | Senior Backend Dev | Lidera la toma de decisiones, declara estado de contingencia y aprueba acciones destructivas. |
-| **Database Lead** | Database Admin / Backend Lead | DevOps Engineer | Ejecuta PITR, restauraciones de volcado y verificación de integridad referencial. |
-| **Platform / Infra Lead** | DevOps Engineer | Fullstack Engineer | Gestiona DNS, despliegues en Vercel, rotación de claves y activación de kill switches. |
-| **Customer Comms** | Product Lead | Customer Success | Comunica estado del incidente a usuarios activos y gestiona soporte. |
+- **Canal de Comunicación de Crisis:** Canal privado de Slack `#libretax-incident-command` + Status Page interna.
+- **Roles:**
+  - **Incident Commander (IC):** Responsable de coordinar la resolución y tomar decisiones de mitigación/rollback.
+  - **Database Lead:** Responsable de PITR, backups y consistencia de datos.
+  - **App/Infrastructure Lead:** Responsable de Vercel, Inngest, variables de entorno y routing.
+  - **Communications Lead:** Responsable de redactar comunicados para tenants y usuarios afectados.
 
 ---
 
-## 4. Procedimientos de Recuperación por Escenario
+## 2. PROCEDIMIENTOS DE RECUPERACIÓN POR ESCENARIO
 
-### Escenario A: Caída Mayor de Supabase
-1. Declarar incidente de severidad SEV-1.
-2. Activar página de mantenimiento temporal en Vercel redirigiendo a `/maintenance` o activando kill switches globales (`KLYVO_DISABLE_MELI_SYNC=true`, `KLYVO_DISABLE_WHATSAPP_AGENT=true`).
+### Escenario 1: Caída o Bloqueo Masivo de Mercado Libre API (429 / 5xx)
+**Síntomas:** Sincronizaciones fallando masivamente, colas de Inngest saturadas, alta latencia en endpoints de sync.
+**Procedimiento:**
+1. Activar kill switch de sincronización en Vercel:
+   ```bash
+   LIBRETAX_DISABLE_MANUAL_SYNCS=true
+   LIBRETAX_DISABLE_MELI_WRITES=true
+   ```
+2. Activar página de mantenimiento temporal en Vercel redirigiendo a `/maintenance` o activando kill switches globales (`LIBRETAX_DISABLE_MANUAL_SYNCS=true`, `LIBRETAX_DISABLE_WHATSAPP_AGENT=true`).
 3. Si el downtime supera 15 minutos y el proveedor no reporta resolución:
    - Proveer un nuevo cluster PostgreSQL en región alternativa (AWS RDS / Supabase backup project).
    - Restaurar el último snapshot diario o ejecutar PITR hasta el minuto previo al fallo.
    - Actualizar variables de entorno en Vercel (`DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`).
    - Redesplegar entorno en Vercel.
-   - Ejecutar health checks `/api/health/live` y `/api/health/ready`.
    - Reanudar sincronizaciones en modo gradual.
 
 ### Escenario B: Corrupción o Pérdida Parcial de Datos

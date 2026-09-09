@@ -9,7 +9,7 @@ interface Violation {
 
 function runWebhookAudit() {
   console.log("=================================================");
-  console.log("KLYVO SPRINT 4: STATIC WEBHOOK & RESILIENCE AUDIT");
+  console.log("LIBRETAX SPRINT 4: STATIC WEBHOOK & RESILIENCE AUDIT");
   console.log("=================================================");
 
   const rootDir = path.resolve(__dirname, "..");
