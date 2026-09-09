@@ -422,6 +422,22 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
       .update({ last_sync_at: syncTimestamp, updated_at: syncTimestamp })
       .eq("tenant_id", tenantId);
 
+    // Invalidate Next.js dashboard route caches & tags so refresh immediately reflects the synced orders
+    try {
+      const { revalidatePath, revalidateTag } = await import("next/cache");
+      if (typeof revalidatePath === "function") {
+        revalidatePath("/dashboard/sales");
+        revalidatePath("/dashboard");
+        revalidatePath("/dashboard/finance");
+      }
+      if (typeof revalidateTag === "function") {
+        (revalidateTag as any)(`orders-${tenantId}`);
+        (revalidateTag as any)(`tenant-${tenantId}`);
+      }
+    } catch {
+      // Safe no-op when executing in background worker / non-request context
+    }
+
     return ordersToUpsert.length;
   } finally {
     // Release in-memory lock

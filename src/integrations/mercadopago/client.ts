@@ -54,7 +54,7 @@ export async function createSubscriptionPreference(
     if (!planDetails) throw new Error("Plan not found");
 
     const getBaseUrl = () => {
-      let url = process.env.NEXT_PUBLIC_APP_URL || "https://libretax.com"; // Fallback para dev porque MP exige HTTPS válido
+      let url = process.env.NEXT_PUBLIC_APP_URL || "https://www.libretax.com.ar"; // Fallback para dev porque MP exige HTTPS válido
       if (process.env.NEXTAUTH_URL && !process.env.NEXTAUTH_URL.includes("localhost")) {
         url = process.env.NEXTAUTH_URL.replace(/["']/g, "").replace(/\/$/, "");
       } else if (process.env.VERCEL_URL) {

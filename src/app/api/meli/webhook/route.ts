@@ -94,6 +94,14 @@ export async function POST(req: NextRequest) {
     const resource = payload.resource;
     const userId = payload.user_id.toString();
 
+    logger.info({
+      event: "MELI_WEBHOOK_RECEIVED",
+      correlationId,
+      topic,
+      resource,
+      userId,
+    });
+
     // 4. Resolve Tenant
     const supabase = createAdminClient();
     const { data: account } = await supabase
@@ -115,6 +123,15 @@ export async function POST(req: NextRequest) {
     }
 
     const tenantId = account.tenant_id;
+
+    logger.info({
+      event: "MELI_WEBHOOK_TENANT_RESOLVED",
+      correlationId,
+      tenantId,
+      userId,
+      topic,
+      resource,
+    });
 
     // 5. Atomic Idempotency Claim with Invariant Delivery Identification
     const resourceClean = resource.replace(/\//g, "_");
@@ -140,6 +157,8 @@ export async function POST(req: NextRequest) {
         correlationId,
         tenantId,
         eventKey,
+        eventId: claim.eventId,
+        existingStatus: claim.status,
       });
       return NextResponse.json(
         { status: "duplicate_ignored", eventId: claim.eventId },
@@ -147,7 +166,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 6. Asynchronous Dispatch to Inngest
+    // 6. Asynchronous Dispatch to Inngest (Non-fire-and-forget, with strict await and error handling)
     let inngestEventName: string | null = null;
     switch (topic) {
       case "orders_v2":
@@ -168,71 +187,75 @@ export async function POST(req: NextRequest) {
     }
 
     if (inngestEventName) {
-      // 1. Dispatch to Inngest (resilient to missing Inngest dev/cloud daemon)
-      inngest.send({
-        name: inngestEventName as any,
-        data: {
-          tenantId,
-          resource,
-          eventId: claim.eventId,
-          correlationId,
-        },
-      }).catch((e) => {
-        logger.info({ event: "INNGEST_SEND_NON_BLOCKING", error: e?.message });
+      logger.info({
+        event: "MELI_WEBHOOK_INNGEST_DISPATCH_STARTED",
+        correlationId,
+        tenantId,
+        topic,
+        resource,
+        inngestEventName,
+        eventId: claim.eventId,
       });
 
-      // 2. Direct asynchronous execution ensuring immediate DB persistence
-      if (topic === "orders_v2" || topic === "orders") {
-        const specificOrderId = resource.split("/").pop();
-        import("@/services/meli/syncOrders")
-          .then(({ syncOrders }) => syncOrders(tenantId, specificOrderId))
-          .then(async () => {
-            await updateWebhookEventStatus(claim.eventId, "completed");
-          })
-          .catch(async (err) => {
-            logger.error({
-              event: "WEBHOOK_DIRECT_SYNC_ORDER_ERROR",
-              tenantId,
-              specificOrderId,
-              error: err,
-              message: err?.message,
-            });
-            await updateWebhookEventStatus(claim.eventId, "retrying", {
-              lastErrorCode: "SYNC_ORDER_ERROR",
-              lastErrorMessage: err?.message,
-              incrementAttempts: true,
-            });
-          });
-      } else if (topic === "shipments") {
-        const shipmentId = resource.split("/").pop();
-        import("@/services/meli/syncShipments")
-          .then(({ syncShipments }) => syncShipments(tenantId, shipmentId))
-          .then(async () => {
-            await updateWebhookEventStatus(claim.eventId, "completed");
-          })
-          .catch(async (err) => {
-            logger.error({
-              event: "WEBHOOK_DIRECT_SYNC_SHIPMENT_ERROR",
-              tenantId,
-              shipmentId,
-              error: err,
-              message: err?.message,
-            });
-          });
-      } else {
+      try {
+        await inngest.send({
+          name: inngestEventName as any,
+          data: {
+            tenantId,
+            resource,
+            eventId: claim.eventId,
+            correlationId,
+          },
+        });
+
         await updateWebhookEventStatus(claim.eventId, "queued");
+
+        logger.info({
+          event: "MELI_WEBHOOK_INNGEST_DISPATCHED",
+          correlationId,
+          tenantId,
+          topic,
+          resource,
+          inngestEventName,
+          eventId: claim.eventId,
+        });
+
+        return NextResponse.json(
+          { status: "queued", eventId: claim.eventId },
+          { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+        );
+      } catch (inngestErr: any) {
+        logger.error({
+          event: "MELI_WEBHOOK_INNGEST_DISPATCH_FAILED",
+          correlationId,
+          tenantId,
+          topic,
+          resource,
+          eventId: claim.eventId,
+          error: inngestErr?.message,
+        });
+
+        await updateWebhookEventStatus(claim.eventId, "retrying", {
+          lastErrorCode: "INNGEST_DISPATCH_FAILED",
+          lastErrorMessage: inngestErr?.message || "Inngest dispatch failed",
+          incrementAttempts: true,
+        });
+
+        return NextResponse.json(
+          { error: "Service Unavailable", reason: "inngest_dispatch_failed", eventId: claim.eventId },
+          { status: 503, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+        );
       }
     } else {
       await updateWebhookEventStatus(claim.eventId, "ignored", {
         lastErrorCode: "UNHANDLED_TOPIC",
       });
-    }
 
-    // 7. Fast HTTP 200 Acknowledgment
-    return NextResponse.json(
-      { status: "received", eventId: claim.eventId },
-      { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
-    );
+      return NextResponse.json(
+        { status: "ignored", reason: "unhandled_topic", eventId: claim.eventId },
+        { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+      );
+    }
   } catch (error: any) {
     Sentry.captureException(error, { extra: { context: "MELI_WEBHOOK", correlationId } });
     logger.error({
