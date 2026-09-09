@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 90" width="380" height="90">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&amp;family=Inter:wght@700&amp;display=swap');
+      .logo-text-white {
+        font-family: 'Playfair Display', 'Georgia', 'Times New Roman', serif;
+        font-weight: 700;
+        font-size: 50px;
+        fill: #FFFFFF;
+      }
+      .logo-x-pink {
+        font-family: 'Playfair Display', 'Georgia', 'Times New Roman', serif;
+        font-weight: 700;
+        font-size: 54px;
+        fill: #F53B98;
+      }
+    </style>
+  </defs>
+  <!-- Icon -->
+  <g transform="translate(6, 6)">
+    <rect width="78" height="78" rx="20" fill="#5B2FE4"/>
+    <g stroke-linecap="round" stroke-width="11">
+      <line x1="22" y1="22" x2="56" y2="56" stroke="#FFFFFF" />
+      <line x1="22" y1="56" x2="56" y2="22" stroke="#F53B98" />
+    </g>
+  </g>
+  <!-- Typography -->
+  <text x="102" y="59" class="logo-text-white">Libreta<tspan class="logo-x-pink">X</tspan></text>
+</svg>

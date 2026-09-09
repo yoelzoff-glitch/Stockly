@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "@/components/brand/Logo";
 
 export function Footer() {
   return (
@@ -9,11 +10,7 @@ export function Footer() {
           {/* Col 1: Brand & Desc (5 cols) */}
           <div className="md:col-span-5 space-y-4">
             <Link href="/" aria-label="LibretaX inicio">
-              <img
-                src="/logo.png"
-                alt="LibretaX"
-                className="h-10 w-auto"
-              />
+              <Logo size="md" />
             </Link>
             <p className="text-sm text-[#5F6875] leading-relaxed max-w-sm">
               Plataforma para vendedores de Mercado Libre. Centralizá ventas, costos, comisiones, envíos, publicidad y stock para conocer tu rentabilidad real.

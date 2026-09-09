@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/brand/Logo";
 import {
   LayoutDashboard,
   Package,
@@ -77,7 +78,7 @@ export function MobileSidebar({ open, onOpenChange }: { open: boolean; onOpenCha
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="w-[280px] p-0 flex flex-col bg-white border-r border-[#DCDAD4]">
         <div className="border-b border-[#DCDAD4] px-5 py-4 flex items-center justify-between">
-          <img src="/logo.png" alt="LibretaX" className="h-8 w-auto" />
+          <Logo size="sm" />
         </div>
         <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
           {navGroups.map((group) => (

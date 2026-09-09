@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useActionState } from "react";
 import { loginAction } from "@/actions/auth";
 import { Loader2 } from "lucide-react";
+import { Logo } from "@/components/brand/Logo";
 
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(loginAction, { error: null as string | null });
@@ -21,7 +22,7 @@ export default function LoginPage() {
         
         <div className="relative z-10">
           <div className="flex items-center space-x-3 mb-16">
-            <img src="/logo.png" alt="LibretaX Logo" className="w-40 brightness-0 invert" />
+            <Logo variant="light" size="lg" />
           </div>
           
           <div className="mt-20 max-w-lg">
@@ -32,7 +33,7 @@ export default function LoginPage() {
               "LibretaX se ha convertido en el socio ideal para escalar nuestras ventas. Su inteligencia artificial y sincronización automática nos ahorran horas de trabajo manual todos los días."
             </p>
             <div className="mt-8 flex items-center space-x-4">
-              <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center font-bold text-lg shadow-lg">
+              <div className="w-12 h-12 bg-[#5B2FE4] rounded-full flex items-center justify-center font-bold text-lg shadow-lg">
                 L
               </div>
               <div>
@@ -54,7 +55,7 @@ export default function LoginPage() {
           <div className="text-center lg:text-left">
             {/* Mobile Logo */}
             <div className="flex lg:hidden justify-center mb-8">
-              <img src="/logo.png" alt="LibretaX Logo" className="w-48" />
+              <Logo size="lg" />
             </div>
             
             <h2 className="text-3xl font-bold tracking-tight text-slate-900 mb-2">

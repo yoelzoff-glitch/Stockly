@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/brand/Logo";
 import {
   LayoutDashboard,
   Package,
@@ -76,7 +77,7 @@ export function Sidebar() {
       {/* Brand Header */}
       <div className="h-16 px-5 flex items-center border-b border-[#DCDAD4] shrink-0">
         <Link href="/dashboard" className="flex items-center" aria-label="Ir al Dashboard">
-          <img src="/logo.png" alt="LibretaX" className="h-9 w-auto" />
+          <Logo size="sm" />
         </Link>
       </div>
 

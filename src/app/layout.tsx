@@ -7,6 +7,13 @@ const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "LibretaX - Gestión para Mercado Libre",
   description: "SaaS multi-tenant para vendedores de Mercado Libre",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.png", type: "image/png" },
+    ],
+    apple: "/icono.png",
+  },
 };
 
 export default function RootLayout({

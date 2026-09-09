@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
+import { Logo } from "@/components/brand/Logo";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -26,11 +27,7 @@ export function Navbar() {
           {/* Logo */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center" aria-label="LibretaX inicio">
-              <img
-                src="/logo.png"
-                alt="LibretaX"
-                className="h-11 md:h-12 w-auto"
-              />
+              <Logo size="md" />
             </Link>
           </div>
 

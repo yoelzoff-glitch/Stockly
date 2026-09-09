@@ -6,6 +6,7 @@ import Link from "next/link";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { useState } from "react";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
+import { Logo } from "@/components/brand/Logo";
 
 export function Navbar({
   plan,
@@ -32,7 +33,7 @@ export function Navbar({
           </button>
           
           <div className="md:hidden flex items-center">
-            <img src="/logo.png" alt="LibretaX" className="h-7 w-auto" />
+            <Logo size="sm" />
           </div>
 
           {isDemo && (
