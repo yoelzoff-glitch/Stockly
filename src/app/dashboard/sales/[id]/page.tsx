@@ -83,15 +83,15 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
     0
   ) || 0;
 
-  // Sum up product costs from items
+  // Sum up product costs from items (prefer snapshot)
   const totalProductCost = items?.reduce(
-    (sum, item) => sum + ((Number(item.unit_cost) || 0) * (Number(item.quantity) || 1)),
+    (sum, item) => sum + ((Number(item.unit_cost_snapshot ?? item.unit_cost) || 0) * (Number(item.quantity) || 1)),
     0
   ) || 0;
 
   // Logistics costs
   const shippingCost = Number(shipment?.shipping_cost) || 0;
-  const packagingCost = Number(operationalCosts.packaging_cost) || 0;
+  const packagingCost = Number(order.packaging_cost_snapshot ?? operationalCosts.packaging_cost) || 0;
   const totalLogisticsCost = shippingCost + packagingCost;
 
   // Net Profit & Margin
@@ -207,7 +207,7 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
                       const qty = Number(item.quantity) || 1;
                       const subtotal = unitPrice * qty;
                       const fee = (Number(item.estimated_fee) || 0) * qty;
-                      const cost = Number(item.unit_cost) || 0;
+                      const cost = Number(item.unit_cost_snapshot ?? item.unit_cost) || 0;
                       const itemNetProfit = subtotal - fee - (cost * qty);
 
                       return (

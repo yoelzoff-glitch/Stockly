@@ -177,6 +177,12 @@ CREATE TABLE IF NOT EXISTS public.orders (
   internal_stock_processed_at timestamp with time zone,
   internal_stock_reverted boolean DEFAULT false,
   internal_stock_reverted_at timestamp with time zone,
+  packaging_cost_snapshot numeric,
+  flex_cost_snapshot numeric,
+  operational_cost_snapshot_version text DEFAULT 'v1'::text,
+  cost_snapshot_frozen_at timestamp with time zone,
+  cost_snapshot_source text,
+  cost_snapshot_status text,
   CONSTRAINT orders_pkey PRIMARY KEY (id),
   CONSTRAINT orders_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
   CONSTRAINT orders_meli_account_id_fkey FOREIGN KEY (meli_account_id) REFERENCES public.meli_accounts(id)
@@ -198,12 +204,26 @@ CREATE TABLE IF NOT EXISTS public.order_items (
   estimated_fee numeric,
   estimated_shipping_cost numeric,
   estimated_tax numeric,
+  line_key text,
+  unit_cost_snapshot numeric,
+  cost_snapshot_frozen_at timestamp with time zone,
+  cost_snapshot_source text,
+  cost_snapshot_version text DEFAULT 'v1'::text,
+  estimated_fee_snapshot numeric,
+  estimated_shipping_cost_snapshot numeric,
+  extra_fee_amount_snapshot numeric,
+  promotion_discount_amount_snapshot numeric,
+  estimated_tax_snapshot numeric,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT order_items_pkey PRIMARY KEY (id),
   CONSTRAINT order_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
   CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
   CONSTRAINT order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_order_items_tenant_order_line_key
+  ON public.order_items (tenant_id, order_id, line_key);
+
 
 CREATE TABLE IF NOT EXISTS public.whatsapp_numbers (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

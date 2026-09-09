@@ -61,16 +61,16 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
   const pastDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   const dateFrom = getMidnightInTimezone(pastDate, timezone);
 
-  // Obtener órdenes (sólo pagadas, incluyendo raw_data para extraer costos operativos)
-  const { data: rawOrders } = await supabase
+  // Obtener órdenes del período
+  const { data: orders } = await supabase
     .from("orders")
-    .select("id, total_amount, raw_data, meli_order_id")
+    .select("id, total_amount, date_created, raw_data, packaging_cost_snapshot, cost_snapshot_frozen_at, meli_order_id")
     .eq("tenant_id", tenantId)
-    .eq("status", "paid")
+    .neq("status", "cancelled")
     .gte("date_created", dateFrom.toISOString());
 
   const ignoredOrderIds = tenantMetadata.ignored_order_ids || [];
-  const orders = (rawOrders || []).filter(o => !ignoredOrderIds.includes(o.meli_order_id));
+  const filteredOrders = (orders || []).filter(o => !ignoredOrderIds.includes(o.meli_order_id));
 
   // Obtener productos (para buscar costos y fees)
   const { data: products } = await supabase
@@ -90,12 +90,12 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
   }
 
   // Obtener los detalles de productos para estas órdenes
-  const orderIds = orders.map(o => o.id);
+  const orderIds = filteredOrders.map(o => o.id);
   let orderItems: any[] = [];
   if (orderIds.length > 0) {
     const { data: items, error: itemsErr } = await supabase
       .from("order_items")
-      .select("order_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost")
+      .select("order_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost, unit_cost, unit_cost_snapshot, cost_snapshot_frozen_at")
       .in("order_id", orderIds);
     if (!itemsErr && items) {
       orderItems = items;
@@ -112,11 +112,20 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
 
   const productAgg: Record<string, { revenue: number, net: number, cost: number, quantity: number }> = {};
 
-  orders.forEach(o => {
+  filteredOrders.forEach(o => {
     facturacion += Number(o.total_amount) || 0;
     
     const raw = o.raw_data as any;
-    const orderPackagingCost = Number(raw?.libretax_operational_costs?.packaging_cost || raw?.klyvo_operational_costs?.packaging_cost || packagingCostFallback);
+    let orderPackagingCost = 0;
+    if (o.cost_snapshot_frozen_at && o.packaging_cost_snapshot !== null && o.packaging_cost_snapshot !== undefined) {
+      orderPackagingCost = Number(o.packaging_cost_snapshot);
+    } else if (raw?.libretax_operational_costs?.packaging_cost !== undefined && raw?.libretax_operational_costs?.packaging_cost !== null) {
+      orderPackagingCost = Number(raw.libretax_operational_costs.packaging_cost);
+    } else if (raw?.klyvo_operational_costs?.packaging_cost !== undefined && raw?.klyvo_operational_costs?.packaging_cost !== null) {
+      orderPackagingCost = Number(raw.klyvo_operational_costs.packaging_cost);
+    } else if (!o.cost_snapshot_frozen_at) {
+      orderPackagingCost = packagingCostFallback;
+    }
 
     // Obtener ítems para esta orden
     const items = orderItems.filter(i => i.order_id === o.id);
@@ -132,11 +141,22 @@ export async function getFinancialSummary(tenantId: string, daysStr: string = "3
         let shipping = 0;
         let ext = 0;
 
+        const hasFrozenSnapshot = item.cost_snapshot_frozen_at !== null && item.cost_snapshot_frozen_at !== undefined;
+        let resolvedCost: number | null = null;
+        if (hasFrozenSnapshot && item.unit_cost_snapshot !== null && item.unit_cost_snapshot !== undefined) {
+          resolvedCost = Number(item.unit_cost_snapshot);
+        } else if (item.unit_cost && Number(item.unit_cost) > 0) {
+          resolvedCost = Number(item.unit_cost);
+        } else if (!hasFrozenSnapshot && !o.cost_snapshot_frozen_at && p?.cost) {
+          resolvedCost = Number(p.cost);
+        }
+
+        if (resolvedCost !== null && resolvedCost > 0) {
+          cost = resolvedCost * qty;
+          unitsWithCost += qty;
+        }
+
         if (p) {
-          if (p.cost) {
-            cost = Number(p.cost) * qty;
-            unitsWithCost += qty;
-          }
           fee = (Number(item.estimated_fee) || Number(p.estimated_fee) || 0) * qty;
           shipping = (Number(item.estimated_shipping_cost) || Number(p.estimated_shipping_cost) || 0) * qty;
           ext = (Number(p.extra_fee_amount || 0) + Number(p.promotion_discount_amount || 0)) * qty;

@@ -22,6 +22,7 @@
     "audit:consumption": "tsx scripts/audit-external-consumption.ts",
     "audit:demo": "tsx scripts/audit-demo-safety.ts",
     "audit:notifications": "tsx scripts/audit-notifications.ts",
+    "audit:cost-snapshots": "tsx scripts/audit-cost-snapshots.ts",
     "demo:seed": "tsx scripts/seed-private-demo.ts",
     "demo:provision": "tsx scripts/provision-private-demo.ts",
     "demo:reset": "tsx scripts/reset-private-demo.ts",

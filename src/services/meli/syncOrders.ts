@@ -108,23 +108,23 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
   // 3. Get all existing products for this tenant to map order_items properly
   const { data: localProducts, error: productsError } = await supabase
     .from("products")
-    .select("id, meli_item_id, sku, cost")
+    .select("id, meli_item_id, sku, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount")
     .eq("tenant_id", tenantId);
 
   // Map of meli_item_id -> local product info
-  const productMap: Record<string, { id: string; cost: number | null }> = {};
+  const productMap: Record<string, any> = {};
   // Map of normalized SKU -> local product info
-  const productSkuMap: Record<string, { id: string; cost: number | null }> = {};
+  const productSkuMap: Record<string, any> = {};
 
   if (!productsError && localProducts) {
     localProducts.forEach(p => {
       if (p.meli_item_id) {
-        productMap[p.meli_item_id] = { id: p.id, cost: p.cost };
+        productMap[p.meli_item_id] = p;
       }
       if (p.sku) {
         const normSku = normalizeSku(p.sku);
         if (normSku) {
-          productSkuMap[normSku] = { id: p.id, cost: p.cost };
+          productSkuMap[normSku] = p;
         }
       }
     });
@@ -162,183 +162,280 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     }
   }
 
-  // 4. Map Orders to DB Schema (including last_seen_at)
+  // 4. Check existing orders for new sales / cancelled transitions and cost snapshots
   const syncTimestamp = new Date().toISOString();
+  const meliOrderIds = rawOrders.map((o: any) => o.id?.toString()).filter(Boolean);
+  const { data: existingOrders } = await supabase
+    .from("orders")
+    .select("id, meli_order_id, status, packaging_cost_snapshot, flex_cost_snapshot, operational_cost_snapshot_version, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_status")
+    .eq("tenant_id", tenantId)
+    .in("meli_order_id", meliOrderIds);
+
+  const existingMap = new Map<string, any>();
+  existingOrders?.forEach(o => {
+    existingMap.set(o.meli_order_id, o);
+  });
+
+  // 4.5 Map Orders to DB Schema with Immutable Cost Snapshotting
   const ordersToUpsert = rawOrders.map((order: any) => {
-    let orderFlexCost = 0;
-    
-    const shipmentId = order.shipping?.id?.toString();
-    const shipmentData = shipmentId ? shipmentsMap[shipmentId] : null;
+      const shipmentId = order.shipping?.id?.toString();
+      const shipmentData = shipmentId ? shipmentsMap[shipmentId] : null;
+      let orderFlexCost = 0;
 
-    if (shipmentData && shipmentData.logistic_type === 'self_service') {
-      const mlCost = shipmentData.base_cost || shipmentData.shipping_option?.list_cost || 0;
-      let matchedZone = null;
-      let minDiff = Infinity;
+      if (shipmentData && shipmentData.logistic_type === 'self_service') {
+        const mlCost = shipmentData.base_cost || shipmentData.shipping_option?.list_cost || 0;
+        let matchedZone = null;
+        let minDiff = Infinity;
 
-      for (const z of flexZones) {
-        const configuredPays = Number(z.ml_pays) || 0;
-        const candidates = [configuredPays];
-        if (configuredPays < 1000) {
-          candidates.push(configuredPays * 10);
+        for (const z of flexZones) {
+          const configuredPays = Number(z.ml_pays) || 0;
+          const candidates = [configuredPays];
+          if (configuredPays < 1000) {
+            candidates.push(configuredPays * 10);
+          }
+          for (const candidate of candidates) {
+            const diff = Math.abs(candidate - mlCost);
+            if (diff < minDiff) {
+              minDiff = diff;
+              matchedZone = z;
+            }
+          }
         }
-        for (const candidate of candidates) {
-          const diff = Math.abs(candidate - mlCost);
-          if (diff < minDiff) {
-            minDiff = diff;
-            matchedZone = z;
+
+        if (matchedZone) {
+          let motoCost = Number(matchedZone.moto_costs) || 0;
+          if (motoCost > 0 && motoCost < 1000) {
+            motoCost = motoCost * 10;
+          }
+          orderFlexCost = motoCost;
+        } else {
+          orderFlexCost = flexZones.length > 0 ? (Number(flexZones[0].moto_costs) || 0) : 0;
+          if (orderFlexCost > 0 && orderFlexCost < 1000) {
+            orderFlexCost = orderFlexCost * 10;
           }
         }
       }
 
-      if (matchedZone) {
-        let motoCost = Number(matchedZone.moto_costs) || 0;
-        if (motoCost > 0 && motoCost < 1000) {
-          motoCost = motoCost * 10;
-        }
-        orderFlexCost = motoCost;
-      } else {
-        orderFlexCost = flexZones.length > 0 ? (Number(flexZones[0].moto_costs) || 0) : 0;
-        if (orderFlexCost > 0 && orderFlexCost < 1000) {
-          orderFlexCost = orderFlexCost * 10;
-        }
-      }
-    }
-    
-    // Inject calculated costs into raw_data
-    const operationalCosts = {
-      packaging_cost: packagingCost,
-      flex_cost: orderFlexCost,
-      total_operational_cost: packagingCost + orderFlexCost
-    };
-    const enrichedRawData = {
-      ...order,
-      libretax_operational_costs: operationalCosts,
-      klyvo_operational_costs: operationalCosts,
-    };
+      const existing = existingMap.get(order.id.toString());
+      const isPaid = order.status === 'paid';
 
-    return {
-      tenant_id: tenantId,
-      meli_account_id: meli_account_id,
-      meli_order_id: order.id.toString(),
-      status: order.status,
-      buyer_nickname: order.buyer?.nickname,
-      buyer_id: order.buyer?.id?.toString(),
-      total_amount: order.total_amount,
-      paid_amount: order.paid_amount,
-      currency_id: order.currency_id,
-      date_created: order.date_created,
-      date_closed: order.date_closed,
-      raw_data: enrichedRawData,
-      meli_shipment_id: order.shipping?.id?.toString(),
-      last_seen_at: syncTimestamp,
-      updated_at: syncTimestamp
-    };
-  });
+      // FIRST WRITE WINS: If existing order already has frozen snapshot, PRESERVE IT!
+      let packagingSnapshot = existing?.packaging_cost_snapshot ?? null;
+      let flexSnapshot = existing?.flex_cost_snapshot ?? null;
+      let snapshotFrozenAt = existing?.cost_snapshot_frozen_at ?? null;
+      let snapshotSource = existing?.cost_snapshot_source ?? null;
+      let snapshotVersion = existing?.operational_cost_snapshot_version ?? "v1";
+      let snapshotStatus = existing?.cost_snapshot_status ?? null;
 
-  // 4.5 Check existing orders for new sales / cancelled transitions
-  const meliOrderIds = rawOrders.map((o: any) => o.id?.toString()).filter(Boolean);
-  const { data: existingOrders } = await supabase
-    .from("orders")
-    .select("id, meli_order_id, status")
-    .eq("tenant_id", tenantId)
-    .in("meli_order_id", meliOrderIds);
-
-  const existingMap = new Map<string, { id: string; status: string }>();
-  existingOrders?.forEach(o => {
-    existingMap.set(o.meli_order_id, { id: o.id, status: o.status });
-  });
-
-  // 5. Upsert Orders
-  const { data: upsertedOrders, error: upsertError } = await supabase
-    .from("orders")
-    .upsert(ordersToUpsert, {
-      onConflict: "tenant_id, meli_order_id",
-    })
-    .select("id, meli_order_id");
-
-  if (upsertError) {
-    console.error("Error upserting orders to DB:", upsertError);
-    throw new Error("Failed to save synced orders to database.");
-  }
-
-  // Map of meli_order_id -> local order UUID
-  const orderMap: Record<string, string> = {};
-  if (upsertedOrders) {
-    upsertedOrders.forEach(o => {
-      orderMap[o.meli_order_id] = o.id;
-    });
-  }
-
-  // 6. Map Order Items
-  const orderItemsToUpsert: any[] = [];
-  
-  rawOrders.forEach((order: any) => {
-    const localOrderId = orderMap[order.id.toString()];
-    if (!localOrderId || !order.order_items) return;
-
-    order.order_items.forEach((item: any) => {
-      const meliItemId = item.item?.id;
-      const itemSku = item.item?.seller_sku;
-      const normItemSku = itemSku ? normalizeSku(itemSku) : "";
-
-      let productInfo = meliItemId ? productMap[meliItemId] : undefined;
-
-      // Fallback matching by SKU if meli_item_id matching fails
-      if (!productInfo && normItemSku) {
-        productInfo = productSkuMap[normItemSku];
+      if (!snapshotFrozenAt && isPaid) {
+        // Freeze operational cost snapshots upon observing valid paid sale
+        packagingSnapshot = packagingCost;
+        flexSnapshot = orderFlexCost;
+        snapshotFrozenAt = syncTimestamp;
+        snapshotSource = "captured_at_sale";
+        snapshotVersion = "v1";
+        snapshotStatus = "complete";
       }
 
-      const localProductId = productInfo?.id;
-      const unitCost = productInfo?.cost ?? null;
+      // Preserve historical operational costs in raw_data if already frozen
+      const effectivePackagingForRaw = snapshotFrozenAt && packagingSnapshot !== null ? Number(packagingSnapshot) : packagingCost;
+      const effectiveFlexForRaw = snapshotFrozenAt && flexSnapshot !== null ? Number(flexSnapshot) : orderFlexCost;
 
-      orderItemsToUpsert.push({
+      // Inject calculated costs into raw_data for backwards compatibility
+      const operationalCosts = {
+        packaging_cost: effectivePackagingForRaw,
+        flex_cost: effectiveFlexForRaw,
+        total_operational_cost: effectivePackagingForRaw + effectiveFlexForRaw
+      };
+      const enrichedRawData = {
+        ...order,
+        libretax_operational_costs: operationalCosts,
+        klyvo_operational_costs: operationalCosts,
+      };
+
+      return {
         tenant_id: tenantId,
-        order_id: localOrderId,
-        product_id: localProductId,
-        meli_item_id: meliItemId,
-        title: item.item?.title,
-        sku: item.item?.seller_sku,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        estimated_fee: item.sale_fee,
-        unit_cost: unitCost,
+        meli_account_id: meli_account_id,
+        meli_order_id: order.id.toString(),
+        status: order.status,
+        buyer_nickname: order.buyer?.nickname,
+        buyer_id: order.buyer?.id?.toString(),
+        total_amount: order.total_amount,
+        paid_amount: order.paid_amount,
+        currency_id: order.currency_id,
+        date_created: order.date_created,
+        date_closed: order.date_closed,
+        raw_data: enrichedRawData,
+        meli_shipment_id: order.shipping?.id?.toString(),
+        last_seen_at: syncTimestamp,
+        updated_at: syncTimestamp,
+        packaging_cost_snapshot: packagingSnapshot,
+        flex_cost_snapshot: flexSnapshot,
+        operational_cost_snapshot_version: snapshotVersion,
+        cost_snapshot_frozen_at: snapshotFrozenAt,
+        cost_snapshot_source: snapshotSource,
+        cost_snapshot_status: snapshotStatus
+      };
+    });
+
+    // 5. Upsert Orders
+    const { data: upsertedOrders, error: upsertError } = await supabase
+      .from("orders")
+      .upsert(ordersToUpsert, {
+        onConflict: "tenant_id, meli_order_id",
+      })
+      .select("id, meli_order_id");
+
+    if (upsertError) {
+      console.error("Error upserting orders to DB:", upsertError);
+      throw new Error("Failed to save synced orders to database.");
+    }
+
+    // Map of meli_order_id -> local order UUID
+    const orderMap: Record<string, string> = {};
+    if (upsertedOrders) {
+      upsertedOrders.forEach(o => {
+        orderMap[o.meli_order_id] = o.id;
+      });
+    }
+
+    // Log ORDER_COST_SNAPSHOT_CREATED for newly frozen orders
+    const newlyFrozenOrders = ordersToUpsert.filter(
+      o => !existingMap.get(o.meli_order_id)?.cost_snapshot_frozen_at && o.cost_snapshot_frozen_at
+    );
+    for (const fo of newlyFrozenOrders) {
+      const localId = orderMap[fo.meli_order_id];
+      const itemsCount = rawOrders.find((ro: any) => ro.id.toString() === fo.meli_order_id)?.order_items?.length || 1;
+      console.log(JSON.stringify({
+        event: "ORDER_COST_SNAPSHOT_CREATED",
+        tenantId,
+        orderId: localId,
+        meliOrderId: fo.meli_order_id,
+        itemsCount,
+        snapshotVersion: fo.operational_cost_snapshot_version,
+        source: fo.cost_snapshot_source,
+        timestamp: fo.cost_snapshot_frozen_at
+      }));
+    }
+
+    // 6. Map Order Items with deterministic line_key and cost snapshots
+    const localOrderIds = Array.from(new Set(Object.values(orderMap)));
+    const { data: existingOrderItems } = localOrderIds.length > 0
+      ? await supabase
+          .from("order_items")
+          .select("id, order_id, line_key, unit_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_version, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot, estimated_tax_snapshot")
+          .eq("tenant_id", tenantId)
+          .in("order_id", localOrderIds)
+      : { data: [] };
+
+    const existingItemsMap = new Map<string, any>();
+    (existingOrderItems || []).forEach(item => {
+      if (item.line_key) {
+        existingItemsMap.set(`${item.order_id}_${item.line_key}`, item);
+      }
+    });
+
+    const orderItemsToUpsert: any[] = [];
+
+    rawOrders.forEach((order: any) => {
+      const localOrderId = orderMap[order.id.toString()];
+      if (!localOrderId || !order.order_items) return;
+
+      order.order_items.forEach((item: any, itemIndex: number) => {
+        const meliItemId = item.item?.id;
+        const itemSku = item.item?.seller_sku;
+        const normItemSku = itemSku ? normalizeSku(itemSku) : "";
+        const variationId = item.item?.variation_id ? String(item.item.variation_id) : "0";
+
+        // Deterministic line_key (Req 4)
+        const lineKey = `${meliItemId || 'item'}_${variationId}_${normItemSku || 'nosku'}_${itemIndex}`;
+        const existingItem = existingItemsMap.get(`${localOrderId}_${lineKey}`);
+        const isOrderPaid = order.status === 'paid';
+
+        let productInfo = meliItemId ? productMap[meliItemId] : undefined;
+        if (!productInfo && normItemSku) {
+          productInfo = productSkuMap[normItemSku];
+        }
+
+        const localProductId = productInfo?.id;
+        const currentUnitCost = productInfo?.cost ?? null;
+
+        // FIRST WRITE WINS: If existing item already has frozen snapshot, PRESERVE IT!
+        let unitCostSnapshot = existingItem?.unit_cost_snapshot ?? null;
+        let costFrozenAt = existingItem?.cost_snapshot_frozen_at ?? null;
+        let costSource = existingItem?.cost_snapshot_source ?? null;
+        let costVersion = existingItem?.cost_snapshot_version ?? "v1";
+
+        let estFeeSnapshot = existingItem?.estimated_fee_snapshot ?? null;
+        let estShipSnapshot = existingItem?.estimated_shipping_cost_snapshot ?? null;
+        let extraFeeSnapshot = existingItem?.extra_fee_amount_snapshot ?? null;
+        let promoDiscountSnapshot = existingItem?.promotion_discount_amount_snapshot ?? null;
+        let estTaxSnapshot = existingItem?.estimated_tax_snapshot ?? null;
+
+        if (!costFrozenAt && isOrderPaid) {
+          // Freeze at sale time
+          unitCostSnapshot = currentUnitCost;
+          costFrozenAt = syncTimestamp;
+          costSource = currentUnitCost !== null && currentUnitCost > 0 ? "captured_at_sale" : "legacy_missing";
+          costVersion = "v1";
+          estFeeSnapshot = Number(item.sale_fee) || Number(productInfo?.estimated_fee) || null;
+          estShipSnapshot = Number(productInfo?.estimated_shipping_cost) || null;
+          extraFeeSnapshot = Number(productInfo?.extra_fee_amount) || null;
+          promoDiscountSnapshot = Number(productInfo?.promotion_discount_amount) || null;
+          estTaxSnapshot = null;
+        }
+
+        orderItemsToUpsert.push({
+          tenant_id: tenantId,
+          order_id: localOrderId,
+          product_id: localProductId,
+          meli_item_id: meliItemId,
+          title: item.item?.title,
+          sku: item.item?.seller_sku,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          estimated_fee: item.sale_fee,
+          unit_cost: unitCostSnapshot ?? currentUnitCost,
+          line_key: lineKey,
+          unit_cost_snapshot: unitCostSnapshot,
+          cost_snapshot_frozen_at: costFrozenAt,
+          cost_snapshot_source: costSource,
+          cost_snapshot_version: costVersion,
+          estimated_fee_snapshot: estFeeSnapshot,
+          estimated_shipping_cost_snapshot: estShipSnapshot,
+          extra_fee_amount_snapshot: extraFeeSnapshot,
+          promotion_discount_amount_snapshot: promoDiscountSnapshot,
+          estimated_tax_snapshot: estTaxSnapshot,
+        });
       });
     });
-  });
 
-  if (orderItemsToUpsert.length > 0) {
-    // Delete existing items for these orders to avoid duplicates, then insert
-    const localOrderIds = Array.from(new Set(Object.values(orderMap)));
-    
-    // In chunks of 100 to avoid limits
-    for (let i = 0; i < localOrderIds.length; i += 100) {
-      const chunk = localOrderIds.slice(i, i + 100);
-      await supabase
-        .from("order_items")
-        .delete()
-        .in("order_id", chunk);
-    }
+    if (orderItemsToUpsert.length > 0) {
+      // SPRINT 31: Selective idempotent UPSERT instead of DELETE + INSERT
+      for (let i = 0; i < orderItemsToUpsert.length; i += 100) {
+        const chunk = orderItemsToUpsert.slice(i, i + 100);
+        const { error: itemsError } = await supabase
+          .from("order_items")
+          .upsert(chunk, {
+            onConflict: "tenant_id, order_id, line_key",
+          });
 
-    // Insert all items
-    const { error: itemsError } = await supabase
-      .from("order_items")
-      .insert(orderItemsToUpsert);
-      
-      if (itemsError) {
-        console.error("Error inserting order items:", itemsError);
-      } else {
-        // --- SPRINT 35: Descuento automático de stock interno ---
-        const paidOrders = ordersToUpsert.filter(o => o.status === 'paid');
-        for (const order of paidOrders) {
-           const localOrderId = orderMap[order.meli_order_id];
-           if (localOrderId) {
-             await decrementInternalStockFromOrder(tenantId, localOrderId).catch(err => {
-               console.error(`Error decrementando stock interno para orden ${localOrderId}:`, err);
-             });
-           }
+        if (itemsError) {
+          console.error("Error upserting order items:", itemsError);
         }
       }
-  }
+
+      // --- SPRINT 35: Descuento automático de stock interno ---
+      const paidOrders = ordersToUpsert.filter(o => o.status === 'paid');
+      for (const order of paidOrders) {
+        const localOrderId = orderMap[order.meli_order_id];
+        if (localOrderId) {
+          await decrementInternalStockFromOrder(tenantId, localOrderId).catch(err => {
+            console.error(`Error decrementando stock interno para orden ${localOrderId}:`, err);
+          });
+        }
+      }
+    }
 
   // --- SPRINT 12: Notificaciones operativas de ventas y cancelaciones ---
   try {

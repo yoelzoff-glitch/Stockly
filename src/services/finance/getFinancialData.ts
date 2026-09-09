@@ -62,7 +62,7 @@ export async function getFinancialData(
   // 1. Fetch orders
   const { data: orders } = await supabase
     .from("orders")
-    .select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id, raw_data")
+    .select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id, raw_data, packaging_cost_snapshot, flex_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_status")
     .eq("tenant_id", tenantId)
     .neq("status", "cancelled")
     .gte("date_created", dateFrom.toISOString())
@@ -90,7 +90,7 @@ export async function getFinancialData(
   const { data: orderItems } = orderIds.length > 0
     ? await supabase
         .from("order_items")
-        .select("order_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost, sku, unit_cost")
+        .select("order_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost, sku, unit_cost, line_key, unit_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_version, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot, estimated_tax_snapshot")
         .in("order_id", orderIds)
     : { data: [] };
 
@@ -173,7 +173,17 @@ export async function getFinancialData(
             total_price: (Number(rawItem.unit_price) || 0) * qty,
             estimated_fee: (Number(rawItem.sale_fee) || 0) * qty,
             estimated_shipping_cost: null,
-            unit_cost: null
+            unit_cost: null,
+            line_key: null,
+            unit_cost_snapshot: null,
+            cost_snapshot_frozen_at: null,
+            cost_snapshot_source: null,
+            cost_snapshot_version: null,
+            estimated_fee_snapshot: null,
+            estimated_shipping_cost_snapshot: null,
+            extra_fee_amount_snapshot: null,
+            promotion_discount_amount_snapshot: null,
+            estimated_tax_snapshot: null,
           });
         }
       });
@@ -185,7 +195,21 @@ export async function getFinancialData(
 
     const couponAmount = Number(raw?.coupon?.amount) || (raw?.payments && raw.payments.length > 0 ? Number(raw.payments[0].coupon_amount) : 0) || 0;
     totalCupones += couponAmount;
-    const orderPackagingCost = Number(raw?.libretax_operational_costs?.packaging_cost || raw?.klyvo_operational_costs?.packaging_cost || packagingCost);
+
+    // Resolution order for packaging (Req 24):
+    // 1. orders.packaging_cost_snapshot (if frozen)
+    // 2. legacy raw_data.libretax_operational_costs.packaging_cost
+    // 3. packagingCost fallback ONLY for legacy orders without frozen snapshot
+    let orderPackagingCost = 0;
+    if (o.cost_snapshot_frozen_at && o.packaging_cost_snapshot !== null && o.packaging_cost_snapshot !== undefined) {
+      orderPackagingCost = Number(o.packaging_cost_snapshot);
+    } else if (raw?.libretax_operational_costs?.packaging_cost !== undefined && raw?.libretax_operational_costs?.packaging_cost !== null) {
+      orderPackagingCost = Number(raw.libretax_operational_costs.packaging_cost);
+    } else if (raw?.klyvo_operational_costs?.packaging_cost !== undefined && raw?.klyvo_operational_costs?.packaging_cost !== null) {
+      orderPackagingCost = Number(raw.klyvo_operational_costs.packaging_cost);
+    } else if (!o.cost_snapshot_frozen_at) {
+      orderPackagingCost = packagingCost;
+    }
 
     let orderCost = 0;
     let orderFees = 0;
@@ -203,6 +227,7 @@ export async function getFinancialData(
     dbItems.forEach(item => {
       const qty = Number(item.quantity) || 1;
       orderQty += qty;
+      const hasFrozenItemSnapshot = item.cost_snapshot_frozen_at != null;
 
       let p = item.meli_item_id ? (products || []).find(prod => prod.meli_item_id === item.meli_item_id) : undefined;
       
@@ -279,13 +304,22 @@ export async function getFinancialData(
       }
       
       let itemCost = 0;
-      let itemFee = (Number(item.estimated_fee) || 0) * qty;
+      let itemFee = 0;
+      if (hasFrozenItemSnapshot && item.estimated_fee_snapshot != null) {
+        itemFee = Number(item.estimated_fee_snapshot) * qty;
+      } else {
+        itemFee = (Number(item.estimated_fee) || 0) * qty;
+      }
+
       let itemShipping = 0;
       if (actualShippingCost !== null) {
         itemShipping = actualShippingCost * (qty / totalOrderQty);
+      } else if (hasFrozenItemSnapshot && item.estimated_shipping_cost_snapshot != null) {
+        itemShipping = Number(item.estimated_shipping_cost_snapshot) * qty;
       } else {
         itemShipping = Number(item.estimated_shipping_cost) || 0;
       }
+
       const itemPackaging = orderPackagingCost * qty;
       totalPackaging += itemPackaging;
       let itemExtra = itemPackaging;
@@ -296,16 +330,35 @@ export async function getFinancialData(
         itemExtra += couponAmount * itemShare;
       }
 
-      if (item.unit_cost !== null && Number(item.unit_cost) > 0) {
-        itemCost = Number(item.unit_cost) * qty;
+      // Resolution order for item cost (Req 22, 23):
+      // 1. item.unit_cost_snapshot (if frozen snapshot exists)
+      // 2. legacy item.unit_cost
+      // 3. products.cost ONLY for legacy orders without snapshot
+      // 4. null / 0
+      let resolvedUnitCost: number | null = null;
+
+      if (hasFrozenItemSnapshot && item.unit_cost_snapshot != null) {
+        resolvedUnitCost = Number(item.unit_cost_snapshot);
+      } else if (item.unit_cost != null && Number(item.unit_cost) > 0) {
+        resolvedUnitCost = Number(item.unit_cost);
+      } else if (!hasFrozenItemSnapshot && !o.cost_snapshot_frozen_at) {
+        // ONLY for legacy orders without any snapshot, fall back to current product cost
+        if (p && p.cost && Number(p.cost) > 0) {
+          resolvedUnitCost = Number(p.cost);
+        }
+      }
+
+      if (resolvedUnitCost !== null && resolvedUnitCost > 0) {
+        itemCost = resolvedUnitCost * qty;
         unitsWithCost += qty;
       }
 
-      if (p) {
-        if (itemCost === 0 && p.cost) {
-          itemCost = Number(p.cost) * qty;
-          unitsWithCost += qty;
-        }
+      // Extra fees and promotions
+      if (hasFrozenItemSnapshot && (item.extra_fee_amount_snapshot != null || item.promotion_discount_amount_snapshot != null)) {
+        const itemPromo = (Number(item.extra_fee_amount_snapshot || 0) + Number(item.promotion_discount_amount_snapshot || 0)) * qty;
+        totalPromociones += itemPromo;
+        itemExtra += itemPromo;
+      } else if (p) {
         if (itemFee === 0) {
           itemFee = Number(p.estimated_fee || 0) * qty;
         }

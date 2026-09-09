@@ -14,6 +14,12 @@ export interface Order {
   raw_data: Record<string, any>;
   created_at: Date | string;
   updated_at: Date | string;
+  packaging_cost_snapshot?: number | null;
+  flex_cost_snapshot?: number | null;
+  operational_cost_snapshot_version?: string;
+  cost_snapshot_frozen_at?: Date | string | null;
+  cost_snapshot_source?: string | null;
+  cost_snapshot_status?: 'complete' | 'partial' | 'legacy_missing' | string | null;
 }
 
 export interface OrderItem {
@@ -31,5 +37,16 @@ export interface OrderItem {
   estimated_fee?: number;
   estimated_shipping_cost?: number;
   estimated_tax?: number;
+  line_key?: string | null;
+  unit_cost_snapshot?: number | null;
+  cost_snapshot_frozen_at?: Date | string | null;
+  cost_snapshot_source?: string | null;
+  cost_snapshot_version?: string;
+  estimated_fee_snapshot?: number | null;
+  estimated_shipping_cost_snapshot?: number | null;
+  extra_fee_amount_snapshot?: number | null;
+  promotion_discount_amount_snapshot?: number | null;
+  estimated_tax_snapshot?: number | null;
   created_at: Date | string;
 }
+
