@@ -1,22 +1,22 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
+import { ShieldCheck } from "lucide-react";
 
 export function Footer() {
   return (
     <footer className="bg-white text-[#5F6875] border-t border-[#DCDAD4] py-14 lg:py-16">
       <div className="max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-10 lg:gap-12">
-          
           {/* Col 1: Brand & Desc (5 cols) */}
           <div className="md:col-span-5 space-y-4">
-            <Link href="/" aria-label="LibretaX inicio">
+            <Link href="/" aria-label="LibretaX inicio" className="inline-block">
               <Logo size="md" />
             </Link>
             <p className="text-sm text-[#5F6875] leading-relaxed max-w-sm">
               Plataforma para vendedores de Mercado Libre. Centralizá ventas, costos, comisiones, envíos, publicidad y stock para conocer tu rentabilidad real.
             </p>
             <div className="pt-2 text-xs text-[#102A56] font-medium flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#198754]" />
+              <ShieldCheck className="w-4 h-4 text-[#198754] shrink-0" />
               <span>Conexión oficial mediante Mercado Libre OAuth 2.0</span>
             </div>
           </div>
@@ -26,7 +26,7 @@ export function Footer() {
             <h3 className="text-xs font-bold uppercase tracking-wider text-[#101828]">
               Navegación
             </h3>
-            <ul className="space-y-2 text-sm">
+            <ul className="space-y-2.5 text-sm">
               <li>
                 <Link href="#recorrido" className="hover:text-[#101828] transition-colors">
                   Recorrido del producto
@@ -60,7 +60,7 @@ export function Footer() {
             <h3 className="text-xs font-bold uppercase tracking-wider text-[#101828]">
               Acceso y Legal
             </h3>
-            <ul className="space-y-2 text-sm">
+            <ul className="space-y-2.5 text-sm">
               <li>
                 <Link href="/login" className="hover:text-[#101828] transition-colors">
                   Iniciar sesión
@@ -83,7 +83,6 @@ export function Footer() {
               </li>
             </ul>
           </div>
-
         </div>
 
         {/* Bottom Bar */}

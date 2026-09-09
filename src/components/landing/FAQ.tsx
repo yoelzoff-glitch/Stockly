@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { FadeUp } from "./motion";
 
 interface FAQItem {
   q: string;
@@ -53,52 +54,57 @@ export function FAQ() {
   return (
     <section id="faq" className="py-20 md:py-28 border-b border-[#DCDAD4] bg-white">
       <div className="max-w-[840px] mx-auto px-4 sm:px-6 lg:px-8">
-        
         {/* Section Header */}
-        <div className="mb-14 space-y-3">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#102A56] block">
-            Preguntas frecuentes
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-[#101828] tracking-tight">
-            Respuestas claras sobre el funcionamiento de LibretaX.
-          </h2>
-          <p className="text-base text-[#5F6875]">
-            Información operativa y técnica sobre integración, cálculo de márgenes y seguridad.
-          </p>
-        </div>
+        <FadeUp>
+          <div className="mb-14 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-sm bg-[#5B2FE4]" />
+              <span className="text-xs font-bold uppercase tracking-wider text-[#102A56]">
+                Preguntas frecuentes
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-[#101828] tracking-tight">
+              Respuestas claras sobre el funcionamiento de LibretaX.
+            </h2>
+            <p className="text-base sm:text-lg text-[#5F6875]">
+              Información operativa y técnica sobre integración, cálculo de márgenes y seguridad.
+            </p>
+          </div>
+        </FadeUp>
 
         {/* Accordion List */}
-        <div className="border-t border-[#DCDAD4] divide-y divide-[#DCDAD4]">
-          {faqs.map((faq, idx) => {
-            const isOpen = openIdx === idx;
-            return (
-              <div key={idx} className="py-5">
-                <button
-                  type="button"
-                  onClick={() => toggle(idx)}
-                  className="w-full flex items-center justify-between text-left gap-4 group focus:outline-hidden"
-                  aria-expanded={isOpen}
-                >
-                  <span className="text-base sm:text-lg font-bold text-[#101828] group-hover:text-[#102A56] transition-colors">
-                    {faq.q}
-                  </span>
-                  <ChevronDown
-                    className={`w-5 h-5 text-[#5F6875] shrink-0 transition-transform duration-200 ${
-                      isOpen ? "rotate-180 text-[#102A56]" : ""
-                    }`}
-                  />
-                </button>
+        <FadeUp delay={0.1}>
+          <div className="border-t border-[#DCDAD4] divide-y divide-[#DCDAD4]">
+            {faqs.map((faq, idx) => {
+              const isOpen = openIdx === idx;
+              return (
+                <div key={idx} className="py-5">
+                  <button
+                    type="button"
+                    onClick={() => toggle(idx)}
+                    className="w-full flex items-center justify-between text-left gap-4 group focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#5B2FE4] rounded-lg p-1 -m-1"
+                    aria-expanded={isOpen}
+                  >
+                    <span className="text-base sm:text-lg font-bold text-[#101828] group-hover:text-[#5B2FE4] transition-colors">
+                      {faq.q}
+                    </span>
+                    <ChevronDown
+                      className={`w-5 h-5 text-[#5F6875] shrink-0 transition-transform duration-200 ${
+                        isOpen ? "rotate-180 text-[#5B2FE4]" : ""
+                      }`}
+                    />
+                  </button>
 
-                {isOpen && (
-                  <div className="mt-3 pr-4 text-sm sm:text-base text-[#5F6875] leading-relaxed">
-                    {faq.a}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
+                  {isOpen && (
+                    <div className="mt-3 pr-4 text-sm sm:text-base text-[#5F6875] leading-relaxed animate-in fade-in-50 duration-200">
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </FadeUp>
       </div>
     </section>
   );

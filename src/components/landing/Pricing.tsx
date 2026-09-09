@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
+import { FadeUp } from "./motion";
 
 interface Plan {
   name: string;
@@ -9,6 +10,7 @@ interface Plan {
   description: string;
   features: string[];
   ctaText: string;
+  isPopular?: boolean;
 }
 
 const plans: Plan[] = [
@@ -45,6 +47,7 @@ const plans: Plan[] = [
       "Soporte prioritario por canales directos",
     ],
     ctaText: "Probar Pro",
+    isPopular: true,
   },
   {
     name: "Ultra",
@@ -69,74 +72,100 @@ export function Pricing() {
   return (
     <section id="precios" className="py-20 md:py-28 border-b border-[#DCDAD4] bg-[#F5F3EE]">
       <div className="max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8">
-        
         {/* Section Header */}
-        <div className="max-w-2xl mb-16 space-y-3">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#102A56] block">
-            Planes y suscripción
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-[#101828] tracking-tight">
-            Tarifas claras según el tamaño de tu catálogo.
-          </h2>
-          <p className="text-base sm:text-lg text-[#5F6875] leading-relaxed">
-            Todos los planes incluyen 15 días de prueba gratis sin tarjeta obligatoria. Facturación mensual en USD o equivalente en moneda local vía Mercado Pago.
-          </p>
-        </div>
+        <FadeUp>
+          <div className="max-w-2xl mb-16 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-sm bg-[#5B2FE4]" />
+              <span className="text-xs font-bold uppercase tracking-wider text-[#102A56]">
+                Planes y suscripción
+              </span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-[#101828] tracking-tight">
+              Tarifas claras según el tamaño de tu catálogo.
+            </h2>
+            <p className="text-base sm:text-lg text-[#5F6875] leading-relaxed">
+              Todos los planes incluyen 15 días de prueba gratis sin tarjeta obligatoria. Facturación mensual en USD o equivalente en moneda local vía Mercado Pago.
+            </p>
+          </div>
+        </FadeUp>
 
         {/* Pricing Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
-          {plans.map((plan) => (
-            <div
-              key={plan.name}
-              className="bg-white rounded-xl border border-[#DCDAD4] p-7 sm:p-8 flex flex-col justify-between shadow-xs"
-            >
-              <div>
-                <div className="border-b border-[#DCDAD4] pb-5 mb-5">
-                  <span className="text-xs font-semibold text-[#5F6875] uppercase tracking-wider block">
-                    {plan.skuLimit}
-                  </span>
-                  <h3 className="text-2xl font-bold text-[#101828] mt-1">
-                    {plan.name}
-                  </h3>
-                  <p className="text-xs text-[#5F6875] mt-1.5 leading-relaxed">
-                    {plan.description}
-                  </p>
-
-                  <div className="mt-5 flex items-baseline gap-1">
-                    <span className="text-3xl sm:text-4xl font-extrabold text-[#101828] tabular-nums">
-                      {plan.price}
-                    </span>
-                    <span className="text-sm font-medium text-[#5F6875]">
-                      {plan.billingPeriod}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-stretch">
+          {plans.map((plan, idx) => (
+            <FadeUp key={plan.name} delay={0.1 + idx * 0.1}>
+              <div
+                className={`relative h-full bg-white rounded-2xl p-7 sm:p-8 flex flex-col justify-between transition-all duration-200 ${
+                  plan.isPopular
+                    ? "border-2 border-[#5B2FE4] shadow-md shadow-[#5B2FE4]/10"
+                    : "border border-[#DCDAD4] shadow-xs hover:border-[#102A56]/30"
+                }`}
+              >
+                {plan.isPopular && (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#5B2FE4] text-white shadow-xs">
+                      <Sparkles className="w-3 h-3" />
+                      Recomendado
                     </span>
                   </div>
+                )}
+
+                <div>
+                  <div className="border-b border-[#DCDAD4] pb-5 mb-5">
+                    <span className="text-xs font-mono font-semibold text-[#5F6875] uppercase tracking-wider block">
+                      {plan.skuLimit}
+                    </span>
+                    <h3 className="text-2xl font-bold text-[#101828] mt-1">
+                      {plan.name}
+                    </h3>
+                    <p className="text-xs text-[#5F6875] mt-1.5 leading-relaxed">
+                      {plan.description}
+                    </p>
+
+                    <div className="mt-5 flex items-baseline gap-1">
+                      <span className="text-3xl sm:text-4xl font-extrabold text-[#101828] tabular-nums">
+                        {plan.price}
+                      </span>
+                      <span className="text-sm font-medium text-[#5F6875]">
+                        {plan.billingPeriod}
+                      </span>
+                    </div>
+                  </div>
+
+                  <ul className="space-y-3 mb-8">
+                    {plan.features.map((feat, fIdx) => (
+                      <li
+                        key={fIdx}
+                        className="flex items-start gap-2.5 text-xs sm:text-sm text-[#101828]"
+                      >
+                        <Check className="w-4 h-4 text-[#198754] shrink-0 mt-0.5" />
+                        <span>{feat}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
 
-                <ul className="space-y-3 mb-8">
-                  {plan.features.map((feat, fIdx) => (
-                    <li key={fIdx} className="flex items-start gap-2.5 text-xs sm:text-sm text-[#101828]">
-                      <Check className="w-4 h-4 text-[#198754] shrink-0 mt-0.5" />
-                      <span>{feat}</span>
-                    </li>
-                  ))}
-                </ul>
+                <Link
+                  href="/register"
+                  className={`w-full inline-flex items-center justify-center px-5 py-3 rounded-xl text-sm font-semibold transition-all ${
+                    plan.isPopular
+                      ? "text-white bg-[#102A56] hover:bg-[#0A1D3C] shadow-xs"
+                      : "text-[#102A56] bg-[#F5F3EE] hover:bg-[#EAE7DF] border border-[#DCDAD4]"
+                  }`}
+                >
+                  {plan.ctaText}
+                </Link>
               </div>
-
-              <Link
-                href="/register"
-                className="w-full inline-flex items-center justify-center px-5 py-3 rounded-lg text-sm font-semibold text-[#102A56] bg-[#F5F3EE] hover:bg-[#EAE7DF] border border-[#DCDAD4] transition-colors"
-              >
-                {plan.ctaText}
-              </Link>
-            </div>
+            </FadeUp>
           ))}
         </div>
 
         {/* Footnote */}
-        <p className="mt-8 text-xs text-[#5F6875] text-center">
-          Podés pausar o cambiar de plan en cualquier momento desde tu panel de facturación.
-        </p>
-
+        <FadeUp delay={0.25}>
+          <p className="mt-8 text-xs text-[#5F6875] text-center">
+            Podés pausar o cambiar de plan en cualquier momento desde tu panel de facturación.
+          </p>
+        </FadeUp>
       </div>
     </section>
   );
