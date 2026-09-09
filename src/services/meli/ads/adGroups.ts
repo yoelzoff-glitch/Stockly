@@ -14,6 +14,24 @@ export interface GetProductAdsAdGroupsArgs {
   limit?: number;
 }
 
+export const PRODUCT_ADS_AD_GROUP_METRICS = [
+  "clicks",
+  "prints",
+  "cost",
+  "cpc",
+  "ctr",
+  "direct_amount",
+  "indirect_amount",
+  "total_amount",
+  "direct_units_quantity",
+  "indirect_units_quantity",
+  "units_quantity",
+  "acos",
+  "tacos",
+  "cvr",
+  "roas",
+];
+
 export async function getProductAdsAdGroups({
   tenantId,
   siteId,
@@ -51,6 +69,8 @@ export async function getProductAdsAdGroups({
       }
       if (dateFrom) queryParams.set("date_from", dateFrom);
       if (dateTo) queryParams.set("date_to", dateTo);
+      queryParams.set("metrics", PRODUCT_ADS_AD_GROUP_METRICS.join(","));
+      queryParams.set("metrics_summary", "true");
 
       const endpoint = `/advertising/${encodeURIComponent(siteId)}/advertisers/${encodeURIComponent(
         advertiserId

@@ -227,15 +227,18 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
   // 7. Fetch Campaigns & Ad Groups via API v2
   let rawCampaigns: any[] = [];
   let rawAdGroups: MeliAdsAdGroup[] = [];
+  let metricsSummary: any = null;
 
   try {
-    rawCampaigns = await getProductAdsCampaigns({
+    const campaignsResult = await getProductAdsCampaigns({
       tenantId,
       siteId,
       advertiserId,
       dateFrom: dateFromString,
       dateTo: dateToString,
     });
+    rawCampaigns = campaignsResult.campaigns || [];
+    metricsSummary = campaignsResult.metricsSummary || null;
   } catch (campErr: any) {
     logger.error({
       event: "MELI_ADS_CAMPAIGNS_ERROR",
@@ -410,36 +413,54 @@ export async function getAdsData(tenantId: string, period: string = "30days"): P
 
   const productAdsList = Array.from(productAdsMap.values());
 
-  // 10. Compute Real Totals (Strictly NO invented percentages!)
+  // 10. Compute Real Totals using official metrics_summary when available
   let totalInvestment: number | null = null;
   let totalRevenue: number | null = null;
+  let averageAcos: number | null = null;
+  let overallRoas: number | null = null;
 
-  const validCampaignCosts = campaignsList.map((c) => c.consumed_budget).filter((v): v is number => v !== null && !isNaN(v));
-  if (validCampaignCosts.length > 0) {
-    totalInvestment = validCampaignCosts.reduce((acc, v) => acc + v, 0);
-  } else if (productAdsList.length > 0) {
-    totalInvestment = productAdsList.reduce((acc, p) => acc + p.ads_investment, 0);
+  if (metricsSummary) {
+    totalInvestment = metricsSummary.cost;
+    totalRevenue = metricsSummary.totalAmount;
+    averageAcos = metricsSummary.acos;
+    overallRoas = metricsSummary.roas;
   }
 
-  const validCampaignRevenues = campaignsList.map((c) => c.revenue).filter((v): v is number => v !== null && !isNaN(v));
-  if (validCampaignRevenues.length > 0) {
-    totalRevenue = validCampaignRevenues.reduce((acc, v) => acc + v, 0);
-  } else if (productAdsList.length > 0) {
-    totalRevenue = productAdsList.reduce((acc, p) => acc + p.ads_revenue, 0);
+  // Fallback to summing campaigns if summary is missing or omitted
+  if (totalInvestment === null) {
+    const validCampaignCosts = campaignsList.map((c) => c.consumed_budget).filter((v): v is number => v !== null && !isNaN(v));
+    if (validCampaignCosts.length > 0) {
+      totalInvestment = validCampaignCosts.reduce((acc, v) => acc + v, 0);
+    } else if (productAdsList.length > 0) {
+      totalInvestment = productAdsList.reduce((acc, p) => acc + p.ads_investment, 0);
+    }
   }
 
-  const completeProfits = productAdsList.filter((p) => p.clean_net_profit !== null);
-  const totalCleanNetProfit = completeProfits.length > 0
-    ? completeProfits.reduce((sum, item) => sum + (item.clean_net_profit || 0), 0)
-    : null;
+  if (totalRevenue === null) {
+    const validCampaignRevenues = campaignsList.map((c) => c.revenue).filter((v): v is number => v !== null && !isNaN(v));
+    if (validCampaignRevenues.length > 0) {
+      totalRevenue = validCampaignRevenues.reduce((acc, v) => acc + v, 0);
+    } else if (productAdsList.length > 0) {
+      totalRevenue = productAdsList.reduce((acc, p) => acc + p.ads_revenue, 0);
+    }
+  }
 
-  const overallRoas = (totalInvestment !== null && totalInvestment > 0 && totalRevenue !== null)
-    ? Number((totalRevenue / totalInvestment).toFixed(2))
-    : null;
+  if (overallRoas === null && totalInvestment !== null && totalInvestment > 0 && totalRevenue !== null) {
+    overallRoas = Number((totalRevenue / totalInvestment).toFixed(2));
+  }
 
-  const averageAcos = (totalRevenue !== null && totalRevenue > 0 && totalInvestment !== null)
-    ? Number(((totalInvestment / totalRevenue) * 100).toFixed(2))
-    : null;
+  if (averageAcos === null && totalRevenue !== null && totalRevenue > 0 && totalInvestment !== null) {
+    averageAcos = Number(((totalInvestment / totalRevenue) * 100).toFixed(2));
+  }
+
+  // Clean net profit is only computed when real attributed revenue & ads investment exist
+  let totalCleanNetProfit: number | null = null;
+  if (totalRevenue !== null && totalInvestment !== null) {
+    const completeProfits = productAdsList.filter((p) => p.clean_net_profit !== null);
+    if (completeProfits.length > 0) {
+      totalCleanNetProfit = completeProfits.reduce((sum, item) => sum + (item.clean_net_profit || 0), 0);
+    }
+  }
 
   const result: AdsDataResult = {
     period,

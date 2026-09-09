@@ -31,6 +31,8 @@ export interface ProductAdsMetricsValues {
   tacos: number | null;
   roas: number | null;
   cvr: number | null;
+  directUnitsQuantity?: number | null;
+  indirectUnitsQuantity?: number | null;
   unitsQuantity: number | null;
 }
 
@@ -48,6 +50,11 @@ export interface ProductAdsCampaign {
 }
 
 export type MeliAdsCampaign = ProductAdsCampaign;
+
+export interface GetProductAdsCampaignsResponse {
+  campaigns: ProductAdsCampaign[];
+  metricsSummary: AdsMetrics | null;
+}
 
 export interface ProductAdsAdGroup {
   id: string | number;

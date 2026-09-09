@@ -1,7 +1,24 @@
 import { meliAdsFetch } from "./client";
-import { MeliAdsCampaign } from "./types";
+import { MeliAdsCampaign, GetProductAdsCampaignsResponse, AdsMetrics } from "./types";
 import { parseAdsMetrics } from "./metrics";
 import { logger } from "@/lib/errors/logger";
+
+export const PRODUCT_ADS_CAMPAIGN_METRICS = [
+  "clicks",
+  "prints",
+  "cost",
+  "cpc",
+  "ctr",
+  "acos",
+  "cvr",
+  "roas",
+  "direct_units_quantity",
+  "indirect_units_quantity",
+  "units_quantity",
+  "direct_amount",
+  "indirect_amount",
+  "total_amount",
+];
 
 export interface GetProductAdsCampaignsArgs {
   tenantId: string;
@@ -19,7 +36,7 @@ export async function getProductAdsCampaigns({
   dateFrom,
   dateTo,
   limit = 50,
-}: GetProductAdsCampaignsArgs): Promise<MeliAdsCampaign[]> {
+}: GetProductAdsCampaignsArgs): Promise<GetProductAdsCampaignsResponse> {
   const startTime = Date.now();
   logger.info({
     event: "MELI_ADS_CAMPAIGNS_FETCH_STARTED",
@@ -29,6 +46,7 @@ export async function getProductAdsCampaigns({
   });
 
   const allCampaigns: MeliAdsCampaign[] = [];
+  let metricsSummary: AdsMetrics | null = null;
   let offset = 0;
   let hasMore = true;
   const maxPages = 10; // Safety guard: max 500 campaigns
@@ -42,10 +60,23 @@ export async function getProductAdsCampaigns({
       queryParams.set("offset", String(offset));
       if (dateFrom) queryParams.set("date_from", dateFrom);
       if (dateTo) queryParams.set("date_to", dateTo);
+      queryParams.set("metrics", PRODUCT_ADS_CAMPAIGN_METRICS.join(","));
+      queryParams.set("metrics_summary", "true");
 
       const endpoint = `/advertising/${encodeURIComponent(siteId)}/advertisers/${encodeURIComponent(
         advertiserId
       )}/product_ads/campaigns/search?${queryParams.toString()}`;
+
+      logger.info({
+        event: "MELI_ADS_CAMPAIGN_METRICS_REQUEST",
+        tenantId,
+        advertiserId,
+        siteId,
+        dateFrom,
+        dateTo,
+        offset,
+        endpoint,
+      });
 
       const response = await meliAdsFetch({
         tenantId,
@@ -53,8 +84,25 @@ export async function getProductAdsCampaigns({
         apiVersion: "2",
       });
 
+      // Capture metrics_summary if returned on any page
+      const rawSummary = response?.metrics_summary || response?.summary?.metrics || response?.summary;
+      if (rawSummary && !metricsSummary) {
+        metricsSummary = parseAdsMetrics(rawSummary);
+      }
+
       const results = response?.results || (Array.isArray(response) ? response : []);
       const total = response?.paging?.total !== undefined ? Number(response.paging.total) : results.length;
+
+      // Debug logging of payload shape in development environment only
+      if (process.env.NODE_ENV !== "production") {
+        logger.info({
+          event: "MELI_ADS_PAYLOAD_SHAPE_DEBUG",
+          campaignCount: results.length,
+          firstCampaignKeys: results[0] ? Object.keys(results[0]) : [],
+          firstMetricsKeys: results[0]?.metrics ? Object.keys(results[0].metrics) : [],
+          metricsSummaryKeys: rawSummary ? Object.keys(rawSummary) : [],
+        });
+      }
 
       for (const raw of results) {
         const parsedMetrics = parseAdsMetrics(raw);
@@ -78,15 +126,21 @@ export async function getProductAdsCampaigns({
 
     const durationMs = Date.now() - startTime;
     logger.info({
-      event: "MELI_ADS_CAMPAIGNS_FETCH_SUCCESS",
+      event: allCampaigns.length === 0 ? "MELI_ADS_CAMPAIGN_METRICS_EMPTY" : "MELI_ADS_CAMPAIGN_METRICS_RESPONSE",
       tenantId,
       advertiserId,
       siteId,
-      campaignsCount: allCampaigns.length,
+      dateFrom,
+      dateTo,
+      campaignCount: allCampaigns.length,
+      hasMetricsSummary: Boolean(metricsSummary),
       durationMs,
     });
 
-    return allCampaigns;
+    return {
+      campaigns: allCampaigns,
+      metricsSummary,
+    };
   } catch (error: any) {
     const durationMs = Date.now() - startTime;
     const statusCode = error?.statusCode || error?.status || 500;

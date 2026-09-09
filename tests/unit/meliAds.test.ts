@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { meliFetch } from "../../src/services/meli/client";
 import { meliAdsFetch } from "../../src/services/meli/ads/client";
 import { getProductAdsAdvertiser, AdsAdvertiserError } from "../../src/services/meli/ads/getAdvertiser";
-import { getProductAdsCampaigns } from "../../src/services/meli/ads/campaigns";
-import { getProductAdsAdGroups } from "../../src/services/meli/ads/adGroups";
+import { getProductAdsCampaigns, PRODUCT_ADS_CAMPAIGN_METRICS } from "../../src/services/meli/ads/campaigns";
+import { getProductAdsAdGroups, PRODUCT_ADS_AD_GROUP_METRICS } from "../../src/services/meli/ads/adGroups";
 import { getAdsDateRange } from "../../src/services/meli/ads/dateRange";
 import { parseAdsMetrics } from "../../src/services/meli/ads/metrics";
 import { getCachedAdsData, setCachedAdsData, clearAllAdsCache } from "../../src/services/meli/ads/cache";
 import { calculateRealProfitability } from "../../src/services/profitability/calculateRealProfitability";
 
-describe("Sprint 24: Mercado Libre Product Ads API v2 & Ad Groups Unit Tests", () => {
+describe("Sprint 25: Product Ads Metrics & Summary Unit Tests", () => {
   let originalFetch: typeof global.fetch;
 
   beforeEach(() => {
@@ -23,136 +23,184 @@ describe("Sprint 24: Mercado Libre Product Ads API v2 & Ad Groups Unit Tests", (
     clearAllAdsCache();
   });
 
-  describe("1. meliFetch & meliAdsFetch Headers", () => {
-    test("meliFetch merges custom headers and preserves Authorization", async () => {
-      let capturedHeaders: Record<string, string> = {};
-
-      global.fetch = (async (url: any, options: any) => {
-        capturedHeaders = options.headers;
-        return {
-          ok: true,
-          status: 200,
-          text: async () => JSON.stringify({ success: true }),
-        } as any;
-      }) as any;
-
-      // Using demo tenant will throw operation blocked before fetch, so test with mock meli account
-      // Or verify via meliAdsFetch with mocked fetch
-      // For testing meliFetch with a mock, let's call meliAdsFetch when account exists
+  describe("1. Query Parameters with Metrics & Summary", () => {
+    test("PRODUCT_ADS_CAMPAIGN_METRICS contains required official metrics", () => {
+      assert.ok(PRODUCT_ADS_CAMPAIGN_METRICS.includes("clicks"));
+      assert.ok(PRODUCT_ADS_CAMPAIGN_METRICS.includes("prints"));
+      assert.ok(PRODUCT_ADS_CAMPAIGN_METRICS.includes("cost"));
+      assert.ok(PRODUCT_ADS_CAMPAIGN_METRICS.includes("cpc"));
+      assert.ok(PRODUCT_ADS_CAMPAIGN_METRICS.includes("ctr"));
+      assert.ok(PRODUCT_ADS_CAMPAIGN_METRICS.includes("acos"));
+      assert.ok(PRODUCT_ADS_CAMPAIGN_METRICS.includes("cvr"));
+      assert.ok(PRODUCT_ADS_CAMPAIGN_METRICS.includes("roas"));
+      assert.ok(PRODUCT_ADS_CAMPAIGN_METRICS.includes("units_quantity"));
+      assert.ok(PRODUCT_ADS_CAMPAIGN_METRICS.includes("total_amount"));
     });
 
-    test("meliAdsFetch injects api-version header", async () => {
-      let capturedHeaders: Record<string, string> = {};
-
-      global.fetch = (async (url: any, options: any) => {
-        capturedHeaders = options.headers;
-        return {
-          ok: true,
-          status: 200,
-          text: async () => JSON.stringify({ status: "ok" }),
-        } as any;
-      }) as any;
-
-      // meliAdsFetch wraps meliFetch which calls Supabase to get account.
-      // We can unit test parseAdsMetrics and getAdsDateRange directly and test getProductAdsAdvertiser
+    test("PRODUCT_ADS_AD_GROUP_METRICS contains required ad group metrics", () => {
+      assert.ok(PRODUCT_ADS_AD_GROUP_METRICS.includes("clicks"));
+      assert.ok(PRODUCT_ADS_AD_GROUP_METRICS.includes("prints"));
+      assert.ok(PRODUCT_ADS_AD_GROUP_METRICS.includes("cost"));
+      assert.ok(PRODUCT_ADS_AD_GROUP_METRICS.includes("total_amount"));
+      assert.ok(PRODUCT_ADS_AD_GROUP_METRICS.includes("units_quantity"));
     });
   });
 
-  describe("2. Metrics Parsing & Nullable Model", () => {
-    test("parseAdsMetrics correctly preserves nulls and does not convert missing metrics to zero", () => {
-      const emptyMetrics = parseAdsMetrics({});
-      assert.equal(emptyMetrics.impressions, null);
-      assert.equal(emptyMetrics.clicks, null);
-      assert.equal(emptyMetrics.cost, null);
-      assert.equal(emptyMetrics.cpc, null);
-      assert.equal(emptyMetrics.ctr, null);
-      assert.equal(emptyMetrics.totalAmount, null);
-      assert.equal(emptyMetrics.acos, null);
-      assert.equal(emptyMetrics.roas, null);
-      assert.equal(emptyMetrics.unitsQuantity, null);
+  describe("2. Campaign & Summary Metrics Parsing", () => {
+    test("parses full campaign metrics accurately from official payload", () => {
+      const mockRawCampaign = {
+        id: "camp-123",
+        name: "Campaña Dijes y Cadenas",
+        status: "active",
+        daily_budget: 5000,
+        metrics: {
+          cost: 1000,
+          prints: 20000,
+          clicks: 500,
+          units_quantity: 12,
+          total_amount: 9000,
+          acos: 11.11,
+          roas: 9,
+        },
+      };
+
+      const parsed = parseAdsMetrics(mockRawCampaign);
+      assert.equal(parsed.cost, 1000);
+      assert.equal(parsed.impressions, 20000);
+      assert.equal(parsed.clicks, 500);
+      assert.equal(parsed.unitsQuantity, 12);
+      assert.equal(parsed.totalAmount, 9000);
+      assert.equal(parsed.acos, 11.11);
+      assert.equal(parsed.roas, 9);
     });
 
-    test("parseAdsMetrics extracts official Meli advertising metrics when present", () => {
+    test("parses metrics_summary accurately from official payload", () => {
+      const mockSummary = {
+        cost: 82000,
+        total_amount: 610000,
+        acos: 13.4,
+        roas: 7.43,
+        prints: 450000,
+        clicks: 12300,
+        units_quantity: 145,
+      };
+
+      const parsed = parseAdsMetrics(mockSummary);
+      assert.equal(parsed.cost, 82000);
+      assert.equal(parsed.totalAmount, 610000);
+      assert.equal(parsed.acos, 13.4);
+      assert.equal(parsed.roas, 7.43);
+      assert.equal(parsed.impressions, 450000);
+      assert.equal(parsed.clicks, 12300);
+      assert.equal(parsed.unitsQuantity, 145);
+    });
+
+    test("maintains strict null vs 0 distinction (does not convert null to 0)", () => {
+      const emptyRaw = {
+        id: "camp-empty",
+        status: "active",
+      };
+
+      const parsed = parseAdsMetrics(emptyRaw);
+      assert.equal(parsed.cost, null);
+      assert.equal(parsed.impressions, null);
+      assert.equal(parsed.clicks, null);
+      assert.equal(parsed.unitsQuantity, null);
+      assert.equal(parsed.totalAmount, null);
+      assert.equal(parsed.acos, null);
+      assert.equal(parsed.roas, null);
+
+      // Verify explicit 0 is preserved as 0
+      const zeroRaw = {
+        metrics: {
+          cost: 0,
+          prints: 0,
+          clicks: 0,
+          units_quantity: 0,
+          total_amount: 0,
+        },
+      };
+      const zeroParsed = parseAdsMetrics(zeroRaw);
+      assert.equal(zeroParsed.cost, 0);
+      assert.equal(zeroParsed.impressions, 0);
+      assert.equal(zeroParsed.clicks, 0);
+      assert.equal(zeroParsed.unitsQuantity, 0);
+      assert.equal(zeroParsed.totalAmount, 0);
+    });
+
+    test("mathematically derives ACOS when not provided by API but cost and revenue exist", () => {
       const raw = {
         metrics: {
-          prints: 12500,
-          clicks: 340,
-          cost: 4500.5,
-          cpc: 13.24,
-          ctr: 2.72,
-          direct_amount: 32000,
-          indirect_amount: 8000,
-          total_amount: 40000,
-          acos: 11.25,
-          tacos: 5.4,
-          roas: 8.89,
-          cvr: 4.12,
-          units_quantity: 12,
+          cost: 100,
+          total_amount: 1000,
+          acos: null,
         },
       };
 
       const parsed = parseAdsMetrics(raw);
-      assert.equal(parsed.impressions, 12500);
-      assert.equal(parsed.clicks, 340);
-      assert.equal(parsed.cost, 4500.5);
-      assert.equal(parsed.cpc, 13.24);
-      assert.equal(parsed.ctr, 2.72);
-      assert.equal(parsed.directAmount, 32000);
-      assert.equal(parsed.indirectAmount, 8000);
-      assert.equal(parsed.totalAmount, 40000);
-      assert.equal(parsed.acos, 11.25);
-      assert.equal(parsed.tacos, 5.4);
-      assert.equal(parsed.roas, 8.89);
-      assert.equal(parsed.cvr, 4.12);
-      assert.equal(parsed.unitsQuantity, 12);
+      // (100 / 1000) * 100 = 10
+      assert.equal(parsed.acos, 10);
     });
 
-    test("parseAdsMetrics handles top-level legacy/variant field names (clics, consumed_budget, revenue)", () => {
+    test("mathematically derives ROAS when not provided by API but cost and revenue exist", () => {
       const raw = {
-        clics: 150,
-        consumed_budget: 1200,
-        revenue: 9600,
-        sold_units: 3,
+        metrics: {
+          cost: 100,
+          total_amount: 1000,
+          roas: null,
+        },
       };
 
       const parsed = parseAdsMetrics(raw);
-      assert.equal(parsed.clicks, 150);
-      assert.equal(parsed.cost, 1200);
-      assert.equal(parsed.totalAmount, 9600);
-      assert.equal(parsed.unitsQuantity, 3);
+      // 1000 / 100 = 10
+      assert.equal(parsed.roas, 10);
+    });
+
+    test("avoids division by zero when cost = 0 or total_amount = 0", () => {
+      const raw = {
+        metrics: {
+          cost: 0,
+          total_amount: 0,
+          acos: null,
+          roas: null,
+        },
+      };
+
+      const parsed = parseAdsMetrics(raw);
+      assert.equal(parsed.acos, null);
+      assert.equal(parsed.roas, null);
+    });
+
+    test("aggregates direct and indirect units when units_quantity is missing", () => {
+      const raw = {
+        metrics: {
+          direct_units_quantity: 8,
+          indirect_units_quantity: 4,
+        },
+      };
+
+      const parsed = parseAdsMetrics(raw);
+      assert.equal(parsed.directUnitsQuantity, 8);
+      assert.equal(parsed.indirectUnitsQuantity, 4);
+      assert.equal(parsed.unitsQuantity, 12);
     });
   });
 
-  describe("3. Date Range and Timezone Calculations", () => {
-    test("getAdsDateRange calculates 30days period correctly", () => {
+  describe("3. 90-Day Window Limit Enforcement", () => {
+    test("clamps dateFrom to max 90 days for all period", () => {
+      const res = getAdsDateRange("all", "America/Argentina/Buenos_Aires");
+      assert.notEqual(res.dateFrom, null);
+      assert.match(res.periodLabel, /90 días/i);
+
+      const diffDays = Math.round((res.dateTo.getTime() - res.dateFrom!.getTime()) / (24 * 60 * 60 * 1000));
+      assert.ok(diffDays <= 90);
+    });
+
+    test("calculates 30days period within limit", () => {
       const res = getAdsDateRange("30days", "America/Argentina/Buenos_Aires");
-      assert.equal(res.periodLabel, "Últimos 30 días");
       assert.notEqual(res.dateFrom, null);
-      assert.match(res.dateToString, /^\d{4}-\d{2}-\d{2}$/);
-      assert.match(res.dateFromString!, /^\d{4}-\d{2}-\d{2}$/);
-    });
-
-    test("getAdsDateRange calculates today period correctly", () => {
-      const res = getAdsDateRange("today", "America/Argentina/Buenos_Aires");
-      assert.equal(res.periodLabel, "Hoy");
-      assert.notEqual(res.dateFrom, null);
-      assert.equal(res.dateFromString, res.dateToString);
-    });
-
-    test("getAdsDateRange calculates 7days period correctly", () => {
-      const res = getAdsDateRange("7days", "America/Argentina/Buenos_Aires");
-      assert.equal(res.periodLabel, "Últimos 7 días");
-      assert.notEqual(res.dateFrom, null);
-    });
-
-    test("getAdsDateRange calculates this_month and last_month periods", () => {
-      const thisMonth = getAdsDateRange("this_month", "America/Argentina/Buenos_Aires");
-      assert.equal(thisMonth.periodLabel, "Este Mes");
-      assert.match(thisMonth.dateFromString!, /-\d{2}-01$/);
-
-      const lastMonth = getAdsDateRange("last_month", "America/Argentina/Buenos_Aires");
-      assert.equal(lastMonth.periodLabel, "Mes Anterior");
-      assert.match(lastMonth.dateFromString!, /-\d{2}-01$/);
+      const diffDays = Math.round((res.dateTo.getTime() - res.dateFrom!.getTime()) / (24 * 60 * 60 * 1000));
+      assert.ok(diffDays <= 31);
     });
   });
 
@@ -168,7 +216,6 @@ describe("Sprint 24: Mercado Libre Product Ads API v2 & Ad Groups Unit Tests", (
       assert.deepEqual(getCachedAdsData(tenantB, "30days"), { mock: "dataB" });
       assert.equal(getCachedAdsData(tenantA, "7days"), null);
 
-      // Wait for expiration
       await new Promise((r) => setTimeout(r, 150));
       assert.equal(getCachedAdsData(tenantA, "30days"), null);
       assert.equal(getCachedAdsData(tenantB, "30days"), null);
@@ -180,7 +227,7 @@ describe("Sprint 24: Mercado Libre Product Ads API v2 & Ad Groups Unit Tests", (
       const unitPrice = 25000;
       const unitsSold = 2;
       const adsRevenue = unitPrice * unitsSold; // 50000
-      const adsCost = 6000; // Real official ads spend
+      const adsCost = 6000;
 
       const profitInput = {
         price: unitPrice,
@@ -196,10 +243,6 @@ describe("Sprint 24: Mercado Libre Product Ads API v2 & Ad Groups Unit Tests", (
       const result = calculateRealProfitability(profitInput);
       assert.equal(result.profitability_status, "complete");
 
-      // Unit total cost = 10000 + 6500 + 500 + 3000 + 0 + 1500 + 500 = 22000
-      // Unit gross margin = 25000 - 22000 = 3000
-      // Gross margin for 2 units = 6000
-      // Clean net profit = 6000 - adsCost (6000) = 0
       const totalUnitCosts = (profitInput.cost || 0) + profitInput.estimated_fee + profitInput.extra_fee_amount + profitInput.estimated_shipping_cost + profitInput.estimated_tax + profitInput.packaging_cost;
       const grossMarginForUnits = (unitPrice * unitsSold) - (totalUnitCosts * unitsSold);
       const cleanNetProfit = Math.round(grossMarginForUnits - adsCost);

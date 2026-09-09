@@ -50,6 +50,18 @@ export function getAdsDateRange(period: string = "30days", timezone: string = DE
     periodLabel = "Últimos 30 días";
   }
 
+  // 90-day window limit enforcement for Mercado Libre Product Ads API (max historical range is 90 days)
+  const maxLookbackRef = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  maxLookbackRef.setUTCDate(maxLookbackRef.getUTCDate() - 89);
+  const earliestAllowedDate = getMidnightInTimezone(maxLookbackRef, timezone);
+
+  if (!dateFrom || dateFrom < earliestAllowedDate) {
+    dateFrom = earliestAllowedDate;
+    if (period === "all") {
+      periodLabel = "Últimos 90 días (máx. oficial)";
+    }
+  }
+
   const dateFromString = dateFrom ? getTenantDateString(dateFrom, timezone) : null;
   const dateToString = getTenantDateString(dateTo, timezone);
 
