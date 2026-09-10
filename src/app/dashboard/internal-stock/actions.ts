@@ -34,7 +34,7 @@ export async function getInventoryItems() {
 
   const { data: items, error } = await supabase
     .from("inventory_items")
-    .select("id, tenant_id, sku, sku_normalized, name, description, unit_cost, current_stock, minimum_stock, location, supplier_id, created_at, updated_at")
+    .select("id, tenant_id, sku, sku_normalized, name, category, unit_cost, average_cost, last_purchase_cost, current_stock, minimum_stock, metadata, created_at, updated_at")
     .eq("tenant_id", profile.tenant_id)
     .order("sku_normalized", { ascending: true });
 

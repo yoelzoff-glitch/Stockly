@@ -56,7 +56,7 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
 
   let query = supabase
     .from("orders")
-    .select("id, meli_order_id, status, buyer_nickname, total_amount, paid_amount, currency_id, date_created, date_closed, meli_shipment_id, packaging_cost_snapshot, flex_cost_snapshot, cost_snapshot_status, order_items(title, quantity)", { count: "exact" })
+    .select("id, meli_order_id, status, buyer_nickname, total_amount, paid_amount, currency_id, date_created, date_closed, meli_shipment_id, packaging_cost_snapshot, flex_cost_snapshot, cost_snapshot_status", { count: "exact" })
     .eq("tenant_id", profile.tenant_id)
     .gte("date_created", dateFrom.toISOString())
     .lte("date_created", dateTo.toISOString())
@@ -79,7 +79,32 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
   const { data: orders, count, error } = await query;
 
   if (error) {
-    console.error("Error fetching orders:", error);
+    console.error("[SalesPage] Error fetching orders:", error);
+    throw new Error(`Error al cargar ventas: ${error.message}`);
+  }
+
+  // Sprint 32.1: Lightweight secondary query for order_items (no raw_data JSONB)
+  const orderIds = (orders || []).map(o => o.id);
+  let orderItems: any[] = [];
+  if (orderIds.length > 0) {
+    const { data: items, error: itemsError } = await supabase
+      .from("order_items")
+      .select("order_id,title,quantity,unit_cost,unit_cost_snapshot,cost_snapshot_frozen_at")
+      .in("order_id", orderIds);
+
+    if (itemsError) {
+      console.error("[SalesPage] Error fetching order_items:", itemsError);
+    }
+    orderItems = items || [];
+  }
+
+  // Agrupar server-side por order_id
+  const itemsByOrderId: Record<string, any[]> = {};
+  for (const it of orderItems) {
+    if (!itemsByOrderId[it.order_id]) {
+      itemsByOrderId[it.order_id] = [];
+    }
+    itemsByOrderId[it.order_id].push(it);
   }
 
   // Sprint 32: Fetch KPI period aggregates with minimal lightweight columns (no raw_data JSONB)
@@ -98,13 +123,31 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
   }));
 
   const mappedOrders = (orders || []).map((o: any) => {
-    const items = o.order_items || [];
+    const items = itemsByOrderId[o.id] || [];
     const totalQty = items.reduce((sum: number, it: any) => sum + (Number(it.quantity) || 1), 0) || 1;
     const firstTitle = items[0]?.title || "Varios productos";
+
+    // Sprint 31/32.1: Resolver costo histórico: cost_snapshot_frozen_at ? unit_cost_snapshot : unit_cost
+    // Si un snapshot congelado es NULL, no inventar costo actual
+    const resolvedItems = items.map((it: any) => {
+      const historicalCost = it.cost_snapshot_frozen_at ? it.unit_cost_snapshot : it.unit_cost;
+      return {
+        ...it,
+        historical_cost: historicalCost,
+      };
+    });
+
+    const totalHistoricalCost = items.reduce((sum: number, it: any) => {
+      const itemCost = it.cost_snapshot_frozen_at ? it.unit_cost_snapshot : it.unit_cost;
+      return sum + ((Number(itemCost) || 0) * (Number(it.quantity) || 1));
+    }, 0);
+
     return {
       ...o,
+      order_items: resolvedItems,
       product_title: firstTitle,
-      total_quantity: totalQty
+      total_quantity: totalQty,
+      total_historical_cost: totalHistoricalCost,
     };
   });
 

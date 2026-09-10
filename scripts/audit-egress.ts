@@ -126,6 +126,54 @@ export function runEgressAudit(): EgressViolation[] {
             });
           }
         });
+
+        // Check 7: UI Contract Preservation (Sprint 32.1)
+        // Optimizing a query MUST NOT eliminate fields required by the UI contract
+        if (relPath === "src/app/dashboard/sales/page.tsx") {
+          if (!content.includes("product_title:") || !content.includes("total_quantity:")) {
+            violations.push({
+              file: relPath,
+              category: "UI_CONTRACT_VIOLATION",
+              line: 1,
+              message: `Sales page query optimization must maintain 'product_title' and 'total_quantity' contract for UI list view.`,
+            });
+          }
+          if (content.includes('.select("*,') || content.includes('.select("*")')) {
+            violations.push({
+              file: relPath,
+              category: "SALES_LIST_SELECT_STAR",
+              line: 1,
+              message: `Sales page must not reintroduce select("*") or full raw_data on orders.`,
+            });
+          }
+        }
+
+        if (relPath === "src/app/dashboard/internal-stock/actions.ts") {
+          if (
+            content.includes("inventory_items.description") ||
+            content.includes("description, unit_cost") ||
+            content.includes("supplier_id") ||
+            content.includes("location,")
+          ) {
+            violations.push({
+              file: relPath,
+              category: "SCHEMA_CONTRACT_VIOLATION",
+              line: 1,
+              message: `getInventoryItems() must not query non-existent columns (description, location, supplier_id).`,
+            });
+          }
+        }
+
+        if (relPath === "src/app/dashboard/products/page.tsx") {
+          if (!content.includes("shipping:") && !content.includes("shipping")) {
+            violations.push({
+              file: relPath,
+              category: "UI_CONTRACT_VIOLATION",
+              line: 1,
+              message: `Products page query must preserve shipping logistic_type for Fulfillment UI filtering.`,
+            });
+          }
+        }
       }
     }
   }

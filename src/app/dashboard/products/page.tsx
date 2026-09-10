@@ -57,7 +57,12 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
     query = query.or(`title.ilike.%${q}%,sku.ilike.%${q}%,meli_item_id.ilike.%${q}%,status.ilike.%${q}%`);
   }
 
-  const { data: rawProducts, count } = await query;
+  const { data: rawProducts, count, error } = await query;
+
+  if (error) {
+    console.error("[ProductsPage] Error fetching products query:", error);
+    throw new Error(`Error al cargar publicaciones de productos: ${error.message}`);
+  }
 
   const products = (rawProducts || []).map((p: any) => ({
     ...p,
