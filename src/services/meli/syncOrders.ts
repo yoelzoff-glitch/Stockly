@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrders } from "./getOrders";
 import { decrementInternalStockFromOrder } from "../inventory/decrementInternalStockFromOrder";
@@ -323,7 +324,7 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     const { data: existingOrderItems } = localOrderIds.length > 0
       ? await supabase
           .from("order_items")
-          .select("id, order_id, line_key, unit_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_version, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot, estimated_tax_snapshot")
+          .select("id, order_id, line_key, meli_item_id, sku, unit_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_version, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot, estimated_tax_snapshot")
           .eq("tenant_id", tenantId)
           .in("order_id", localOrderIds)
       : { data: [] };
@@ -332,6 +333,14 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     (existingOrderItems || []).forEach(item => {
       if (item.line_key) {
         existingItemsMap.set(`${item.order_id}_${item.line_key}`, item);
+      }
+      // Also index by order_id + meli_item_id + normalized sku to match historical items
+      const normSku = item.sku ? normalizeSku(item.sku) : "";
+      if (item.order_id && item.meli_item_id) {
+        existingItemsMap.set(`${item.order_id}_${item.meli_item_id}_${normSku}`, item);
+        if (!normSku) {
+          existingItemsMap.set(`${item.order_id}_${item.meli_item_id}`, item);
+        }
       }
     });
 
@@ -348,8 +357,13 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
         const variationId = item.item?.variation_id ? String(item.item.variation_id) : "0";
 
         // Deterministic line_key (Req 4)
-        const lineKey = `${meliItemId || 'item'}_${variationId}_${normItemSku || 'nosku'}_${itemIndex}`;
-        const existingItem = existingItemsMap.get(`${localOrderId}_${lineKey}`);
+        const deterministicLineKey = `${meliItemId || 'item'}_${variationId}_${normItemSku || 'nosku'}_${itemIndex}`;
+        const existingItem = existingItemsMap.get(`${localOrderId}_${deterministicLineKey}`)
+          || existingItemsMap.get(`${localOrderId}_${meliItemId}_${normItemSku}`)
+          || existingItemsMap.get(`${localOrderId}_${meliItemId}`);
+
+        // If existingItem already exists with an older line_key format, preserve it so ON CONFLICT matches the existing DB row
+        const lineKey = existingItem?.line_key || deterministicLineKey;
         const isOrderPaid = order.status === 'paid';
 
         let productInfo = meliItemId ? productMap[meliItemId] : undefined;
@@ -385,7 +399,8 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
           estTaxSnapshot = null;
         }
 
-        orderItemsToUpsert.push({
+        const itemToUpsert: any = {
+          id: existingItem?.id || randomUUID(),
           tenant_id: tenantId,
           order_id: localOrderId,
           product_id: localProductId,
@@ -406,7 +421,9 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
           extra_fee_amount_snapshot: extraFeeSnapshot,
           promotion_discount_amount_snapshot: promoDiscountSnapshot,
           estimated_tax_snapshot: estTaxSnapshot,
-        });
+        };
+
+        orderItemsToUpsert.push(itemToUpsert);
       });
     });
 
@@ -421,7 +438,17 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
           });
 
         if (itemsError) {
-          console.error("Error upserting order items:", itemsError);
+          console.error("Error upserting order items batch, retrying individually:", itemsError);
+          for (const singleItem of chunk) {
+            const { error: singleError } = await supabase
+              .from("order_items")
+              .upsert(singleItem, {
+                onConflict: "tenant_id, order_id, line_key",
+              });
+            if (singleError) {
+              console.error(`Error upserting single order item for order ${singleItem.order_id} (line_key: ${singleItem.line_key}):`, singleError.message);
+            }
+          }
         }
       }
 
