@@ -184,21 +184,32 @@ export function InternalStockClient({
     const skuMatch = item.sku_normalized.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSearch = nameMatch || skuMatch;
 
+    const totalStock = (item.total_stock !== undefined ? item.total_stock : item.current_stock) ?? 0;
+    const localStock = (item.local_stock !== undefined ? item.local_stock : item.current_stock) ?? 0;
+    const fullStock = item.full_stock ?? 0;
+
     if (stockFilter === "all") return matchesSearch;
-    if (stockFilter === "out") return matchesSearch && (item.current_stock || 0) === 0;
-    if (stockFilter === "low") return matchesSearch && item.minimum_stock && (item.current_stock || 0) < item.minimum_stock;
+    if (stockFilter === "out") return matchesSearch && totalStock <= 0;
+    if (stockFilter === "low") return matchesSearch && item.minimum_stock && totalStock < item.minimum_stock;
+    if (stockFilter === "has_full") return matchesSearch && fullStock > 0;
+    if (stockFilter === "out_local") return matchesSearch && localStock <= 0;
     return matchesSearch;
   });
 
   // Analytics
-  const totalAssetsValue = items.reduce((acc, item) => acc + ((item.average_cost || 0) * (item.current_stock || 0)), 0);
-  const outOfStockCount = items.filter(item => (item.current_stock || 0) === 0).length;
-  const lowStockCount = items.filter(item => item.minimum_stock && (item.current_stock || 0) < item.minimum_stock).length;
+  const totalAssetsValue = items.reduce((acc, item) => {
+    const stock = (item.total_stock !== undefined ? item.total_stock : item.current_stock) ?? 0;
+    return acc + ((item.average_cost || 0) * stock);
+  }, 0);
+  const totalLocalUnits = items.reduce((acc, item) => acc + ((item.local_stock !== undefined ? item.local_stock : item.current_stock) ?? 0), 0);
+  const totalFullUnitsInLocal = items.reduce((acc, item) => acc + (item.full_stock ?? 0), 0);
+  const outOfStockCount = items.filter(item => ((item.total_stock !== undefined ? item.total_stock : item.current_stock) ?? 0) <= 0).length;
+  const lowStockCount = items.filter(item => item.minimum_stock && ((item.total_stock !== undefined ? item.total_stock : item.current_stock) ?? 0) < item.minimum_stock).length;
 
   // Actions
   const handleOpenAdjust = (item: any) => {
     setAdjustingItem(item);
-    setAdjustStockVal((item.current_stock || 0).toString());
+    setAdjustStockVal(((item.local_stock !== undefined ? item.local_stock : item.current_stock) || 0).toString());
     setAdjustNotes("Ajuste manual de inventario");
   };
 
@@ -284,15 +295,24 @@ export function InternalStockClient({
   };
 
   const handleExportExcel = () => {
-    const dataToExport = items.map(item => ({
-      "SKU": item.sku_normalized,
-      "Nombre": item.name || "",
-      "Categoria": item.category || "",
-      "Stock Actual": item.current_stock,
-      "Stock Minimo": item.minimum_stock || 0,
-      "Costo Promedio": item.average_cost || 0,
-      "Valuacion": (item.current_stock || 0) * (item.average_cost || 0)
-    }));
+    const dataToExport = items.map(item => {
+      const totalStock = (item.total_stock !== undefined ? item.total_stock : item.current_stock) ?? 0;
+      const localStock = (item.local_stock !== undefined ? item.local_stock : item.current_stock) ?? 0;
+      const fullStock = item.full_stock ?? 0;
+      const avgCost = item.average_cost || 0;
+
+      return {
+        "SKU": item.sku_normalized,
+        "Nombre": item.name || "",
+        "Categoria": item.category || "",
+        "Stock Total": totalStock,
+        "Stock Local (Taller)": localStock,
+        "Stock Bodega FULL": fullStock,
+        "Stock Minimo": item.minimum_stock || 0,
+        "Costo Promedio": avgCost,
+        "Valuacion Total": totalStock * avgCost
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
@@ -338,30 +358,30 @@ export function InternalStockClient({
 
   const localMetrics: MetricItem[] = [
     {
-      label: "Valuación de Activos",
+      label: "Valuación Total Inventario",
       value: `$${totalAssetsValue.toLocaleString("es-AR")}`,
-      subtext: "Capital inmovilizado en depósito",
+      subtext: "Capital total en stock (Local + FULL)",
       icon: <Warehouse className="w-4 h-4" />
     },
     {
-      label: "Stock Agotado",
-      value: outOfStockCount.toString(),
-      subtext: "Componentes en quiebre total",
+      label: "Stock Depósito Local",
+      value: `${totalLocalUnits.toLocaleString("es-AR")} u.`,
+      subtext: "Físico disponible en taller",
+      icon: <Boxes className="w-4 h-4" />
+    },
+    {
+      label: "Stock en Bodega FULL",
+      value: `${totalFullUnitsInLocal.toLocaleString("es-AR")} u.`,
+      subtext: "Custodiado en Mercado Libre",
+      icon: <Package className="w-4 h-4" />,
+      highlight: totalFullUnitsInLocal > 0 ? "positive" : "neutral"
+    },
+    {
+      label: "Alertas de Stock",
+      value: (outOfStockCount + lowStockCount).toString(),
+      subtext: `${outOfStockCount} agotados • ${lowStockCount} bajo mínimo`,
       icon: <AlertTriangle className="w-4 h-4" />,
-      highlight: outOfStockCount > 0 ? "critical" : "neutral"
-    },
-    {
-      label: "Bajo Punto Reposición",
-      value: lowStockCount.toString(),
-      subtext: "Por debajo del stock mínimo",
-      icon: <ShieldAlert className="w-4 h-4" />,
-      highlight: lowStockCount > 0 ? "warning" : "neutral"
-    },
-    {
-      label: "Componentes Registrados",
-      value: items.length.toString(),
-      subtext: "SKUs únicos en depósito local",
-      icon: <Layers className="w-4 h-4" />
+      highlight: outOfStockCount > 0 ? "critical" : lowStockCount > 0 ? "warning" : "neutral"
     }
   ];
 
@@ -503,7 +523,9 @@ export function InternalStockClient({
                 className="h-8 rounded-md border border-[#DCDAD4] bg-white px-2.5 text-xs text-[#101828] font-medium shadow-none focus:outline-none focus:ring-1 focus:ring-[#102A56]"
               >
                 <option value="all">Todos los componentes</option>
-                <option value="out">Sin stock (Agotados)</option>
+                <option value="has_full">Con stock en Bodega FULL</option>
+                <option value="out_local">Sin stock físico en taller</option>
+                <option value="out">Sin stock total (Agotados)</option>
                 <option value="low">Bajo stock mínimo</option>
               </select>
             </div>
@@ -555,7 +577,7 @@ export function InternalStockClient({
               <tr>
                 <th className="px-4 py-3 font-semibold">SKU / Identificador</th>
                 <th className="px-3 py-3 font-semibold">Nombre del Componente</th>
-                <th className="px-3 py-3 font-semibold text-center">Stock Disponible</th>
+                <th className="px-3 py-3 font-semibold text-center">Stock Total</th>
                 <th className="px-3 py-3 font-semibold text-center">Punto Reposición</th>
                 <th className="px-3 py-3 font-semibold text-right">Costo Promedio</th>
                 <th className="px-3 py-3 font-semibold text-right">Valuación Total</th>
@@ -564,9 +586,12 @@ export function InternalStockClient({
             </thead>
             <tbody className="divide-y divide-[#E2E8F0]">
               {filteredItems.map((item) => {
-                const isOut = (item.current_stock || 0) === 0;
-                const isLow = item.minimum_stock && (item.current_stock || 0) < item.minimum_stock;
-                const valuation = (item.current_stock || 0) * (item.average_cost || 0);
+                const totalStock = (item.total_stock !== undefined ? item.total_stock : item.current_stock) ?? 0;
+                const localStock = (item.local_stock !== undefined ? item.local_stock : item.current_stock) ?? 0;
+                const fullStock = item.full_stock ?? 0;
+                const isOut = totalStock <= 0;
+                const isLow = item.minimum_stock && totalStock < item.minimum_stock;
+                const valuation = totalStock * (item.average_cost || 0);
 
                 return (
                   <tr key={item.id} className="hover:bg-[#F5F3EE]/30 transition-colors">
@@ -588,12 +613,23 @@ export function InternalStockClient({
                     </td>
 
                     <td className="px-3 py-3 text-center">
-                      <span
-                        className={`font-bold tabular-nums text-sm ${isOut ? 'text-[#D92D20]' : isLow ? 'text-[#B54708]' : 'text-[#101828]'}`}
-                        style={{ fontVariantNumeric: "tabular-nums" }}
-                      >
-                        {item.current_stock ?? 0}
-                      </span>
+                      <div className="flex flex-col items-center justify-center">
+                        <span
+                          className={`font-bold tabular-nums text-sm ${isOut ? 'text-[#D92D20]' : isLow ? 'text-[#B54708]' : 'text-[#101828]'}`}
+                          style={{ fontVariantNumeric: "tabular-nums" }}
+                        >
+                          {totalStock} u.
+                        </span>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-[11px] font-medium">
+                          <span className="text-[#5F6875]" title="Stock físico en taller / depósito propio">
+                            Local: <strong className={localStock <= 0 ? "text-[#D92D20]" : "text-[#101828]"}>{localStock}</strong>
+                          </span>
+                          <span className="text-[#DCDAD4]">•</span>
+                          <span className="text-[#5F6875]" title="Stock en Bodega FULL de Mercado Libre">
+                            FULL: <strong className={fullStock > 0 ? "text-[#027A48]" : "text-[#5F6875]"}>{fullStock}</strong>
+                          </span>
+                        </div>
+                      </div>
                     </td>
 
                     <td className="px-3 py-3 text-center text-[#5F6875] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
@@ -1002,16 +1038,16 @@ export function InternalStockClient({
         <DialogContent className="sm:max-w-md bg-white border border-[#DCDAD4] shadow-lg">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-[#101828]">
-              Ajuste físico de stock — {adjustingItem?.sku_normalized}
+              Ajuste físico de stock local — {adjustingItem?.sku_normalized}
             </DialogTitle>
             <DialogDescription className="text-xs text-[#5F6875]">
-              Modificá la cantidad física disponible en depósito. Se registrará un movimiento de auditoría.
+              Modificá la cantidad física en depósito local/taller. En Bodega FULL hay {adjustingItem?.full_stock ?? 0} u. en custodia de MeLi.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAdjustSubmit} className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label htmlFor="new_stock" className="text-xs font-semibold text-[#101828]">
-                Cantidad física actual
+                Cantidad física en taller / depósito propio
               </Label>
               <Input
                 id="new_stock"

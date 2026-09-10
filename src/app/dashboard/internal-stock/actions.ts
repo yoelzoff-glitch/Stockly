@@ -121,15 +121,91 @@ export async function getInventoryItems() {
     });
   }
 
+  // 3. Compute Bodega FULL stock per inventory component
+  const { data: fullProductsRaw } = await supabase
+    .from("products")
+    .select("id, sku, available_quantity, raw_data, status")
+    .eq("tenant_id", profile.tenant_id)
+    .neq("status", "deleted_from_meli");
+
+  const fullProducts = (fullProductsRaw || []).filter(p =>
+    p.raw_data?.shipping?.logistic_type === "fulfillment" ||
+    p.raw_data?.logistic_type === "fulfillment"
+  );
+
+  const fullPools = new Map<string, { id: string; sku: string; available_quantity: number }>();
+  for (const p of fullProducts) {
+    if (!p.sku) continue;
+    const normSku = normalizeSku(p.sku);
+    const existing = fullPools.get(normSku);
+    const qty = p.available_quantity || 0;
+    if (!existing) {
+      fullPools.set(normSku, { id: p.id, sku: normSku, available_quantity: qty });
+    } else {
+      existing.available_quantity = Math.max(existing.available_quantity, qty);
+    }
+  }
+
+  const poolProductIds = Array.from(fullPools.values()).map(p => p.id);
+  const poolComponentsMap = new Map<string, Array<{ component_normalized: string; inventory_item_id?: string; quantity: number }>>();
+  if (poolProductIds.length > 0) {
+    const { data: components } = await supabase
+      .from("product_components")
+      .select("product_id, component_normalized, inventory_item_id, quantity")
+      .in("product_id", poolProductIds);
+
+    (components || []).forEach(c => {
+      const list = poolComponentsMap.get(c.product_id) || [];
+      list.push(c);
+      poolComponentsMap.set(c.product_id, list);
+    });
+  }
+
+  const { parseCompositeSku } = await import("@/services/products/sku/parseCompositeSku");
+
+  const fullStockByCompId: Record<string, number> = {};
+  const fullStockByCompSku: Record<string, number> = {};
+
+  for (const pool of fullPools.values()) {
+    const linkedComps = poolComponentsMap.get(pool.id);
+    if (linkedComps && linkedComps.length > 0) {
+      for (const comp of linkedComps) {
+        const qtyUsed = pool.available_quantity * (comp.quantity || 1);
+        if (comp.inventory_item_id) {
+          fullStockByCompId[comp.inventory_item_id] = (fullStockByCompId[comp.inventory_item_id] || 0) + qtyUsed;
+        }
+        if (comp.component_normalized) {
+          const normKey = normalizeSku(comp.component_normalized);
+          fullStockByCompSku[normKey] = (fullStockByCompSku[normKey] || 0) + qtyUsed;
+        }
+      }
+    } else {
+      const parsed = parseCompositeSku(pool.sku);
+      for (const comp of parsed.components) {
+        const normComp = normalizeSku(comp);
+        const itemId = inventoryItemSkuMap.get(normComp);
+        if (itemId) {
+          fullStockByCompId[itemId] = (fullStockByCompId[itemId] || 0) + pool.available_quantity;
+        }
+        fullStockByCompSku[normComp] = (fullStockByCompSku[normComp] || 0) + pool.available_quantity;
+      }
+    }
+  }
+
   // Enhance items with calculations
   const enhancedItems = items.map(item => {
     const salesLast30 = salesPerComponent[item.id] || 0;
     const targetStock = Math.ceil(salesLast30 * 1.2); // 30 days + 20% safety
-    const currentStock = item.current_stock || 0;
-    const recommended_restock = Math.max(0, targetStock - currentStock);
+    const localStock = item.current_stock || 0;
+    const fullStock = fullStockByCompId[item.id] || (item.sku_normalized ? fullStockByCompSku[normalizeSku(item.sku_normalized)] : 0) || 0;
+    const totalStock = localStock + fullStock;
+    const recommended_restock = Math.max(0, targetStock - localStock);
     
     return {
       ...item,
+      local_stock: localStock,
+      full_stock: fullStock,
+      total_stock: totalStock,
       sales_last_30_days: salesLast30,
       recommended_restock: salesLast30 > 0 ? recommended_restock : 0
     };
