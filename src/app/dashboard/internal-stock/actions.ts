@@ -277,14 +277,22 @@ export async function getInventoryMovements(itemId: string) {
 
   const { data: movements, error } = await supabase
     .from("inventory_movements")
-    .select("id, inventory_item_id, tenant_id, movement_type, quantity_delta, previous_quantity, new_quantity, unit_cost, reference_type, reference_id, notes, created_by, created_at")
+    .select("id, inventory_item_id, tenant_id, movement_type, quantity_delta, previous_stock, new_stock, unit_cost, total_cost, source, reference_id, notes, created_by, created_at")
     .eq("inventory_item_id", itemId)
     .eq("tenant_id", profile.tenant_id)
     .order("created_at", { ascending: false })
     .limit(50);
 
-  if (error) throw new Error(`Fetch movements failed: ${error.message}`);
-  return movements || [];
+  if (error) {
+    console.error("[getInventoryMovements] Error fetching movements:", error);
+    throw new Error(`Fetch movements failed: ${error.message}`);
+  }
+
+  return (movements || []).map((m: any) => ({
+    ...m,
+    quantity_change: m.quantity_delta,
+    final_stock: m.new_stock,
+  }));
 }
 
 /**

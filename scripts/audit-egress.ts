@@ -162,6 +162,19 @@ export function runEgressAudit(): EgressViolation[] {
               message: `getInventoryItems() must not query non-existent columns (description, location, supplier_id).`,
             });
           }
+
+          if (
+            content.includes("previous_quantity") ||
+            content.includes("new_quantity") ||
+            content.includes("reference_type")
+          ) {
+            violations.push({
+              file: relPath,
+              category: "SCHEMA_CONTRACT_VIOLATION",
+              line: 1,
+              message: `getInventoryMovements() must not query non-existent columns (previous_quantity, new_quantity, reference_type).`,
+            });
+          }
         }
 
         if (relPath === "src/app/dashboard/products/page.tsx") {

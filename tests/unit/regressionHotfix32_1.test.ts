@@ -116,6 +116,22 @@ describe("Sprint 32.1 — P0 Regression Hotfix: Schema Validity, Production Equi
       "promotion_discount_amount_snapshot",
       "estimated_tax_snapshot",
     ]),
+    inventory_movements: new Set([
+      "id",
+      "tenant_id",
+      "inventory_item_id",
+      "movement_type",
+      "quantity_delta",
+      "previous_stock",
+      "new_stock",
+      "unit_cost",
+      "total_cost",
+      "source",
+      "reference_id",
+      "notes",
+      "created_by",
+      "created_at",
+    ]),
   };
 
   describe("1. Schema Column Validation", () => {
@@ -150,6 +166,20 @@ describe("Sprint 32.1 — P0 Regression Hotfix: Schema Validity, Production Equi
       const invalid = validateSelectColumns("inventory_items", fixedInventorySelect);
 
       assert.equal(invalid.length, 0, "No nonexistent columns should be selected");
+    });
+
+    test("fails if inventory_movements select references non-existent columns (e.g. previous_quantity, new_quantity, reference_type)", () => {
+      const badMovementsSelect = "id, inventory_item_id, tenant_id, movement_type, quantity_delta, previous_quantity, new_quantity, unit_cost, reference_type, reference_id, notes, created_by, created_at";
+      const invalid = validateSelectColumns("inventory_movements", badMovementsSelect);
+
+      assert.deepEqual(invalid, ["previous_quantity", "new_quantity", "reference_type"]);
+    });
+
+    test("passes with getInventoryMovements() real column selection and UI field mapping", () => {
+      const fixedMovementsSelect = "id, inventory_item_id, tenant_id, movement_type, quantity_delta, previous_stock, new_stock, unit_cost, total_cost, source, reference_id, notes, created_by, created_at";
+      const invalid = validateSelectColumns("inventory_movements", fixedMovementsSelect);
+
+      assert.equal(invalid.length, 0, "All selected inventory_movements columns must exist in DB");
     });
 
     test("orders explicit select in sales/page.tsx only selects existing columns", () => {
