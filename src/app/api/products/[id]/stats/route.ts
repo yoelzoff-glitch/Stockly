@@ -83,7 +83,7 @@ export async function GET(
     if (normSku) {
       let query = supabase
         .from("products")
-        .select("id, sku, meli_item_id, meli_account_id")
+        .select("id, sku, meli_item_id, meli_account_id, title, listing_type_id, status, price, permalink, thumbnail_url")
         .eq("tenant_id", tenantId)
         .not("sku", "is", null);
 

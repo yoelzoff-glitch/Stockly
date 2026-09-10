@@ -14,7 +14,7 @@ export async function generateSmartAlerts() {
       // Fetch products
       const { data: products } = await supabase
         .from("products")
-        .select("id, title, price, sold_quantity, available_quantity, margin_percent, last_sale, created_at")
+        .select("id, title, price, sold_quantity, available_quantity, margin_percent, created_at")
         .eq("tenant_id", tenantId)
         .eq("status", "active");
 
@@ -59,7 +59,7 @@ export async function generateSmartAlerts() {
 
         // Regla 4: Productos sin ventas en 15 días
         // Calculamos días desde el last_sale (si existe) o desde la creación de BD local
-        const refDate = product.last_sale ? new Date(product.last_sale) : new Date(product.created_at);
+        const refDate = (product as any).last_sale ? new Date((product as any).last_sale) : new Date(product.created_at);
         const daysWithoutSales = Math.floor((new Date().getTime() - refDate.getTime()) / (1000 * 60 * 60 * 24));
         if (daysWithoutSales >= 15 && product.available_quantity > 0) {
           alertsToCreate.push({
