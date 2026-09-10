@@ -83,112 +83,12 @@ export function generateRuleBasedExplanation(
 }
 
 /**
- * Enriquece la recomendación con OpenAI GPT-4o-Mini mediante Structured Outputs.
- * Si OpenAI no está configurado, falla o está activo el kill switch, retorna el fallback de reglas.
+ * Sprint 32: Reposición FULL 100% Determinística (Zero OpenAI Consumption).
+ * Retorna la explicación basada en reglas determinísticas a costo $0 sin llamadas a OpenAI.
  */
 export async function explainReplenishmentWithAI(
   rec: FullReplenishmentRecommendation
 ): Promise<ReplenishmentExplanation> {
-  // 1. Kill Switch y Check de API Key
-  if (
-    process.env.LIBRETAX_DISABLE_AI_WRITES === "true" ||
-    !process.env.OPENAI_API_KEY
-  ) {
-    return generateRuleBasedExplanation(rec);
-  }
-
-  // 2. Payload seguro (sin PII, sólo agregados analíticos)
-  const safePayload = {
-    productTitle: rec.title,
-    sku: rec.sku,
-    fullStock: rec.fullStock,
-    internalStock: rec.internalStock,
-    sales7d: rec.sales7d,
-    sales14d: rec.sales14d,
-    sales30d: rec.sales30d,
-    velocity7d: rec.velocity7,
-    velocity30d: rec.velocity30,
-    forecastVelocity: rec.forecastVelocity,
-    coverageDays: rec.coverageDays,
-    recommendedUnits: rec.recommendedUnits,
-    availableToSend: rec.availableToSend,
-    priority: rec.priority,
-    marginPercent: rec.marginPercent,
-    adsActive: rec.adsActive,
-    accountGrowthPercent: rec.accountTrendPercent,
-  };
-
-  try {
-    const prompt = `
-Sos el analista de reposición logística de LibretaX para Mercado Libre Bodegas FULL.
-Tu tarea es EXPLICAR de forma ejecutiva, breve y profesional una recomendación de stock FULL que YA fue calculada determinísticamente por el sistema.
-
-REGLAS CRÍTICAS:
-1. NO cambies la cantidad sugerida de unidades (${rec.recommendedUnits} u.). El cálculo matemático es la única fuente de verdad.
-2. NO inventes ventas, costos ni fechas.
-3. NO prometas ventas futuras ni uses lenguaje exagerado.
-4. Explica con claridad qué señales (aceleración/desaceleración, cobertura actual, stock interno) justifican la prioridad.
-5. Si el margen es bajo o alto, menciónalo como contexto comercial prudente.
-
-Datos del producto:
-${JSON.stringify(safePayload, null, 2)}
-`.trim();
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Sos el analista logístico de LibretaX. Responde en formato JSON estricto cumpliendo el schema.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "replenishment_explanation",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              priorityExplanation: { type: "string" },
-              trendSummary: { type: "string" },
-              riskSummary: { type: "string" },
-              recommendationExplanation: { type: "string" },
-            },
-            required: [
-              "priorityExplanation",
-              "trendSummary",
-              "riskSummary",
-              "recommendationExplanation",
-            ],
-            additionalProperties: false,
-          },
-        },
-      },
-      temperature: 0.2,
-      max_tokens: 350,
-    });
-
-    const rawContent = response.choices[0]?.message?.content;
-    if (!rawContent) {
-      return generateRuleBasedExplanation(rec);
-    }
-
-    const parsed = JSON.parse(rawContent);
-    const validated = ReplenishmentExplanationSchema.safeParse(parsed);
-
-    if (validated.success) {
-      return validated.data;
-    }
-
-    return generateRuleBasedExplanation(rec);
-  } catch (err) {
-    console.warn("OpenAI replenishment explanation fallback triggered:", err);
-    return generateRuleBasedExplanation(rec);
-  }
+  // Sprint 32: 100% deterministic rule-based explanation with 0 OpenAI calls ($0 consumption)
+  return generateRuleBasedExplanation(rec);
 }

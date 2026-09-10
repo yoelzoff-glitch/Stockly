@@ -47,6 +47,7 @@ function auditReleasePipeline() {
       "npm run audit:webhooks",
       "npm run audit:billing",
       "npm run audit:performance",
+      "npm run audit:egress",
       "npm run audit:release",
       "npm run test:rls:integration",
       "npm run test:webhooks:integration",

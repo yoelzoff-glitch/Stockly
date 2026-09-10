@@ -99,6 +99,9 @@ jobs:
       - name: 12. Database Performance & Index Audit
         run: npm run audit:performance
 
+      - name: 12.1 Zero-Waste Egress & Consumption Audit
+        run: npm run audit:egress
+
       - name: 13. Release Pipeline Governance Audit
         run: npm run audit:release
 

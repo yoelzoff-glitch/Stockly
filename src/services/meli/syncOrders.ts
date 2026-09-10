@@ -445,7 +445,14 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
       const localId = orderMap[meliId];
       if (!localId) continue;
 
+      const existing = existingMap.get(meliId);
+
       if (rawOrder.status !== "cancelled") {
+        // Sprint 32: Do not publish sale_created if order already existed in database (resync/webhook retry/cron)
+        if (existing) {
+          continue;
+        }
+
         const firstItem = rawOrder.order_items?.[0];
         const prodTitle = firstItem?.item?.title || "Producto";
         const prodQty = firstItem?.quantity || 1;
@@ -475,6 +482,11 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
           console.error(`Failed to publish sale_created notification for order ${meliId}:`, err);
         });
       } else {
+        // Sprint 32: Do not publish sale_cancelled if already known as cancelled
+        if (existing && existing.status === "cancelled") {
+          continue;
+        }
+
         const formattedAmount = `$${Math.round(Number(rawOrder.total_amount) || 0).toLocaleString("es-AR")}`;
         // Idempotent publication: guarantees cancelled sale notification delivery
         await publishImmutableEvent({

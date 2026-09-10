@@ -34,7 +34,7 @@ export async function getInventoryItems() {
 
   const { data: items, error } = await supabase
     .from("inventory_items")
-    .select("*")
+    .select("id, tenant_id, sku, sku_normalized, name, description, unit_cost, current_stock, minimum_stock, location, supplier_id, created_at, updated_at")
     .eq("tenant_id", profile.tenant_id)
     .order("sku_normalized", { ascending: true });
 
@@ -277,10 +277,11 @@ export async function getInventoryMovements(itemId: string) {
 
   const { data: movements, error } = await supabase
     .from("inventory_movements")
-    .select("*")
+    .select("id, inventory_item_id, tenant_id, movement_type, quantity_delta, previous_quantity, new_quantity, unit_cost, reference_type, reference_id, notes, created_by, created_at")
     .eq("inventory_item_id", itemId)
     .eq("tenant_id", profile.tenant_id)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(50);
 
   if (error) throw new Error(`Fetch movements failed: ${error.message}`);
   return movements || [];
@@ -562,16 +563,7 @@ export async function getFullStockData() {
   const totalFullUnits = groupedFullProducts.reduce((sum, g) => sum + g.physicalStockInFull, 0);
   const criticalFullCount = groupedFullProducts.filter(g => g.physicalStockInFull <= 5).length;
 
-  // 1. Build replenishment snapshots for the tenant
-  const snapshots = await buildReplenishmentSnapshots(profile.tenant_id, supabase);
-  const snapshotMap = new Map<string, any>();
-  snapshots.forEach(s => {
-    const key = s.sku ? normalizeSku(s.sku) : `no-sku-${s.productId}`;
-    snapshotMap.set(key, s);
-    if (s.productId) snapshotMap.set(s.productId, s);
-  });
-
-  // 2. Fetch any persisted recommendations to read stored ai_explanation
+  // 1. Fetch persisted recommendations first (Sprint 32: Do not query 60d orders on every render)
   const { data: dbRecs } = await supabase
     .from("full_replenishment_recommendations")
     .select("*")
@@ -583,30 +575,76 @@ export async function getFullStockData() {
     if (r.product_id) dbRecMap.set(r.product_id, r);
   });
 
-  // 3. Attach calculated recommendation to each groupedFullProduct
+  // 2. Only build live snapshots from 60 days of orders if no persisted recommendations exist
+  const snapshotMap = new Map<string, any>();
+  if (!dbRecs || dbRecs.length === 0) {
+    const snapshots = await buildReplenishmentSnapshots(profile.tenant_id, supabase);
+    snapshots.forEach(s => {
+      const key = s.sku ? normalizeSku(s.sku) : `no-sku-${s.productId}`;
+      snapshotMap.set(key, s);
+      if (s.productId) snapshotMap.set(s.productId, s);
+    });
+  }
+
+  // 3. Attach recommendation to each groupedFullProduct
   const recommendations: FullReplenishmentRecommendation[] = [];
 
   groupedFullProducts.forEach(group => {
     const rawSku = group.sku?.trim();
     const normSku = rawSku ? normalizeSku(rawSku) : `no-sku-${group.meli_item_id}`;
-    const snap = snapshotMap.get(normSku) || snapshotMap.get(group.id) || {
-      productId: group.id,
-      sku: group.sku,
-      title: group.title,
-      thumbnailUrl: group.thumbnail_url,
-      fullStock: group.physicalStockInFull || 0,
-      internalStock: null,
-      sales7d: 0,
-      sales14d: 0,
-      sales30d: 0,
-      sales60d: 0,
-    };
-
-    const rec = calculateReplenishment(snap);
     const existing = dbRecMap.get(normSku) || dbRecMap.get(group.id);
-    if (existing?.ai_explanation) {
-      rec.aiExplanation = existing.ai_explanation;
+    let rec: FullReplenishmentRecommendation;
+
+    if (existing) {
+      rec = {
+        productId: existing.product_id || group.id,
+        sku: existing.sku || group.sku,
+        title: existing.title || group.title,
+        thumbnailUrl: existing.thumbnail_url || group.thumbnail_url,
+        fullStock: existing.full_stock,
+        internalStock: existing.internal_stock,
+        sales7d: existing.sales_7d,
+        sales14d: existing.sales_14d,
+        sales30d: existing.sales_30d,
+        sales60d: existing.sales_60d,
+        velocity7: Number(existing.velocity_7d || 0),
+        velocity14: Number(existing.velocity_14d || 0),
+        velocity30: Number(existing.velocity_30d || 0),
+        weightedVelocity: Number(existing.weighted_velocity || 0),
+        forecastVelocity: Number(existing.forecast_velocity || 0),
+        coverageDays: existing.coverage_days !== null ? Number(existing.coverage_days) : null,
+        targetCoverageDays: existing.target_coverage_days || 21,
+        safetyDays: existing.safety_days || 5,
+        recommendedUnits: existing.recommended_units || 0,
+        availableToSend: existing.available_to_send,
+        priority: existing.priority,
+        confidence: existing.confidence,
+        trendPercent: existing.trend_percent !== null ? Number(existing.trend_percent) : null,
+        accountTrendPercent: existing.account_trend_percent !== null ? Number(existing.account_trend_percent) : null,
+        unitCost: existing.unit_cost !== null ? Number(existing.unit_cost) : null,
+        marginPercent: existing.margin_percent !== null ? Number(existing.margin_percent) : null,
+        capitalRequired: existing.capital_required !== null ? Number(existing.capital_required) : null,
+        adsActive: !!existing.ads_active,
+        aiExplanation: existing.ai_explanation || null,
+        calculatedAt: existing.calculated_at || new Date().toISOString(),
+      };
+      if (!rec.aiExplanation) {
+        rec.aiExplanation = generateRuleBasedExplanation(rec);
+      }
     } else {
+      const snap = snapshotMap.get(normSku) || snapshotMap.get(group.id) || {
+        productId: group.id,
+        sku: group.sku,
+        title: group.title,
+        thumbnailUrl: group.thumbnail_url,
+        fullStock: group.physicalStockInFull || 0,
+        internalStock: null,
+        sales7d: 0,
+        sales14d: 0,
+        sales30d: 0,
+        sales60d: 0,
+      };
+      rec = calculateReplenishment(snap);
       rec.aiExplanation = generateRuleBasedExplanation(rec);
     }
 

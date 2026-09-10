@@ -38,12 +38,12 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       );
     }
 
-    // Fetch histories in parallel strictly scoped to tenant
+    // Fetch histories in parallel strictly scoped to tenant with explicit columns
     const [priceHistory, stockHistory, aiActions, recentOrders] = await Promise.all([
-      supabase.from("product_price_history").select("*").eq("product_id", productId.trim()).order("created_at", { ascending: false }).limit(20),
-      supabase.from("stock_movements").select("*").eq("product_id", productId.trim()).order("created_at", { ascending: false }).limit(20),
-      supabase.from("ai_actions").select("*").eq("tenant_id", tenantId).eq("status", "pending").order("created_at", { ascending: false }).limit(20),
-      supabase.from("order_items").select("*, orders(date_created)").eq("tenant_id", tenantId).eq("item_id", productId.trim()).order("created_at", { ascending: false }).limit(20)
+      supabase.from("product_price_history").select("id, product_id, old_price, new_price, source, created_at").eq("product_id", productId.trim()).order("created_at", { ascending: false }).limit(20),
+      supabase.from("stock_movements").select("id, product_id, movement_type, quantity_delta, previous_quantity, new_quantity, created_at").eq("product_id", productId.trim()).order("created_at", { ascending: false }).limit(20),
+      supabase.from("ai_actions").select("id, action_type, status, created_at, payload_product_id:payload->>product_id, payload_sku:payload->>sku, risk_level:payload->>risk_score").eq("tenant_id", tenantId).eq("status", "pending").order("created_at", { ascending: false }).limit(20),
+      supabase.from("order_items").select("id, quantity, unit_price, created_at, orders(date_created)").eq("tenant_id", tenantId).eq("item_id", productId.trim()).order("created_at", { ascending: false }).limit(20)
     ]);
 
     // Normalize into a single timeline
@@ -61,39 +61,37 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       });
     });
 
-    // 2. Stock Changes
+    // 2. Stock Movements
     stockHistory.data?.forEach(s => {
       timeline.push({
         id: s.id,
         type: "stock",
         date: s.created_at,
-        old_value: s.old_quantity,
+        old_value: s.previous_quantity,
         new_value: s.new_quantity,
-        difference: s.quantity_change,
-        source: s.source || "sync"
+        difference: s.quantity_delta,
+        source: s.movement_type || "sync"
       });
     });
 
     // 3. AI Actions
     aiActions.data?.forEach(a => {
-      try {
-        const payload = typeof a.payload === 'string' ? JSON.parse(a.payload) : a.payload;
-        if (payload?.product_id === productId.trim() || payload?.sku) {
-          timeline.push({
-            id: a.id,
-            type: "ai",
-            date: a.created_at,
-            action: a.action_type,
-            status: a.status,
-            risk: a.risk_level || "low"
-          });
-        }
-      } catch {}
+      const anyA = a as any;
+      if (anyA.payload_product_id === productId.trim() || anyA.payload_sku) {
+        timeline.push({
+          id: a.id,
+          type: "ai",
+          date: a.created_at,
+          action: a.action_type,
+          status: a.status,
+          risk: anyA.risk_level || "low"
+        });
+      }
     });
 
     // 4. Sales
     recentOrders.data?.forEach(o => {
-      const orderDate = o.orders?.date_created || o.created_at;
+      const orderDate = (o.orders as any)?.date_created || o.created_at;
       timeline.push({
         id: o.id,
         type: "sale",

@@ -285,6 +285,9 @@ CREATE TABLE IF NOT EXISTS public.ai_actions (
   CONSTRAINT ai_actions_confirmed_by_fkey FOREIGN KEY (confirmed_by) REFERENCES public.profiles(id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_ai_actions_tenant_created_id ON public.ai_actions (tenant_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_actions_tenant_status_created ON public.ai_actions (tenant_id, status, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS public.product_price_history (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL,

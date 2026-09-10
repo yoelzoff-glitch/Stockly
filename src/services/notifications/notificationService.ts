@@ -123,35 +123,75 @@ export async function publishImmutableEvent(
   const sanitizedUrl = sanitizeActionUrl(params.actionUrl);
 
   try {
-    const { error } = await supabase.from("alerts").insert({
-      tenant_id: params.tenantId,
-      type: params.type,
-      category: "activity",
-      severity: params.severity || "info",
-      source,
-      title: params.title,
-      body: params.body,
-      action_url: sanitizedUrl,
-      action_label: params.actionLabel || null,
-      entity_type: params.entityType || null,
-      entity_id: params.entityId || null,
-      dedupe_key: params.dedupeKey,
-      status: "open",
-      is_read: false,
-      metadata: params.metadata || {},
-    });
+    const alertsTable = supabase.from("alerts") as any;
+    let isDuplicate = false;
 
-    if (error) {
-      // 23505 is PostgreSQL unique_violation error code for dedupe_key
-      if (error.code === "23505" || error.message?.includes("duplicate key")) {
-        logger.info({
-          event: "NOTIFICATION_DUPLICATE_EVENT_IGNORED",
-          tenantId: params.tenantId,
-          dedupeKey: params.dedupeKey,
-        });
-        return { success: false, skippedReason: "duplicate" };
+    if (typeof alertsTable.upsert === "function") {
+      const { data, error } = await alertsTable.upsert({
+        tenant_id: params.tenantId,
+        type: params.type,
+        category: "activity",
+        severity: params.severity || "info",
+        source,
+        title: params.title,
+        body: params.body,
+        action_url: sanitizedUrl,
+        action_label: params.actionLabel || null,
+        entity_type: params.entityType || null,
+        entity_id: params.entityId || null,
+        dedupe_key: params.dedupeKey,
+        status: "open",
+        is_read: false,
+        metadata: params.metadata || {},
+      }, {
+        onConflict: "tenant_id,dedupe_key",
+        ignoreDuplicates: true,
+      }).select("id");
+
+      if (error) {
+        if (error.code === "23505" || error.message?.includes("duplicate key")) {
+          isDuplicate = true;
+        } else {
+          throw error;
+        }
+      } else if (!data || data.length === 0) {
+        isDuplicate = true;
       }
-      throw error;
+    } else {
+      const { error } = await alertsTable.insert({
+        tenant_id: params.tenantId,
+        type: params.type,
+        category: "activity",
+        severity: params.severity || "info",
+        source,
+        title: params.title,
+        body: params.body,
+        action_url: sanitizedUrl,
+        action_label: params.actionLabel || null,
+        entity_type: params.entityType || null,
+        entity_id: params.entityId || null,
+        dedupe_key: params.dedupeKey,
+        status: "open",
+        is_read: false,
+        metadata: params.metadata || {},
+      });
+
+      if (error) {
+        if (error.code === "23505" || error.message?.includes("duplicate key")) {
+          isDuplicate = true;
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    if (isDuplicate) {
+      logger.info({
+        event: "NOTIFICATION_DUPLICATE_EVENT_IGNORED",
+        tenantId: params.tenantId,
+        dedupeKey: params.dedupeKey,
+      });
+      return { success: false, skippedReason: "duplicate" };
     }
 
     return { success: true };

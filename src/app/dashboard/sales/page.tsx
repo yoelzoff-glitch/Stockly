@@ -56,7 +56,7 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
 
   let query = supabase
     .from("orders")
-    .select("*", { count: "exact" })
+    .select("id, meli_order_id, status, buyer_nickname, total_amount, paid_amount, currency_id, date_created, date_closed, meli_shipment_id, packaging_cost_snapshot, flex_cost_snapshot, cost_snapshot_status, order_items(title, quantity)", { count: "exact" })
     .eq("tenant_id", profile.tenant_id)
     .gte("date_created", dateFrom.toISOString())
     .lte("date_created", dateTo.toISOString())
@@ -82,10 +82,10 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
     console.error("Error fetching orders:", error);
   }
 
-  // Also fetch ALL orders for the period for the KPIs to be accurate across pages
+  // Sprint 32: Fetch KPI period aggregates with minimal lightweight columns (no raw_data JSONB)
   const { data: rawPeriodOrders } = await supabase
     .from("orders")
-    .select("total_amount, date_created, status, raw_data, meli_order_id")
+    .select("total_amount, date_created, status, meli_order_id")
     .eq("tenant_id", profile.tenant_id)
     .gte("date_created", dateFrom.toISOString())
     .lte("date_created", dateTo.toISOString());
@@ -95,16 +95,16 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
     date_created: o.date_created,
     status: o.status,
     meli_order_id: o.meli_order_id,
-    product_title: (o.raw_data as any)?.order_items?.[0]?.item?.title || "Varios / Otros"
   }));
 
-  const mappedOrders = (orders || []).map(o => {
-    const raw = o.raw_data as any;
-    const rawQty = raw?.order_items?.reduce((sum: number, item: any) => sum + (Number(item.quantity) || 1), 0) || 1;
+  const mappedOrders = (orders || []).map((o: any) => {
+    const items = o.order_items || [];
+    const totalQty = items.reduce((sum: number, it: any) => sum + (Number(it.quantity) || 1), 0) || 1;
+    const firstTitle = items[0]?.title || "Varios productos";
     return {
       ...o,
-      product_title: raw?.order_items?.[0]?.item?.title || "Varios productos",
-      total_quantity: rawQty
+      product_title: firstTitle,
+      total_quantity: totalQty
     };
   });
 

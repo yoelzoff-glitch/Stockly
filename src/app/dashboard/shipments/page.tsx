@@ -71,10 +71,10 @@ export default async function ShipmentsPage(props: { searchParams: Promise<{ per
     console.error("Failed to run on-demand shipment sync on page load:", err);
   }
 
-  // Fetch shipments within date range
+  // Fetch shipments within date range with explicit lightweight columns (omitting heavy raw_data JSONB)
   const { data: shipments } = await supabase
     .from("shipments")
-    .select("*, orders(meli_order_id, buyer_nickname)")
+    .select("id, date_created, status, substatus, logistic_type, tracking_number, shipping_cost, orders(meli_order_id, buyer_nickname)")
     .eq("tenant_id", tenantId)
     .gte("date_created", dateFrom.toISOString())
     .lte("date_created", dateTo.toISOString())
@@ -174,6 +174,7 @@ export default async function ShipmentsPage(props: { searchParams: Promise<{ per
               const isDelivered = s.status?.toLowerCase() === 'delivered';
               const isShipped = s.status?.toLowerCase() === 'shipped';
               const isDelayed = s.substatus?.toLowerCase() === 'delayed' || s.substatus?.toLowerCase()?.includes('delayed');
+              const orderObj = (Array.isArray(s.orders) ? s.orders[0] : s.orders) as any;
 
               return (
                 <tr key={s.id} className="hover:bg-[#F5F3EE]/30 transition-colors">
@@ -181,10 +182,10 @@ export default async function ShipmentsPage(props: { searchParams: Promise<{ per
                     {new Date(s.date_created).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
                   </td>
                   <td className="px-4 py-3 font-semibold text-[#101828] font-mono">
-                    #{s.orders?.meli_order_id || '—'}
+                    #{orderObj?.meli_order_id || '—'}
                   </td>
-                  <td className="px-4 py-3 text-[#101828] font-medium truncate max-w-[150px]" title={s.orders?.buyer_nickname || "—"}>
-                    {s.orders?.buyer_nickname || '—'}
+                  <td className="px-4 py-3 text-[#101828] font-medium truncate max-w-[150px]" title={orderObj?.buyer_nickname || "—"}>
+                    {orderObj?.buyer_nickname || '—'}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge variant={isDelivered ? 'success' : isShipped ? 'info' : 'neutral'}>
