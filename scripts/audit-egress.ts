@@ -8,14 +8,22 @@ interface EgressViolation {
   message: string;
 }
 
+interface EgressWarning {
+  file: string;
+  category: string;
+  line: number;
+  message: string;
+}
+
 export function runEgressAudit(): EgressViolation[] {
   console.log("=================================================");
-  console.log("LIBRETAX SPRINT 32: ZERO-WASTE EGRESS AUDIT");
+  console.log("LIBRETAX SPRINT 38A: EGRESS AUDIT V2");
   console.log("=================================================");
 
   const rootDir = path.resolve(__dirname, "..");
   const srcDir = path.join(rootDir, "src");
   const violations: EgressViolation[] = [];
+  const warnings: EgressWarning[] = [];
 
   // Allowlist of single-item / detail / isolated paths where select("*") or single row detail is legitimate
   const allowlist: Record<string, string[]> = {
@@ -28,6 +36,25 @@ export function runEgressAudit(): EgressViolation[] {
     "src/services/ai/actions/confirm.ts": ["confirm_single_action"],
   };
 
+  // Heavy JSONB columns that should not be queried in recurrent jobs or sync routines without projection
+  const heavyJsonbColumns = [
+    "campaign_data",
+    "promotion_data",
+    "profit_raw_data",
+    "event_data",
+    "payload",
+    "result",
+  ];
+
+  // Heavy collection tables where select("*") transfers excessive egress
+  const heavyCollectionTables = [
+    "orders",
+    "products",
+    "ai_actions",
+    "webhook_events",
+    "shipments",
+  ];
+
   function scanDirectory(dir: string) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
@@ -38,6 +65,22 @@ export function runEgressAudit(): EgressViolation[] {
         const content = fs.readFileSync(fullPath, "utf-8");
         const relPath = path.relative(rootDir, fullPath).replace(/\\/g, "/");
         const lines = content.split("\n");
+
+        const isRecurrentJobOrSync =
+          relPath.startsWith("src/jobs/") ||
+          (relPath.startsWith("src/services/meli/") && relPath.includes("sync"));
+
+        const isPageFile = relPath.startsWith("src/app/") && relPath.endsWith("page.tsx");
+
+        // Helper to extract the table name preceding a .select() call
+        const getTableForSelect = (selectIdx: number): string | null => {
+          const sliceBefore = content.slice(Math.max(0, selectIdx - 250), selectIdx);
+          const matches = [...sliceBefore.matchAll(/\.from\(\s*["']([^"']+)["']\s*\)/g)];
+          if (matches.length > 0) {
+            return matches[matches.length - 1][1];
+          }
+          return null;
+        };
 
         lines.forEach((lineText, idx) => {
           const lineNum = idx + 1;
@@ -125,10 +168,176 @@ export function runEgressAudit(): EgressViolation[] {
               message: `Aggressive polling intervals detected (${lineText.trim()}). Prefer reactive invalidation or user-triggered refreshes.`,
             });
           }
+
+          // Check 7: Heavy JSONB in recurrent jobs or sync routines
+          if (isRecurrentJobOrSync && lineText.includes(".select(")) {
+            for (const heavyCol of heavyJsonbColumns) {
+              // In syncProducts, campaign_data and promotion_data are explicitly preserved by contract
+              if (
+                relPath === "src/services/meli/syncProducts.ts" &&
+                (heavyCol === "campaign_data" || heavyCol === "promotion_data")
+              ) {
+                continue;
+              }
+
+              if (
+                lineText.includes(`"${heavyCol}"`) ||
+                lineText.includes(`'${heavyCol}'`) ||
+                lineText.includes(`${heavyCol},`) ||
+                lineText.includes(`, ${heavyCol}`)
+              ) {
+                violations.push({
+                  file: relPath,
+                  category: "HEAVY_JSONB_IN_RECURRENT_JOB",
+                  line: lineNum,
+                  message: `Recurrent job / sync routine queries heavy JSONB column '${heavyCol}'. Use PostgREST JSON path projection or fetch on demand.`,
+                });
+              }
+            }
+
+            // Flag unprojected raw_data in recurrent sync products
+            if (
+              relPath === "src/services/meli/syncProducts.ts" &&
+              (lineText.includes('"raw_data"') || lineText.includes(", raw_data,")) &&
+              !lineText.includes("raw_data->")
+            ) {
+              violations.push({
+                file: relPath,
+                category: "HEAVY_JSONB_IN_RECURRENT_JOB",
+                line: lineNum,
+                message: `syncProducts must not query unprojected raw_data. Use JSON path projections (e.g. fees:raw_data->fees).`,
+              });
+            }
+          }
+
+          // Check 8: select("*") in collections
+          if (
+            (lineText.includes('.select("*")') || lineText.includes(".select('*')") || lineText.includes('.select("*,') || lineText.includes(".select('*,") || lineText.includes(".select(`*`")) &&
+            !lineText.includes(".single()") &&
+            !lineText.includes(".maybeSingle()") &&
+            !allowlist[relPath]
+          ) {
+            const lineIdxInContent = content.indexOf(lineText);
+            const table = getTableForSelect(lineIdxInContent);
+            if (table && heavyCollectionTables.includes(table)) {
+              const surrounding = content.slice(lineIdxInContent, lineIdxInContent + lineText.length + 150);
+              if (!surrounding.includes(".single()") && !surrounding.includes(".maybeSingle()") && !surrounding.includes(".limit(1)")) {
+                violations.push({
+                  file: relPath,
+                  category: "COLLECTION_SELECT_STAR",
+                  line: lineNum,
+                  message: `Table collection '${table}' must NOT use select("*"). Select explicit columns to prevent egress bloat.`,
+                });
+              }
+            }
+          }
+
+          // Check 9: Large collection query without bounds
+          if (lineText.includes(".select(") && !allowlist[relPath]) {
+            const lineIdxInContent = content.indexOf(lineText);
+            const table = getTableForSelect(lineIdxInContent);
+            if (table && ["orders", "products", "webhook_events"].includes(table)) {
+              // Check if this query is a mutation returning data (update/upsert/insert)
+              const sliceBefore = content.slice(Math.max(0, lineIdxInContent - 200), lineIdxInContent);
+              const isMutationReturning =
+                sliceBefore.includes(".update(") ||
+                sliceBefore.includes(".upsert(") ||
+                sliceBefore.includes(".insert(");
+
+              if (!isMutationReturning) {
+                // Search around the query (before and after in the chain) for bounds
+                const contextSlice = content.slice(
+                  Math.max(0, lineIdxInContent - 200),
+                  Math.min(content.length, lineIdxInContent + 800)
+                );
+                const hasBounds =
+                  contextSlice.includes(".eq(") ||
+                  contextSlice.includes(".in(") ||
+                  contextSlice.includes(".gte(") ||
+                  contextSlice.includes(".lte(") ||
+                  contextSlice.includes(".limit(") ||
+                  contextSlice.includes(".range(") ||
+                  contextSlice.includes(".single()") ||
+                  contextSlice.includes(".maybeSingle()");
+
+                if (!hasBounds) {
+                  violations.push({
+                    file: relPath,
+                    category: "LARGE_COLLECTION_WITHOUT_BOUNDS",
+                    line: lineNum,
+                    message: `Collection query on '${table}' without filter, bounds, or limit detected.`,
+                  });
+                }
+              }
+            }
+          }
+
+          // Check 10: WARNING - Sync triggered from page render
+          if (isPageFile) {
+            if (
+              lineText.includes("syncShipments(") ||
+              lineText.includes("syncProducts(") ||
+              lineText.includes("syncOrders(") ||
+              lineText.includes("syncCancellations(")
+            ) {
+              warnings.push({
+                file: relPath,
+                category: "PAGE_RENDER_SYNC_TRIGGERED",
+                line: lineNum,
+                message: `Page render triggers background sync (${lineText.trim()}). Ensure this is guarded by feature flags or moved to background workers.`,
+              });
+            }
+          }
+
+          // Check 11: WARNING - Full sync triggered from specific webhook
+          if (
+            relPath.includes("webhook") ||
+            relPath === "src/jobs/syncProductsJob.ts"
+          ) {
+            if (
+              lineText.includes('"meli/items.updated"') ||
+              lineText.includes("'meli/items.updated'")
+            ) {
+              warnings.push({
+                file: relPath,
+                category: "WEBHOOK_FULL_SYNC_TRIGGERED",
+                line: lineNum,
+                message: `Webhook 'meli/items.updated' currently triggers full catalog sync. Targeted for granular resolution in Sprint 38B.`,
+              });
+            }
+          }
         });
 
-        // Check 7: UI Contract Preservation (Sprint 32.1)
-        // Optimizing a query MUST NOT eliminate fields required by the UI contract
+        // Check 12: Idempotency Fast-Path: raw_data before idempotency flag
+        if (relPath === "src/services/inventory/decrementInternalStockFromOrder.ts") {
+          const firstOrdersQuery = content.indexOf(".from(\"orders\")");
+          const firstSelectMatch = content.indexOf(".select(", firstOrdersQuery);
+          const firstSelectSlice = content.slice(firstSelectMatch, firstSelectMatch + 150);
+          if (firstSelectSlice.includes("raw_data") || firstSelectSlice.includes("order_items")) {
+            violations.push({
+              file: relPath,
+              category: "RAW_DATA_BEFORE_IDEMPOTENCY_FLAG",
+              line: 1,
+              message: `decrementInternalStockFromOrder must check 'internal_stock_processed' before downloading raw_data or order_items.`,
+            });
+          }
+        }
+
+        if (relPath === "src/services/meli/syncCancellations.ts") {
+          const firstOrdersQuery = content.indexOf(".from(\"orders\")");
+          const firstSelectMatch = content.indexOf(".select(", firstOrdersQuery);
+          const firstSelectSlice = content.slice(firstSelectMatch, firstSelectMatch + 150);
+          if (firstSelectSlice.includes("raw_data")) {
+            violations.push({
+              file: relPath,
+              category: "RAW_DATA_BEFORE_IDEMPOTENCY_FLAG",
+              line: 1,
+              message: `syncCancellations must query order IDs first, filter out existing cancellations, and only query raw_data for pending cancellations.`,
+            });
+          }
+        }
+
+        // Check 13: UI Contract Preservation
         if (relPath === "src/app/dashboard/sales/page.tsx") {
           if (!content.includes("product_title:") || !content.includes("total_quantity:")) {
             violations.push({
@@ -193,6 +402,14 @@ export function runEgressAudit(): EgressViolation[] {
 
   scanDirectory(srcDir);
 
+  if (warnings.length > 0) {
+    console.log(`⚠️  Egress Warnings (${warnings.length}):`);
+    for (const w of warnings) {
+      console.warn(`  [${w.category}] ${w.file}:${w.line}: ${w.message}`);
+    }
+    console.log();
+  }
+
   console.log(`Total Egress Violations Detected: ${violations.length}\n`);
 
   if (violations.length > 0) {
@@ -203,7 +420,7 @@ export function runEgressAudit(): EgressViolation[] {
     return violations;
   }
 
-  console.log("✅ All queries and hot paths adhere to Sprint 32 zero-waste egress standards.\n");
+  console.log("✅ All queries and hot paths adhere to Sprint 38A zero-waste egress standards.\n");
   return [];
 }
 

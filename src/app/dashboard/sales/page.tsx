@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import SalesClientPage from "./client-page";
 import { getPeriodRangeInTimezone } from "@/lib/dates";
+import { logEgressSample } from "@/lib/observability/egress";
 
 export default async function SalesPage(props: { searchParams: Promise<{ q?: string, page?: string, status?: string, days?: string, from?: string, to?: string }> }) {
   const searchParams = await props.searchParams;
@@ -77,6 +78,13 @@ export default async function SalesPage(props: { searchParams: Promise<{ q?: str
   }
 
   const { data: orders, count, error } = await query;
+
+  logEgressSample({
+    tenantId: profile.tenant_id,
+    operation: "dashboard.orders",
+    table: "orders",
+    data: orders,
+  });
 
   if (error) {
     console.error("[SalesPage] Error fetching orders:", error);

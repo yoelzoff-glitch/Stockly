@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { ProductsClient } from "./client-page";
+import { logEgressSample } from "@/lib/observability/egress";
 
 export default async function ProductsPage(props: { searchParams: Promise<{ q?: string, page?: string }> }) {
   const searchParams = await props.searchParams;
@@ -58,6 +59,13 @@ export default async function ProductsPage(props: { searchParams: Promise<{ q?: 
   }
 
   const { data: rawProducts, count, error } = await query;
+
+  logEgressSample({
+    tenantId,
+    operation: "dashboard.products",
+    table: "products",
+    data: rawProducts,
+  });
 
   if (error) {
     console.error("[ProductsPage] Error fetching products query:", error);

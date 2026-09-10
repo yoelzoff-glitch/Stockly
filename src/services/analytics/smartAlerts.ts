@@ -14,7 +14,7 @@ export async function generateSmartAlerts() {
       // Fetch products
       const { data: products } = await supabase
         .from("products")
-        .select("*")
+        .select("id, title, price, sold_quantity, available_quantity, margin_percent, last_sale, created_at")
         .eq("tenant_id", tenantId)
         .eq("status", "active");
 

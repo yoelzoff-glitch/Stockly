@@ -1,17 +1,24 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { refreshMeliToken } from "./refreshToken";
 import { revertInternalStockFromCancelledOrder } from "../inventory/revertInternalStockFromCancelledOrder";
+import { logEgressSample } from "@/lib/observability/egress";
 
 export async function syncCancellations(tenantId: string) {
   const supabase = createAdminClient();
 
-  // 1. Get cancelled orders that don't have a cancellation record yet
-  // We can join with order_cancellations or just fetch all cancelled and check
+  // 1. Stage 1: Get lightweight cancelled orders without heavy raw_data
   const { data: cancelledOrders, error: ordersError } = await supabase
     .from("orders")
-    .select("id, meli_order_id, raw_data, tenant_id")
+    .select("id, meli_order_id")
     .eq("tenant_id", tenantId)
     .eq("status", "cancelled");
+
+  logEgressSample({
+    tenantId,
+    operation: "syncCancellations.cancelledOrders",
+    table: "orders",
+    data: cancelledOrders,
+  });
 
   if (ordersError || !cancelledOrders || cancelledOrders.length === 0) {
     return 0;
@@ -25,13 +32,27 @@ export async function syncCancellations(tenantId: string) {
     .in("order_id", orderIds);
 
   const existingOrderIds = new Set((existingCancellations || []).map(c => c.order_id));
+  const pendingCancellationOrderIds = cancelledOrders
+    .filter(o => !existingOrderIds.has(o.id))
+    .map(o => o.id);
+
+  if (pendingCancellationOrderIds.length === 0) {
+    return 0; // All cancellations already processed
+  }
+
+  // Stage 2: Only fetch full raw_data for orders with pending cancellations
+  const { data: pendingOrders, error: pendingError } = await supabase
+    .from("orders")
+    .select("id, meli_order_id, raw_data, tenant_id")
+    .in("id", pendingCancellationOrderIds);
+
+  if (pendingError || !pendingOrders || pendingOrders.length === 0) {
+    return 0;
+  }
 
   const cancellationsToUpsert: any[] = [];
 
-  for (const order of cancelledOrders) {
-    if (existingOrderIds.has(order.id)) {
-      continue; // Already processed
-    }
+  for (const order of pendingOrders) {
 
     const raw = order.raw_data as any;
     // Meli orders usually have cancel_detail or similar info

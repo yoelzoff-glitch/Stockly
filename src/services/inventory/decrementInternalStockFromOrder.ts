@@ -7,7 +7,25 @@ import { logger } from "@/lib/errors/logger";
 export async function decrementInternalStockFromOrder(tenantId: string, orderId: string) {
   const supabase = createAdminClient();
 
-  // Obtener la orden y sus items
+  // Sprint 38A: Internal stock fast-path (Stage 1 check)
+  // Avoid fetching heavy raw_data and order_items if order has already been processed
+  const { data: statusCheck, error: statusError } = await supabase
+    .from("orders")
+    .select("id, internal_stock_processed")
+    .eq("tenant_id", tenantId)
+    .eq("id", orderId)
+    .single();
+
+  if (statusError || !statusCheck) {
+    logger.error(`No se encontró la orden ${orderId}`, "INVENTORY_SYNC");
+    return { success: false, error: "Order not found" };
+  }
+
+  if (statusCheck.internal_stock_processed) {
+    return { success: true, message: "Internal stock already processed for this order" };
+  }
+
+  // Stage 2: Only fetch full order details, raw_data, and order_items when pending processing
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .select(`

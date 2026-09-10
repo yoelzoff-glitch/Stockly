@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getShipment } from "./getShipment";
+import { logEgressSample } from "@/lib/observability/egress";
 
 export async function syncShipments(tenantId: string, specificShipmentId?: string) {
   const supabase = createAdminClient();
@@ -22,6 +23,13 @@ export async function syncShipments(tenantId: string, specificShipmentId?: strin
 
   const { data: orders, error: ordersError } = await query;
 
+  logEgressSample({
+    tenantId,
+    operation: "syncShipments.orders",
+    table: "orders",
+    data: orders,
+  });
+
   if (ordersError || !orders || orders.length === 0) {
     return 0;
   }
@@ -35,6 +43,13 @@ export async function syncShipments(tenantId: string, specificShipmentId?: strin
       .select("order_id")
       .in("order_id", orderIds)
       .in("status", ["delivered", "cancelled", "returned"]);
+
+    logEgressSample({
+      tenantId,
+      operation: "syncShipments.completedShipments",
+      table: "shipments",
+      data: completedShipments,
+    });
 
     const completedOrderIds = new Set(completedShipments?.map(s => s.order_id) || []);
     ordersToSync = orders.filter(o => !completedOrderIds.has(o.id));

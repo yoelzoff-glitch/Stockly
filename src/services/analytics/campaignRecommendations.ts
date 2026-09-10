@@ -98,7 +98,7 @@ export async function getCampaignRecommendations(
   // 1. Fetch all products (publications) in catalog
   const { data: allProducts, error: productsError } = await supabase
     .from("products")
-    .select("*")
+    .select("id, tenant_id, sku, title, price, listing_type_id, permalink, status, available_quantity, sold_quantity")
     .eq("tenant_id", tenantId);
 
   if (productsError || !allProducts) {

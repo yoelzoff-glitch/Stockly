@@ -10,7 +10,7 @@ export async function getDelayedShipments(tenantId: string) {
   const supabase = createAdminClient();
   const { data: shipments, error } = await supabase
     .from("shipments")
-    .select("*, orders(meli_order_id, buyer_nickname)")
+    .select("id, status, logistic_type, tracking_number, shipping_cost, orders(meli_order_id, buyer_nickname)")
     .eq("tenant_id", tenantId)
     .eq("substatus", "delayed");
 
@@ -21,8 +21,8 @@ export async function getDelayedShipments(tenantId: string) {
   return {
     delayed_count: shipments.length,
     delayed_shipments: shipments.map(s => ({
-      order_id: s.orders?.meli_order_id,
-      buyer: s.orders?.buyer_nickname,
+      order_id: (s.orders as any)?.meli_order_id,
+      buyer: (s.orders as any)?.buyer_nickname,
       status: s.status,
       logistic_type: s.logistic_type,
       tracking_number: s.tracking_number,

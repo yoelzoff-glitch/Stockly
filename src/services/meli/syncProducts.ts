@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getProducts } from "./getProducts";
 import { createRateLimiter } from "./rateLimiter";
 import { acquireLock, releaseLock } from "@/lib/locks";
+import { logEgressSample } from "@/lib/observability/egress";
 
 function extractSku(item: any): string | null {
   if (item.seller_custom_field) return item.seller_custom_field;
@@ -93,10 +94,18 @@ export async function syncProducts(tenantId: string) {
   }
 
   // 3. Fetch existing products to preserve "cost" and check existing active SKUs
+  // Sprint 38A: Safe Egress Optimization — project only needed raw_data JSONB sub-properties (fees, shipping_estimate)
   const { data: existingProducts } = await supabase
     .from("products")
-    .select("meli_item_id, sku, cost, status, available_quantity, price, estimated_fee, estimated_shipping_cost, campaign_data, promotion_data, raw_data")
+    .select("meli_item_id, sku, cost, status, available_quantity, price, estimated_fee, estimated_shipping_cost, campaign_data, promotion_data, fees:raw_data->fees, shipping_estimate:raw_data->shipping_estimate")
     .eq("tenant_id", tenantId);
+
+  logEgressSample({
+    tenantId,
+    operation: "syncProducts.existingProducts",
+    table: "products",
+    data: existingProducts,
+  });
 
   const existingProductMap = new Map<string, any>();
   const costMap = new Map<string, number | null>();
@@ -104,7 +113,15 @@ export async function syncProducts(tenantId: string) {
   const existingSkus = new Set<string>();
 
   existingProducts?.forEach(p => {
-    existingProductMap.set(p.meli_item_id, p);
+    // Reconstruct raw_data contract in memory for feeData / shippingData calculation downstream
+    const reconstructedProd = {
+      ...p,
+      raw_data: {
+        fees: (p as any).fees,
+        shipping_estimate: (p as any).shipping_estimate,
+      },
+    };
+    existingProductMap.set(p.meli_item_id, reconstructedProd);
     costMap.set(p.meli_item_id, p.cost);
     if (p.status !== "deleted_from_meli") {
       existingMeliIds.add(p.meli_item_id);

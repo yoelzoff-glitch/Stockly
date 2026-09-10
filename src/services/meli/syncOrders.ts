@@ -5,6 +5,7 @@ import { decrementInternalStockFromOrder } from "../inventory/decrementInternalS
 import { syncShipments } from "./syncShipments";
 import { normalizeSku } from "../products/sku/normalizeSku";
 import { acquireLock, releaseLock, isLocked } from "@/lib/locks";
+import { logEgressSample } from "@/lib/observability/egress";
 
 export async function syncOrders(tenantId: string, specificMeliOrderId?: string, dateFrom?: string) {
   const lockKey = `sync-orders:${tenantId}:${specificMeliOrderId || "all"}`;
@@ -112,6 +113,13 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     .select("id, meli_item_id, sku, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount")
     .eq("tenant_id", tenantId);
 
+  logEgressSample({
+    tenantId,
+    operation: "syncOrders.localProducts",
+    table: "products",
+    data: localProducts,
+  });
+
   // Map of meli_item_id -> local product info
   const productMap: Record<string, any> = {};
   // Map of normalized SKU -> local product info
@@ -171,6 +179,13 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     .select("id, meli_order_id, status, packaging_cost_snapshot, flex_cost_snapshot, operational_cost_snapshot_version, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_status")
     .eq("tenant_id", tenantId)
     .in("meli_order_id", meliOrderIds);
+
+  logEgressSample({
+    tenantId,
+    operation: "syncOrders.existingOrders",
+    table: "orders",
+    data: existingOrders,
+  });
 
   const existingMap = new Map<string, any>();
   existingOrders?.forEach(o => {
@@ -328,6 +343,13 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
           .eq("tenant_id", tenantId)
           .in("order_id", localOrderIds)
       : { data: [] };
+
+    logEgressSample({
+      tenantId,
+      operation: "syncOrders.existingOrderItems",
+      table: "order_items",
+      data: existingOrderItems,
+    });
 
     const existingItemsMap = new Map<string, any>();
     (existingOrderItems || []).forEach(item => {

@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     // Obtener todos los productos del tenant
     const { data: products } = await adminSupabase
       .from("products")
-      .select("*")
+      .select("id, price, category_id, listing_type_id, meli_item_id, cost, extra_fee_amount, promotion_discount_amount, estimated_tax, raw_data")
       .eq("tenant_id", tenantId);
 
     if (!products || products.length === 0) {
