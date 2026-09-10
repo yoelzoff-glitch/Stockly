@@ -522,6 +522,14 @@ export async function syncProducts(tenantId: string) {
   }
 
   // 4.2 Automated local stock deduction when FULL warehouse stock increases
+  // Deduplicate by normalized SKU so shared listings (Clásica vs Premium / Cuotas) do not double-count physical stock
+  const { normalizeSku } = await import("../products/sku/normalizeSku");
+  const fullStockBySku = new Map<string, {
+    maxCurrentQty: number;
+    maxPrevQty: number;
+    title: string;
+  }>();
+
   for (const item of rawProducts) {
     const isFull = item.shipping?.logistic_type === "fulfillment";
     if (!isFull) continue;
@@ -529,14 +537,29 @@ export async function syncProducts(tenantId: string) {
     const existingProd = existingProductMap.get(item.id);
     if (!existingProd || typeof existingProd.available_quantity !== "number") continue;
 
-    const fullDelta = (item.available_quantity || 0) - existingProd.available_quantity;
+    const sku = skuMap.get(item.id) || existingProd.sku;
+    if (!sku) continue;
+
+    const normSku = normalizeSku(sku);
+    const currentQty = item.available_quantity || 0;
+    const prevQty = existingProd.available_quantity || 0;
+
+    const existing = fullStockBySku.get(normSku);
+    if (!existing) {
+      fullStockBySku.set(normSku, {
+        maxCurrentQty: currentQty,
+        maxPrevQty: prevQty,
+        title: item.title,
+      });
+    } else {
+      existing.maxCurrentQty = Math.max(existing.maxCurrentQty, currentQty);
+      existing.maxPrevQty = Math.max(existing.maxPrevQty, prevQty);
+    }
+  }
+
+  for (const [normSku, data] of fullStockBySku.entries()) {
+    const fullDelta = data.maxCurrentQty - data.maxPrevQty;
     if (fullDelta > 0) {
-      const sku = skuMap.get(item.id) || existingProd.sku;
-      if (!sku) continue;
-
-      const { normalizeSku } = await import("../products/sku/normalizeSku");
-      const normSku = normalizeSku(sku);
-
       // Find local inventory item
       const { data: invItem } = await supabase
         .from("inventory_items")
@@ -562,10 +585,10 @@ export async function syncProducts(tenantId: string) {
           previous_stock: prevStock,
           new_stock: newStock,
           source: "meli_fulfillment_inbound",
-          notes: `Ingreso automático a Bodega FULL Mercado Libre (+${fullDelta} un. en ML) para ítem ${item.title}`
+          notes: `Ingreso automático a Bodega FULL Mercado Libre (+${fullDelta} un. en ML) para ítem ${data.title}`
         });
 
-        console.log(`[syncProducts] Auto-deducted ${fullDelta} units from local stock for FULL item ${item.id} (${sku})`);
+        console.log(`[syncProducts] Auto-deducted ${fullDelta} units from local stock for FULL SKU ${normSku}`);
       }
     }
   }
