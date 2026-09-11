@@ -42,10 +42,21 @@ export interface CustomerDetailData {
   } | null;
   activity: {
     lastUserActivityAt: string | null;
+    lastUserId: string | null;
+    lastLoginAt: string | null;
     lastSyncAt: string | null;
     health: string;
     daysSinceLastActivity: number | null;
+    reason: string;
     activeUsersCount: number;
+  };
+  inspector: {
+    subscriptionStatus: string;
+    lastUserActivityAt: string | null;
+    lastLoginAt: string | null;
+    lastMlSyncAt: string | null;
+    activityClassification: string;
+    classificationReason: string;
   };
   usage30d: {
     dashboardViews: number;
@@ -139,7 +150,7 @@ export async function getCustomerDetail(tenantId: string): Promise<CustomerDetai
     };
   }
 
-  // Activity
+  // Real Activity from tenant_activity_state
   const activityStatus = await getTenantActivityStatus(tenantId);
 
   // Usage 30d
@@ -201,10 +212,21 @@ export async function getCustomerDetail(tenantId: string): Promise<CustomerDetai
     subscription: subscriptionData,
     activity: {
       lastUserActivityAt: activityStatus.lastUserActivityAt,
+      lastUserId: activityStatus.lastUserId,
+      lastLoginAt: activityStatus.lastLoginAt,
       lastSyncAt: activityStatus.lastSyncAt,
       health: activityStatus.health,
       daysSinceLastActivity: activityStatus.daysSinceLastActivity,
+      reason: activityStatus.reason,
       activeUsersCount: profiles?.length || 1,
+    },
+    inspector: {
+      subscriptionStatus: subscriptionData?.status || "sin_suscripcion",
+      lastUserActivityAt: activityStatus.lastUserActivityAt,
+      lastLoginAt: activityStatus.lastLoginAt,
+      lastMlSyncAt: activityStatus.lastSyncAt,
+      activityClassification: activityStatus.health,
+      classificationReason: activityStatus.reason,
     },
     usage30d: {
       dashboardViews,

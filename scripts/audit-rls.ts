@@ -182,7 +182,7 @@ function runRlsAudit() {
     "tenant_feature_flags", "operation_runs", "webhook_events", "usage_events",
     "operation_leases", "rate_limit_buckets", "full_replenishment_recommendations",
     "platform_admins", "plans", "subscription_events", "billing_transactions",
-    "platform_activity_events", "platform_admin_audit_log"
+    "platform_activity_events", "platform_admin_audit_log", "tenant_activity_state"
   ];
 
   const sprint3BMigration = migrationFiles.find((m) => m.name.includes("sprint03_b_policies"))?.content || "";
@@ -206,7 +206,7 @@ function runRlsAudit() {
     ];
     if (!backendOnlyTables.includes(tbl)) {
       const isPostSprint3 = tbl === "full_replenishment_recommendations" || [
-        "plans", "subscription_events", "billing_transactions", "platform_activity_events"
+        "plans", "subscription_events", "billing_transactions", "platform_activity_events", "tenant_activity_state"
       ].includes(tbl);
       const targetMigration = isPostSprint3 ? allSqlContent : sprint3BMigration;
       const hasPolicy = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${tbl}`, "i").test(targetMigration);

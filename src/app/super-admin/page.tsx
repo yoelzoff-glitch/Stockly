@@ -12,7 +12,6 @@ import {
   ArrowRight,
   ShieldAlert,
   Activity,
-  Calendar,
 } from "lucide-react";
 
 export const revalidate = 0; // Always fresh in super admin
@@ -155,13 +154,14 @@ export default async function SuperAdminOverviewPage() {
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="p-1.5 rounded bg-[#F1F5F9] text-[#475569]">
-                    {item.type === "trial_expiring" && <Clock className="w-4 h-4 text-[#D97706]" />}
-                    {item.type === "sub_expiring" && <Calendar className="w-4 h-4 text-[#2563EB]" />}
-                    {item.type === "past_due" && <AlertTriangle className="w-4 h-4 text-[#DC2626]" />}
-                    {item.type === "cancellation_pending" && (
+                    {item.type === "TRIAL_ENDING" && <Clock className="w-4 h-4 text-[#D97706]" />}
+                    {item.type === "PAYMENT_PAST_DUE" && <AlertTriangle className="w-4 h-4 text-[#DC2626]" />}
+                    {item.type === "CANCELLATION_PENDING" && (
                       <UserX className="w-4 h-4 text-[#9333EA]" />
                     )}
-                    {item.type === "inactive" && <Activity className="w-4 h-4 text-[#64748B]" />}
+                    {(item.type === "INACTIVE" || item.type === "DORMANT") && (
+                      <Activity className="w-4 h-4 text-[#64748B]" />
+                    )}
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -249,29 +249,37 @@ export default async function SuperAdminOverviewPage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-lg bg-[#F0FDF4] border border-[#BBF7D0]">
-              <div className="text-[11px] font-bold text-[#166534] uppercase">Activos (7d)</div>
-              <div className="text-2xl font-black text-[#15803D] mt-1">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="p-3 rounded-lg bg-[#F0FDF4] border border-[#BBF7D0]">
+              <div className="text-[10px] font-bold text-[#166534] uppercase">Activos (0-7d)</div>
+              <div className="text-xl font-black text-[#15803D] mt-1">
                 {metrics.activityDistribution.active7d}
               </div>
               <div className="text-[10px] text-[#166534] mt-0.5">Uso reciente</div>
             </div>
 
-            <div className="p-3.5 rounded-lg bg-[#FEFCE8] border border-[#FEF08A]">
-              <div className="text-[11px] font-bold text-[#854D0E] uppercase">En Riesgo (8-14d)</div>
-              <div className="text-2xl font-black text-[#A16207] mt-1">
+            <div className="p-3 rounded-lg bg-[#FEFCE8] border border-[#FEF08A]">
+              <div className="text-[10px] font-bold text-[#854D0E] uppercase">En Riesgo (8-14d)</div>
+              <div className="text-xl font-black text-[#A16207] mt-1">
                 {metrics.activityDistribution.atRisk}
               </div>
               <div className="text-[10px] text-[#854D0E] mt-0.5">Alerta temprana</div>
             </div>
 
-            <div className="p-3.5 rounded-lg bg-[#FEF2F2] border border-[#FECACA]">
-              <div className="text-[11px] font-bold text-[#991B1B] uppercase">Inactivos (+15d)</div>
-              <div className="text-2xl font-black text-[#B91C1C] mt-1">
+            <div className="p-3 rounded-lg bg-[#FEF2F2] border border-[#FECACA]">
+              <div className="text-[10px] font-bold text-[#991B1B] uppercase">Inactivos (+15d)</div>
+              <div className="text-xl font-black text-[#B91C1C] mt-1">
                 {metrics.inactiveCustomers}
               </div>
               <div className="text-[10px] text-[#991B1B] mt-0.5">Sin uso prolongado</div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0]">
+              <div className="text-[10px] font-bold text-[#64748B] uppercase">Tracking Pendiente</div>
+              <div className="text-xl font-black text-[#64748B] mt-1">
+                {metrics.activityDistribution.trackingPending}
+              </div>
+              <div className="text-[10px] text-[#94A3B8] mt-0.5">Sin datos previos</div>
             </div>
           </div>
 

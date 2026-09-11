@@ -1700,4 +1700,17 @@ CREATE TABLE IF NOT EXISTS public.platform_admin_audit_log (
 );
 ALTER TABLE public.platform_admin_audit_log ENABLE ROW LEVEL SECURITY;
 
+-- Sprint 33: Tenant Activity State
+CREATE TABLE IF NOT EXISTS public.tenant_activity_state (
+  tenant_id uuid PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
+  last_user_activity_at timestamp with time zone,
+  last_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  last_login_at timestamp with time zone,
+  last_ml_sync_at timestamp with time zone,
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+ALTER TABLE public.tenant_activity_state ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.tenant_activity_state TO authenticated, service_role;
+
+
 

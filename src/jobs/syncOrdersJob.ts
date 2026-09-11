@@ -141,6 +141,11 @@ export const syncOrdersTenantJob = inngest.createFunction(
 
           const syncedCount = await syncOrders(tenantId, specificOrderId);
 
+          try {
+            const { recordMlSyncActivity } = await import("@/services/super-admin/activity");
+            await recordMlSyncActivity(tenantId);
+          } catch {}
+
           // Resolve sync_failed alert on success
           try {
             const { upsertStateAlert } = await import("@/services/notifications/notificationService");

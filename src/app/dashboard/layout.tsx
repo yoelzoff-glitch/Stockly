@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/sidebar/sidebar";
 import { Navbar } from "@/components/dashboard/navbar";
 import { Footer } from "@/components/layout/footer";
+import { TenantActivityTracker } from "@/components/analytics/TenantActivityTracker";
 import { createClient } from "@/lib/supabase/server";
 import { Archivo } from "next/font/google";
 
@@ -57,6 +58,7 @@ export default async function DashboardLayout({
           <Sidebar />
         </div>
         <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+          <TenantActivityTracker />
           <Navbar plan={plan} daysRemaining={daysRemaining} isDemo={isDemo} />
           <main className="flex-1 overflow-y-auto flex flex-col">
             <div className="flex-1">

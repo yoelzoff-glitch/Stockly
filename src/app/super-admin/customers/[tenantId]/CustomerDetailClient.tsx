@@ -213,8 +213,62 @@ export function CustomerDetailClient({ data }: CustomerDetailClientProps) {
             <div className="text-[10px] text-[#94A3B8]">
               {data.activity.daysSinceLastActivity !== null
                 ? `${data.activity.daysSinceLastActivity} días sin actividad`
-                : "Sin actividad registrada"}
+                : "Tracking pendiente / Sin datos"}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Internal Debug Inspector (Requirement 16) */}
+      <div className="p-4 rounded-xl bg-[#0B132B] text-white border border-[#1C2541] shadow-sm space-y-3">
+        <div className="flex items-center justify-between border-b border-[#1C2541] pb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
+            <span className="text-xs font-bold uppercase tracking-wider text-[#94A3B8]">
+              Inspector de Diagnóstico Interno (Real Data)
+            </span>
+          </div>
+          <span className="text-[10px] text-[#64748B] font-mono">tenant_activity_state</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+          <div>
+            <span className="text-[10px] text-[#94A3B8] block">Subscription:</span>
+            <strong className="text-[#38BDF8] uppercase font-mono">{data.inspector.subscriptionStatus}</strong>
+          </div>
+          <div>
+            <span className="text-[10px] text-[#94A3B8] block">Last Human Activity:</span>
+            <strong className="text-white font-mono text-[11px]">
+              {data.inspector.lastUserActivityAt
+                ? new Date(data.inspector.lastUserActivityAt).toLocaleString("es-AR")
+                : "NULL (Sin datos)"}
+            </strong>
+          </div>
+          <div>
+            <span className="text-[10px] text-[#94A3B8] block">Last Login:</span>
+            <strong className="text-[#A7F3D0] font-mono text-[11px]">
+              {data.inspector.lastLoginAt
+                ? new Date(data.inspector.lastLoginAt).toLocaleString("es-AR")
+                : "NULL"}
+            </strong>
+          </div>
+          <div>
+            <span className="text-[10px] text-[#94A3B8] block">Last ML Sync:</span>
+            <strong className="text-[#FDE047] font-mono text-[11px]">
+              {data.inspector.lastMlSyncAt
+                ? new Date(data.inspector.lastMlSyncAt).toLocaleString("es-AR")
+                : "NULL"}
+            </strong>
+          </div>
+          <div>
+            <span className="text-[10px] text-[#94A3B8] block">Classification:</span>
+            <strong className="text-white font-bold">{data.inspector.activityClassification}</strong>
+          </div>
+          <div>
+            <span className="text-[10px] text-[#94A3B8] block">Reason:</span>
+            <span className="text-[#CBD5E1] text-[11px] truncate block" title={data.inspector.classificationReason}>
+              {data.inspector.classificationReason}
+            </span>
           </div>
         </div>
       </div>

@@ -23,6 +23,7 @@ export interface OverviewMetrics {
     active7d: number;
     inactive7dPlus: number;
     atRisk: number;
+    trackingPending: number;
   };
   attentionItems: AttentionItem[];
 }
@@ -31,12 +32,15 @@ export interface AttentionItem {
   id: string;
   tenantId: string;
   tenantName: string;
-  type: "trial_expiring" | "sub_expiring" | "inactive" | "past_due" | "cancellation_pending";
+  type: "TRIAL_ENDING" | "PAYMENT_PAST_DUE" | "CANCELLATION_PENDING" | "INACTIVE" | "DORMANT";
   title: string;
   detail: string;
   badge: string;
   dueDate?: string;
   daysRemaining?: number;
+  reason: string;
+  source: string;
+  timestamp: string;
 }
 
 export interface CustomerListItem {
@@ -50,6 +54,7 @@ export interface CustomerListItem {
   userCount: number;
   lastActivityAt: string | null;
   activityHealth: ActivityHealth;
+  healthReason: string;
   createdAt: string;
   currentPeriodEnd: string | null;
   mrr: number;
@@ -86,18 +91,18 @@ export async function getSuperAdminOverview(): Promise<OverviewMetrics> {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-  // 1. Parallel batch queries
+  // 1. Parallel batch queries against verified source of truth
   const [
     { data: tenants },
     { data: subscriptions },
     { data: plans },
     { data: monthPayments },
-    { data: recentActivities },
+    { data: activityStates },
   ] = await Promise.all([
     adminDb.from("tenants").select("id, name, slug, created_at, status, is_demo").eq("is_demo", false),
     adminDb
       .from("subscriptions")
-      .select("id, tenant_id, plan, plan_id, status, monthly_price_snapshot, trial_ends_at, current_period_end, cancel_at_period_end, cancelled_at, created_at"),
+      .select("id, tenant_id, plan, plan_id, status, monthly_price_snapshot, started_at, trial_ends_at, current_period_end, cancel_at_period_end, cancelled_at, ended_at, created_at"),
     adminDb.from("plans").select("id, code, name, price_monthly"),
     adminDb
       .from("billing_transactions")
@@ -105,27 +110,17 @@ export async function getSuperAdminOverview(): Promise<OverviewMetrics> {
       .eq("status", "approved")
       .eq("type", "payment")
       .gte("paid_at", startOfMonth),
-    adminDb
-      .from("platform_activity_events")
-      .select("tenant_id, created_at")
-      .order("created_at", { ascending: false })
-      .limit(2000),
+    adminDb.from("tenant_activity_state").select("tenant_id, last_user_activity_at, last_ml_sync_at, last_login_at"),
   ]);
 
   const allTenants = tenants || [];
   const allSubs = subscriptions || [];
   const allPlans = plans || [];
   const payments = monthPayments || [];
+  const allActivity = activityStates || [];
 
-  // Map latest activity per tenant
-  const latestActivityByTenant = new Map<string, string>();
-  if (recentActivities) {
-    for (const act of recentActivities) {
-      if (!latestActivityByTenant.has(act.tenant_id)) {
-        latestActivityByTenant.set(act.tenant_id, act.created_at);
-      }
-    }
-  }
+  // Map activity state by tenant
+  const activityMap = new Map(allActivity.map((a) => [a.tenant_id, a]));
 
   // Active subscriptions map
   const activeSubsByTenant = new Map<string, any>();
@@ -144,19 +139,24 @@ export async function getSuperAdminOverview(): Promise<OverviewMetrics> {
   let inactive7dPlus = 0;
   let atRisk = 0;
   let inactiveCustomers = 0;
+  let trackingPending = 0;
 
   for (const t of allTenants) {
     const sub = activeSubsByTenant.get(t.id);
-    const lastAct = latestActivityByTenant.get(t.id) || null;
-    const health = calculateActivityHealth(lastAct);
+    const act = activityMap.get(t.id);
+    const { health } = calculateActivityHealth(act?.last_user_activity_at);
 
-    if (health === "ACTIVE") active7d++;
-    else if (health === "AT_RISK") {
+    if (health === "ACTIVE") {
+      active7d++;
+    } else if (health === "AT_RISK") {
       atRisk++;
       inactive7dPlus++;
-    } else {
+    } else if (health === "INACTIVE" || health === "DORMANT") {
       inactive7dPlus++;
       inactiveCustomers++;
+    } else {
+      // UNKNOWN: No historical activity recorded yet
+      trackingPending++;
     }
 
     if (sub) {
@@ -170,15 +170,24 @@ export async function getSuperAdminOverview(): Promise<OverviewMetrics> {
     }
   }
 
-  // Month revenue from approved payments
+  // Month revenue from approved payments only
   const monthRevenue = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
-  // New customers this month
-  const newCustomersMonth = allTenants.filter((t) => t.created_at >= startOfMonth).length;
+  // Definition of Altas: First paid subscription started during the month
+  const newCustomersMonth = allSubs.filter(
+    (s) =>
+      s.started_at &&
+      s.started_at >= startOfMonth &&
+      s.status === "active" &&
+      Number(s.monthly_price_snapshot || 0) > 0
+  ).length;
 
-  // Cancellations this month
+  // Definition of Bajas: Subscription effectively cancelled during the month
   const cancellationsMonth = allSubs.filter(
-    (s) => s.cancelled_at && s.cancelled_at >= startOfMonth
+    (s) =>
+      s.status === "cancelled" &&
+      ((s.cancelled_at && s.cancelled_at >= startOfMonth) ||
+        (s.ended_at && s.ended_at >= startOfMonth))
   ).length;
 
   // Plan distribution
@@ -204,17 +213,15 @@ export async function getSuperAdminOverview(): Promise<OverviewMetrics> {
     mrr: data.mrr,
   }));
 
-  // Attention items
+  // Attention items (Auditable with reason, source, timestamp)
   const attentionItems: AttentionItem[] = [];
   const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString();
-
   const tenantNameMap = new Map(allTenants.map((t) => [t.id, t.name]));
 
   for (const sub of allSubs) {
-    const tName = tenantNameMap.get(sub.tenant_id) || "Cliente desconocido";
+    const tName = tenantNameMap.get(sub.tenant_id) || "Cliente";
 
-    // 1. Trial expiring in <= 7d
+    // 1. TRIAL_ENDING (<= 7 days)
     if (sub.status === "trialing" && sub.trial_ends_at && sub.trial_ends_at <= sevenDaysFromNow) {
       const diffDays = Math.ceil(
         (new Date(sub.trial_ends_at).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
@@ -223,81 +230,75 @@ export async function getSuperAdminOverview(): Promise<OverviewMetrics> {
         id: `trial_${sub.id}`,
         tenantId: sub.tenant_id,
         tenantName: tName,
-        type: "trial_expiring",
+        type: "TRIAL_ENDING",
         title: "Trial por vencer",
         detail: `Vence en ${diffDays <= 0 ? "hoy" : `${diffDays} días`}`,
         badge: "Trial",
         dueDate: sub.trial_ends_at,
         daysRemaining: diffDays,
+        reason: `Fin de período de prueba programado para ${new Date(sub.trial_ends_at).toLocaleDateString("es-AR")}`,
+        source: "subscriptions.trial_ends_at",
+        timestamp: sub.trial_ends_at,
       });
     }
 
-    // 2. Active sub expiring in <= 7d
-    if (
-      sub.status === "active" &&
-      sub.current_period_end &&
-      sub.current_period_end <= sevenDaysFromNow
-    ) {
-      const diffDays = Math.ceil(
-        (new Date(sub.current_period_end).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      attentionItems.push({
-        id: `sub_${sub.id}`,
-        tenantId: sub.tenant_id,
-        tenantName: tName,
-        type: "sub_expiring",
-        title: "Suscripción por renovar",
-        detail: `Vence en ${diffDays <= 0 ? "hoy" : `${diffDays} días`}`,
-        badge: "Renovación",
-        dueDate: sub.current_period_end,
-        daysRemaining: diffDays,
-      });
-    }
-
-    // 3. Past due
+    // 2. PAYMENT_PAST_DUE
     if (sub.status === "past_due") {
       attentionItems.push({
         id: `past_due_${sub.id}`,
         tenantId: sub.tenant_id,
         tenantName: tName,
-        type: "past_due",
+        type: "PAYMENT_PAST_DUE",
         title: "Pago vencido (Past Due)",
         detail: "La suscripción se encuentra impaga",
-        badge: "Alerta",
+        badge: "Past Due",
+        reason: "Fallo o falta de pago en el ciclo actual",
+        source: "subscriptions.status",
+        timestamp: now.toISOString(),
       });
     }
 
-    // 4. Requested cancellation
+    // 3. CANCELLATION_PENDING (cancel_at_period_end = true)
     if (sub.cancel_at_period_end) {
       attentionItems.push({
         id: `cancel_${sub.id}`,
         tenantId: sub.tenant_id,
         tenantName: tName,
-        type: "cancellation_pending",
+        type: "CANCELLATION_PENDING",
         title: "Cancelación programada",
-        detail: `Baja efectiva al fin del período: ${
-          sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString() : ""
+        detail: `Baja efectiva al fin de período: ${
+          sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString("es-AR") : ""
         }`,
-        badge: "Baja",
+        badge: "Baja Pendiente",
+        reason: "El cliente o un administrador programó la no renovación",
+        source: "subscriptions.cancel_at_period_end",
+        timestamp: sub.current_period_end || now.toISOString(),
       });
     }
   }
 
-  // 5. Inactive >= 10 days
+  // 4. INACTIVE / DORMANT alerts: ONLY IF last_user_activity_at IS NOT NULL and days >= 10
   for (const t of allTenants) {
-    const lastAct = latestActivityByTenant.get(t.id);
-    if (!lastAct || lastAct <= tenDaysAgo) {
-      const days = lastAct
-        ? Math.floor((now.getTime() - new Date(lastAct).getTime()) / (1000 * 60 * 60 * 24))
-        : 30;
+    const act = activityMap.get(t.id);
+    if (!act?.last_user_activity_at) {
+      // MANDATORY RULE: Never trigger inactivity alert if last_user_activity_at is null!
+      continue;
+    }
+
+    const { health, daysSince, reason } = calculateActivityHealth(act.last_user_activity_at);
+
+    if (daysSince !== null && daysSince >= 10) {
       attentionItems.push({
         id: `inact_${t.id}`,
         tenantId: t.id,
         tenantName: t.name,
-        type: "inactive",
-        title: "Sin actividad",
-        detail: `${days}+ días sin uso de plataforma`,
-        badge: "Riesgo",
+        type: health === "DORMANT" ? "DORMANT" : "INACTIVE",
+        title: health === "DORMANT" ? "Cuenta Dormida" : "Sin Actividad Humana",
+        detail: `${daysSince} días sin interacción registrada`,
+        badge: health === "DORMANT" ? "Dormido" : "Inactivo",
+        reason,
+        source: "tenant_activity_state.last_user_activity_at",
+        timestamp: act.last_user_activity_at,
       });
     }
   }
@@ -317,6 +318,7 @@ export async function getSuperAdminOverview(): Promise<OverviewMetrics> {
       active7d,
       inactive7dPlus,
       atRisk,
+      trackingPending,
     },
     attentionItems: attentionItems.slice(0, 15),
   };
@@ -328,34 +330,32 @@ export async function getSuperAdminOverview(): Promise<OverviewMetrics> {
 export async function getCustomersList(filters: CustomerFilters = {}): Promise<CustomerListItem[]> {
   const adminDb = createAdminClient();
 
-  // 1. Fetch tenants, subscriptions, profiles, and plans in single batch
+  // 1. Fetch tenants, subscriptions, profiles, plans, and tenant_activity_state in single parallel batch
   const [
     { data: tenants },
     { data: subscriptions },
     { data: profiles },
     { data: plans },
-    { data: activities },
+    { data: activityStates },
   ] = await Promise.all([
     adminDb.from("tenants").select("id, name, slug, created_at, status, is_demo").order("created_at", { ascending: false }),
     adminDb.from("subscriptions").select("id, tenant_id, plan, plan_id, status, monthly_price_snapshot, current_period_end"),
     adminDb.from("profiles").select("id, tenant_id, email, role"),
     adminDb.from("plans").select("id, code, name"),
-    adminDb
-      .from("platform_activity_events")
-      .select("tenant_id, created_at")
-      .order("created_at", { ascending: false })
-      .limit(3000),
+    adminDb.from("tenant_activity_state").select("tenant_id, last_user_activity_at, last_ml_sync_at, last_login_at"),
   ]);
 
   const allTenants = tenants || [];
   const subs = subscriptions || [];
   const profs = profiles || [];
   const plns = plans || [];
+  const acts = activityStates || [];
 
   // Group maps
   const subByTenant = new Map(subs.map((s) => [s.tenant_id, s]));
   const planByCode = new Map(plns.map((p) => [p.code, p.name]));
   const planById = new Map(plns.map((p) => [p.id, p.name]));
+  const actByTenant = new Map(acts.map((a) => [a.tenant_id, a]));
 
   // Count users and owner email per tenant
   const usersByTenant = new Map<string, number>();
@@ -369,16 +369,6 @@ export async function getCustomersList(filters: CustomerFilters = {}): Promise<C
     }
   }
 
-  // Latest activity per tenant
-  const latestActivity = new Map<string, string>();
-  if (activities) {
-    for (const a of activities) {
-      if (!latestActivity.has(a.tenant_id)) {
-        latestActivity.set(a.tenant_id, a.created_at);
-      }
-    }
-  }
-
   // Assemble list
   const list: CustomerListItem[] = allTenants.map((t) => {
     const sub = subByTenant.get(t.id);
@@ -388,8 +378,9 @@ export async function getCustomersList(filters: CustomerFilters = {}): Promise<C
       planByCode.get(planCode) ||
       planCode.toUpperCase();
     const subStatus = sub?.status || t.status || "trialing";
-    const lastAct = latestActivity.get(t.id) || null;
-    const health = calculateActivityHealth(lastAct);
+    const actState = actByTenant.get(t.id);
+    const lastAct = actState?.last_user_activity_at || null;
+    const { health, reason } = calculateActivityHealth(lastAct);
 
     return {
       id: t.id,
@@ -402,6 +393,7 @@ export async function getCustomersList(filters: CustomerFilters = {}): Promise<C
       userCount: usersByTenant.get(t.id) || 1,
       lastActivityAt: lastAct,
       activityHealth: health,
+      healthReason: reason,
       createdAt: t.created_at,
       currentPeriodEnd: sub?.current_period_end || null,
       mrr: subStatus === "active" ? Number(sub?.monthly_price_snapshot || 0) : 0,

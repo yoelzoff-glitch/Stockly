@@ -82,16 +82,16 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
   const getActivityBadge = (health: string) => {
     switch (health) {
       case "ACTIVE":
-        return { text: "Activo (<=3d)", cls: "bg-[#DCFCE7] text-[#15803D]" };
-      case "LOW_ACTIVITY":
-        return { text: "Baja (4-7d)", cls: "bg-[#DBEAFE] text-[#1D4ED8]" };
+        return { text: "Activo (0-7d)", cls: "bg-[#DCFCE7] text-[#15803D]" };
       case "AT_RISK":
         return { text: "En Riesgo (8-14d)", cls: "bg-[#FEF9C3] text-[#A16207]" };
       case "INACTIVE":
         return { text: "Inactivo (15-30d)", cls: "bg-[#FFEDD5] text-[#C2410C]" };
       case "DORMANT":
+        return { text: "Dormido (>30d)", cls: "bg-[#FEE2E2] text-[#B91C1C]" };
+      case "UNKNOWN":
       default:
-        return { text: "Dormido (>30d)", cls: "bg-[#F1F5F9] text-[#64748B]" };
+        return { text: "Tracking Pendiente", cls: "bg-[#F1F5F9] text-[#64748B]" };
     }
   };
 
