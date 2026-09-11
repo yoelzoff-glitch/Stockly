@@ -59,11 +59,11 @@ export default async function SuperAdminPlansPage() {
 
               <div className="pt-2 border-t border-[#F1F5F9]">
                 <div className="text-2xl font-black text-[#0F172A]">
-                  ${Number(plan.price_monthly).toLocaleString("es-AR")}
+                  $ {Number(plan.price_monthly).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                   <span className="text-xs font-normal text-[#64748B]"> / mes</span>
                 </div>
                 <div className="text-[11px] text-[#64748B] mt-0.5">
-                  Anual: ${Number(plan.price_yearly).toLocaleString("es-AR")} / año
+                  Anual: $ {Number(plan.price_yearly).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD / año
                 </div>
               </div>
 
@@ -85,20 +85,34 @@ export default async function SuperAdminPlansPage() {
                 </div>
               </div>
 
-              {/* Features JSON */}
+              {/* Features */}
               {plan.features && Object.keys(plan.features).length > 0 && (
-                <div className="pt-2 border-t border-[#F1F5F9] space-y-1.5 text-xs text-[#475569]">
+                <div className="pt-2 border-t border-[#F1F5F9] space-y-2 text-xs text-[#475569]">
                   <span className="text-[10px] font-bold uppercase text-[#94A3B8] block">
                     Características
                   </span>
-                  {Object.entries(plan.features).map(([k, v]) => (
-                    <div key={k} className="flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5 text-[#10B981] shrink-0" />
-                      <span className="capitalize">
-                        {k.replace(/_/g, " ")}: <strong>{String(v)}</strong>
-                      </span>
-                    </div>
-                  ))}
+                  {Object.entries(plan.features).map(([k, v]) => {
+                    let label = `${k.replace(/_/g, " ")}: ${String(v)}`;
+                    if (k === "sku_limit") label = `Hasta ${Number(v).toLocaleString("es-AR")} SKUs activos`;
+                    else if (k === "ai_actions") label = `${Number(v).toLocaleString("es-AR")} consultas de IA mensuales`;
+                    else if (k === "automation_limit") label = `${Number(v).toLocaleString("es-AR")} procesos automáticos`;
+                    else if (k === "whatsapp_accounts") label = v === 1 ? "1 número de WhatsApp vinculado" : `Hasta ${v} números de WhatsApp vinculados`;
+                    else if (k === "free_trial_days") label = `${v} días de prueba gratis`;
+                    else if (k === "fee_audit") label = "Auditoría de comisiones y margen neto";
+                    else if (k === "shipping_monitoring") label = "Monitoreo de órdenes y costos de envío";
+                    else if (k === "internal_stock") label = "Control de stock interno en depósito";
+                    else if (k === "ads_management") label = "Cálculo de rentabilidad sobre ML Ads";
+                    else if (k === "priority_support") label = "Soporte prioritario por canales directos";
+                    else if (k === "combo_tracking") label = "Seguimiento de combos sin descalce de insumos";
+                    else if (k === "preventive_stock_alerts") label = "Alertas preventivas de quiebre de stock";
+
+                    return (
+                      <div key={k} className="flex items-start gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#10B981] shrink-0 mt-0.5" />
+                        <span>{label}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

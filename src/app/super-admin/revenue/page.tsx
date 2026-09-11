@@ -50,7 +50,7 @@ export default async function SuperAdminRevenuePage() {
             Ingresos Mes
           </div>
           <div className="text-xl font-black text-[#0F172A] mt-1.5">
-            ${analytics.currentMonthRevenue.toLocaleString("es-AR")}
+            $ {analytics.currentMonthRevenue.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
           </div>
           {growthPct !== null && (
             <div
@@ -70,7 +70,7 @@ export default async function SuperAdminRevenuePage() {
             Mes Anterior
           </div>
           <div className="text-xl font-black text-[#64748B] mt-1.5">
-            ${analytics.previousMonthRevenue.toLocaleString("es-AR")}
+            $ {analytics.previousMonthRevenue.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
           </div>
           <div className="text-[10px] text-[#94A3B8] mt-1">Total facturado</div>
         </div>
@@ -81,7 +81,7 @@ export default async function SuperAdminRevenuePage() {
             MRR Actual
           </div>
           <div className="text-xl font-black text-[#3A86FF] mt-1.5">
-            ${analytics.mrr.toLocaleString("es-AR")}
+            $ {analytics.mrr.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
           </div>
           <div className="text-[10px] text-[#3A86FF] font-medium mt-1">Suscripciones activas</div>
         </div>
@@ -92,7 +92,7 @@ export default async function SuperAdminRevenuePage() {
             Nuevo MRR
           </div>
           <div className="text-xl font-black text-[#10B981] mt-1.5">
-            +${analytics.newMrr.toLocaleString("es-AR")}
+            +$ {analytics.newMrr.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
           </div>
           <div className="text-[10px] text-[#10B981] font-medium mt-1">Altas este mes</div>
         </div>
@@ -103,7 +103,7 @@ export default async function SuperAdminRevenuePage() {
             MRR Perdido
           </div>
           <div className="text-xl font-black text-[#EF4444] mt-1.5">
-            -${analytics.lostMrr.toLocaleString("es-AR")}
+            -$ {analytics.lostMrr.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
           </div>
           <div className="text-[10px] text-[#EF4444] font-medium mt-1">Churn este mes</div>
         </div>
@@ -114,7 +114,7 @@ export default async function SuperAdminRevenuePage() {
             ARPU
           </div>
           <div className="text-xl font-black text-[#8B5CF6] mt-1.5">
-            ${analytics.arpu.toLocaleString("es-AR")}
+            $ {analytics.arpu.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
           </div>
           <div className="text-[10px] text-[#8B5CF6] font-medium mt-1">Promedio por cliente</div>
         </div>
@@ -160,8 +160,8 @@ export default async function SuperAdminRevenuePage() {
               >
                 {/* Tooltip on hover */}
                 <div className="absolute -top-12 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col items-center bg-[#0F172A] text-white text-[10px] px-2 py-1 rounded shadow-lg z-20 pointer-events-none whitespace-nowrap">
-                  <span>Rev: ${item.realRevenue.toLocaleString("es-AR")}</span>
-                  <span>MRR: ${item.mrr.toLocaleString("es-AR")}</span>
+                  <span>Rev: $ {item.realRevenue.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</span>
+                  <span>MRR: $ {item.mrr.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</span>
                 </div>
 
                 <div className="flex items-end gap-1 w-full justify-center h-full">

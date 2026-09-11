@@ -119,7 +119,7 @@ export default async function SuperAdminSubscriptionsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-[#0F172A]">
-                      ${item.monthlyPrice.toLocaleString("es-AR")}
+                      $ {item.monthlyPrice.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                     </td>
                     <td className="px-4 py-3 text-[#475569]">
                       {item.status === "trialing" && item.trialEndsAt

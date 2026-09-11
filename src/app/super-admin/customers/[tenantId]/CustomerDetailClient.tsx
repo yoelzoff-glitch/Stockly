@@ -305,7 +305,7 @@ export function CustomerDetailClient({ data }: CustomerDetailClientProps) {
             <div className="flex justify-between py-1 border-b border-[#F1F5F9]">
               <span className="text-[#64748B]">Precio Mensual:</span>
               <span className="font-extrabold text-[#0F172A]">
-                ${sub ? sub.monthlyPriceSnapshot.toLocaleString("es-AR") : 0}
+                $ {sub ? sub.monthlyPriceSnapshot.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0,00"} USD
               </span>
             </div>
             <div className="flex justify-between py-1 border-b border-[#F1F5F9]">
@@ -370,7 +370,7 @@ export function CustomerDetailClient({ data }: CustomerDetailClientProps) {
               >
                 {data.availablePlans.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} — ${p.priceMonthly.toLocaleString("es-AR")}/mes
+                    {p.name} — $ {p.priceMonthly.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD/mes
                   </option>
                 ))}
               </select>
@@ -531,7 +531,7 @@ export function CustomerDetailClient({ data }: CustomerDetailClientProps) {
             <div className="p-3 rounded-lg bg-[#F0FDF4] border border-[#BBF7D0]">
               <div className="text-[10px] font-bold text-[#166534] uppercase">Revenue Histórico</div>
               <div className="text-xl font-black text-[#15803D] mt-1">
-                ${data.revenue.historicalRevenue.toLocaleString("es-AR")}
+                $ {data.revenue.historicalRevenue.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
               </div>
               <div className="text-[10px] text-[#166534] mt-0.5">{data.revenue.paymentCount} pagos aprobados</div>
             </div>
@@ -539,9 +539,9 @@ export function CustomerDetailClient({ data }: CustomerDetailClientProps) {
             <div className="p-3 rounded-lg bg-[#EFF6FF] border border-[#BFDBFE]">
               <div className="text-[10px] font-bold text-[#1E40AF] uppercase">Revenue (30d)</div>
               <div className="text-xl font-black text-[#1D4ED8] mt-1">
-                ${data.revenue.last30dRevenue.toLocaleString("es-AR")}
+                $ {data.revenue.last30dRevenue.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
               </div>
-              <div className="text-[10px] text-[#1E40AF] mt-0.5">MRR actual: ${data.revenue.currentMrr.toLocaleString("es-AR")}</div>
+              <div className="text-[10px] text-[#1E40AF] mt-0.5">MRR actual: $ {data.revenue.currentMrr.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</div>
             </div>
           </div>
 
@@ -557,7 +557,7 @@ export function CustomerDetailClient({ data }: CustomerDetailClientProps) {
                       {tx.type.toUpperCase()} • {new Date(tx.createdAt).toLocaleDateString("es-AR")}
                     </span>
                     <span className="font-bold text-[#0F172A]">
-                      ${tx.amount.toLocaleString("es-AR")} ({tx.status})
+                      $ {tx.amount.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD ({tx.status})
                     </span>
                   </div>
                 ))}

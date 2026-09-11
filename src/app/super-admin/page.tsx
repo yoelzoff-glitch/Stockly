@@ -52,7 +52,7 @@ export default async function SuperAdminOverviewPage() {
           </div>
           <div className="mt-2">
             <div className="text-2xl font-extrabold text-[#0F172A]">
-              ${metrics.mrr.toLocaleString("es-AR")}
+              $ {metrics.mrr.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal text-[#64748B]">USD</span>
             </div>
             <div className="text-[11px] text-[#64748B] mt-0.5">Recurrente mensual</div>
           </div>
@@ -66,7 +66,7 @@ export default async function SuperAdminOverviewPage() {
           </div>
           <div className="mt-2">
             <div className="text-2xl font-extrabold text-[#0F172A]">
-              ${metrics.monthRevenue.toLocaleString("es-AR")}
+              $ {metrics.monthRevenue.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs font-normal text-[#64748B]">USD</span>
             </div>
             <div className="text-[11px] text-[#10B981] font-medium mt-0.5">Pagos aprobados</div>
           </div>
@@ -226,7 +226,7 @@ export default async function SuperAdminOverviewPage() {
                       {p.customerCount}
                     </td>
                     <td className="px-3 py-2.5 text-right font-bold text-[#0F172A]">
-                      ${p.mrr.toLocaleString("es-AR")}
+                      $ {p.mrr.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                     </td>
                   </tr>
                 ))}

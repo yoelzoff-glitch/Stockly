@@ -245,7 +245,7 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
 
                       {/* MRR */}
                       <td className="px-4 py-3 text-right font-extrabold text-[#0F172A]">
-                        ${c.mrr.toLocaleString("es-AR")}
+                        $ {c.mrr.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                       </td>
 
                       {/* Acción */}
