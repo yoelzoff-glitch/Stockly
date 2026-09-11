@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 
 export async function loginAction(prevState: any, formData: FormData) {
   const email = formData.get("email") as string;
@@ -65,6 +66,53 @@ export async function registerAction(prevState: any, formData: FormData) {
 
   if (authError || !authData.user) {
     return { error: authError?.message || "Error al crear el usuario" };
+  }
+
+  // Sprint 35: Link visitor to newly registered account and record signup_completed
+  try {
+    const cookieStore = await cookies();
+    const visitorId = cookieStore.get("lx_vid")?.value;
+    const sessionId = cookieStore.get("lx_sid")?.value;
+
+    if (visitorId) {
+      const adminClient = createAdminClient();
+      
+      const { data: firstSession } = await adminClient
+        .from("web_analytics_sessions")
+        .select("utm_source, utm_campaign, referrer_domain")
+        .eq("visitor_id", visitorId)
+        .order("started_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      const source = firstSession?.utm_source || firstSession?.referrer_domain || "direct";
+      const campaign = firstSession?.utm_campaign || null;
+
+      await adminClient.from("analytics_attribution").insert({
+        visitor_id: visitorId,
+        user_id: authData.user.id,
+        converted_at: new Date().toISOString(),
+        first_source: source,
+        first_campaign: campaign,
+        last_source: source,
+        last_campaign: campaign,
+        metadata: { email, plan },
+      });
+
+      if (sessionId) {
+        await adminClient.from("web_analytics_events").insert({
+          session_id: sessionId,
+          visitor_id: visitorId,
+          event_name: "signup_completed",
+          path: "/register",
+          metadata: { plan, email_domain: email.split("@")[1] || "" },
+          occurred_at: new Date().toISOString(),
+          environment: process.env.NODE_ENV === "production" ? "production" : "development",
+        });
+      }
+    }
+  } catch (attrErr) {
+    console.warn("Error recording signup attribution:", attrErr);
   }
 
   let redirectUrl = null;

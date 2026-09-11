@@ -11,6 +11,7 @@ import {
   DollarSign,
   UserMinus,
   Activity,
+  BarChart3,
   ArrowLeft,
   ShieldCheck,
 } from "lucide-react";
@@ -28,6 +29,7 @@ const navItems = [
   { name: "Revenue", href: "/super-admin/revenue", icon: DollarSign },
   { name: "Cancelaciones", href: "/super-admin/cancellations", icon: UserMinus },
   { name: "Actividad", href: "/super-admin/activity", icon: Activity },
+  { name: "Analytics", href: "/super-admin/analytics", icon: BarChart3 },
 ];
 
 export function SuperAdminSidebar({ adminEmail, adminRole }: SuperAdminSidebarProps) {

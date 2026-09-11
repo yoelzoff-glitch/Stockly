@@ -1728,5 +1728,97 @@ CREATE TABLE IF NOT EXISTS public.tenant_activity_state (
 ALTER TABLE public.tenant_activity_state ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON public.tenant_activity_state TO authenticated, service_role;
 
+-- Sprint 35: Web Analytics & Realtime Intelligence
+CREATE TABLE IF NOT EXISTS public.web_analytics_sessions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id text UNIQUE NOT NULL,
+  visitor_id text NOT NULL,
+  started_at timestamp with time zone NOT NULL DEFAULT now(),
+  last_seen_at timestamp with time zone NOT NULL DEFAULT now(),
+  ended_at timestamp with time zone,
+  landing_path text,
+  exit_path text,
+  referrer text,
+  referrer_domain text,
+  utm_source text,
+  utm_medium text,
+  utm_campaign text,
+  utm_content text,
+  utm_term text,
+  country_code text,
+  country_name text,
+  region_code text,
+  region_name text,
+  city text,
+  device_type text DEFAULT 'desktop',
+  os text,
+  browser text,
+  pageviews integer NOT NULL DEFAULT 1,
+  duration_seconds integer NOT NULL DEFAULT 0,
+  is_bot boolean NOT NULL DEFAULT false,
+  environment text NOT NULL DEFAULT 'production',
+  is_internal boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+ALTER TABLE public.web_analytics_sessions ENABLE ROW LEVEL SECURITY;
 
+CREATE TABLE IF NOT EXISTS public.web_analytics_pageviews (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id text NOT NULL,
+  visitor_id text NOT NULL,
+  path text NOT NULL,
+  page_title text,
+  referrer text,
+  occurred_at timestamp with time zone NOT NULL DEFAULT now(),
+  duration_seconds integer NOT NULL DEFAULT 0,
+  country_code text,
+  region_code text,
+  device_type text DEFAULT 'desktop',
+  is_bot boolean NOT NULL DEFAULT false,
+  environment text NOT NULL DEFAULT 'production',
+  is_internal boolean NOT NULL DEFAULT false
+);
+ALTER TABLE public.web_analytics_pageviews ENABLE ROW LEVEL SECURITY;
 
+CREATE TABLE IF NOT EXISTS public.web_analytics_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id text NOT NULL,
+  visitor_id text NOT NULL,
+  event_name text NOT NULL,
+  path text NOT NULL,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  occurred_at timestamp with time zone NOT NULL DEFAULT now(),
+  is_bot boolean NOT NULL DEFAULT false,
+  environment text NOT NULL DEFAULT 'production',
+  is_internal boolean NOT NULL DEFAULT false
+);
+ALTER TABLE public.web_analytics_events ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS public.analytics_attribution (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  visitor_id text NOT NULL,
+  user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  tenant_id text,
+  converted_at timestamp with time zone NOT NULL DEFAULT now(),
+  first_source text,
+  first_campaign text,
+  last_source text,
+  last_campaign text,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+ALTER TABLE public.analytics_attribution ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS public.web_analytics_daily (
+  date date NOT NULL,
+  environment text NOT NULL DEFAULT 'production',
+  pageviews integer NOT NULL DEFAULT 0,
+  sessions integer NOT NULL DEFAULT 0,
+  visitors integer NOT NULL DEFAULT 0,
+  new_visitors integer NOT NULL DEFAULT 0,
+  avg_duration_seconds integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  PRIMARY KEY (date, environment)
+);
+ALTER TABLE public.web_analytics_daily ENABLE ROW LEVEL SECURITY;
