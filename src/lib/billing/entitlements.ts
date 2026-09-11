@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type PlanKey = "starter" | "pro" | "ultra";
-export type SubscriptionStatus = "active" | "trialing" | "past_due" | "cancelled" | "expired";
+export type SubscriptionStatus = "active" | "trialing" | "past_due" | "paused" | "cancelled" | "expired";
 export type AccessMode = "active" | "grace" | "read_only" | "blocked";
 
 export interface PlanLimits {
@@ -124,6 +124,9 @@ export async function resolveTenantEntitlements(tenantId: string): Promise<Tenan
       accessMode = "read_only";
       reason = "Suscripción finalizada. Modo solo lectura.";
     }
+  } else if (status === "paused") {
+    accessMode = "blocked";
+    reason = "Cuenta temporalmente pausada por administración.";
   } else if (status === "expired") {
     accessMode = "blocked";
     reason = "Suscripción expirada. Reactiva tu cuenta en Facturación.";

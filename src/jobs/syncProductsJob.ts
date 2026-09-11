@@ -118,6 +118,28 @@ export const syncProductsTenantJob = inngest.createFunction(
       return { skipped: true, reason: "demo_tenant" };
     }
 
+    // Requirement 14: Check subscription status before executing heavy work
+    const supabase = createAdminClient();
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("status")
+      .eq("tenant_id", tenantId)
+      .in("status", ["active", "trialing", "past_due", "paused", "cancelled", "expired"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (sub && (sub.status === "paused" || sub.status === "cancelled" || sub.status === "expired")) {
+      logger.info({
+        event: "SUBSCRIPTION_INACTIVE_SKIPPED",
+        tenantId,
+        status: sub.status,
+        operation: "sync_products",
+        message: "Skipping sync products for inactive/paused tenant",
+      });
+      return { status: "skipped", reason: "skipped_subscription_inactive" };
+    }
+
     const workerId = `sync-products-${tenantId}-${Date.now()}`;
 
     return await step.run("execute-tenant-products-sync", async () => {

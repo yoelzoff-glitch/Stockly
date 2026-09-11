@@ -27,7 +27,9 @@ export type AuthErrorCode =
   | "TENANT_MISMATCH_DENIED"
   | "ROLE_DENIED"
   | "CROSS_TENANT_RESOURCE_DENIED"
-  | "INVALID_REQUEST_BODY";
+  | "INVALID_REQUEST_BODY"
+  | "ACCOUNT_PAUSED"
+  | "SUBSCRIPTION_EXPIRED";
 
 export class TenantAuthError extends Error {
   public readonly code: AuthErrorCode;
@@ -75,7 +77,7 @@ export async function requireAuthenticatedUser(
  */
 export async function requireTenantContext(
   req?: Request,
-  options: { customClient?: any } = {}
+  options: { customClient?: any; allowPaused?: boolean } = {}
 ): Promise<TenantContext> {
   const { user, correlationId } = await requireAuthenticatedUser(req, options.customClient);
   const supabase = options.customClient || (await createClient());
@@ -119,6 +121,14 @@ export async function requireTenantContext(
     throw new TenantAuthError("TENANT_NOT_ASSIGNED", "No tenant assigned to user profile", 403, correlationId);
   }
 
+  // Enforce usable subscription unless explicitly exempted
+  if (!options.allowPaused) {
+    await requireUsableSubscription(profile.tenant_id, {
+      customClient: supabase,
+      correlationId,
+    });
+  }
+
   const role: TenantRole = (profile.role as TenantRole) || "user";
   const isDemo = await isDemoTenant(profile.tenant_id, supabase);
 
@@ -130,6 +140,93 @@ export async function requireTenantContext(
     isDemo,
     correlationId,
   };
+}
+
+/**
+ * Verifies that the tenant has a usable, unpaused subscription.
+ * Accepts: 'active', 'trialing', 'past_due' (grace period).
+ * Rejects: 'paused', 'cancelled', 'expired'.
+ * Demo tenants are always allowed.
+ */
+export async function requireUsableSubscription(
+  tenantId: string,
+  options: { customClient?: any; correlationId?: string } = {}
+): Promise<{ status: string; plan: string }> {
+  const supabase = options.customClient || (await createClient());
+
+  // Check demo tenant exemption
+  if (await isDemoTenant(tenantId, supabase)) {
+    return { status: "active", plan: "demo" };
+  }
+
+  const query = supabase
+    .from("subscriptions")
+    .select("status, plan, expires_at")
+    .eq("tenant_id", tenantId);
+
+  const filtered = typeof query.in === "function"
+    ? query.in("status", ["active", "trialing", "past_due", "paused", "cancelled", "expired"])
+    : query;
+
+  const ordered = typeof filtered.order === "function"
+    ? filtered.order("created_at", { ascending: false })
+    : filtered;
+
+  const limited = typeof ordered.limit === "function"
+    ? ordered.limit(1)
+    : ordered;
+
+  const { data: sub, error } = typeof limited.maybeSingle === "function"
+    ? await limited.maybeSingle()
+    : { data: null, error: null };
+
+  if (error) {
+    logger.warn({
+      event: "SUBSCRIPTION_QUERY_FAILED",
+      correlationId: options.correlationId,
+      tenantId,
+      error: error.message,
+    });
+  }
+
+  const status = sub?.status || "active";
+  const plan = sub?.plan || "starter";
+
+  if (status === "paused") {
+    logger.warn({
+      event: "PAUSED_TENANT_ACCESS_DENIED",
+      correlationId: options.correlationId,
+      tenantId,
+      message: "Access blocked: Tenant subscription is paused.",
+    });
+    throw new TenantAuthError(
+      "ACCOUNT_PAUSED",
+      "Tu cuenta se encuentra temporalmente pausada. Contactá a soporte para reactivarla.",
+      403,
+      options.correlationId
+    );
+  }
+
+  if (status === "cancelled" || status === "expired") {
+    if (sub?.expires_at && new Date(sub.expires_at) > new Date()) {
+      return { status, plan };
+    }
+    logger.warn({
+      event: "INACTIVE_SUBSCRIPTION_DENIED",
+      correlationId: options.correlationId,
+      tenantId,
+      status,
+      message: "Access blocked: Subscription is expired or cancelled.",
+    });
+    throw new TenantAuthError(
+      "SUBSCRIPTION_EXPIRED",
+      "Tu suscripción se encuentra inactiva. Renová tu plan para continuar operando.",
+      403,
+      options.correlationId
+    );
+  }
+
+  return { status, plan };
 }
 
 /**

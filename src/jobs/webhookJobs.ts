@@ -49,6 +49,28 @@ export const meliShipmentsJob = inngest.createFunction(
       return { skipped: true, reason: "demo_tenant" };
     }
 
+    // Requirement 15: Skip webhook heavy processing if tenant is paused
+    const supabase = createAdminClient();
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("status")
+      .eq("tenant_id", tenantId)
+      .in("status", ["active", "trialing", "past_due", "paused", "cancelled", "expired"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (sub && sub.status === "paused") {
+      logger.info({
+        event: "PAUSED_TENANT_WEBHOOK_SKIPPED",
+        tenantId,
+        operation: "meli_shipments_webhook",
+        message: "Skipping shipments webhook for paused tenant",
+      });
+      if (eventId) await updateWebhookEventStatus(eventId, "completed");
+      return { skipped: true, reason: "skipped_subscription_inactive" };
+    }
+
     const shipmentId = resource ? resource.split("/").pop() : undefined;
     if (!shipmentId) return { message: "No shipmentId in resource" };
 

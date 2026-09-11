@@ -62,11 +62,12 @@ export async function handleActivateSubscription(tenantId: string) {
   return res;
 }
 
-export async function handlePauseSubscription(tenantId: string) {
+export async function handlePauseSubscription(tenantId: string, reason: string = "manual") {
   const admin = await requirePlatformAdmin();
-  const res = await pauseSubscription(admin.userId, tenantId);
+  const res = await pauseSubscription(admin.userId, tenantId, reason);
   revalidatePath(`/super-admin/customers/${tenantId}`);
   revalidatePath("/super-admin/customers");
+  revalidatePath("/super-admin/subscriptions");
   revalidatePath("/super-admin");
   return res;
 }
@@ -76,6 +77,7 @@ export async function handleReactivateSubscription(tenantId: string) {
   const res = await reactivateSubscription(admin.userId, tenantId);
   revalidatePath(`/super-admin/customers/${tenantId}`);
   revalidatePath("/super-admin/customers");
+  revalidatePath("/super-admin/subscriptions");
   revalidatePath("/super-admin");
   return res;
 }

@@ -348,37 +348,73 @@ export async function activateSubscription(
  */
 export async function pauseSubscription(
   actorUserId: string,
-  tenantId: string
-): Promise<ManageSubscriptionResult> {
+  tenantId: string,
+  reason: string = "manual"
+): Promise<ManageSubscriptionResult & { alreadyPaused?: boolean }> {
   const adminDb = createAdminClient();
 
+  // Try atomic RPC first
+  const { data: rpcRes, error: rpcErr } = await adminDb.rpc("pause_tenant_subscription", {
+    p_tenant_id: tenantId,
+    p_actor_user_id: actorUserId,
+    p_reason: reason,
+  });
+
+  if (!rpcErr && rpcRes) {
+    if (!rpcRes.success) {
+      return { success: false, error: rpcRes.error || "Failed to pause subscription" };
+    }
+    return {
+      success: true,
+      subscriptionId: rpcRes.subscription_id,
+      alreadyPaused: Boolean(rpcRes.already_paused),
+    };
+  }
+
+  // Fallback to deterministic client execution
   const { data: sub, error: subErr } = await adminDb
     .from("subscriptions")
     .select("id, status")
     .eq("tenant_id", tenantId)
-    .single();
+    .in("status", ["active", "trialing", "past_due", "paused"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (subErr || !sub) {
-    return { success: false, error: "Subscription not found." };
+    return { success: false, error: "No active or operative subscription found for this tenant." };
   }
 
-  const { error: updateErr } = await adminDb
+  if (sub.status === "paused") {
+    return { success: true, subscriptionId: sub.id, alreadyPaused: true };
+  }
+
+  const now = new Date().toISOString();
+  const { error: updateErr, data: updatedData } = await adminDb
     .from("subscriptions")
     .update({
       status: "paused",
-      updated_at: new Date().toISOString(),
+      paused_at: now,
+      pause_reason: reason,
+      paused_by: actorUserId,
+      updated_at: now,
     })
-    .eq("id", sub.id);
+    .eq("id", sub.id)
+    .select("id");
 
   if (updateErr) {
     return { success: false, error: updateErr.message };
+  }
+
+  if (!updatedData || updatedData.length === 0) {
+    return { success: false, error: "No rows were updated. Subscription may have changed state." };
   }
 
   await adminDb.from("subscription_events").insert({
     tenant_id: tenantId,
     subscription_id: sub.id,
     event_type: "subscription_paused",
-    metadata: { paused_at: new Date().toISOString() },
+    metadata: { reason, actor_user_id: actorUserId, paused_at: now, source: "super_admin" },
   });
 
   await logPlatformAdminAction({
@@ -386,9 +422,10 @@ export async function pauseSubscription(
     action: "subscription_paused",
     targetTenantId: tenantId,
     targetSubscriptionId: sub.id,
+    metadata: { reason, previous_status: sub.status },
   });
 
-  return { success: true, subscriptionId: sub.id };
+  return { success: true, subscriptionId: sub.id, alreadyPaused: false };
 }
 
 /**
@@ -400,41 +437,60 @@ export async function reactivateSubscription(
 ): Promise<ManageSubscriptionResult> {
   const adminDb = createAdminClient();
 
+  // Try atomic RPC first
+  const { data: rpcRes, error: rpcErr } = await adminDb.rpc("reactivate_tenant_subscription", {
+    p_tenant_id: tenantId,
+    p_actor_user_id: actorUserId,
+  });
+
+  if (!rpcErr && rpcRes) {
+    if (!rpcRes.success) {
+      return { success: false, error: rpcRes.error || "Failed to reactivate subscription" };
+    }
+    return { success: true, subscriptionId: rpcRes.subscription_id };
+  }
+
+  // Fallback to direct client update
   const { data: sub, error: subErr } = await adminDb
     .from("subscriptions")
-    .select("id, status")
+    .select("id, status, current_period_end")
     .eq("tenant_id", tenantId)
-    .single();
+    .eq("status", "paused")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (subErr || !sub) {
-    return { success: false, error: "Subscription not found." };
+    return { success: false, error: "No paused subscription found for this tenant." };
   }
 
   const now = new Date();
-  const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-  const { error: updateErr } = await adminDb
+  // Do NOT alter current_period_end automatically per Requirement 18
+  const { error: updateErr, data: updatedData } = await adminDb
     .from("subscriptions")
     .update({
       status: "active",
-      current_period_start: now.toISOString(),
-      current_period_end: periodEnd.toISOString(),
-      cancel_at_period_end: false,
-      cancelled_at: null,
-      ended_at: null,
+      paused_at: null,
+      pause_reason: null,
+      paused_by: null,
       updated_at: now.toISOString(),
     })
-    .eq("id", sub.id);
+    .eq("id", sub.id)
+    .select("id");
 
   if (updateErr) {
     return { success: false, error: updateErr.message };
+  }
+
+  if (!updatedData || updatedData.length === 0) {
+    return { success: false, error: "No rows were updated. Subscription may have changed state." };
   }
 
   await adminDb.from("subscription_events").insert({
     tenant_id: tenantId,
     subscription_id: sub.id,
     event_type: "subscription_reactivated",
-    metadata: { reactivated_at: now.toISOString() },
+    metadata: { actor_user_id: actorUserId, source: "super_admin", reactivated_at: now.toISOString() },
   });
 
   await logPlatformAdminAction({
@@ -442,6 +498,7 @@ export async function reactivateSubscription(
     action: "subscription_reactivated",
     targetTenantId: tenantId,
     targetSubscriptionId: sub.id,
+    metadata: { previous_status: "paused" },
   });
 
   return { success: true, subscriptionId: sub.id };

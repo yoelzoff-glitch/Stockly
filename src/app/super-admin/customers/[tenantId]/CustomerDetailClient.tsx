@@ -48,6 +48,8 @@ export function CustomerDetailClient({ data }: CustomerDetailClientProps) {
   const [cancelComment, setCancelComment] = useState("");
   const [cancelImmediate, setCancelImmediate] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [pauseReason, setPauseReason] = useState("non_payment");
   const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const sub = data.subscription;
@@ -105,13 +107,18 @@ export function CustomerDetailClient({ data }: CustomerDetailClientProps) {
     });
   };
 
-  const onPause = () => {
-    if (!confirm("¿Seguro que deseas pausar esta suscripción?")) return;
+  const onConfirmPause = () => {
     setActionMessage(null);
     startTransition(async () => {
-      const res = await handlePauseSubscription(data.tenant.id);
+      const res = await handlePauseSubscription(data.tenant.id, pauseReason);
+      setShowPauseModal(false);
       if (res.success) {
-        setActionMessage({ type: "success", text: "Suscripción pausada." });
+        setActionMessage({
+          type: "success",
+          text: res.alreadyPaused
+            ? "La suscripción ya se encontraba pausada."
+            : "Suscripción pausada con éxito.",
+        });
       } else {
         setActionMessage({ type: "error", text: res.error || "Error al pausar suscripción." });
       }
@@ -181,14 +188,16 @@ export function CustomerDetailClient({ data }: CustomerDetailClientProps) {
               className={`px-2.5 py-0.5 text-xs font-bold rounded-full uppercase border ${
                 sub?.status === "active"
                   ? "bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]"
-                  : sub?.status === "trialing"
+                  : sub?.status === "paused"
                   ? "bg-[#FEF3C7] text-[#B45309] border-[#FDE68A]"
+                  : sub?.status === "trialing"
+                  ? "bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]"
                   : sub?.status === "past_due"
                   ? "bg-[#FEE2E2] text-[#B91C1C] border-[#FECACA]"
                   : "bg-[#F1F5F9] text-[#64748B] border-[#E2E8F0]"
               }`}
             >
-              {sub?.status || "SIN SUSCRIPCIÓN"}
+              {sub?.status === "paused" ? "PAUSADA" : sub?.status || "SIN SUSCRIPCIÓN"}
             </span>
           </div>
           <div className="text-xs text-[#64748B] flex flex-wrap gap-x-4 gap-y-1">
@@ -322,6 +331,29 @@ export function CustomerDetailClient({ data }: CustomerDetailClientProps) {
                   : "—"}
               </span>
             </div>
+            {sub?.status === "paused" && (
+              <>
+                <div className="flex justify-between py-1 border-b border-[#F1F5F9]">
+                  <span className="text-[#64748B]">Pausada el:</span>
+                  <span className="font-bold text-[#D97706]">
+                    {sub.pausedAt ? new Date(sub.pausedAt).toLocaleString("es-AR") : "Recientemente"}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-[#F1F5F9]">
+                  <span className="text-[#64748B]">Motivo de Pausa:</span>
+                  <span className="font-bold text-[#B45309] capitalize">
+                    {sub.pauseReason === "non_payment"
+                      ? "Falta de pago"
+                      : sub.pauseReason === "customer_request"
+                      ? "Solicitud del cliente"
+                      : sub.pauseReason === "manual_review"
+                      ? "Revisión administrativa"
+                      : sub.pauseReason || "Otro"}
+                  </span>
+                </div>
+              </>
+            )}
+
             <div className="flex justify-between py-1 border-b border-[#F1F5F9]">
               <span className="text-[#64748B]">Fin de Período:</span>
               <span className="font-medium text-[#0F172A]">
@@ -436,7 +468,7 @@ export function CustomerDetailClient({ data }: CustomerDetailClientProps) {
 
           {/* Quick Lifecycle Buttons */}
           <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[#F1F5F9]">
-            {sub?.status !== "active" && (
+            {sub?.status !== "active" && sub?.status !== "paused" && (
               <button
                 onClick={onActivate}
                 disabled={isPending || !sub}
@@ -447,14 +479,25 @@ export function CustomerDetailClient({ data }: CustomerDetailClientProps) {
               </button>
             )}
 
-            {sub?.status === "active" && (
+            {sub?.status === "paused" && (
               <button
-                onClick={onPause}
+                onClick={onReactivate}
                 disabled={isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#64748B] hover:bg-[#475569] disabled:opacity-50 text-white text-xs font-bold rounded shadow-sm"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#10B981] hover:bg-[#059669] disabled:opacity-50 text-white text-xs font-bold rounded shadow-sm"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>Reactivar Cuenta</span>
+              </button>
+            )}
+
+            {(sub?.status === "active" || sub?.status === "trialing" || sub?.status === "past_due") && (
+              <button
+                onClick={() => setShowPauseModal(true)}
+                disabled={isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#F59E0B] hover:bg-[#D97706] disabled:opacity-50 text-white text-xs font-bold rounded shadow-sm"
               >
                 <Pause className="w-3.5 h-3.5" />
-                <span>Pausar</span>
+                <span>Pausar Cuenta</span>
               </button>
             )}
 
@@ -601,6 +644,56 @@ export function CustomerDetailClient({ data }: CustomerDetailClientProps) {
           </div>
         )}
       </div>
+
+      {/* Pause Confirmation Modal */}
+      {showPauseModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div className="flex items-center gap-2 text-[#D97706]">
+              <AlertTriangle className="w-5 h-5" />
+              <h3 className="text-sm font-bold text-[#0F172A]">Pausar Cuenta de Cliente</h3>
+            </div>
+
+            <p className="text-xs text-[#64748B] leading-relaxed">
+              <strong>{data.tenant.name}</strong> perderá temporalmente el acceso a LibretaX.
+              Sus datos y la conexión con Mercado Libre permanecerán guardados con total seguridad.
+            </p>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-[#0F172A] block mb-1">Motivo de la pausa:</label>
+                <select
+                  value={pauseReason}
+                  onChange={(e) => setPauseReason(e.target.value)}
+                  className="w-full p-2 border border-[#CBD5E1] rounded bg-white text-[#0F172A] font-medium"
+                >
+                  <option value="non_payment">Falta de pago (non_payment)</option>
+                  <option value="customer_request">Solicitud del cliente (customer_request)</option>
+                  <option value="manual_review">Revisión administrativa (manual_review)</option>
+                  <option value="other">Otro motivo (other)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#F1F5F9]">
+              <button
+                onClick={() => setShowPauseModal(false)}
+                disabled={isPending}
+                className="px-3 py-1.5 text-xs font-semibold rounded bg-[#F1F5F9] text-[#475569] hover:bg-[#E2E8F0]"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={onConfirmPause}
+                disabled={isPending}
+                className="px-4 py-1.5 text-xs font-bold rounded bg-[#F59E0B] text-white hover:bg-[#D97706] disabled:opacity-50"
+              >
+                Confirmar Pausa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cancellation Confirmation Modal */}
       {showCancelModal && (

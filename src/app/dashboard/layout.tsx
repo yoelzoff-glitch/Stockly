@@ -3,6 +3,7 @@ import { Navbar } from "@/components/dashboard/navbar";
 import { Footer } from "@/components/layout/footer";
 import { TenantActivityTracker } from "@/components/analytics/TenantActivityTracker";
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { Archivo } from "next/font/google";
 
 const archivo = Archivo({
@@ -31,7 +32,7 @@ export default async function DashboardLayout({
         tenants:tenants(
           is_demo,
           demo_label,
-          subscriptions:subscriptions(plan, expires_at)
+          subscriptions:subscriptions(plan, status, expires_at)
         )
       `)
       .eq("id", user.id)
@@ -39,7 +40,14 @@ export default async function DashboardLayout({
 
     const tenant = (profile as any)?.tenants;
     const isDemo = Boolean(tenant?.is_demo);
-    const subscription = tenant?.subscriptions;
+    const rawSub = tenant?.subscriptions;
+    const subscription = Array.isArray(rawSub) ? rawSub[0] : rawSub;
+
+    // Enforcement: redirect paused tenants to /account-paused
+    if (!isDemo && subscription?.status === "paused") {
+      redirect("/account-paused");
+    }
+
     if (subscription) {
       plan = isDemo ? "Demo" : subscription.plan;
       if (subscription.expires_at && !isDemo) {

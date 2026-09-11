@@ -39,6 +39,9 @@ export interface CustomerDetailData {
     cancelledAt: string | null;
     cancellationReason: string | null;
     cancellationComment: string | null;
+    pausedAt: string | null;
+    pauseReason: string | null;
+    pausedBy: string | null;
   } | null;
   activity: {
     lastUserActivityAt: string | null;
@@ -115,7 +118,14 @@ export async function getCustomerDetail(tenantId: string): Promise<CustomerDetai
     adminDb.from("tenants").select("id, name, slug, created_at, is_demo").eq("id", tenantId).single(),
     adminDb.from("profiles").select("id, email, full_name, role").eq("tenant_id", tenantId),
     adminDb.from("meli_accounts").select("id, meli_user_id, nickname, status, updated_at").eq("tenant_id", tenantId),
-    adminDb.from("subscriptions").select("*, plans(name)").eq("tenant_id", tenantId).maybeSingle(),
+    adminDb
+      .from("subscriptions")
+      .select("*, plans(name)")
+      .eq("tenant_id", tenantId)
+      .in("status", ["active", "trialing", "past_due", "paused"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
     adminDb.from("plans").select("id, code, name, price_monthly, price_yearly").eq("is_active", true),
     adminDb.from("platform_activity_events").select("event_name, created_at").eq("tenant_id", tenantId).gte("created_at", thirtyDaysAgo),
     adminDb.from("billing_transactions").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false }),
@@ -147,6 +157,9 @@ export async function getCustomerDetail(tenantId: string): Promise<CustomerDetai
       cancelledAt: sub.cancelled_at,
       cancellationReason: sub.cancellation_reason,
       cancellationComment: sub.cancellation_comment,
+      pausedAt: sub.paused_at || null,
+      pauseReason: sub.pause_reason || null,
+      pausedBy: sub.paused_by || null,
     };
   }
 
