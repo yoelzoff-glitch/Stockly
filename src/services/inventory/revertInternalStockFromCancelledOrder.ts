@@ -14,8 +14,10 @@ export async function revertInternalStockFromCancelledOrder(tenantId: string, or
     .select(`
       id,
       meli_order_id,
+      meli_shipment_id,
       internal_stock_processed,
       internal_stock_reverted,
+      raw_data,
       order_items (
         product_id,
         quantity,
@@ -29,6 +31,50 @@ export async function revertInternalStockFromCancelledOrder(tenantId: string, or
   if (orderError || !order) {
     logger.error(`No se encontró la orden ${orderId}`, "INVENTORY_SYNC");
     return { success: false, error: "Order not found" };
+  }
+
+  // Si la orden fue despachada por FULL, el stock físico interno nunca debió descontarse,
+  // por lo que no debe reingresarse nada al depósito local.
+  let isFullOrder = order.raw_data?.shipping?.logistic_type === "fulfillment";
+
+  if (!isFullOrder) {
+    const shipmentId = order.meli_shipment_id || (order.raw_data?.shipping as any)?.id;
+    if (shipmentId) {
+      const { data: ship } = await supabase
+        .from("shipments")
+        .select("logistic_type")
+        .eq("tenant_id", tenantId)
+        .eq("meli_shipment_id", String(shipmentId))
+        .maybeSingle();
+
+      if (ship?.logistic_type === "fulfillment") {
+        isFullOrder = true;
+      }
+    }
+  }
+
+  if (!isFullOrder) {
+    const { data: shipByOrderId } = await supabase
+      .from("shipments")
+      .select("logistic_type")
+      .eq("tenant_id", tenantId)
+      .eq("order_id", order.id)
+      .maybeSingle();
+
+    if (shipByOrderId?.logistic_type === "fulfillment") {
+      isFullOrder = true;
+    }
+  }
+
+  if (isFullOrder) {
+    await supabase
+      .from("orders")
+      .update({
+        internal_stock_reverted: true,
+        internal_stock_reverted_at: new Date().toISOString()
+      })
+      .eq("id", order.id);
+    return { success: true, message: "Order was fulfilled by Mercado Libre FULL warehouse. Skipping internal stock reversion." };
   }
 
   // Si no se procesó, no hay nada que revertir. Si ya se revirtió, no se hace dos veces.

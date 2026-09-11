@@ -265,6 +265,12 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
       };
       const enrichedRawData = {
         ...order,
+        shipping: shipmentData ? {
+          ...order.shipping,
+          logistic_type: shipmentData.logistic_type,
+          status: shipmentData.status,
+          substatus: shipmentData.substatus,
+        } : order.shipping,
         libretax_operational_costs: operationalCosts,
         klyvo_operational_costs: operationalCosts,
       };

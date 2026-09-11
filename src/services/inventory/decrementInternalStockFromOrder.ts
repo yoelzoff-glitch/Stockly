@@ -31,6 +31,7 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
     .select(`
       id,
       meli_order_id,
+      meli_shipment_id,
       internal_stock_processed,
       raw_data,
       order_items (
@@ -55,7 +56,37 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
 
   // Si la orden fue despachada directamente desde la Bodega FULL de Mercado Libre,
   // no debemos descontar stock del depósito físico local.
-  const isFullOrder = order.raw_data?.shipping?.logistic_type === "fulfillment";
+  let isFullOrder = order.raw_data?.shipping?.logistic_type === "fulfillment";
+
+  if (!isFullOrder) {
+    const shipmentId = order.meli_shipment_id || (order.raw_data?.shipping as any)?.id;
+    if (shipmentId) {
+      const { data: ship } = await supabase
+        .from("shipments")
+        .select("logistic_type")
+        .eq("tenant_id", tenantId)
+        .eq("meli_shipment_id", String(shipmentId))
+        .maybeSingle();
+
+      if (ship?.logistic_type === "fulfillment") {
+        isFullOrder = true;
+      }
+    }
+  }
+
+  if (!isFullOrder) {
+    const { data: shipByOrderId } = await supabase
+      .from("shipments")
+      .select("logistic_type")
+      .eq("tenant_id", tenantId)
+      .eq("order_id", order.id)
+      .maybeSingle();
+
+    if (shipByOrderId?.logistic_type === "fulfillment") {
+      isFullOrder = true;
+    }
+  }
+
   if (isFullOrder) {
     await supabase
       .from("orders")
