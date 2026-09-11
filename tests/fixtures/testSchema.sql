@@ -1602,3 +1602,102 @@ CREATE TABLE IF NOT EXISTS public.full_replenishment_recommendations (
 ALTER TABLE public.full_replenishment_recommendations ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.full_replenishment_recommendations TO authenticated, service_role;
 
+-- Sprint 32: Super Admin Backoffice Tables
+CREATE TABLE IF NOT EXISTS public.platform_admins (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role text NOT NULL DEFAULT 'super_admin',
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT platform_admins_user_role_key UNIQUE (user_id, role)
+);
+ALTER TABLE public.platform_admins ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS public.plans (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  code text UNIQUE NOT NULL,
+  name text NOT NULL,
+  description text,
+  price_monthly numeric NOT NULL DEFAULT 0,
+  price_yearly numeric NOT NULL DEFAULT 0,
+  max_users integer NOT NULL DEFAULT 1,
+  max_ml_accounts integer NOT NULL DEFAULT 1,
+  features jsonb NOT NULL DEFAULT '{}'::jsonb,
+  is_active boolean NOT NULL DEFAULT true,
+  is_public boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+ALTER TABLE public.plans ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.plans TO authenticated;
+
+-- Extend subscriptions with Sprint 32 columns
+ALTER TABLE public.subscriptions 
+  ADD COLUMN IF NOT EXISTS plan_id uuid REFERENCES public.plans(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS started_at timestamp with time zone,
+  ADD COLUMN IF NOT EXISTS trial_started_at timestamp with time zone,
+  ADD COLUMN IF NOT EXISTS trial_ends_at timestamp with time zone,
+  ADD COLUMN IF NOT EXISTS current_period_start timestamp with time zone,
+  ADD COLUMN IF NOT EXISTS current_period_end timestamp with time zone,
+  ADD COLUMN IF NOT EXISTS cancel_at_period_end boolean DEFAULT false,
+  ADD COLUMN IF NOT EXISTS cancelled_at timestamp with time zone,
+  ADD COLUMN IF NOT EXISTS ended_at timestamp with time zone,
+  ADD COLUMN IF NOT EXISTS billing_interval text DEFAULT 'monthly',
+  ADD COLUMN IF NOT EXISTS monthly_price_snapshot numeric NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS cancellation_reason text,
+  ADD COLUMN IF NOT EXISTS cancellation_comment text;
+
+CREATE TABLE IF NOT EXISTS public.subscription_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  subscription_id uuid REFERENCES public.subscriptions(id) ON DELETE CASCADE,
+  event_type text NOT NULL,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+ALTER TABLE public.subscription_events ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.subscription_events TO authenticated;
+
+CREATE TABLE IF NOT EXISTS public.billing_transactions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  subscription_id uuid REFERENCES public.subscriptions(id) ON DELETE SET NULL,
+  type text NOT NULL,
+  status text NOT NULL,
+  amount numeric NOT NULL,
+  currency text NOT NULL DEFAULT 'ARS',
+  provider text,
+  provider_payment_id text,
+  period_start timestamp with time zone,
+  period_end timestamp with time zone,
+  paid_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+ALTER TABLE public.billing_transactions ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.billing_transactions TO authenticated;
+
+CREATE TABLE IF NOT EXISTS public.platform_activity_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  event_name text NOT NULL,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+ALTER TABLE public.platform_activity_events ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.platform_activity_events TO authenticated;
+
+CREATE TABLE IF NOT EXISTS public.platform_admin_audit_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  action text NOT NULL,
+  target_tenant_id uuid REFERENCES public.tenants(id) ON DELETE SET NULL,
+  target_subscription_id uuid REFERENCES public.subscriptions(id) ON DELETE SET NULL,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+ALTER TABLE public.platform_admin_audit_log ENABLE ROW LEVEL SECURITY;
+
+

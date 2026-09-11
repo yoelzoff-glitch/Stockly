@@ -168,8 +168,8 @@ function runRlsAudit() {
     });
   }
 
-  // 9. COVERAGE AUDIT: All 38 tables in Migration C + 6 backend tables = 44 tables (+ sprint29: full_replenishment_recommendations)
-  const canonical44Tables = [
+  // 9. COVERAGE AUDIT: All 38 tables in Migration C + 6 backend tables = 44 tables (+ sprint29: full_replenishment_recommendations + sprint32: super admin backoffice)
+  const canonicalTables = [
     "tenants", "profiles", "meli_accounts", "products", "orders", "order_items",
     "whatsapp_numbers", "messages", "ai_actions", "product_price_history",
     "stock_movements", "alert_rules", "alerts", "audit_logs", "tenant_preferences",
@@ -180,13 +180,15 @@ function runRlsAudit() {
     "monthly_expenses", "plans_config", "competition_snapshots", "action_workflows",
     "workflow_steps", "price_adjustment_workflows", "price_adjustment_details",
     "tenant_feature_flags", "operation_runs", "webhook_events", "usage_events",
-    "operation_leases", "rate_limit_buckets", "full_replenishment_recommendations"
+    "operation_leases", "rate_limit_buckets", "full_replenishment_recommendations",
+    "platform_admins", "plans", "subscription_events", "billing_transactions",
+    "platform_activity_events", "platform_admin_audit_log"
   ];
 
   const sprint3BMigration = migrationFiles.find((m) => m.name.includes("sprint03_b_policies"))?.content || "";
   const testSchemaContent = fs.readFileSync(path.join(fixturesDir, "testSchema.sql"), "utf-8");
 
-  for (const tbl of canonical44Tables) {
+  for (const tbl of canonicalTables) {
     // Must have definition in testSchema.sql fixture
     const hasDefinitionInFixture = new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?public\\.${tbl}\\b`, "i").test(testSchemaContent);
     if (!hasDefinitionInFixture) {
@@ -198,9 +200,14 @@ function runRlsAudit() {
     }
 
     // Authenticated tables must have explicit RLS policies (in Migration B for Sprint 3 tables, or in migration file for later tables)
-    const backendOnlyTables = ["tenant_feature_flags", "operation_runs", "webhook_events", "usage_events", "operation_leases", "rate_limit_buckets"];
+    const backendOnlyTables = [
+      "tenant_feature_flags", "operation_runs", "webhook_events", "usage_events", 
+      "operation_leases", "rate_limit_buckets", "platform_admins", "platform_admin_audit_log"
+    ];
     if (!backendOnlyTables.includes(tbl)) {
-      const isPostSprint3 = tbl === "full_replenishment_recommendations";
+      const isPostSprint3 = tbl === "full_replenishment_recommendations" || [
+        "plans", "subscription_events", "billing_transactions", "platform_activity_events"
+      ].includes(tbl);
       const targetMigration = isPostSprint3 ? allSqlContent : sprint3BMigration;
       const hasPolicy = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${tbl}`, "i").test(targetMigration);
       if (!hasPolicy) {
@@ -212,7 +219,7 @@ function runRlsAudit() {
       }
     }
   }
-  console.log(`Coverage Audit: Verified explicit RLS policies & canonical fixture definitions for all ${canonical44Tables.length} tables.`);
+  console.log(`Coverage Audit: Verified explicit RLS policies & canonical fixture definitions for all ${canonicalTables.length} tables.`);
 
   // 10. Codebase Schema and Write Audit: scan src/
   function scanDirForTablesAndWrites(dir: string, tableSet: Set<string>) {
@@ -243,6 +250,8 @@ function runRlsAudit() {
         const hasAuthClient = /createClient\(/i.test(content);
         const isClientFile =
           !normalizedPath.includes("/admin") &&
+          !normalizedPath.includes("/super-admin/") &&
+          !normalizedPath.includes("/services/super-admin/") &&
           !normalizedPath.includes("/api/inngest") &&
           !normalizedPath.includes("/api/meli/webhook") &&
           !normalizedPath.includes("/api/mercadopago/webhook") &&
@@ -273,7 +282,7 @@ function runRlsAudit() {
   console.log(`Codebase Query Audit: Scanned ${queriedTables.size} unique tables queried across src/`);
 
   // Verify all queried tables are in canonical table inventory
-  const allKnownTables = new Set(canonical44Tables);
+  const allKnownTables = new Set(canonicalTables);
 
   for (const qTable of queriedTables) {
     if (!allKnownTables.has(qTable)) {

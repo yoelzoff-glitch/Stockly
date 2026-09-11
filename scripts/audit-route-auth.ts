@@ -87,7 +87,7 @@ export function runRouteAuthAudit(rootDir = path.resolve(__dirname, "..")): {
     }
 
     // 2. Check presence of server auth helpers
-    const authHelperRegex = /\b(requireTenantContext|requireAuthenticatedUser|requireTenantRole)\s*\(/g;
+    const authHelperRegex = /\b(requireTenantContext|requireAuthenticatedUser|requireTenantRole|requirePlatformAdmin)\s*\(/g;
     const firstAuthMatch = authHelperRegex.exec(content);
     const authIndex = firstAuthMatch ? firstAuthMatch.index : -1;
 

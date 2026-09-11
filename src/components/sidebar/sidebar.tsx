@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/Logo";
+import { SuperAdminLink } from "./SuperAdminLink";
 import {
   LayoutDashboard,
   Package,
@@ -117,6 +118,7 @@ export function Sidebar() {
             </div>
           </div>
         ))}
+        <SuperAdminLink />
       </nav>
     </aside>
   );
