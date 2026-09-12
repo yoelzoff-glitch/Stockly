@@ -11,22 +11,27 @@ import {
 
 describe("Sprint: Launch Promotion & 10% OFF Countdown Tests", () => {
   describe("Campaign Date Validity & Timezone Boundaries", () => {
-    test("marks status as 'upcoming' before October 1, 2026", () => {
-      // 2026-09-12 (Today)
-      const date1 = new Date("2026-09-12T12:00:00-03:00");
+    test("marks status as 'upcoming' before launch start", () => {
+      // 2026-08-15
+      const date1 = new Date("2026-08-15T12:00:00-03:00");
       assert.equal(getPromotionStatus(date1), "upcoming");
       assert.equal(isPromotionActive(date1), false);
 
       // 1 minute before launch
-      const date2 = new Date("2026-09-30T23:59:59-03:00");
+      const date2 = new Date("2026-08-31T23:59:59-03:00");
       assert.equal(getPromotionStatus(date2), "upcoming");
       assert.equal(isPromotionActive(date2), false);
     });
 
-    test("marks status as 'active' exactly at October 1, 2026 00:00:00 ART", () => {
-      const launchStart = new Date("2026-10-01T00:00:00-03:00");
+    test("marks status as 'active' starting September 2026 through launch", () => {
+      const launchStart = new Date("2026-09-01T00:00:00-03:00");
       assert.equal(getPromotionStatus(launchStart), "active");
       assert.equal(isPromotionActive(launchStart), true);
+
+      // Today (September 12, 2026)
+      const today = new Date("2026-09-12T12:00:00-03:00");
+      assert.equal(getPromotionStatus(today), "active");
+      assert.equal(isPromotionActive(today), true);
     });
 
     test("marks status as 'active' throughout October and November 2026", () => {
@@ -59,12 +64,12 @@ describe("Sprint: Launch Promotion & 10% OFF Countdown Tests", () => {
     });
 
     test("maintains timezone independence (UTC timestamp matches Argentina offset)", () => {
-      // 2026-10-01T00:00:00-03:00 is 2026-10-01T03:00:00.000Z in UTC
-      const startInUTC = new Date("2026-10-01T03:00:00.000Z");
+      // 2026-09-01T00:00:00-03:00 is 2026-09-01T03:00:00.000Z in UTC
+      const startInUTC = new Date("2026-09-01T03:00:00.000Z");
       assert.equal(isPromotionActive(startInUTC), true);
 
       // 1 ms before in UTC
-      const beforeInUTC = new Date("2026-10-01T02:59:59.999Z");
+      const beforeInUTC = new Date("2026-09-01T02:59:59.999Z");
       assert.equal(isPromotionActive(beforeInUTC), false);
 
       // Expiration in UTC: 2026-12-01T03:00:00.000Z

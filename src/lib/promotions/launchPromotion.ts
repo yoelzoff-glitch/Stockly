@@ -22,7 +22,7 @@ export const LAUNCH_PROMOTION: PromotionConfig = {
   headline: "Precio especial de lanzamiento",
   subheadline: "Sumate a LibretaX durante el lanzamiento y accedé a un 10% de descuento.",
   discountPercentage: 10,
-  startsAt: "2026-10-01T00:00:00-03:00",
+  startsAt: "2026-09-01T00:00:00-03:00",
   endsAt: "2026-12-01T00:00:00-03:00",
   timezone: "America/Argentina/Buenos_Aires",
 };
