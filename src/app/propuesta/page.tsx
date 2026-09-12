@@ -1,7 +1,7 @@
-"use me";
 "use client";
 
 import React from "react";
+import { Logo } from "@/components/brand/Logo";
 import { 
   Bot, 
   ShieldCheck, 
@@ -107,11 +107,8 @@ export default function PropuestaComercialPage() {
           <div className="relative z-10 space-y-3">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-600/50">
-                  <Bot className="w-7 h-7 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-black tracking-tight text-white">LIBRETAX</h1>
+                <Logo variant="light" size="lg" />
+                <div className="hidden sm:block border-l border-indigo-500/30 pl-3">
                   <p className="text-[10px] text-indigo-300 font-bold tracking-widest uppercase">Operador Inteligente e-Commerce para Mercado Libre</p>
                 </div>
               </div>

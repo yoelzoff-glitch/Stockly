@@ -27,9 +27,9 @@ export const metadata: Metadata = {
       "Analizá ventas, costos, márgenes, publicidad y rentabilidad de tu cuenta de Mercado Libre desde un solo lugar.",
     images: [
       {
-        url: "/favicon.png",
-        width: 512,
-        height: 512,
+        url: "/libretax-logo.png",
+        width: 1448,
+        height: 1086,
         alt: "LibretaX",
       },
     ],
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     title: "LibretaX | Rentabilidad y gestión para Mercado Libre",
     description:
       "Analizá ventas, costos, márgenes, publicidad y rentabilidad de tu cuenta de Mercado Libre desde un solo lugar.",
-    images: ["/favicon.png"],
+    images: ["/libretax-logo.png"],
   },
   robots: {
     index: true,
@@ -54,10 +54,15 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
+      { url: "/favicon.ico", sizes: "any" },
       { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon.png", type: "image/png" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon.png", type: "image/png", sizes: "512x512" },
     ],
-    apple: "/icono.png",
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180" },
+      { url: "/icono.png", sizes: "180x180" },
+    ],
   },
 };
 

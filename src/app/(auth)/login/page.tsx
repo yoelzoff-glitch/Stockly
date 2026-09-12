@@ -34,9 +34,7 @@ export default function LoginPage() {
               "LibretaX se ha convertido en el socio ideal para escalar nuestras ventas. Su inteligencia artificial y sincronización automática nos ahorran horas de trabajo manual todos los días."
             </p>
             <div className="mt-8 flex items-center space-x-4">
-              <div className="w-12 h-12 bg-[#5B2FE4] rounded-full flex items-center justify-center font-bold text-lg shadow-lg">
-                L
-              </div>
+              <Logo variant="icon-only" size="md" className="w-12 h-12" />
               <div>
                 <p className="font-medium">El equipo de LibretaX</p>
                 <p className="text-sm text-slate-400">Automatizando el E-Commerce</p>

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useActionState, useEffect } from "react";
 import { submitOnboardingAction } from "@/actions/tenants";
 import { trackStartOnboarding, trackCompleteOnboarding } from "@/lib/analytics/ga";
+import { Logo } from "@/components/brand/Logo";
 
 export default function OnboardingPage() {
   const [state, formAction, isPending] = useActionState(submitOnboardingAction, { error: null as string | null });
@@ -19,6 +20,9 @@ export default function OnboardingPage() {
     <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-lg">
         <CardHeader>
+          <div className="mb-2">
+            <Logo size="md" />
+          </div>
           <CardTitle className="text-2xl">¡Bienvenido a LibretaX!</CardTitle>
           <CardDescription>
             Cuéntanos un poco sobre tu negocio para preparar tu entorno.

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PauseCircle, Mail, LogOut, ShieldCheck } from "lucide-react";
+import { Logo } from "@/components/brand/Logo";
 
 import type { Metadata } from "next";
 
@@ -16,6 +17,11 @@ export default function AccountPausedPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F5F3EE] p-4 font-sans text-[#101828]">
       <div className="w-full max-w-md bg-white rounded-2xl border border-[#DCDAD4] shadow-xl p-8 text-center space-y-6">
+        {/* Brand Logo */}
+        <div className="flex justify-center">
+          <Logo size="md" />
+        </div>
+
         {/* Brand Icon & Pause Badge */}
         <div className="flex flex-col items-center justify-center space-y-3">
           <div className="w-16 h-16 rounded-2xl bg-[#FEF3C7] border border-[#FDE68A] flex items-center justify-center text-[#D97706] shadow-sm">

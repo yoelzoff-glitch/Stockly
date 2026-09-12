@@ -34,9 +34,7 @@ export default function RegisterPage() {
               "Desde que usamos LibretaX, nuestro equipo dejó de perder tiempo en cálculos de rentabilidad y Excel manuales. La plataforma hace todo por nosotros, y el asistente de IA es una locura."
             </p>
             <div className="mt-8 flex items-center space-x-4">
-              <div className="w-12 h-12 bg-[#5B2FE4] rounded-full flex items-center justify-center font-bold text-lg shadow-lg">
-                L
-              </div>
+              <Logo variant="icon-only" size="md" className="w-12 h-12" />
               <div>
                 <p className="font-medium">El equipo de LibretaX</p>
                 <p className="text-sm text-slate-400">Impulsando tus ventas</p>

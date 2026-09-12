@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/brand/Logo";
 import {
   LayoutDashboard,
   Users,
@@ -42,9 +43,7 @@ export function SuperAdminSidebar({ adminEmail, adminRole }: SuperAdminSidebarPr
       {/* Brand Header */}
       <div className="h-16 px-5 flex items-center justify-between border-b border-[#1C2541] shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-[#3A86FF] flex items-center justify-center text-white font-black text-sm shadow-md">
-            LX
-          </div>
+          <Logo variant="icon-only" size="sm" className="w-8 h-8" />
           <div>
             <div className="text-xs font-bold tracking-wider text-white uppercase flex items-center gap-1.5">
               LibretaX
