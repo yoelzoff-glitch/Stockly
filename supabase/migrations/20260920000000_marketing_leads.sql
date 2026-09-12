@@ -38,6 +38,11 @@ BEGIN
       ON public.marketing_leads
       FOR SELECT
       TO authenticated
-      USING (public.is_platform_admin(auth.uid()));
+      USING (
+        EXISTS (
+          SELECT 1 FROM public.platform_admins pa
+          WHERE pa.user_id = auth.uid() AND pa.is_active = true
+        )
+      );
   END IF;
 END $$;

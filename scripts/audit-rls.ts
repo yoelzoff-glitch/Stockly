@@ -184,7 +184,7 @@ function runRlsAudit() {
     "platform_admins", "plans", "subscription_events", "billing_transactions",
     "platform_activity_events", "platform_admin_audit_log", "tenant_activity_state",
     "web_analytics_sessions", "web_analytics_pageviews", "web_analytics_events",
-    "analytics_attribution", "web_analytics_daily"
+    "analytics_attribution", "web_analytics_daily", "marketing_leads"
   ];
 
   const sprint3BMigration = migrationFiles.find((m) => m.name.includes("sprint03_b_policies"))?.content || "";
@@ -210,7 +210,7 @@ function runRlsAudit() {
       const isPostSprint3 = tbl === "full_replenishment_recommendations" || [
         "plans", "subscription_events", "billing_transactions", "platform_activity_events", "tenant_activity_state",
         "web_analytics_sessions", "web_analytics_pageviews", "web_analytics_events",
-        "analytics_attribution", "web_analytics_daily"
+        "analytics_attribution", "web_analytics_daily", "marketing_leads"
       ].includes(tbl);
       const targetMigration = isPostSprint3 ? allSqlContent : sprint3BMigration;
       const hasPolicy = new RegExp(`CREATE\\s+POLICY\\s+["'][^"']+["']\\s+ON\\s+public\\.${tbl}`, "i").test(targetMigration);
