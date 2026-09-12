@@ -1822,3 +1822,22 @@ CREATE TABLE IF NOT EXISTS public.web_analytics_daily (
   PRIMARY KEY (date, environment)
 );
 ALTER TABLE public.web_analytics_daily ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS public.marketing_leads (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email text NOT NULL,
+  name text,
+  company text,
+  intent text NOT NULL CHECK (intent IN ('meeting', 'contact')),
+  source text NOT NULL DEFAULT 'landing_popup',
+  page_path text,
+  utm_source text,
+  utm_medium text,
+  utm_campaign text,
+  utm_content text,
+  utm_term text,
+  referrer text,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+ALTER TABLE public.marketing_leads ENABLE ROW LEVEL SECURITY;
+

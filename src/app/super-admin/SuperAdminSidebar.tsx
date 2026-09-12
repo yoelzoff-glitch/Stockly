@@ -14,6 +14,7 @@ import {
   BarChart3,
   ArrowLeft,
   ShieldCheck,
+  Inbox,
 } from "lucide-react";
 
 interface SuperAdminSidebarProps {
@@ -23,6 +24,7 @@ interface SuperAdminSidebarProps {
 
 const navItems = [
   { name: "Overview", href: "/super-admin", icon: LayoutDashboard },
+  { name: "Leads", href: "/super-admin/leads", icon: Inbox },
   { name: "Clientes", href: "/super-admin/customers", icon: Users },
   { name: "Suscripciones", href: "/super-admin/subscriptions", icon: CreditCard },
   { name: "Planes", href: "/super-admin/plans", icon: Layers },

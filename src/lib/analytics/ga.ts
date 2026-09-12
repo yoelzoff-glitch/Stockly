@@ -14,7 +14,7 @@ export function trackGAEvent(eventName: string, params: Record<string, any> = {}
     const safeParams: Record<string, any> = {};
     for (const [k, v] of Object.entries(params)) {
       if (
-        /email|token|password|secret|cost|price|revenue|amount|tenant|user_id|dni|phone|credential/i.test(
+        /email|token|password|secret|cost|price|revenue|amount|tenant|user_id|dni|phone|credential|name|company/i.test(
           k
         )
       ) {
@@ -68,3 +68,23 @@ export function trackCompleteOnboarding() {
 export function trackConnectMercadoLibre() {
   trackGAEvent("connect_mercadolibre");
 }
+
+export function trackLeadPopupView(source: string = "landing_popup") {
+  trackGAEvent("lead_popup_view", { source });
+}
+
+export function trackLeadPopupDismiss(source: string = "landing_popup") {
+  trackGAEvent("lead_popup_dismiss", { source });
+}
+
+export function trackLeadPopupOptionSelected(option: "meeting" | "contact") {
+  trackGAEvent("lead_popup_option_selected", { option });
+}
+
+export function trackGenerateLead(leadType: "meeting" | "contact", source: string = "landing_popup") {
+  trackGAEvent("generate_lead", {
+    lead_type: leadType,
+    source,
+  });
+}
+
