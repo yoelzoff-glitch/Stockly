@@ -1,8 +1,22 @@
-"use client";
-
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+export const metadata: Metadata = {
+  title: "Política de Privacidad | LibretaX",
+  description:
+    "Conocé la Política de Privacidad de LibretaX y cómo protegemos la seguridad de los datos de tu cuenta en Mercado Libre.",
+  alternates: {
+    canonical: "https://www.libretax.com.ar/privacidad",
+  },
+  openGraph: {
+    title: "Política de Privacidad | LibretaX",
+    description:
+      "Conocé la Política de Privacidad de LibretaX y cómo protegemos la seguridad de los datos de tu cuenta en Mercado Libre.",
+    url: "https://www.libretax.com.ar/privacidad",
+  },
+};
 
 export default function PrivacyPage() {
   return (

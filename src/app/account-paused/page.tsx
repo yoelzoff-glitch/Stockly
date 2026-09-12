@@ -1,9 +1,15 @@
 import Link from "next/link";
 import { PauseCircle, Mail, LogOut, ShieldCheck } from "lucide-react";
 
-export const metadata = {
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
   title: "Cuenta Temporalmente Pausada | LibretaX",
   description: "El acceso a LibretaX se encuentra suspendido temporalmente.",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function AccountPausedPage() {

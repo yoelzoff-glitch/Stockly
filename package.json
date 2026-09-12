@@ -8,6 +8,8 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
+    "build": "next build",
+    "lint": "next lint",
     "test": "node -r ./tests/setup.cjs --import tsx --test tests/unit/**/*.test.ts",
     "test:ci": "node -r ./tests/setup.cjs --import tsx --test tests/unit/**/*.test.ts",
     "typecheck": "tsc --noEmit",

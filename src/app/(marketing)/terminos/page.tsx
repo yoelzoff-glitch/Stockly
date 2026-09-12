@@ -1,8 +1,22 @@
-"use client";
-
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+export const metadata: Metadata = {
+  title: "Términos de Servicio | LibretaX",
+  description:
+    "Términos y condiciones de contratación y uso de la plataforma LibretaX para vendedores de Mercado Libre.",
+  alternates: {
+    canonical: "https://www.libretax.com.ar/terminos",
+  },
+  openGraph: {
+    title: "Términos de Servicio | LibretaX",
+    description:
+      "Términos y condiciones de contratación y uso de la plataforma LibretaX para vendedores de Mercado Libre.",
+    url: "https://www.libretax.com.ar/terminos",
+  },
+};
 
 export default function TermsPage() {
   return (

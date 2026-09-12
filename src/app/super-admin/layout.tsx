@@ -3,9 +3,15 @@ import { redirect } from "next/navigation";
 import { requirePlatformAdmin } from "@/lib/security/platformAdminAuth";
 import { SuperAdminSidebar } from "./SuperAdminSidebar";
 
-export const metadata = {
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
   title: "Super Admin | LibretaX SaaS",
   description: "Módulo administrativo interno de LibretaX",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default async function SuperAdminLayout({

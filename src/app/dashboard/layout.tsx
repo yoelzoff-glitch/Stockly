@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Sidebar } from "@/components/sidebar/sidebar";
 import { Navbar } from "@/components/dashboard/navbar";
 import { Footer } from "@/components/layout/footer";
@@ -5,6 +6,13 @@ import { TenantActivityTracker } from "@/components/analytics/TenantActivityTrac
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Archivo } from "next/font/google";
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 const archivo = Archivo({
   subsets: ["latin"],
