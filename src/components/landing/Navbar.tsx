@@ -46,8 +46,8 @@ export function Navbar() {
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-[#F5F3EE]/90 backdrop-blur-md border-b border-[#DCDAD4] shadow-xs py-0"
-          : "bg-[#F5F3EE] border-b border-transparent py-1.5"
+          ? "bg-[#0D1E3D]/95 backdrop-blur-md border-b border-[#1E335A] shadow-md py-0"
+          : "bg-[#0D1E3D] border-b border-[#1E335A]/60 shadow-xs py-1.5"
       }`}
     >
       <div className="max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -56,10 +56,10 @@ export function Navbar() {
           <div className="flex items-center">
             <Link
               href="/"
-              className="flex items-center focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#5B2FE4] rounded-lg p-1 -m-1"
+              className="flex items-center focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00D4C5] rounded-lg p-1 -m-1"
               aria-label="LibretaX inicio"
             >
-              <Logo size="md" />
+              <Logo variant="light" size="md" />
             </Link>
           </div>
 
@@ -70,25 +70,25 @@ export function Navbar() {
           >
             <Link
               href="#recorrido"
-              className="text-sm font-medium text-[#5F6875] hover:text-[#101828] transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#5B2FE4] hover:after:rounded-full"
+              className="text-sm font-medium text-[#CBD5E1] hover:text-white transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#00D4C5] hover:after:rounded-full"
             >
               Producto
             </Link>
             <Link
               href="#modulos"
-              className="text-sm font-medium text-[#5F6875] hover:text-[#101828] transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#5B2FE4] hover:after:rounded-full"
+              className="text-sm font-medium text-[#CBD5E1] hover:text-white transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#00D4C5] hover:after:rounded-full"
             >
               Funcionalidades
             </Link>
             <Link
               href="#como-funciona"
-              className="text-sm font-medium text-[#5F6875] hover:text-[#101828] transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#5B2FE4] hover:after:rounded-full"
+              className="text-sm font-medium text-[#CBD5E1] hover:text-white transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#00D4C5] hover:after:rounded-full"
             >
               Cómo funciona
             </Link>
             <Link
               href="#precios"
-              className="text-sm font-medium text-[#5F6875] hover:text-[#101828] transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#5B2FE4] hover:after:rounded-full"
+              className="text-sm font-medium text-[#CBD5E1] hover:text-white transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#00D4C5] hover:after:rounded-full"
             >
               Precios
             </Link>
@@ -99,14 +99,14 @@ export function Navbar() {
             <Link
               href="/login"
               onClick={() => trackCTAClick("navbar", "Ingresar")}
-              className="text-sm font-semibold text-[#5F6875] hover:text-[#101828] transition-colors px-3 py-2 rounded-lg hover:bg-[#EAE7DF]/60 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#102A56]"
+              className="text-sm font-semibold text-[#CBD5E1] hover:text-white transition-colors px-3 py-2 rounded-lg hover:bg-white/10 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00D4C5]"
             >
               Ingresar
             </Link>
             <Link
               href="/register"
               onClick={() => trackCTAClick("navbar", "Probar LibretaX")}
-              className="group inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#102A56] hover:bg-[#0A1D3C] transition-all shadow-xs hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#5B2FE4] focus-visible:ring-offset-2"
+              className="group inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold text-[#0D1E3D] bg-white hover:bg-[#F5F3EE] transition-all shadow-xs hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00D4C5] focus-visible:ring-offset-2"
             >
               <span>Probar LibretaX</span>
               <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -118,7 +118,7 @@ export function Navbar() {
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2.5 rounded-lg text-[#101828] hover:bg-[#EAE7DF] transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#102A56]"
+              className="p-2.5 rounded-lg text-white hover:bg-white/10 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00D4C5]"
               aria-expanded={mobileMenuOpen}
               aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
             >
@@ -130,45 +130,45 @@ export function Navbar() {
 
       {/* Accessible Mobile Menu Modal / Panel */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 top-16 z-40 md:hidden">
+        <div className="fixed inset-0 top-16 sm:top-20 z-40 md:hidden">
           <div
-            className="fixed inset-0 bg-[#101828]/30 backdrop-blur-xs"
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs"
             onClick={() => setMobileMenuOpen(false)}
             aria-hidden="true"
           />
-          <div className="relative bg-[#F5F3EE] border-b border-[#DCDAD4] px-6 pt-4 pb-8 space-y-6 shadow-lg animate-in slide-in-from-top-2 duration-200">
+          <div className="relative bg-[#0D1E3D] border-b border-[#1E335A] px-6 pt-4 pb-8 space-y-6 shadow-2xl animate-in slide-in-from-top-2 duration-200">
             <nav className="flex flex-col space-y-3" aria-label="Navegación móvil">
               <Link
                 href="#recorrido"
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-base font-semibold text-[#101828] hover:text-[#5B2FE4] py-2 border-b border-[#DCDAD4]/60 flex items-center justify-between"
+                className="text-base font-semibold text-white hover:text-[#00D4C5] py-2 border-b border-white/10 flex items-center justify-between"
               >
                 <span>Producto</span>
-                <span className="text-xs font-mono text-[#5F6875]">01</span>
+                <span className="text-xs font-mono text-[#94A3B8]">01</span>
               </Link>
               <Link
                 href="#modulos"
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-base font-semibold text-[#101828] hover:text-[#5B2FE4] py-2 border-b border-[#DCDAD4]/60 flex items-center justify-between"
+                className="text-base font-semibold text-white hover:text-[#00D4C5] py-2 border-b border-white/10 flex items-center justify-between"
               >
                 <span>Funcionalidades</span>
-                <span className="text-xs font-mono text-[#5F6875]">02</span>
+                <span className="text-xs font-mono text-[#94A3B8]">02</span>
               </Link>
               <Link
                 href="#como-funciona"
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-base font-semibold text-[#101828] hover:text-[#5B2FE4] py-2 border-b border-[#DCDAD4]/60 flex items-center justify-between"
+                className="text-base font-semibold text-white hover:text-[#00D4C5] py-2 border-b border-white/10 flex items-center justify-between"
               >
                 <span>Cómo funciona</span>
-                <span className="text-xs font-mono text-[#5F6875]">03</span>
+                <span className="text-xs font-mono text-[#94A3B8]">03</span>
               </Link>
               <Link
                 href="#precios"
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-base font-semibold text-[#101828] hover:text-[#5B2FE4] py-2 border-b border-[#DCDAD4]/60 flex items-center justify-between"
+                className="text-base font-semibold text-white hover:text-[#00D4C5] py-2 border-b border-white/10 flex items-center justify-between"
               >
                 <span>Precios</span>
-                <span className="text-xs font-mono text-[#5F6875]">04</span>
+                <span className="text-xs font-mono text-[#94A3B8]">04</span>
               </Link>
             </nav>
 
@@ -179,7 +179,7 @@ export function Navbar() {
                   trackCTAClick("navbar_mobile", "Ingresar");
                   setMobileMenuOpen(false);
                 }}
-                className="w-full text-center py-3 rounded-lg text-sm font-semibold text-[#101828] bg-white border border-[#DCDAD4] hover:bg-[#EAE7DF] transition-colors"
+                className="w-full text-center py-3 rounded-lg text-sm font-semibold text-white bg-white/10 border border-white/20 hover:bg-white/15 transition-colors"
               >
                 Ingresar
               </Link>
@@ -189,7 +189,7 @@ export function Navbar() {
                   trackCTAClick("navbar_mobile", "Probar LibretaX");
                   setMobileMenuOpen(false);
                 }}
-                className="w-full text-center py-3 rounded-lg text-sm font-semibold text-white bg-[#102A56] hover:bg-[#0A1D3C] transition-colors shadow-xs"
+                className="w-full text-center py-3 rounded-lg text-sm font-semibold text-[#0D1E3D] bg-white hover:bg-[#F5F3EE] transition-colors shadow-xs"
               >
                 Probar LibretaX
               </Link>
