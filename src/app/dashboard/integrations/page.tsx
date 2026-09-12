@@ -10,7 +10,7 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 
 import { MeliCard } from "@/components/dashboard/meli-card";
-import { OpenAIConfigModal, WhatsAppConfigModal } from "./client-page";
+import { OpenAIConfigModal, WhatsAppConfigModal, MeliCallbackTracker } from "./client-page";
 import { OperationalPageHeader } from "@/components/operational/page-header";
 
 export default async function IntegrationsPage({
@@ -74,6 +74,8 @@ export default async function IntegrationsPage({
         title="Integraciones y Canales"
         description="Estado operativo y credenciales de conexión con Mercado Libre, WhatsApp y proveedores externos."
       />
+
+      <MeliCallbackTracker status={resolvedSearchParams.meli} />
 
       {resolvedSearchParams.meli === "connected" && (
         <div className="p-3.5 rounded-lg border border-[#A6F4C5] bg-[#ECFDF3] text-xs text-[#027A48] flex items-center gap-2">

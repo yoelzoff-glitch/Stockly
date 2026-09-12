@@ -4,11 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { submitOnboardingAction } from "@/actions/tenants";
+import { trackStartOnboarding, trackCompleteOnboarding } from "@/lib/analytics/ga";
 
 export default function OnboardingPage() {
   const [state, formAction, isPending] = useActionState(submitOnboardingAction, { error: null as string | null });
+
+  useEffect(() => {
+    trackStartOnboarding("business_profile");
+  }, []);
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-muted/30 p-4">
@@ -20,7 +25,7 @@ export default function OnboardingPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={formAction} className="grid gap-4">
+          <form action={formAction} onSubmit={() => trackCompleteOnboarding()} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="companyName">Nombre del Negocio</Label>
               <Input id="companyName" name="companyName" type="text" placeholder="Mi Tienda" required disabled={isPending} />

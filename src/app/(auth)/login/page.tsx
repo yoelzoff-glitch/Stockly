@@ -8,6 +8,7 @@ import { useActionState } from "react";
 import { loginAction } from "@/actions/auth";
 import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
+import { trackLogin } from "@/lib/analytics/ga";
 
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(loginAction, { error: null as string | null });
@@ -66,7 +67,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <form action={formAction} className="space-y-6 mt-8">
+          <form action={formAction} onSubmit={() => trackLogin("email")} className="space-y-6 mt-8">
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-slate-700 font-medium">Email corporativo</Label>

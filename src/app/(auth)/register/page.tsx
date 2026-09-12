@@ -8,6 +8,7 @@ import { useActionState } from "react";
 import { registerAction } from "@/actions/auth";
 import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
+import { trackSignUp } from "@/lib/analytics/ga";
 
 export default function RegisterPage() {
   const [state, formAction, isPending] = useActionState(registerAction, { error: null as string | null });
@@ -66,7 +67,7 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          <form action={formAction} className="space-y-5 mt-6">
+          <form action={formAction} onSubmit={() => trackSignUp("email")} className="space-y-5 mt-6">
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">

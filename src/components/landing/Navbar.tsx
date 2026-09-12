@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Menu, X, ArrowRight } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
+import { trackCTAClick } from "@/lib/analytics/ga";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -97,12 +98,14 @@ export function Navbar() {
           <div className="hidden md:flex items-center space-x-3 lg:space-x-4">
             <Link
               href="/login"
+              onClick={() => trackCTAClick("navbar", "Ingresar")}
               className="text-sm font-semibold text-[#5F6875] hover:text-[#101828] transition-colors px-3 py-2 rounded-lg hover:bg-[#EAE7DF]/60 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#102A56]"
             >
               Ingresar
             </Link>
             <Link
               href="/register"
+              onClick={() => trackCTAClick("navbar", "Probar LibretaX")}
               className="group inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#102A56] hover:bg-[#0A1D3C] transition-all shadow-xs hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#5B2FE4] focus-visible:ring-offset-2"
             >
               <span>Probar LibretaX</span>
@@ -172,14 +175,20 @@ export function Navbar() {
             <div className="pt-2 flex flex-col space-y-3">
               <Link
                 href="/login"
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={() => {
+                  trackCTAClick("navbar_mobile", "Ingresar");
+                  setMobileMenuOpen(false);
+                }}
                 className="w-full text-center py-3 rounded-lg text-sm font-semibold text-[#101828] bg-white border border-[#DCDAD4] hover:bg-[#EAE7DF] transition-colors"
               >
                 Ingresar
               </Link>
               <Link
                 href="/register"
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={() => {
+                  trackCTAClick("navbar_mobile", "Probar LibretaX");
+                  setMobileMenuOpen(false);
+                }}
                 className="w-full text-center py-3 rounded-lg text-sm font-semibold text-white bg-[#102A56] hover:bg-[#0A1D3C] transition-colors shadow-xs"
               >
                 Probar LibretaX

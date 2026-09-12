@@ -9,6 +9,7 @@ import { ShoppingBag, Loader2, RefreshCw, AlertTriangle, CheckCircle, Flame } fr
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { refreshMeliConnectionAction, disconnectMeliConnectionAction } from "@/actions/meli-connection";
+import { trackConnectMercadoLibre } from "@/lib/analytics/ga";
 
 export function MeliCard({ meliAccount, isDemo = false }: { meliAccount: any; isDemo?: boolean }) {
   const [isSyncing, setIsSyncing] = useState(false);
@@ -216,7 +217,7 @@ export function MeliCard({ meliAccount, isDemo = false }: { meliAccount: any; is
           </div>
         ) : isError ? (
           <div className="space-y-2">
-            <Link href="/api/meli/connect" className="block w-full">
+            <Link href="/api/meli/connect" onClick={() => trackConnectMercadoLibre()} className="block w-full">
               <Button size="sm" className="w-full h-8 bg-[#102A56] hover:bg-[#102A56]/90 text-white text-xs font-semibold">
                 Reconectar cuenta
               </Button>
@@ -232,7 +233,7 @@ export function MeliCard({ meliAccount, isDemo = false }: { meliAccount: any; is
             </Button>
           </div>
         ) : (
-          <Link href="/api/meli/connect" className="block w-full">
+          <Link href="/api/meli/connect" onClick={() => trackConnectMercadoLibre()} className="block w-full">
             <Button size="sm" className="w-full h-8 bg-[#102A56] hover:bg-[#102A56]/90 text-white text-xs font-semibold">
               Conectar Mercado Libre
             </Button>

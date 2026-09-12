@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { Check, Sparkles } from "lucide-react";
 import { FadeUp } from "./motion";
+import { trackCTAClick } from "@/lib/analytics/ga";
 
 interface Plan {
   name: string;
@@ -147,6 +150,7 @@ export function Pricing() {
 
                 <Link
                   href="/register"
+                  onClick={() => trackCTAClick(`pricing_${plan.name.toLowerCase()}`, plan.ctaText)}
                   className={`w-full inline-flex items-center justify-center px-5 py-3 rounded-xl text-sm font-semibold transition-all ${
                     plan.isPopular
                       ? "text-white bg-[#102A56] hover:bg-[#0A1D3C] shadow-xs"

@@ -1,7 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { SaleBreakdown } from "./SaleBreakdown";
 import { FadeUp, ScaleIn } from "./motion";
+import { trackCTAClick } from "@/lib/analytics/ga";
 
 export function Hero() {
   return (
@@ -52,6 +55,7 @@ export function Hero() {
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
                 <Link
                   href="/register"
+                  onClick={() => trackCTAClick("hero", "Probar LibretaX")}
                   className="group inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold text-white bg-[#102A56] hover:bg-[#0A1D3C] transition-all shadow-sm hover:shadow-md focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#5B2FE4]"
                 >
                   <span>Probar LibretaX</span>
@@ -60,6 +64,7 @@ export function Hero() {
 
                 <Link
                   href="#como-funciona"
+                  onClick={() => trackCTAClick("hero", "Conocer cómo funciona")}
                   className="inline-flex items-center justify-center px-6 py-3.5 rounded-xl text-sm font-semibold text-[#101828] bg-white hover:bg-[#EAE7DF] border border-[#DCDAD4] transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#102A56]"
                 >
                   Conocer cómo funciona

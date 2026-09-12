@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
 import { ShieldCheck } from "lucide-react";
+import { trackCTAClick } from "@/lib/analytics/ga";
 
 export function Footer() {
   return (
@@ -62,12 +65,20 @@ export function Footer() {
             </h3>
             <ul className="space-y-2.5 text-sm">
               <li>
-                <Link href="/login" className="hover:text-[#101828] transition-colors">
+                <Link
+                  href="/login"
+                  onClick={() => trackCTAClick("footer", "Iniciar sesión")}
+                  className="hover:text-[#101828] transition-colors"
+                >
                   Iniciar sesión
                 </Link>
               </li>
               <li>
-                <Link href="/register" className="hover:text-[#101828] transition-colors">
+                <Link
+                  href="/register"
+                  onClick={() => trackCTAClick("footer", "Registrarse en LibretaX")}
+                  className="hover:text-[#101828] transition-colors"
+                >
                   Registrarse en LibretaX
                 </Link>
               </li>

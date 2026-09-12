@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,6 +8,20 @@ import { updateAISettings } from "@/actions/ai-settings";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { connectWhatsAppNumberAction, disconnectWhatsAppNumberAction } from "@/actions/whatsapp-connection";
+import { trackConnectMercadoLibre } from "@/lib/analytics/ga";
+
+export function MeliCallbackTracker({ status }: { status?: string }) {
+  const trackedRef = useRef(false);
+
+  useEffect(() => {
+    if (status === "connected" && !trackedRef.current) {
+      trackedRef.current = true;
+      trackConnectMercadoLibre();
+    }
+  }, [status]);
+
+  return null;
+}
 
 export function OpenAIConfigModal({ currentModel = "gpt-4o-mini", usage = 0, limit = 500 }: { currentModel?: string, usage?: number, limit?: number }) {
   const [loading, setLoading] = useState(false);

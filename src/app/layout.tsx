@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { WebAnalyticsTracker } from "@/components/analytics/WebAnalyticsTracker";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"] });
@@ -65,11 +66,14 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-N8VC2V7K08";
+
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={`${jakarta.className} overflow-x-hidden`}>
         <WebAnalyticsTracker />
         {children}
+        <GoogleAnalytics gaId={gaId} />
       </body>
     </html>
   );

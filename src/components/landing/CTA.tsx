@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { FadeUp } from "./motion";
+import { trackCTAClick } from "@/lib/analytics/ga";
 
 export function CTA() {
   return (
@@ -46,6 +49,7 @@ export function CTA() {
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               href="/register"
+              onClick={() => trackCTAClick("cta_banner", "Probar LibretaX")}
               className="w-full sm:w-auto group inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl text-sm font-semibold text-[#102A56] bg-white hover:bg-[#F5F3EE] transition-all shadow-md focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#5B2FE4]"
             >
               <span>Probar LibretaX</span>
@@ -54,6 +58,7 @@ export function CTA() {
 
             <Link
               href="/login"
+              onClick={() => trackCTAClick("cta_banner", "Ingresar")}
               className="w-full sm:w-auto inline-flex items-center justify-center px-8 py-3.5 rounded-xl text-sm font-semibold text-white bg-white/10 hover:bg-white/15 border border-white/20 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white"
             >
               Ingresar
