@@ -54,49 +54,8 @@ export async function decrementInternalStockFromOrder(tenantId: string, orderId:
     return { success: true, message: "Internal stock already processed for this order" };
   }
 
-  // Si la orden fue despachada directamente desde la Bodega FULL de Mercado Libre,
-  // no debemos descontar stock del depósito físico local.
-  let isFullOrder = order.raw_data?.shipping?.logistic_type === "fulfillment";
-
-  if (!isFullOrder) {
-    const shipmentId = order.meli_shipment_id || (order.raw_data?.shipping as any)?.id;
-    if (shipmentId) {
-      const { data: ship } = await supabase
-        .from("shipments")
-        .select("logistic_type")
-        .eq("tenant_id", tenantId)
-        .eq("meli_shipment_id", String(shipmentId))
-        .maybeSingle();
-
-      if (ship?.logistic_type === "fulfillment") {
-        isFullOrder = true;
-      }
-    }
-  }
-
-  if (!isFullOrder) {
-    const { data: shipByOrderId } = await supabase
-      .from("shipments")
-      .select("logistic_type")
-      .eq("tenant_id", tenantId)
-      .eq("order_id", order.id)
-      .maybeSingle();
-
-    if (shipByOrderId?.logistic_type === "fulfillment") {
-      isFullOrder = true;
-    }
-  }
-
-  if (isFullOrder) {
-    await supabase
-      .from("orders")
-      .update({
-        internal_stock_processed: true,
-        internal_stock_processed_at: new Date().toISOString()
-      })
-      .eq("id", order.id);
-    return { success: true, message: "Order is fulfilled by Mercado Libre FULL warehouse. Skipping internal stock deduction." };
-  }
+  // En el modelo unificado de Stock, toda venta confirmada de Mercado Libre
+  // (sea enviada por FULL, Flex o correo tradicional) descuenta del Stock global.
 
   const items = order.order_items || [];
   if (items.length === 0) {

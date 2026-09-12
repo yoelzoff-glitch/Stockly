@@ -360,13 +360,13 @@ export function InternalStockClient({
     {
       label: "Valuación Total Inventario",
       value: `$${totalAssetsValue.toLocaleString("es-AR")}`,
-      subtext: "Capital total en stock (Local + FULL)",
+      subtext: "Capital total en stock",
       icon: <Warehouse className="w-4 h-4" />
     },
     {
-      label: "Stock Depósito Local",
+      label: "Stock Total Disponible",
       value: `${totalLocalUnits.toLocaleString("es-AR")} u.`,
-      subtext: "Físico disponible en taller",
+      subtext: "Existencias registradas",
       icon: <Boxes className="w-4 h-4" />
     },
     {
@@ -422,9 +422,9 @@ export function InternalStockClient({
     <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6">
       {/* Header Operativo */}
       <OperationalPageHeader
-        eyebrow="Inventario y depósito"
-        title="Stock interno y bodega FULL"
-        description="Gestión de existencias físicas en depósito propio, alertas de reposición y stock almacenado en la bodega de Mercado Envíos FULL."
+        eyebrow="Inventario y catálogo"
+        title="Control de Stock y Bodega FULL"
+        description="Gestión de existencias globales, alertas de reposición y seguimiento de unidades en la bodega de Mercado Envíos FULL."
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <input
@@ -488,7 +488,7 @@ export function InternalStockClient({
           }`}
         >
           <Warehouse className="w-3.5 h-3.5" />
-          <span>Depósito Local ({items.length})</span>
+          <span>Stock ({items.length})</span>
         </button>
 
         <button
@@ -577,7 +577,7 @@ export function InternalStockClient({
               <tr>
                 <th className="px-4 py-3 font-semibold">SKU / Identificador</th>
                 <th className="px-3 py-3 font-semibold">Nombre del Componente</th>
-                <th className="px-3 py-3 font-semibold text-center">Stock Total</th>
+                <th className="px-3 py-3 font-semibold text-center">Stock</th>
                 <th className="px-3 py-3 font-semibold text-center">Punto Reposición</th>
                 <th className="px-3 py-3 font-semibold text-right">Costo Promedio</th>
                 <th className="px-3 py-3 font-semibold text-right">Valuación Total</th>
@@ -587,7 +587,6 @@ export function InternalStockClient({
             <tbody className="divide-y divide-[#E2E8F0]">
               {filteredItems.map((item) => {
                 const totalStock = (item.total_stock !== undefined ? item.total_stock : item.current_stock) ?? 0;
-                const localStock = (item.local_stock !== undefined ? item.local_stock : item.current_stock) ?? 0;
                 const fullStock = item.full_stock ?? 0;
                 const isOut = totalStock <= 0;
                 const isLow = item.minimum_stock && totalStock < item.minimum_stock;
@@ -613,22 +612,21 @@ export function InternalStockClient({
                     </td>
 
                     <td className="px-3 py-3 text-center">
-                      <div className="flex flex-col items-center justify-center">
+                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
                         <span
                           className={`font-bold tabular-nums text-sm ${isOut ? 'text-[#D92D20]' : isLow ? 'text-[#B54708]' : 'text-[#101828]'}`}
                           style={{ fontVariantNumeric: "tabular-nums" }}
                         >
                           {totalStock} u.
                         </span>
-                        <div className="flex items-center gap-1.5 mt-0.5 text-[11px] font-medium">
-                          <span className="text-[#5F6875]" title="Stock físico en taller / depósito propio">
-                            Local: <strong className={localStock <= 0 ? "text-[#D92D20]" : "text-[#101828]"}>{localStock}</strong>
+                        {fullStock > 0 && (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-[#ECFDF3] text-[#027A48] border border-[#ABEFC6]"
+                            title={`Hay ${fullStock} unidades en Bodega FULL de Mercado Libre`}
+                          >
+                            / FULL: {fullStock}
                           </span>
-                          <span className="text-[#DCDAD4]">•</span>
-                          <span className="text-[#5F6875]" title="Stock en Bodega FULL de Mercado Libre">
-                            FULL: <strong className={fullStock > 0 ? "text-[#027A48]" : "text-[#5F6875]"}>{fullStock}</strong>
-                          </span>
-                        </div>
+                        )}
                       </div>
                     </td>
 

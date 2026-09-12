@@ -46,7 +46,7 @@ const navGroups: NavGroup[] = [
     label: "Catálogo & Stock",
     items: [
       { name: "Productos", href: "/dashboard/products", icon: Package },
-      { name: "Stock Interno", href: "/dashboard/internal-stock", icon: Layers },
+      { name: "Stock", href: "/dashboard/internal-stock", icon: Layers },
       { name: "Compras Internas", href: "/dashboard/purchases", icon: ShoppingBag },
     ],
   },

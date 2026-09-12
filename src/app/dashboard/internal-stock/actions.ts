@@ -196,14 +196,15 @@ export async function getInventoryItems() {
   const enhancedItems = items.map(item => {
     const salesLast30 = salesPerComponent[item.id] || 0;
     const targetStock = Math.ceil(salesLast30 * 1.2); // 30 days + 20% safety
-    const localStock = item.current_stock || 0;
+    const stock = item.current_stock || 0;
     const fullStock = fullStockByCompId[item.id] || (item.sku_normalized ? fullStockByCompSku[normalizeSku(item.sku_normalized)] : 0) || 0;
-    const totalStock = localStock + fullStock;
-    const recommended_restock = Math.max(0, targetStock - localStock);
+    const totalStock = stock;
+    const recommended_restock = Math.max(0, targetStock - stock);
     
     return {
       ...item,
-      local_stock: localStock,
+      stock,
+      local_stock: stock,
       full_stock: fullStock,
       total_stock: totalStock,
       sales_last_30_days: salesLast30,

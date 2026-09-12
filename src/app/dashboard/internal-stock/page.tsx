@@ -5,8 +5,8 @@ import { InternalStockClient } from "./client-page";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Inventario y Bodega FULL - LibretaX",
-  description: "Control de materias primas, insumos y cálculo de stock virtual combo."
+  title: "Stock - LibretaX",
+  description: "Control de inventario, stock global y seguimiento de unidades en Bodega FULL."
 };
 
 export default async function InternalStockPage() {
