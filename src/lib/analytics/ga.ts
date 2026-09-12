@@ -88,3 +88,28 @@ export function trackGenerateLead(leadType: "meeting" | "contact", source: strin
   });
 }
 
+export function trackLaunchOfferView(
+  promotion: string = "launch_2026",
+  discountPercentage: number = 10
+) {
+  trackGAEvent("launch_offer_view", {
+    promotion,
+    discount_percentage: discountPercentage,
+  });
+}
+
+export function trackLaunchOfferCTAClick(planName: string, promotion: string = "launch_2026") {
+  trackGAEvent("launch_offer_cta_click", {
+    promotion,
+    plan: planName,
+  });
+}
+
+export function trackLaunchOfferConversion(planName: string, promotion: string = "launch_2026") {
+  trackGAEvent("launch_offer_conversion", {
+    promotion,
+    plan: planName,
+  });
+}
+
+
