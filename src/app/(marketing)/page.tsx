@@ -51,7 +51,7 @@ const softwareApplicationSchema = {
 
 export default function MarketingPage() {
   return (
-    <div className="min-h-screen bg-[#F5F3EE] text-[#101828]">
+    <div className="min-h-screen bg-[#FFFFFF] text-[#002B4D]">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationSchema) }}

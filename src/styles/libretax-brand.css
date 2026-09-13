@@ -1,0 +1,51 @@
+/* ==============================================================================
+   LIBRETAX OFFICIAL BRAND PALETTE & DESIGN TOKENS
+   Source of Truth: LibretaX Official Logo
+   ============================================================================== */
+
+:root {
+  /* Canonical Colors */
+  --lx-navy-deep: #002B4D;
+  --lx-navy: #003968;
+  --lx-cyan: #00DFDB;
+  --lx-lime: #FAF984;
+  --lx-white: #FFFFFF;
+
+  /* Derived Alpha Variants (Navy Deep) */
+  --lx-navy-deep-90: rgba(0, 43, 77, 0.90);
+  --lx-navy-deep-80: rgba(0, 43, 77, 0.80);
+  --lx-navy-deep-68: rgba(0, 43, 77, 0.68);
+  --lx-navy-deep-40: rgba(0, 43, 77, 0.40);
+  --lx-navy-deep-20: rgba(0, 43, 77, 0.20);
+  --lx-navy-deep-10: rgba(0, 43, 77, 0.10);
+  --lx-navy-deep-05: rgba(0, 43, 77, 0.05);
+
+  /* Derived Alpha Variants (Navy) */
+  --lx-navy-90: rgba(0, 57, 104, 0.90);
+  --lx-navy-80: rgba(0, 57, 104, 0.80);
+  --lx-navy-20: rgba(0, 57, 104, 0.20);
+  --lx-navy-15: rgba(0, 57, 104, 0.15);
+  --lx-navy-12: rgba(0, 57, 104, 0.12);
+  --lx-navy-10: rgba(0, 57, 104, 0.10);
+  --lx-navy-08: rgba(0, 57, 104, 0.08);
+  --lx-navy-05: rgba(0, 57, 104, 0.05);
+  --lx-navy-03: rgba(0, 57, 104, 0.03);
+  --lx-navy-025: rgba(0, 57, 104, 0.025);
+
+  /* Derived Alpha Variants (Cyan) */
+  --lx-cyan-50: rgba(0, 223, 219, 0.50);
+  --lx-cyan-30: rgba(0, 223, 219, 0.30);
+  --lx-cyan-20: rgba(0, 223, 219, 0.20);
+  --lx-cyan-15: rgba(0, 223, 219, 0.15);
+  --lx-cyan-12: rgba(0, 223, 219, 0.12);
+  --lx-cyan-10: rgba(0, 223, 219, 0.10);
+  --lx-cyan-08: rgba(0, 223, 219, 0.08);
+  --lx-cyan-05: rgba(0, 223, 219, 0.05);
+  --lx-cyan-025: rgba(0, 223, 219, 0.025);
+
+  /* Derived Alpha Variants (Lime) */
+  --lx-lime-40: rgba(250, 249, 132, 0.40);
+  --lx-lime-30: rgba(250, 249, 132, 0.30);
+  --lx-lime-20: rgba(250, 249, 132, 0.20);
+  --lx-lime-10: rgba(250, 249, 132, 0.10);
+}

@@ -46,8 +46,8 @@ export function Navbar() {
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-[#0D1E3D]/95 backdrop-blur-md border-b border-[#1E335A] shadow-md py-0"
-          : "bg-[#0D1E3D] border-b border-[#1E335A]/60 shadow-xs py-1.5"
+          ? "bg-white/95 backdrop-blur-md border-b border-[rgba(0,57,104,0.12)] shadow-xs py-0"
+          : "bg-white border-b border-[rgba(0,57,104,0.08)] shadow-2xs py-1.5"
       }`}
     >
       <div className="max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -56,10 +56,10 @@ export function Navbar() {
           <div className="flex items-center">
             <Link
               href="/"
-              className="flex items-center focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00D4C5] rounded-lg p-1 -m-1"
+              className="flex items-center focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00DFDB] rounded-lg p-1 -m-1"
               aria-label="LibretaX inicio"
             >
-              <Logo variant="wordmark-light" size="md" />
+              <Logo variant="wordmark-dark" size="md" />
             </Link>
           </div>
 
@@ -70,25 +70,25 @@ export function Navbar() {
           >
             <Link
               href="#recorrido"
-              className="text-sm font-medium text-[#CBD5E1] hover:text-white transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#00D4C5] hover:after:rounded-full"
+              className="text-sm font-medium text-[rgba(0,43,77,0.70)] hover:text-[#002B4D] transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#00DFDB] hover:after:rounded-full"
             >
               Producto
             </Link>
             <Link
               href="#modulos"
-              className="text-sm font-medium text-[#CBD5E1] hover:text-white transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#00D4C5] hover:after:rounded-full"
+              className="text-sm font-medium text-[rgba(0,43,77,0.70)] hover:text-[#002B4D] transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#00DFDB] hover:after:rounded-full"
             >
               Funcionalidades
             </Link>
             <Link
               href="#como-funciona"
-              className="text-sm font-medium text-[#CBD5E1] hover:text-white transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#00D4C5] hover:after:rounded-full"
+              className="text-sm font-medium text-[rgba(0,43,77,0.70)] hover:text-[#002B4D] transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#00DFDB] hover:after:rounded-full"
             >
               Cómo funciona
             </Link>
             <Link
               href="#precios"
-              className="text-sm font-medium text-[#CBD5E1] hover:text-white transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#00D4C5] hover:after:rounded-full"
+              className="text-sm font-medium text-[rgba(0,43,77,0.70)] hover:text-[#002B4D] transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#00DFDB] hover:after:rounded-full"
             >
               Precios
             </Link>
@@ -99,14 +99,14 @@ export function Navbar() {
             <Link
               href="/login"
               onClick={() => trackCTAClick("navbar", "Ingresar")}
-              className="text-sm font-semibold text-[#CBD5E1] hover:text-white transition-colors px-3 py-2 rounded-lg hover:bg-white/10 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00D4C5]"
+              className="text-sm font-semibold text-[#003968] hover:text-[#002B4D] transition-colors px-3 py-2 rounded-lg hover:bg-[rgba(0,57,104,0.05)] focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00DFDB]"
             >
               Ingresar
             </Link>
             <Link
               href="/register"
               onClick={() => trackCTAClick("navbar", "Probar LibretaX")}
-              className="group inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold text-[#0D1E3D] bg-white hover:bg-[#F5F3EE] transition-all shadow-xs hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00D4C5] focus-visible:ring-offset-2"
+              className="group inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-[#003968] hover:bg-[#002B4D] transition-all shadow-xs hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00DFDB] focus-visible:ring-offset-2"
             >
               <span>Probar LibretaX</span>
               <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -118,7 +118,7 @@ export function Navbar() {
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2.5 rounded-lg text-white hover:bg-white/10 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00D4C5]"
+              className="p-2.5 rounded-lg text-[#002B4D] hover:bg-[rgba(0,57,104,0.05)] transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00DFDB]"
               aria-expanded={mobileMenuOpen}
               aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
             >
@@ -132,43 +132,43 @@ export function Navbar() {
       {mobileMenuOpen && (
         <div className="fixed inset-0 top-16 sm:top-20 z-40 md:hidden">
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            className="fixed inset-0 bg-[#002B4D]/40 backdrop-blur-xs"
             onClick={() => setMobileMenuOpen(false)}
             aria-hidden="true"
           />
-          <div className="relative bg-[#0D1E3D] border-b border-[#1E335A] px-6 pt-4 pb-8 space-y-6 shadow-2xl animate-in slide-in-from-top-2 duration-200">
+          <div className="relative bg-white border-b border-[rgba(0,57,104,0.12)] px-6 pt-4 pb-8 space-y-6 shadow-2xl animate-in slide-in-from-top-2 duration-200">
             <nav className="flex flex-col space-y-3" aria-label="Navegación móvil">
               <Link
                 href="#recorrido"
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-base font-semibold text-white hover:text-[#00D4C5] py-2 border-b border-white/10 flex items-center justify-between"
+                className="text-base font-semibold text-[#002B4D] hover:text-[#00DFDB] py-2 border-b border-[rgba(0,57,104,0.08)] flex items-center justify-between"
               >
                 <span>Producto</span>
-                <span className="text-xs font-mono text-[#94A3B8]">01</span>
+                <span className="text-xs font-mono text-[rgba(0,43,77,0.50)]">01</span>
               </Link>
               <Link
                 href="#modulos"
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-base font-semibold text-white hover:text-[#00D4C5] py-2 border-b border-white/10 flex items-center justify-between"
+                className="text-base font-semibold text-[#002B4D] hover:text-[#00DFDB] py-2 border-b border-[rgba(0,57,104,0.08)] flex items-center justify-between"
               >
                 <span>Funcionalidades</span>
-                <span className="text-xs font-mono text-[#94A3B8]">02</span>
+                <span className="text-xs font-mono text-[rgba(0,43,77,0.50)]">02</span>
               </Link>
               <Link
                 href="#como-funciona"
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-base font-semibold text-white hover:text-[#00D4C5] py-2 border-b border-white/10 flex items-center justify-between"
+                className="text-base font-semibold text-[#002B4D] hover:text-[#00DFDB] py-2 border-b border-[rgba(0,57,104,0.08)] flex items-center justify-between"
               >
                 <span>Cómo funciona</span>
-                <span className="text-xs font-mono text-[#94A3B8]">03</span>
+                <span className="text-xs font-mono text-[rgba(0,43,77,0.50)]">03</span>
               </Link>
               <Link
                 href="#precios"
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-base font-semibold text-white hover:text-[#00D4C5] py-2 border-b border-white/10 flex items-center justify-between"
+                className="text-base font-semibold text-[#002B4D] hover:text-[#00DFDB] py-2 border-b border-[rgba(0,57,104,0.08)] flex items-center justify-between"
               >
                 <span>Precios</span>
-                <span className="text-xs font-mono text-[#94A3B8]">04</span>
+                <span className="text-xs font-mono text-[rgba(0,43,77,0.50)]">04</span>
               </Link>
             </nav>
 
@@ -179,7 +179,7 @@ export function Navbar() {
                   trackCTAClick("navbar_mobile", "Ingresar");
                   setMobileMenuOpen(false);
                 }}
-                className="w-full text-center py-3 rounded-lg text-sm font-semibold text-white bg-white/10 border border-white/20 hover:bg-white/15 transition-colors"
+                className="w-full text-center py-3 rounded-lg text-sm font-semibold text-[#003968] bg-[rgba(0,57,104,0.04)] border border-[rgba(0,57,104,0.12)] hover:bg-[rgba(0,57,104,0.08)] transition-colors"
               >
                 Ingresar
               </Link>
@@ -189,18 +189,18 @@ export function Navbar() {
                   trackCTAClick("navbar_mobile", "Probar LibretaX");
                   setMobileMenuOpen(false);
                 }}
-                className="w-full text-center py-3 rounded-lg text-sm font-semibold text-[#0D1E3D] bg-white hover:bg-[#F5F3EE] transition-colors shadow-xs"
+                className="w-full text-center py-3 rounded-lg text-sm font-semibold text-white bg-[#003968] hover:bg-[#002B4D] transition-colors shadow-xs"
               >
                 Probar LibretaX
               </Link>
 
-              <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs text-[#CBD5E1]">
+              <div className="pt-2 border-t border-[rgba(0,57,104,0.08)] flex items-center justify-between text-xs text-[rgba(0,43,77,0.70)]">
                 <span>WhatsApp comercial:</span>
                 <a
                   href="https://wa.me/5491166085798?text=Hola%20LibretaX%2C%20quisiera%20hacer%20una%20consulta"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-bold text-[#00D4C5] hover:underline"
+                  className="font-bold text-[#003968] hover:text-[#00DFDB] hover:underline"
                 >
                   11 6608-5798
                 </a>

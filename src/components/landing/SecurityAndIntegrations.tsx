@@ -22,21 +22,21 @@ export function SecurityAndIntegrations() {
   ];
 
   return (
-    <section className="py-20 md:py-28 border-b border-[#DCDAD4] bg-white">
+    <section className="py-20 md:py-28 border-b border-[rgba(0,57,104,0.10)] bg-white">
       <div className="max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <FadeUp>
           <div className="max-w-3xl mb-16 space-y-3">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-sm bg-[#5B2FE4]" />
-              <span className="text-xs font-bold uppercase tracking-wider text-[#102A56]">
+              <span className="w-2 h-2 rounded-sm bg-[#00DFDB]" />
+              <span className="text-xs font-bold uppercase tracking-wider text-[#003968]">
                 Infraestructura y confianza
               </span>
             </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-[#101828] tracking-tight">
+            <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-[#002B4D] tracking-tight">
               Seguridad técnica e integraciones reales.
             </h2>
-            <p className="text-base sm:text-lg text-[#5F6875] leading-relaxed">
+            <p className="text-base sm:text-lg text-[rgba(0,43,77,0.70)] leading-relaxed">
               Arquitectura pensada para proteger la información comercial de cada negocio y conectarse de manera confiable con las plataformas que utilizás.
             </p>
           </div>
@@ -47,9 +47,9 @@ export function SecurityAndIntegrations() {
           {/* Column 1: Security */}
           <div className="lg:col-span-7 space-y-6">
             <FadeUp delay={0.1}>
-              <div className="flex items-center gap-2.5 border-b border-[#DCDAD4] pb-4">
-                <Shield className="w-5 h-5 text-[#5B2FE4]" />
-                <h3 className="text-lg font-bold text-[#101828]">
+              <div className="flex items-center gap-2.5 border-b border-[rgba(0,57,104,0.10)] pb-4">
+                <Shield className="w-5 h-5 text-[#003968]" />
+                <h3 className="text-lg font-bold text-[#002B4D]">
                   Criterios de seguridad operativa
                 </h3>
               </div>
@@ -58,15 +58,15 @@ export function SecurityAndIntegrations() {
                 {securityItems.map((item, idx) => (
                   <div
                     key={idx}
-                    className="space-y-1.5 p-4 rounded-xl bg-[#F5F3EE] border border-[#DCDAD4] hover:border-[#102A56]/30 transition-colors"
+                    className="space-y-1.5 p-4 rounded-xl bg-[rgba(0,57,104,0.02)] border border-[rgba(0,57,104,0.12)] hover:border-[rgba(0,223,219,0.50)] transition-colors"
                   >
                     <div className="flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-[#102A56] shrink-0" />
-                      <h4 className="text-sm font-bold text-[#101828]">
+                      <Lock className="w-3.5 h-3.5 text-[#003968] shrink-0" />
+                      <h4 className="text-sm font-bold text-[#002B4D]">
                         {item.title}
                       </h4>
                     </div>
-                    <p className="text-xs text-[#5F6875] leading-relaxed">
+                    <p className="text-xs text-[rgba(0,43,77,0.70)] leading-relaxed">
                       {item.desc}
                     </p>
                   </div>
@@ -78,37 +78,37 @@ export function SecurityAndIntegrations() {
           {/* Column 2: Integrations */}
           <div className="lg:col-span-5 space-y-6">
             <FadeUp delay={0.15}>
-              <div className="flex items-center gap-2.5 border-b border-[#DCDAD4] pb-4">
-                <Cpu className="w-5 h-5 text-[#5B2FE4]" />
-                <h3 className="text-lg font-bold text-[#101828]">
+              <div className="flex items-center gap-2.5 border-b border-[rgba(0,57,104,0.10)] pb-4">
+                <Cpu className="w-5 h-5 text-[#003968]" />
+                <h3 className="text-lg font-bold text-[#002B4D]">
                   Integraciones verificadas
                 </h3>
               </div>
 
-              <div className="bg-[#F5F3EE] rounded-2xl border border-[#DCDAD4] divide-y divide-[#DCDAD4] overflow-hidden shadow-2xs">
+              <div className="bg-[rgba(0,57,104,0.02)] rounded-2xl border border-[rgba(0,57,104,0.12)] divide-y divide-[rgba(0,57,104,0.08)] overflow-hidden shadow-2xs">
                 {integrations.map((integ, idx) => (
                   <div
                     key={idx}
-                    className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-white/60 transition-colors"
+                    className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-white transition-colors"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-[#101828]">
+                        <span className="text-sm font-bold text-[#002B4D]">
                           {integ.name}
                         </span>
                       </div>
-                      <span className="text-xs text-[#5F6875] truncate block">
+                      <span className="text-xs text-[rgba(0,43,77,0.70)] truncate block">
                         {integ.role}
                       </span>
                     </div>
-                    <span className="inline-block text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-white text-[#102A56] border border-[#DCDAD4] shrink-0">
+                    <span className="inline-block text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-white text-[#003968] border border-[rgba(0,57,104,0.12)] shrink-0">
                       {integ.tag}
                     </span>
                   </div>
                 ))}
               </div>
 
-              <p className="text-xs text-[#5F6875] italic pt-1">
+              <p className="text-xs text-[rgba(0,43,77,0.70)] italic pt-1">
                 Conexiones directas mediante APIs oficiales bajo estándares de autenticación y cifrado.
               </p>
             </FadeUp>

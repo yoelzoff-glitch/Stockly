@@ -1,8 +1,15 @@
 @import "tailwindcss";
+@import "../styles/libretax-brand.css";
 
 @plugin "tailwindcss-animate";
 
 @theme {
+  --color-lx-navy-deep: #002B4D;
+  --color-lx-navy: #003968;
+  --color-lx-cyan: #00DFDB;
+  --color-lx-lime: #FAF984;
+  --color-lx-white: #FFFFFF;
+
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));

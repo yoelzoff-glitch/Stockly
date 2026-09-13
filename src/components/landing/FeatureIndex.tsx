@@ -72,21 +72,21 @@ const modules: FeatureModule[] = [
 
 export function FeatureIndex() {
   return (
-    <section id="modulos" className="py-20 md:py-28 border-b border-[#DCDAD4] bg-[#F5F3EE]">
+    <section id="modulos" className="py-20 md:py-28 border-b border-[rgba(0,57,104,0.10)] bg-[rgba(0,57,104,0.02)]">
       <div className="max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <FadeUp>
           <div className="max-w-3xl mb-16 space-y-3">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-sm bg-[#5B2FE4]" />
-              <span className="text-xs font-bold uppercase tracking-wider text-[#102A56]">
+              <span className="w-2 h-2 rounded-sm bg-[#00DFDB]" />
+              <span className="text-xs font-bold uppercase tracking-wider text-[#003968]">
                 Módulos del sistema
               </span>
             </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-[#101828] tracking-tight">
+            <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-[#002B4D] tracking-tight">
               Todo lo que necesita una cuenta comercial en un solo lugar.
             </h2>
-            <p className="text-base sm:text-lg text-[#5F6875] leading-relaxed">
+            <p className="text-base sm:text-lg text-[rgba(0,43,77,0.70)] leading-relaxed">
               Cada módulo resuelve una necesidad concreta de la operativa diaria en Mercado Libre sin interfaces sobrecargadas.
             </p>
           </div>
@@ -94,9 +94,9 @@ export function FeatureIndex() {
 
         {/* Structured Ledger Table */}
         <FadeUp delay={0.1}>
-          <div className="bg-white rounded-2xl border border-[#DCDAD4] shadow-xs overflow-hidden divide-y divide-[#DCDAD4]">
+          <div className="bg-white rounded-2xl border border-[rgba(0,57,104,0.12)] shadow-xs overflow-hidden divide-y divide-[rgba(0,57,104,0.08)]">
             {/* Header Row */}
-            <div className="grid grid-cols-12 bg-[#F5F3EE] p-4 text-xs font-mono font-bold uppercase tracking-wider text-[#5F6875] hidden md:grid">
+            <div className="grid grid-cols-12 bg-[rgba(0,57,104,0.04)] p-4 text-xs font-mono font-bold uppercase tracking-wider text-[#003968] hidden md:grid">
               <div className="col-span-1">#</div>
               <div className="col-span-3">Módulo</div>
               <div className="col-span-6">Propósito operativo</div>
@@ -107,24 +107,24 @@ export function FeatureIndex() {
             {modules.map((mod, idx) => (
               <div
                 key={mod.name}
-                className="grid grid-cols-1 md:grid-cols-12 p-4 md:p-5 gap-2 md:gap-4 items-center hover:bg-[#F5F3EE]/60 transition-colors"
+                className="grid grid-cols-1 md:grid-cols-12 p-4 md:p-5 gap-2 md:gap-4 items-center hover:bg-[rgba(0,223,219,0.03)] transition-colors"
               >
-                <div className="md:col-span-1 text-xs font-mono font-bold text-[#5B2FE4]">
+                <div className="md:col-span-1 text-xs font-mono font-bold text-[#00DFDB]">
                   {String(idx + 1).padStart(2, "0")}
                 </div>
 
                 <div className="md:col-span-3">
-                  <h3 className="text-base font-bold text-[#101828]">
+                  <h3 className="text-base font-bold text-[#002B4D]">
                     {mod.name}
                   </h3>
                 </div>
 
-                <div className="md:col-span-6 text-sm text-[#5F6875] leading-relaxed">
+                <div className="md:col-span-6 text-sm text-[rgba(0,43,77,0.70)] leading-relaxed">
                   {mod.description}
                 </div>
 
                 <div className="md:col-span-2 md:text-right">
-                  <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-md bg-[#F5F3EE] text-[#102A56] border border-[#DCDAD4]">
+                  <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-md bg-[rgba(0,57,104,0.04)] text-[#003968] border border-[rgba(0,57,104,0.12)]">
                     {mod.category}
                   </span>
                 </div>
@@ -135,10 +135,10 @@ export function FeatureIndex() {
 
         {/* Mandatory Operational Clarification */}
         <FadeUp delay={0.15}>
-          <div className="mt-8 flex items-start gap-3 p-4 sm:p-5 rounded-xl bg-white border border-[#DCDAD4] text-[#5F6875] shadow-2xs">
-            <Info className="w-5 h-5 text-[#5B2FE4] shrink-0 mt-0.5" />
+          <div className="mt-8 flex items-start gap-3 p-4 sm:p-5 rounded-xl bg-white border border-[rgba(0,57,104,0.12)] text-[rgba(0,43,77,0.70)] shadow-2xs">
+            <Info className="w-5 h-5 text-[#003968] shrink-0 mt-0.5" />
             <p className="text-xs sm:text-sm leading-relaxed">
-              <strong className="text-[#101828] font-semibold">Aclaración operativa importante: </strong>
+              <strong className="text-[#002B4D] font-semibold">Aclaración operativa importante: </strong>
               LibretaX no responde automáticamente preguntas de compradores de Mercado Libre. Su foco es la gestión de rentabilidad, costos, inventario y control financiero del vendedor.
             </p>
           </div>

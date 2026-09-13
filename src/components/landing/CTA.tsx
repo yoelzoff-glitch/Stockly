@@ -7,10 +7,10 @@ import { trackCTAClick } from "@/lib/analytics/ga";
 
 export function CTA() {
   return (
-    <section className="relative py-20 md:py-28 bg-[#102A56] text-white overflow-hidden border-b border-[#0A1D3C]">
+    <section className="relative py-20 md:py-28 bg-[#002B4D] text-white overflow-hidden border-b border-[rgba(0,57,104,0.30)]">
       {/* Subtle Brand Background Texture */}
       <div
-        className="absolute inset-0 opacity-[0.06] pointer-events-none"
+        className="absolute inset-0 opacity-[0.05] pointer-events-none"
         style={{
           backgroundImage: `radial-gradient(#FFFFFF 1px, transparent 1px)`,
           backgroundSize: "28px 28px",
@@ -20,14 +20,14 @@ export function CTA() {
 
       {/* Subtle accent glow */}
       <div
-        className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#5B2FE4]/20 blur-3xl pointer-events-none"
+        className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#00DFDB]/15 blur-3xl pointer-events-none"
         aria-hidden="true"
       />
 
       <div className="relative max-w-[840px] mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6 sm:space-y-7">
         <FadeUp>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-white/90 text-xs font-semibold backdrop-blur-xs">
-            <span className="w-2 h-2 rounded-full bg-[#F53B98]" />
+            <span className="w-2 h-2 rounded-full bg-[#FAF984]" />
             <span>Comenzá a operar con claridad hoy</span>
           </div>
         </FadeUp>
@@ -50,7 +50,7 @@ export function CTA() {
             <Link
               href="/register"
               onClick={() => trackCTAClick("cta_banner", "Probar LibretaX")}
-              className="w-full sm:w-auto group inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl text-sm font-semibold text-[#102A56] bg-white hover:bg-[#F5F3EE] transition-all shadow-md focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#5B2FE4]"
+              className="w-full sm:w-auto group inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl text-sm font-semibold text-[#002B4D] bg-white hover:bg-[#FAF984] transition-all shadow-md focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00DFDB]"
             >
               <span>Probar LibretaX</span>
               <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
@@ -69,11 +69,11 @@ export function CTA() {
         <FadeUp delay={0.25}>
           <div className="pt-2 flex flex-wrap items-center justify-center gap-4 text-xs text-white/70">
             <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-[#198754] shrink-0" />
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#00DFDB] shrink-0" />
               <span>15 días de prueba gratis</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#198754] shrink-0" />
+              <ShieldCheck className="w-3.5 h-3.5 text-[#00DFDB] shrink-0" />
               <span>Conexión oficial Mercado Libre OAuth 2.0</span>
             </div>
           </div>
@@ -84,7 +84,7 @@ export function CTA() {
               href="https://wa.me/5491166085798?text=Hola%20LibretaX%2C%20quisiera%20hacer%20una%20consulta"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 font-semibold text-[#25D366] hover:underline"
+              className="inline-flex items-center gap-1 font-semibold text-[#00DFDB] hover:underline"
             >
               <span>WhatsApp: 11 6608-5798</span>
             </a>

@@ -74,21 +74,21 @@ const steps: TourStep[] = [
 
 export function ProductTour() {
   return (
-    <section id="recorrido" className="py-20 md:py-28 border-b border-[#DCDAD4] bg-white">
+    <section id="recorrido" className="py-20 md:py-28 border-b border-[rgba(0,57,104,0.10)] bg-white">
       <div className="max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <FadeUp>
           <div className="max-w-2xl mb-16 space-y-3">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-sm bg-[#5B2FE4]" />
-              <span className="text-xs font-bold uppercase tracking-wider text-[#102A56]">
+              <span className="w-2 h-2 rounded-sm bg-[#00DFDB]" />
+              <span className="text-xs font-bold uppercase tracking-wider text-[#003968]">
                 Recorrido por el producto
               </span>
             </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-[#101828] tracking-tight">
+            <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-[#002B4D] tracking-tight">
               Pantallas reales diseñadas para operar todos los días.
             </h2>
-            <p className="text-base sm:text-lg text-[#5F6875] leading-relaxed">
+            <p className="text-base sm:text-lg text-[rgba(0,43,77,0.70)] leading-relaxed">
               Sin mockups genéricos. Así se ve y organiza la información de tu cuenta adentro de LibretaX.
             </p>
           </div>
@@ -112,25 +112,25 @@ export function ProductTour() {
                 >
                   <FadeUp delay={0.1}>
                     <div className="space-y-4">
-                      <span className="text-xs font-mono font-bold text-[#5B2FE4] tracking-wider block">
+                      <span className="text-xs font-mono font-bold text-[#00DFDB] tracking-wider block">
                         {step.tag}
                       </span>
 
-                      <h3 className="text-2xl sm:text-3xl font-extrabold text-[#101828] tracking-tight">
+                      <h3 className="text-2xl sm:text-3xl font-extrabold text-[#002B4D] tracking-tight">
                         {step.title}
                       </h3>
 
-                      <p className="text-base text-[#5F6875] leading-relaxed font-normal">
+                      <p className="text-base text-[rgba(0,43,77,0.70)] leading-relaxed font-normal">
                         {step.description}
                       </p>
 
-                      <ul className="space-y-3 pt-3 border-t border-[#DCDAD4]">
+                      <ul className="space-y-3 pt-3 border-t border-[rgba(0,57,104,0.10)]">
                         {step.bulletPoints.map((bp, bIdx) => (
                           <li
                             key={bIdx}
-                            className="flex items-start gap-2.5 text-sm font-medium text-[#101828]"
+                            className="flex items-start gap-2.5 text-sm font-medium text-[#002B4D]"
                           >
-                            <CheckCircle2 className="w-4 h-4 text-[#198754] shrink-0 mt-0.5" />
+                            <CheckCircle2 className="w-4 h-4 text-[#00DFDB] shrink-0 mt-0.5" />
                             <span>{bp}</span>
                           </li>
                         ))}
@@ -146,24 +146,24 @@ export function ProductTour() {
                   }`}
                 >
                   <FadeUp delay={0.15}>
-                    <div className="group rounded-2xl border border-[#DCDAD4] bg-[#F5F3EE] p-2.5 sm:p-3 shadow-md shadow-[#102A56]/5 transition-all duration-300 hover:border-[#102A56]/30">
+                    <div className="group rounded-2xl border border-[rgba(0,57,104,0.12)] bg-[rgba(0,57,104,0.02)] p-2.5 sm:p-3 shadow-md shadow-[rgba(0,43,77,0.05)] transition-all duration-300 hover:border-[rgba(0,223,219,0.50)]">
                       {/* Clean Browser Chrome */}
-                      <div className="flex items-center justify-between pb-2.5 px-3 border-b border-[#DCDAD4]/80 mb-2.5">
+                      <div className="flex items-center justify-between pb-2.5 px-3 border-b border-[rgba(0,57,104,0.10)] mb-2.5">
                         <div className="flex items-center gap-1.5">
                           <span className="w-2.5 h-2.5 rounded-full bg-[#E5E2DA] group-hover:bg-[#EF4444]/60 transition-colors" />
                           <span className="w-2.5 h-2.5 rounded-full bg-[#E5E2DA] group-hover:bg-[#F59E0B]/60 transition-colors" />
                           <span className="w-2.5 h-2.5 rounded-full bg-[#E5E2DA] group-hover:bg-[#10B981]/60 transition-colors" />
                         </div>
-                        <span className="text-[11px] font-mono text-[#5F6875] truncate max-w-[260px] sm:max-w-none">
+                        <span className="text-[11px] font-mono text-[rgba(0,43,77,0.68)] truncate max-w-[260px] sm:max-w-none">
                           {step.path}
                         </span>
                         <div className="w-10 flex justify-end">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#198754]" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#00DFDB]" />
                         </div>
                       </div>
 
                       {/* Real Screenshot with high-quality Next/Image rendering */}
-                      <div className="relative rounded-xl overflow-hidden border border-[#DCDAD4] bg-white shadow-2xs">
+                      <div className="relative rounded-xl overflow-hidden border border-[rgba(0,57,104,0.10)] bg-white shadow-2xs">
                         <Image
                           src={step.imageSrc}
                           alt={step.imageAlt}
@@ -184,18 +184,18 @@ export function ProductTour() {
 
         {/* Strategic Mid-Funnel CTA */}
         <FadeUp delay={0.2}>
-          <div className="mt-20 p-8 rounded-2xl bg-[#F5F3EE] border border-[#DCDAD4] flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="mt-20 p-8 rounded-2xl bg-[rgba(0,57,104,0.025)] border border-[rgba(0,57,104,0.12)] flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="space-y-1 text-center sm:text-left">
-              <h4 className="text-lg font-bold text-[#101828]">
+              <h4 className="text-lg font-bold text-[#002B4D]">
                 ¿Querés ver tus propios números con esta claridad?
               </h4>
-              <p className="text-sm text-[#5F6875]">
+              <p className="text-sm text-[rgba(0,43,77,0.70)]">
                 Conectá tu cuenta de Mercado Libre en menos de 2 minutos sin costo inicial.
               </p>
             </div>
             <Link
               href="/register"
-              className="group inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white bg-[#102A56] hover:bg-[#0A1D3C] transition-all shrink-0 shadow-xs"
+              className="group inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white bg-[#003968] hover:bg-[#002B4D] transition-all shrink-0 shadow-xs"
             >
               <span>Probar LibretaX</span>
               <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />

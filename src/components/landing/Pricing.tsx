@@ -53,14 +53,14 @@ export function Pricing() {
   };
 
   return (
-    <section id="precios" className="py-20 md:py-28 border-b border-[#DCDAD4] bg-[#F5F3EE]">
+    <section id="precios" className="py-20 md:py-28 border-b border-[rgba(0,57,104,0.10)] bg-white">
       <div className="max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <FadeUp>
           <div className="max-w-3xl mb-12 sm:mb-16 space-y-4">
             <div className="flex flex-wrap items-center gap-2.5">
-              <span className="w-2 h-2 rounded-sm bg-[#5B2FE4]" />
-              <span className="text-xs font-bold uppercase tracking-wider text-[#102A56]">
+              <span className="w-2 h-2 rounded-sm bg-[#00DFDB]" />
+              <span className="text-xs font-bold uppercase tracking-wider text-[#003968]">
                 Planes y suscripción
               </span>
               {promoActive && (
@@ -68,13 +68,13 @@ export function Pricing() {
               )}
             </div>
 
-            <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-[#101828] tracking-tight">
+            <h2 className="text-3xl sm:text-4xl lg:text-[40px] font-extrabold text-[#002B4D] tracking-tight">
               {promoActive
                 ? LAUNCH_PROMOTION.headline
                 : "Tarifas claras según el tamaño de tu catálogo."}
             </h2>
 
-            <p className="text-base sm:text-lg text-[#5F6875] leading-relaxed">
+            <p className="text-base sm:text-lg text-[rgba(0,43,77,0.70)] leading-relaxed">
               {promoActive
                 ? LAUNCH_PROMOTION.subheadline
                 : "Todos los planes incluyen 15 días de prueba gratis sin tarjeta obligatoria. Facturación mensual en USD o equivalente en moneda local vía Mercado Pago."}
@@ -102,36 +102,36 @@ export function Pricing() {
                 <div
                   className={`relative h-full bg-white rounded-2xl p-7 sm:p-8 flex flex-col justify-between transition-all duration-200 ${
                     plan.isPopular
-                      ? "border-2 border-[#5B2FE4] shadow-md shadow-[#5B2FE4]/10"
-                      : "border border-[#DCDAD4] shadow-xs hover:border-[#102A56]/30"
+                      ? "border-2 border-[#00DFDB] shadow-md shadow-[#00DFDB]/10"
+                      : "border border-[rgba(0,57,104,0.12)] shadow-xs hover:border-[rgba(0,223,219,0.50)]"
                   }`}
                 >
                   {plan.isPopular && (
                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#5B2FE4] text-white shadow-xs">
-                        <Sparkles className="w-3 h-3" />
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#FAF984] text-[#002B4D] shadow-xs">
+                        <Sparkles className="w-3 h-3 text-[#002B4D]" />
                         Recomendado
                       </span>
                     </div>
                   )}
 
                   <div>
-                    <div className="border-b border-[#DCDAD4] pb-5 mb-5">
+                    <div className="border-b border-[rgba(0,57,104,0.10)] pb-5 mb-5">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-mono font-semibold text-[#5F6875] uppercase tracking-wider block">
+                        <span className="text-xs font-mono font-semibold text-[rgba(0,43,77,0.68)] uppercase tracking-wider block">
                           {plan.skuLimit}
                         </span>
                         {promoActive && (
-                          <span className="text-[11px] font-bold text-[#5B2FE4] bg-[#5B2FE4]/10 px-2 py-0.5 rounded-md border border-[#5B2FE4]/20">
+                          <span className="text-[11px] font-bold text-[#002B4D] bg-[#FAF984] px-2 py-0.5 rounded-md border border-[#002B4D]/15">
                             {LAUNCH_PROMOTION.name}
                           </span>
                         )}
                       </div>
 
-                      <h3 className="text-2xl font-bold text-[#101828] mt-1">
+                      <h3 className="text-2xl font-bold text-[#002B4D] mt-1">
                         {plan.name}
                       </h3>
-                      <p className="text-xs text-[#5F6875] mt-1.5 leading-relaxed">
+                      <p className="text-xs text-[rgba(0,43,77,0.70)] mt-1.5 leading-relaxed">
                         {plan.description}
                       </p>
 
@@ -139,21 +139,21 @@ export function Pricing() {
                       <div className="mt-5 space-y-1">
                         {promoActive && (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs sm:text-sm text-[#94A3B8] line-through font-semibold tabular-nums">
+                            <span className="text-xs sm:text-sm text-[rgba(0,43,77,0.40)] line-through font-semibold tabular-nums">
                               {priceInfo.normalPriceFormatted}
                             </span>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#15803D] bg-[#DCFCE7] px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#002B4D] bg-[#FAF984] px-1.5 py-0.5 rounded">
                               -10%
                             </span>
                           </div>
                         )}
                         <div className="flex items-baseline gap-1">
-                          <span className="text-3xl sm:text-4xl font-extrabold text-[#101828] tabular-nums">
+                          <span className="text-3xl sm:text-4xl font-extrabold text-[#002B4D] tabular-nums">
                             {promoActive
                               ? priceInfo.promoPriceFormatted
                               : priceInfo.normalPriceFormatted}
                           </span>
-                          <span className="text-sm font-medium text-[#5F6875]">
+                          <span className="text-sm font-medium text-[rgba(0,43,77,0.68)]">
                             {plan.billingPeriod}
                           </span>
                         </div>
@@ -164,9 +164,9 @@ export function Pricing() {
                       {plan.features.map((feat, fIdx) => (
                         <li
                           key={fIdx}
-                          className="flex items-start gap-2.5 text-xs sm:text-sm text-[#101828]"
+                          className="flex items-start gap-2.5 text-xs sm:text-sm text-[#002B4D]"
                         >
-                          <Check className="w-4 h-4 text-[#198754] shrink-0 mt-0.5" />
+                          <Check className="w-4 h-4 text-[#00DFDB] shrink-0 mt-0.5" />
                           <span>{feat}</span>
                         </li>
                       ))}
@@ -178,8 +178,8 @@ export function Pricing() {
                     onClick={() => handlePlanClick(plan.name, plan.ctaText)}
                     className={`w-full inline-flex items-center justify-center px-5 py-3 rounded-xl text-sm font-semibold transition-all ${
                       plan.isPopular
-                        ? "text-white bg-[#102A56] hover:bg-[#0A1D3C] shadow-xs"
-                        : "text-[#102A56] bg-[#F5F3EE] hover:bg-[#EAE7DF] border border-[#DCDAD4]"
+                        ? "text-white bg-[#003968] hover:bg-[#002B4D] shadow-xs"
+                        : "text-[#003968] bg-white hover:bg-[rgba(0,223,219,0.08)] border border-[rgba(0,57,104,0.20)]"
                     }`}
                   >
                     {plan.ctaText}
@@ -192,7 +192,7 @@ export function Pricing() {
 
         {/* Footnote */}
         <FadeUp delay={0.25}>
-          <p className="mt-8 text-xs text-[#5F6875] text-center">
+          <p className="mt-8 text-xs text-[rgba(0,43,77,0.70)] text-center">
             {promoActive
               ? "Precios promocionales válidos durante el período de lanzamiento. Podés pausar o cambiar de plan en cualquier momento."
               : "Podés pausar o cambiar de plan en cualquier momento desde tu panel de facturación."}

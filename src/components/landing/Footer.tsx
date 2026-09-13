@@ -59,19 +59,19 @@ export function LinkedinIcon({ className = "w-4 h-4" }: { className?: string }) 
 
 export function Footer() {
   return (
-    <footer className="bg-white text-[#5F6875] border-t border-[#DCDAD4] py-14 lg:py-16">
+    <footer className="bg-[#002B4D] text-white/70 border-t border-[rgba(0,57,104,0.40)] py-14 lg:py-16">
       <div className="max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-10 lg:gap-12">
           {/* Col 1: Brand & Desc (4 cols) */}
           <div className="md:col-span-4 space-y-4">
             <Link href="/" aria-label="LibretaX inicio" className="inline-block">
-              <Logo variant="wordmark-dark" size="md" />
+              <Logo variant="wordmark-light" size="md" />
             </Link>
-            <p className="text-sm text-[#5F6875] leading-relaxed max-w-sm">
+            <p className="text-sm text-white/70 leading-relaxed max-w-sm">
               Plataforma para vendedores de Mercado Libre. Centralizá ventas, costos, comisiones, envíos, publicidad y stock para conocer tu rentabilidad real.
             </p>
-            <div className="pt-2 text-xs text-[#102A56] font-medium flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-[#198754] shrink-0" />
+            <div className="pt-2 text-xs text-white/90 font-medium flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-[#00DFDB] shrink-0" />
               <span>Conexión oficial mediante Mercado Libre OAuth 2.0</span>
             </div>
             {/* Quick Social & WhatsApp links */}
@@ -81,7 +81,7 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title="WhatsApp Comercial LibretaX"
-                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all shadow-2xs"
+                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white/10 text-[#00DFDB] hover:bg-[#00DFDB] hover:text-[#002B4D] transition-all shadow-2xs"
                 aria-label="Escribir por WhatsApp a LibretaX"
               >
                 <WhatsAppIcon className="w-4 h-4" />
@@ -91,7 +91,7 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Instagram @libretax_"
-                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#E1306C]/10 text-[#E1306C] hover:bg-[#E1306C] hover:text-white transition-all shadow-2xs"
+                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white/10 text-white hover:bg-[#00DFDB] hover:text-[#002B4D] transition-all shadow-2xs"
                 aria-label="Seguir a LibretaX en Instagram"
               >
                 <InstagramIcon className="w-4 h-4" />
@@ -101,7 +101,7 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Facebook LibretaX"
-                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#1877F2]/10 text-[#1877F2] hover:bg-[#1877F2] hover:text-white transition-all shadow-2xs"
+                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white/10 text-white hover:bg-[#00DFDB] hover:text-[#002B4D] transition-all shadow-2xs"
                 aria-label="Seguir a LibretaX en Facebook"
               >
                 <FacebookIcon className="w-4 h-4" />
@@ -111,7 +111,7 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title="LinkedIn LibretaX"
-                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#0A66C2]/10 text-[#0A66C2] hover:bg-[#0A66C2] hover:text-white transition-all shadow-2xs"
+                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white/10 text-white hover:bg-[#00DFDB] hover:text-[#002B4D] transition-all shadow-2xs"
                 aria-label="Seguir a LibretaX en LinkedIn"
               >
                 <LinkedinIcon className="w-4 h-4" />
@@ -119,7 +119,7 @@ export function Footer() {
               <a
                 href="mailto:info@libretax.com.ar"
                 title="Email de Información LibretaX"
-                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#102A56]/10 text-[#102A56] hover:bg-[#102A56] hover:text-white transition-all shadow-2xs"
+                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white/10 text-white hover:bg-[#00DFDB] hover:text-[#002B4D] transition-all shadow-2xs"
                 aria-label="Enviar correo a info@libretax.com.ar"
               >
                 <Mail className="w-4 h-4" />
@@ -129,32 +129,32 @@ export function Footer() {
 
           {/* Col 2: Navegación (2 cols) */}
           <div className="md:col-span-2 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#101828]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#FAF984]">
               Navegación
             </h3>
             <ul className="space-y-2.5 text-sm">
               <li>
-                <Link href="#recorrido" className="hover:text-[#101828] transition-colors">
+                <Link href="#recorrido" className="text-white/70 hover:text-[#00DFDB] transition-colors">
                   Recorrido
                 </Link>
               </li>
               <li>
-                <Link href="#modulos" className="hover:text-[#101828] transition-colors">
+                <Link href="#modulos" className="text-white/70 hover:text-[#00DFDB] transition-colors">
                   Módulos
                 </Link>
               </li>
               <li>
-                <Link href="#como-funciona" className="hover:text-[#101828] transition-colors">
+                <Link href="#como-funciona" className="text-white/70 hover:text-[#00DFDB] transition-colors">
                   Cómo funciona
                 </Link>
               </li>
               <li>
-                <Link href="#precios" className="hover:text-[#101828] transition-colors">
+                <Link href="#precios" className="text-white/70 hover:text-[#00DFDB] transition-colors">
                   Precios
                 </Link>
               </li>
               <li>
-                <Link href="#faq" className="hover:text-[#101828] transition-colors">
+                <Link href="#faq" className="text-white/70 hover:text-[#00DFDB] transition-colors">
                   Preguntas
                 </Link>
               </li>
@@ -163,7 +163,7 @@ export function Footer() {
 
           {/* Col 3: Contacto & Canales (3 cols) */}
           <div className="md:col-span-3 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#101828]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#FAF984]">
               Contacto & Canales
             </h3>
             <ul className="space-y-3 text-sm">
@@ -172,16 +172,16 @@ export function Footer() {
                   href="https://wa.me/5491166085798?text=Hola%20LibretaX%2C%20quisiera%20hacer%20una%20consulta"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-start gap-2.5 hover:text-[#101828] transition-colors"
+                  className="group flex items-start gap-2.5 hover:text-[#00DFDB] transition-colors"
                 >
-                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#25D366]/10 text-[#25D366] shrink-0 mt-0.5 group-hover:bg-[#25D366] group-hover:text-white transition-colors">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-[#00DFDB] shrink-0 mt-0.5 group-hover:bg-[#00DFDB] group-hover:text-[#002B4D] transition-colors">
                     <WhatsAppIcon className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <span className="block font-semibold text-[#101828] leading-tight">
+                    <span className="block font-semibold text-white leading-tight group-hover:text-[#00DFDB]">
                       11 6608-5798
                     </span>
-                    <span className="text-xs text-[#5F6875] group-hover:text-[#101828]">
+                    <span className="text-xs text-white/70 group-hover:text-white">
                       WhatsApp comercial
                     </span>
                   </div>
@@ -193,17 +193,17 @@ export function Footer() {
                   href="https://www.instagram.com/libretax_/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-start gap-2.5 hover:text-[#101828] transition-colors"
+                  className="group flex items-start gap-2.5 hover:text-[#00DFDB] transition-colors"
                 >
-                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#E1306C]/10 text-[#E1306C] shrink-0 mt-0.5 group-hover:bg-[#E1306C] group-hover:text-white transition-colors">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white shrink-0 mt-0.5 group-hover:bg-[#00DFDB] group-hover:text-[#002B4D] transition-colors">
                     <InstagramIcon className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <span className="block font-semibold text-[#101828] leading-tight flex items-center gap-1">
+                    <span className="block font-semibold text-white leading-tight flex items-center gap-1 group-hover:text-[#00DFDB]">
                       @libretax_
-                      <ArrowUpRight className="w-3 h-3 text-[#5F6875] group-hover:text-[#101828]" />
+                      <ArrowUpRight className="w-3 h-3 text-white/60 group-hover:text-[#00DFDB]" />
                     </span>
-                    <span className="text-xs text-[#5F6875] group-hover:text-[#101828]">
+                    <span className="text-xs text-white/70 group-hover:text-white">
                       Instagram oficial
                     </span>
                   </div>
@@ -215,17 +215,17 @@ export function Footer() {
                   href="https://www.facebook.com/profile.php?id=61594040323699"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-start gap-2.5 hover:text-[#101828] transition-colors"
+                  className="group flex items-start gap-2.5 hover:text-[#00DFDB] transition-colors"
                 >
-                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#1877F2]/10 text-[#1877F2] shrink-0 mt-0.5 group-hover:bg-[#1877F2] group-hover:text-white transition-colors">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white shrink-0 mt-0.5 group-hover:bg-[#00DFDB] group-hover:text-[#002B4D] transition-colors">
                     <FacebookIcon className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <span className="block font-semibold text-[#101828] leading-tight flex items-center gap-1">
+                    <span className="block font-semibold text-white leading-tight flex items-center gap-1 group-hover:text-[#00DFDB]">
                       LibretaX
-                      <ArrowUpRight className="w-3 h-3 text-[#5F6875] group-hover:text-[#101828]" />
+                      <ArrowUpRight className="w-3 h-3 text-white/60 group-hover:text-[#00DFDB]" />
                     </span>
-                    <span className="text-xs text-[#5F6875] group-hover:text-[#101828]">
+                    <span className="text-xs text-white/70 group-hover:text-white">
                       Facebook oficial
                     </span>
                   </div>
@@ -237,17 +237,17 @@ export function Footer() {
                   href="https://www.linkedin.com/company/libreta-x/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-start gap-2.5 hover:text-[#101828] transition-colors"
+                  className="group flex items-start gap-2.5 hover:text-[#00DFDB] transition-colors"
                 >
-                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A66C2]/10 text-[#0A66C2] shrink-0 mt-0.5 group-hover:bg-[#0A66C2] group-hover:text-white transition-colors">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white shrink-0 mt-0.5 group-hover:bg-[#00DFDB] group-hover:text-[#002B4D] transition-colors">
                     <LinkedinIcon className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <span className="block font-semibold text-[#101828] leading-tight flex items-center gap-1">
+                    <span className="block font-semibold text-white leading-tight flex items-center gap-1 group-hover:text-[#00DFDB]">
                       LibretaX
-                      <ArrowUpRight className="w-3 h-3 text-[#5F6875] group-hover:text-[#101828]" />
+                      <ArrowUpRight className="w-3 h-3 text-white/60 group-hover:text-[#00DFDB]" />
                     </span>
-                    <span className="text-xs text-[#5F6875] group-hover:text-[#101828]">
+                    <span className="text-xs text-white/70 group-hover:text-white">
                       LinkedIn corporativo
                     </span>
                   </div>
@@ -257,16 +257,16 @@ export function Footer() {
               <li>
                 <a
                   href="mailto:soporte@libretax.com.ar"
-                  className="group flex items-start gap-2.5 hover:text-[#101828] transition-colors"
+                  className="group flex items-start gap-2.5 hover:text-[#00DFDB] transition-colors"
                 >
-                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#102A56]/10 text-[#102A56] shrink-0 mt-0.5 group-hover:bg-[#102A56] group-hover:text-white transition-colors">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white shrink-0 mt-0.5 group-hover:bg-[#00DFDB] group-hover:text-[#002B4D] transition-colors">
                     <Mail className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <span className="block font-semibold text-[#101828] leading-tight">
+                    <span className="block font-semibold text-white leading-tight group-hover:text-[#00DFDB]">
                       soporte@libretax.com.ar
                     </span>
-                    <span className="text-xs text-[#5F6875] group-hover:text-[#101828]">
+                    <span className="text-xs text-white/70 group-hover:text-white">
                       Mesa de ayuda y soporte
                     </span>
                   </div>
@@ -276,16 +276,16 @@ export function Footer() {
               <li>
                 <a
                   href="mailto:info@libretax.com.ar"
-                  className="group flex items-start gap-2.5 hover:text-[#101828] transition-colors"
+                  className="group flex items-start gap-2.5 hover:text-[#00DFDB] transition-colors"
                 >
-                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 text-slate-700 shrink-0 mt-0.5 group-hover:bg-[#102A56] group-hover:text-white transition-colors">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white shrink-0 mt-0.5 group-hover:bg-[#00DFDB] group-hover:text-[#002B4D] transition-colors">
                     <Mail className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <span className="block font-semibold text-[#101828] leading-tight">
+                    <span className="block font-semibold text-white leading-tight group-hover:text-[#00DFDB]">
                       info@libretax.com.ar
                     </span>
-                    <span className="text-xs text-[#5F6875] group-hover:text-[#101828]">
+                    <span className="text-xs text-white/70 group-hover:text-white">
                       Consultas generales
                     </span>
                   </div>
@@ -296,7 +296,7 @@ export function Footer() {
 
           {/* Col 4: Acceso y Legal (3 cols) */}
           <div className="md:col-span-3 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#101828]">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#FAF984]">
               Acceso y Legal
             </h3>
             <ul className="space-y-2.5 text-sm">
@@ -304,7 +304,7 @@ export function Footer() {
                 <Link
                   href="/login"
                   onClick={() => trackCTAClick("footer", "Iniciar sesión")}
-                  className="hover:text-[#101828] transition-colors"
+                  className="text-white/70 hover:text-[#00DFDB] transition-colors"
                 >
                   Iniciar sesión
                 </Link>
@@ -313,18 +313,18 @@ export function Footer() {
                 <Link
                   href="/register"
                   onClick={() => trackCTAClick("footer", "Registrarse en LibretaX")}
-                  className="hover:text-[#101828] transition-colors font-medium text-[#102A56]"
+                  className="hover:text-[#00DFDB] transition-colors font-semibold text-[#FAF984]"
                 >
                   Registrarse en LibretaX
                 </Link>
               </li>
               <li>
-                <Link href="/terminos" className="hover:text-[#101828] transition-colors">
+                <Link href="/terminos" className="text-white/70 hover:text-[#00DFDB] transition-colors">
                   Términos y condiciones
                 </Link>
               </li>
               <li>
-                <Link href="/privacidad" className="hover:text-[#101828] transition-colors">
+                <Link href="/privacidad" className="text-white/70 hover:text-[#00DFDB] transition-colors">
                   Políticas de privacidad
                 </Link>
               </li>
@@ -333,7 +333,7 @@ export function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="mt-12 pt-8 border-t border-[#DCDAD4] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#5F6875]">
+        <div className="mt-12 pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-white/60">
           <p>
             &copy; {new Date().getFullYear()} LibretaX. Todos los derechos reservados.
           </p>
