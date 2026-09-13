@@ -52,7 +52,7 @@ export function Footer() {
           {/* Col 1: Brand & Desc (4 cols) */}
           <div className="md:col-span-4 space-y-4">
             <Link href="/" aria-label="LibretaX inicio" className="inline-block">
-              <Logo size="md" />
+              <Logo variant="wordmark-dark" size="md" />
             </Link>
             <p className="text-sm text-[#5F6875] leading-relaxed max-w-sm">
               Plataforma para vendedores de Mercado Libre. Centralizá ventas, costos, comisiones, envíos, publicidad y stock para conocer tu rentabilidad real.
