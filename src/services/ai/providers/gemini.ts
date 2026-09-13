@@ -1,6 +1,10 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, type Part } from "@google/genai";
 import { AIProvider, AIProviderInput, AgentResult } from "./types";
 import { logger } from "@/lib/errors/logger";
+import {
+  toGeminiFunctionDeclarations,
+  toGeminiFunctionResponse,
+} from "./geminiToolAdapter";
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -26,14 +30,33 @@ export class GeminiProvider implements AIProvider {
       model,
     });
 
-    // Format tools for Gemini declarations
-    const toolDeclarations = input.tools.map(t => ({
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters,
-    }));
+    // Format and validate tools for Gemini declarations using parametersJsonSchema
+    let toolDeclarations;
+    try {
+      toolDeclarations = toGeminiFunctionDeclarations(input.tools);
+      logger.info({
+        event: "AI_GEMINI_TOOL_DECLARATIONS_BUILT",
+        tenantId: input.tenantId,
+        correlationId: input.correlationId,
+        model,
+        toolCount: toolDeclarations.length,
+      });
+    } catch (err: any) {
+      logger.error({
+        event: "AI_GEMINI_REQUEST_FAILED",
+        status: 400,
+        code: err?.code || "AI_TOOL_SCHEMA_INVALID",
+        message: err?.message,
+        model,
+        round: 0,
+        stage: "FUNCTION_DECLARATION",
+        correlationId: input.correlationId,
+        tenantId: input.tenantId,
+      });
+      throw err;
+    }
 
-    const toolsMap = new Map(input.tools.map(t => [t.name, t]));
+    const toolsMap = new Map(input.tools.map((t) => [t.name, t]));
 
     // Construct conversation contents
     const contents: any[] = [
@@ -49,45 +72,87 @@ export class GeminiProvider implements AIProvider {
     while (rounds < MAX_TOOL_ROUNDS) {
       rounds++;
 
-      const response = await this.client.models.generateContent({
-        model,
-        contents,
-        config: {
-          systemInstruction: input.systemPrompt,
-          tools: toolDeclarations.length > 0 ? [{ functionDeclarations: toolDeclarations as any }] : undefined,
-        },
-      });
+      let response;
+      try {
+        response = await this.client.models.generateContent({
+          model,
+          contents,
+          config: {
+            systemInstruction: input.systemPrompt,
+            tools:
+              toolDeclarations.length > 0
+                ? [{ functionDeclarations: toolDeclarations }]
+                : undefined,
+          },
+        });
+      } catch (err: any) {
+        const status = Number(err?.status || err?.statusCode || err?.response?.status || 500);
+        logger.error({
+          event: "AI_GEMINI_REQUEST_FAILED",
+          status,
+          code: err?.code || "GENERATE_CONTENT_ERROR",
+          message: err?.message,
+          model,
+          round: rounds,
+          stage: "GENERATE_CONTENT",
+          correlationId: input.correlationId,
+          tenantId: input.tenantId,
+        });
+        throw err;
+      }
 
       const functionCalls = response.functionCalls || [];
 
       if (!functionCalls || functionCalls.length === 0) {
         finalResponseText = response.text || "";
+        logger.info({
+          event: "AI_GEMINI_FINAL_RESPONSE_RECEIVED",
+          tenantId: input.tenantId,
+          correlationId: input.correlationId,
+          model,
+          round: rounds,
+          durationMs: Date.now() - startTime,
+        });
         break;
       }
 
-      // Record candidate content from model
+      // Record candidate content from model in history before appending function response
       const candidateContent = response.candidates?.[0]?.content;
       if (candidateContent) {
         contents.push(candidateContent);
       }
 
       // Execute each function call
-      const functionResponseParts: any[] = [];
+      const functionResponseParts: Part[] = [];
 
       for (const call of functionCalls) {
         const toolName = call.name || "";
         if (!toolName) continue;
+        const functionCallId = call.id;
         const toolArgs = call.args || {};
         toolsUsed.push(toolName);
 
         logger.info({
-          event: "AI_TOOL_CALLED",
+          event: "AI_GEMINI_FUNCTION_CALL_RECEIVED",
           tenantId: input.tenantId,
           correlationId: input.correlationId,
+          model,
           toolName,
+          functionCallId,
           round: rounds,
         });
 
+        logger.info({
+          event: "AI_GEMINI_TOOL_EXECUTION_STARTED",
+          tenantId: input.tenantId,
+          correlationId: input.correlationId,
+          model,
+          toolName,
+          functionCallId,
+          round: rounds,
+        });
+
+        const toolExecStartTime = Date.now();
         const tool = toolsMap.get(toolName);
         let toolResult: any;
 
@@ -99,11 +164,16 @@ export class GeminiProvider implements AIProvider {
             }
           } catch (toolErr: any) {
             logger.error({
-              event: "AI_TOOL_ERROR",
-              tenantId: input.tenantId,
-              correlationId: input.correlationId,
+              event: "AI_GEMINI_REQUEST_FAILED",
+              status: 500,
+              code: "TOOL_EXECUTION_ERROR",
+              message: toolErr?.message,
+              model,
+              round: rounds,
+              stage: "TOOL_EXECUTION",
               toolName,
-              error: toolErr?.message,
+              correlationId: input.correlationId,
+              tenantId: input.tenantId,
             });
             toolResult = { error: `La herramienta ${toolName} falló: ${toolErr?.message}` };
           }
@@ -111,22 +181,33 @@ export class GeminiProvider implements AIProvider {
           toolResult = { error: `Herramienta ${toolName} no disponible.` };
         }
 
+        const toolDurationMs = Date.now() - toolExecStartTime;
         logger.info({
-          event: "AI_TOOL_COMPLETED",
+          event: "AI_GEMINI_TOOL_EXECUTION_COMPLETED",
           tenantId: input.tenantId,
           correlationId: input.correlationId,
+          model,
           toolName,
+          functionCallId,
+          round: rounds,
+          durationMs: toolDurationMs,
         });
 
-        functionResponseParts.push({
-          functionResponse: {
-            name: toolName,
-            response: typeof toolResult === "object" && toolResult !== null ? toolResult : { result: toolResult },
-          },
+        const responsePart = toGeminiFunctionResponse(call, toolResult);
+        functionResponseParts.push(responsePart);
+
+        logger.info({
+          event: "AI_GEMINI_FUNCTION_RESPONSE_SENT",
+          tenantId: input.tenantId,
+          correlationId: input.correlationId,
+          model,
+          toolName,
+          functionCallId,
+          round: rounds,
         });
       }
 
-      // Append function response back to Gemini
+      // Append function response back to Gemini with role user
       contents.push({
         role: "user",
         parts: functionResponseParts,

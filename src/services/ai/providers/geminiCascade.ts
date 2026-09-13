@@ -14,6 +14,15 @@ export interface CascadeConfig {
 export function isRetryableCascadeError(error: any): boolean {
   if (!error) return false;
 
+  // Tool schema errors and definition bugs must NEVER trigger cascade fallback
+  if (
+    error?.name === "ToolSchemaError" ||
+    error?.code === "AI_TOOL_SCHEMA_INVALID" ||
+    String(error?.message || "").includes("AI_TOOL_SCHEMA_INVALID")
+  ) {
+    return false;
+  }
+
   const status = Number(error?.status || error?.statusCode || error?.response?.status || 0);
   const msg = String(error?.message || "").toLowerCase();
   const code = String(error?.code || "").toLowerCase();
