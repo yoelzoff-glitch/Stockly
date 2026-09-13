@@ -101,5 +101,11 @@ Condiciones generales:
   Sí. LibretaX utiliza arquitectura multi-tenant estricta con aislamiento por tenant (Row Level Security en base de datos) y encriptación de credenciales. Los datos de un comercio jamás son visibles ni accesibles para otros.
 - **¿Cómo comienzo a usarlo?**
   Podés registrarte haciendo clic en el botón de "Crear cuenta" o "Registrarse" en la página principal. Tras registrarte, conectás tu cuenta de Mercado Libre en 1 clic y LibretaX comienza a sincronizar tus datos.
+
+## 11. CANALES DE CONTACTO Y ATENCIÓN OFICIAL
+- **WhatsApp Comercial:** 11 6608-5798 (+54 9 11 6608-5798) para consultas comerciales, asesoramiento y dudas previas a la contratación.
+- **Correo de Soporte Técnico:** soporte@libretax.com.ar para ayuda técnica, incidencias y asistencia operativa.
+- **Correo de Información General:** info@libretax.com.ar para consultas generales sobre la plataforma.
+- **Instagram Oficial:** @libretax_ (https://www.instagram.com/libretax_/) para seguir novedades, guías y actualizaciones del producto.
 `.trim();
 }

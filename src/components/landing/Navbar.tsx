@@ -193,6 +193,18 @@ export function Navbar() {
               >
                 Probar LibretaX
               </Link>
+
+              <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs text-[#CBD5E1]">
+                <span>WhatsApp comercial:</span>
+                <a
+                  href="https://wa.me/5491166085798?text=Hola%20LibretaX%2C%20quisiera%20hacer%20una%20consulta"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold text-[#00D4C5] hover:underline"
+                >
+                  11 6608-5798
+                </a>
+              </div>
             </div>
           </div>
         </div>

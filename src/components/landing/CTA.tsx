@@ -77,6 +77,25 @@ export function CTA() {
               <span>Conexión oficial Mercado Libre OAuth 2.0</span>
             </div>
           </div>
+
+          <div className="pt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-white/80">
+            <span>¿Tenés dudas antes de empezar?</span>
+            <a
+              href="https://wa.me/5491166085798?text=Hola%20LibretaX%2C%20quisiera%20hacer%20una%20consulta"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-semibold text-[#25D366] hover:underline"
+            >
+              <span>WhatsApp: 11 6608-5798</span>
+            </a>
+            <span className="text-white/40">•</span>
+            <a
+              href="mailto:info@libretax.com.ar"
+              className="font-semibold text-white hover:underline"
+            >
+              info@libretax.com.ar
+            </a>
+          </div>
         </FadeUp>
       </div>
     </section>

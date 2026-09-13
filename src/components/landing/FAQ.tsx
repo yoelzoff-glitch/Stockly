@@ -105,6 +105,36 @@ export function FAQ() {
             })}
           </div>
         </FadeUp>
+
+        {/* Contact Help Card */}
+        <FadeUp delay={0.2}>
+          <div className="mt-12 p-6 sm:p-8 rounded-2xl bg-[#F5F3EE] border border-[#DCDAD4] flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="space-y-1.5 text-center sm:text-left">
+              <h3 className="text-base font-bold text-[#101828]">
+                ¿Tenés alguna otra consulta o duda técnica?
+              </h3>
+              <p className="text-sm text-[#5F6875] max-w-md">
+                Escribinos directamente por WhatsApp o a nuestra casilla de soporte. Estamos para ayudarte.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3 shrink-0">
+              <a
+                href="https://wa.me/5491166085798?text=Hola%20LibretaX%2C%20tengo%20una%20consulta"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-[#102A56] hover:bg-[#1E3E62] transition-colors shadow-xs"
+              >
+                <span>WhatsApp: 11 6608-5798</span>
+              </a>
+              <a
+                href="mailto:soporte@libretax.com.ar"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-[#101828] bg-white border border-[#DCDAD4] hover:bg-[#FAF9F6] transition-colors shadow-xs"
+              >
+                <span>soporte@libretax.com.ar</span>
+              </a>
+            </div>
+          </div>
+        </FadeUp>
       </div>
     </section>
   );
