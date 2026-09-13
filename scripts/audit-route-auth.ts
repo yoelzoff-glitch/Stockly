@@ -23,6 +23,7 @@ const EXEMPT_ROUTES = new Set([
   "src/app/api/meli/callback/route.ts", // OAuth callback flow
   "src/app/api/meli/connect/route.ts", // Initiates OAuth redirect
   "src/app/api/analytics/collect/route.ts", // Public first-party web analytics collector
+  "src/app/api/public/leads/route.ts", // Public lead capture endpoint
 ]);
 
 const CRITICAL_ROUTES = [

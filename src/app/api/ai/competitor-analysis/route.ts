@@ -1,41 +1,70 @@
 import { NextResponse } from "next/server";
 import { getGeminiModel } from "@/lib/ai/gemini";
-import { meliFetch } from "@/services/meli/client";
 import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { consumeQuota } from "@/lib/billing/quotaService";
 import { createScopedIdempotencyKey } from "@/lib/security/idempotency";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
+import { resolveCompetitor } from "@/services/meli/competitor/resolver";
+import {
+  normalizeCompetitorData,
+  validateCompetitorSnapshot,
+} from "@/services/meli/competitor/normalizer";
+import {
+  CompetitorAnalysisError,
+  CompetitorSnapshot,
+} from "@/services/meli/competitor/types";
+import { logger } from "@/lib/errors/logger";
 
-export async function POST(request: Request) {
+export interface HandleCompetitorAnalysisOptions {
+  testContext?: any;
+  mockQuotaResult?: any;
+  mockGeminiModel?: any;
+}
+
+export async function handleCompetitorAnalysis(
+  request: Request,
+  options?: HandleCompetitorAnalysisOptions
+) {
   let correlationId: string | undefined;
 
   try {
-    const context = await requireTenantContext(request);
+    const context = options?.testContext || (await requireTenantContext(request));
     correlationId = context.correlationId;
     const tenantId = context.tenantId;
 
-    if (context.isDemo) {
-      return NextResponse.json({
-        analysis: {
-          summary: "Análisis de competencia simulado para la cuenta demostrativa (Casa Norte). En producción, esta función consulta precios en tiempo real de Mercado Libre y ejecuta análisis de posicionamiento con Gemini.",
-          competitors: [
-            { title: "Lámpara Nórdica Madera y Metal", price: 28900, sold_quantity: 120, reputation: "MercadoLíder Platinum" },
-            { title: "Lámpara de Escritorio Minimalista", price: 31500, sold_quantity: 85, reputation: "MercadoLíder Gold" },
-          ],
-          recommendations: [
-            "Mantener precio competitivo dentro del rango $28.000 - $31.000.",
-            "Destacar acabado en madera natural y despacho inmediato FULL.",
-          ],
-        },
-        demo: true,
-      }, { headers: { [CORRELATION_ID_HEADER]: correlationId } });
-    }
+    const responseHeaders: Record<string, string> = correlationId
+      ? { [CORRELATION_ID_HEADER]: correlationId }
+      : {};
 
-    // Check if Gemini API Key is configured
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json({ 
-        error: "La clave de API de Gemini (GEMINI_API_KEY) no está configurada en el servidor. Asegúrate de haberla agregado en las variables de entorno de Vercel y haber redesplegado la aplicación." 
-      }, { status: 500, headers: { [CORRELATION_ID_HEADER]: correlationId } });
+    if (context.isDemo) {
+      return NextResponse.json(
+        {
+          analysis: {
+            summary:
+              "Análisis de competencia simulado para la cuenta demostrativa (Casa Norte). En producción, esta función consulta información pública en tiempo real de Mercado Libre y ejecuta análisis de posicionamiento con Gemini.",
+            competitors: [
+              {
+                title: "Lámpara Nórdica Madera y Metal",
+                price: 28900,
+                sold_quantity: 120,
+                reputation: "MercadoLíder Platinum",
+              },
+              {
+                title: "Lámpara de Escritorio Minimalista",
+                price: 31500,
+                sold_quantity: 85,
+                reputation: "MercadoLíder Gold",
+              },
+            ],
+            recommendations: [
+              "Mantener precio competitivo dentro del rango $28.000 - $31.000.",
+              "Destacar acabado en madera natural y despacho inmediato FULL.",
+            ],
+          },
+          demo: true,
+        },
+        { headers: responseHeaders }
+      );
     }
 
     let body: any;
@@ -44,226 +73,141 @@ export async function POST(request: Request) {
     } catch {
       return NextResponse.json(
         { error: "Invalid JSON payload" },
-        { status: 400, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+        { status: 400, headers: responseHeaders }
       );
     }
-    const { action = "all", url } = body || {};
 
-    // --- STEP 1: RESOLVE URL ---
+    const { action = "resolve", url, clientData } = body || {};
+
+    // ==========================================
+    // ACTION: RESOLVE
+    // ==========================================
     if (action === "resolve") {
-      if (!url) {
-        return NextResponse.json({ error: "URL is required" }, { status: 400 });
+      if (!url || typeof url !== "string") {
+        return NextResponse.json(
+          { error: "URL is required" },
+          { status: 400, headers: responseHeaders }
+        );
       }
 
-      // Extract Item ID or Catalog Product ID
-      let itemId = "";
-      
-      // Check if there is a 'wid' parameter in the URL (which points to the specific listing in catalog pages)
-      const widMatch = url.match(/[?&#]wid=(ML[A-Z]{0,2}\d{8,12})/i);
-      if (widMatch) {
-        itemId = widMatch[1].toUpperCase();
-      } else {
-        // Extract standard ID (require 8 to 12 digits so we don't match short numbers in titles like "plata-925")
-        const match = url.match(/(ML[A-Z]{1,2})[-_]?(\d{8,12})/i);
-        if (!match) {
-          return NextResponse.json({ 
-            error: "URL inválida. Asegúrate de ingresar un enlace válido de una publicación de Mercado Libre." 
-          }, { status: 400 });
-        }
-        itemId = `${match[1].toUpperCase()}${match[2]}`;
-      }
+      try {
+        const snapshot = await resolveCompetitor({
+          url,
+          tenantId,
+          correlationId,
+          clientData,
+        });
 
-      let itemData: any = null;
-      let successfulId = "";
-      let isCatalogProduct = false;
-      const fetchErrors: string[] = [];
-
-      const hasWid = /[?&]wid=/i.test(url);
-      const isCatalogUrl = !hasWid && (itemId.startsWith("MLAU") || url.includes("/p/") || url.includes("/up/"));
-
-      // A. If it is a Catalog Product
-      if (isCatalogUrl) {
-        const idsToTry = [itemId];
-        if (itemId.startsWith("MLAU")) {
-          idsToTry.push("MLA" + itemId.substring(4));
-        }
-
-        for (const idToTry of idsToTry) {
-          try {
-            const res = await meliFetch({
-              tenantId,
-              endpoint: `/products/${idToTry}`
-            });
-            if (res && res.id) {
-              const buyBoxItemId = res.buy_box_winner?.item_id;
-              if (buyBoxItemId) {
-                try {
-                  // Fetch the actual item of the Buy Box winner (try standard then search)
-                  try {
-                    const itemRes = await meliFetch({
-                      tenantId,
-                      endpoint: `/items/${buyBoxItemId}`
-                    });
-                    if (itemRes && itemRes.id) {
-                      itemData = itemRes;
-                      successfulId = buyBoxItemId;
-                      break;
-                    }
-                  } catch (e: any) {
-                    // Fallback to search for the buy box winner item
-                    const siteId = buyBoxItemId.substring(0, 3).toUpperCase();
-                    const searchRes = await meliFetch({
-                      tenantId,
-                      endpoint: `/sites/${siteId}/search?q=${buyBoxItemId}`
-                    });
-                    const foundItem = searchRes?.results?.find((r: any) => r.id === buyBoxItemId);
-                    if (foundItem) {
-                      itemData = foundItem;
-                      successfulId = buyBoxItemId;
-                      break;
-                    }
-                    throw e; // throw if both failed
-                  }
-                } catch (e: any) {
-                  fetchErrors.push(`[Catálogo ${idToTry} -> Ganador ${buyBoxItemId}]: ${e.message || e}`);
-                }
-              }
-              // Fallback to the product details if no buy box winner item could be fetched
-              itemData = res;
-              successfulId = idToTry;
-              isCatalogProduct = true;
-              break;
-            }
-          } catch (e: any) {
-            fetchErrors.push(`[Catálogo ${idToTry}]: ${e.message || e}`);
-          }
-        }
-      } else {
-        // B. If it is a standard Item ID
-        // 1. Try as standard Item
-        try {
-          const res = await meliFetch({
+        return NextResponse.json(
+          {
+            success: true,
+            data: {
+              snapshot,
+              partial: snapshot.resolution.partial,
+              resolvedId: snapshot.sourceId,
+              // Compatibility fields for legacy consumers
+              id: snapshot.sourceId,
+              itemData: {
+                id: snapshot.sourceId,
+                title: snapshot.title,
+                price: snapshot.price,
+                original_price: snapshot.originalPrice,
+                permalink: snapshot.permalink,
+                thumbnail: snapshot.thumbnail,
+                listing_type_id: snapshot.listingTypeId,
+                shipping: {
+                  free_shipping: snapshot.shipping.freeShipping,
+                  logistic_type: snapshot.shipping.logisticType,
+                },
+                available_quantity: snapshot.availableQuantity,
+                sold_quantity: snapshot.soldQuantity,
+                attributes: snapshot.attributes,
+              },
+              sellerData: {
+                id: snapshot.seller.id,
+                nickname: snapshot.seller.nickname,
+                seller_reputation: {
+                  level_id: snapshot.seller.reputationLevel,
+                  power_seller_status: snapshot.seller.powerSellerStatus,
+                },
+              },
+              isCatalogProduct: snapshot.sourceType === "catalog",
+            },
+          },
+          { headers: responseHeaders }
+        );
+      } catch (err: any) {
+        if (err instanceof CompetitorAnalysisError) {
+          logger.warn({
+            event: "COMPETITOR_RESOLVE_BUSINESS_ERROR",
             tenantId,
-            endpoint: `/items/${itemId}`
+            correlationId,
+            code: err.competitorCode,
+            message: err.message,
           });
-          if (res && res.id) {
-            itemData = res;
-            successfulId = itemId;
-          }
-        } catch (e: any) {
-          fetchErrors.push(`[Ítem ${itemId}]: ${e.message || e}`);
+          return NextResponse.json(
+            {
+              error: err.message,
+              code: err.competitorCode,
+            },
+            { status: err.statusCode, headers: responseHeaders }
+          );
         }
-
-        // 2. Try via Search API as fallback (only if the direct fetch failed)
-        if (!itemData) {
-          try {
-            const siteId = itemId.substring(0, 3).toUpperCase();
-            const searchRes = await meliFetch({
-              tenantId,
-              endpoint: `/sites/${siteId}/search?q=${itemId}`
-            });
-            if (searchRes && searchRes.results && searchRes.results.length > 0) {
-              const foundItem = searchRes.results.find((r: any) => r.id === itemId);
-              if (foundItem) {
-                itemData = foundItem;
-                successfulId = itemId;
-              }
-            }
-          } catch (e: any) {
-            fetchErrors.push(`[Búsqueda ${itemId}]: ${e.message || e}`);
-          }
-        }
+        throw err;
       }
-
-      if (!itemData || !itemData.id) {
-        const detailedError = fetchErrors.length > 0 
-          ? `No se pudo obtener la publicación de Mercado Libre. Detalles de errores: ${fetchErrors.join(" | ")}`
-          : "No se pudo obtener la publicación de Mercado Libre. Verifica que el enlace sea válido y que tu cuenta de Mercado Libre esté conectada.";
-        return NextResponse.json({ error: detailedError }, { status: 404 });
-      }
-
-      // Fetch Seller Details
-      let sellerData = null;
-      const sellerId = itemData.seller_id || itemData.seller?.id || itemData.buy_box_winner?.seller_id;
-      if (sellerId) {
-        try {
-          sellerData = await meliFetch({
-            tenantId,
-            endpoint: `/users/${sellerId}`
-          });
-        } catch (e) {
-          console.warn("Could not fetch seller details", e);
-        }
-      }
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          id: successfulId,
-          itemData,
-          sellerData,
-          isCatalogProduct
-        }
-      });
     }
 
-    // --- STEP 2: ANALYZE WITH GEMINI ---
+    // ==========================================
+    // ACTION: ANALYZE (or legacy "all")
+    // ==========================================
     if (action === "analyze" || action === "all") {
-      let resolvedItemData = body.itemData;
-      let resolvedSellerData = body.sellerData;
-      let descriptionText = body.description || "";
-      let isCatalogProduct = body.isCatalogProduct || false;
-      let successfulId = body.id || resolvedItemData?.id;
-
-      if (!resolvedItemData) {
-        return NextResponse.json({ error: "itemData is required for analysis" }, { status: 400 });
+      // Check if Gemini API Key is configured
+      if (!process.env.GEMINI_API_KEY && !options?.mockGeminiModel) {
+        return NextResponse.json(
+          {
+            error:
+              "La clave de API de Gemini (GEMINI_API_KEY) no está configurada en el servidor. Asegúrate de haberla agregado en las variables de entorno de Vercel y haber redesplegado la aplicación.",
+          },
+          { status: 500, headers: responseHeaders }
+        );
       }
 
-      // Normalize fields
-      const title = resolvedItemData.title || resolvedItemData.name || "Producto de Catálogo";
-      const price = resolvedItemData.price || resolvedItemData.buy_box_winner?.price || 0;
-      const originalPrice = resolvedItemData.original_price || resolvedItemData.buy_box_winner?.original_price || null;
-      const availableQuantity = resolvedItemData.available_quantity || resolvedItemData.buy_box_winner?.available_quantity || "No especificado";
-      const soldQuantity = resolvedItemData.sold_quantity !== undefined ? resolvedItemData.sold_quantity : (resolvedItemData.buy_box_winner?.sold_quantity || "No especificado");
-      const thumbnail = resolvedItemData.thumbnail || resolvedItemData.pictures?.[0]?.url || resolvedItemData.secure_thumbnail || "";
+      // Reconstruct or extract snapshot
+      let snapshot: CompetitorSnapshot;
+      if (body.snapshot && typeof body.snapshot === "object") {
+        snapshot = body.snapshot as CompetitorSnapshot;
+      } else if (body.itemData) {
+        // Compatibility mode for raw item payloads
+        const resolvedId = body.resolvedId ?? body.id ?? body.itemData?.id ?? "UNKNOWN";
+        snapshot = normalizeCompetitorData({
+          sourceId: resolvedId,
+          sourceType: body.isCatalogProduct ? "catalog" : "item",
+          itemData: body.itemData,
+          sellerData: body.sellerData,
+          description: body.description,
+          resolutionSource: "legacy_body_payload",
+        });
+      } else {
+        return NextResponse.json(
+          { error: "Se requiere snapshot de la publicación para ejecutar el análisis" },
+          { status: 400, headers: responseHeaders }
+        );
+      }
 
-      // Format listing type
-      const listingTypeId = resolvedItemData.listing_type_id || resolvedItemData.buy_box_winner?.listing_type_id;
-      const listingType = listingTypeId === "gold_pro" 
-        ? "Premium (Ofrece Cuotas sin Interés)" 
-        : listingTypeId === "gold_special" 
-          ? "Clásica (Cuotas con interés estándar)" 
-          : "Estándar / Exposición Baja";
+      // Validate minimum viable fields
+      const validation = validateCompetitorSnapshot(snapshot);
+      if (!validation.valid) {
+        return NextResponse.json(
+          {
+            error:
+              "No pudimos obtener suficiente información pública de esta publicación. Mercado Libre restringe algunos datos de determinadas publicaciones. Probá con el enlace directo del producto o con otra publicación.",
+            code: "COMPETITOR_INSUFFICIENT_DATA",
+          },
+          { status: 422, headers: responseHeaders }
+        );
+      }
 
-      // Format shipping
-      const shipping = resolvedItemData.shipping || resolvedItemData.buy_box_winner?.shipping;
-      const shippingInfo = shipping?.free_shipping 
-        ? "Envío Gratis a cargo del vendedor" 
-        : "Envío a cargo del comprador";
-
-      // Format reputation
-      const repLevel = resolvedSellerData?.seller_reputation?.level_id || "Sin reputación";
-      const powerSeller = resolvedSellerData?.seller_reputation?.power_seller_status || "Ninguno";
-      const reputationDisplay = powerSeller !== "Ninguno" 
-        ? `MercadoLíder ${powerSeller.replace(/_/g, " ")}` 
-        : `Reputación Nivel ${repLevel}`;
-
-      // Prepare data for Gemini
-      const competitorPayload = {
-        title,
-        price,
-        original_price: originalPrice,
-        available_quantity: availableQuantity,
-        sold_quantity: soldQuantity,
-        listing_type: listingType,
-        free_shipping: shipping?.free_shipping || false,
-        logistic_type: shipping?.logistic_type || "No especificado",
-        seller_nickname: resolvedSellerData?.nickname || "Anónimo",
-        seller_reputation: reputationDisplay,
-        description: descriptionText.substring(0, 2500),
-        attributes: resolvedItemData.attributes?.slice(0, 15).map((a: any) => ({ name: a.name, value: a.value_name })) || [],
-        is_catalog: isCatalogProduct
-      };
+      const canonicalResolvedId = body.resolvedId ?? body.id ?? snapshot.sourceId;
 
       // Atomic quota reservation before invoking Gemini
       const customKey = request.headers.get("x-idempotency-key") || body?.idempotencyKey;
@@ -271,39 +215,75 @@ export async function POST(request: Request) {
         prefix: "ai_comp_analysis",
         tenantId,
         userId: context.userId,
-        payload: { item_id: successfulId, url },
+        payload: { item_id: canonicalResolvedId, title: snapshot.title },
         customKey,
       });
-      const quotaReservation = await consumeQuota({
+
+      const quotaReservation = options?.mockQuotaResult || (await consumeQuota({
         tenantId,
         metric: "ai_credits_used",
         amount: 1,
         idempotencyKey,
         source: "ai_competitor_analysis",
         correlationId,
-      });
+      }));
 
       if (!quotaReservation.allowed) {
         return NextResponse.json(
           { error: "Límite mensual de consultas de Inteligencia Artificial alcanzado para tu plan." },
-          { status: 429, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+          { status: 429, headers: responseHeaders }
         );
       }
 
       if (quotaReservation.duplicate) {
         return NextResponse.json(
           { analysis: { duplicate: true, message: "Solicitud duplicada ya procesada" }, duplicate: true },
-          { status: 200, headers: { [CORRELATION_ID_HEADER]: correlationId } }
+          { status: 200, headers: responseHeaders }
         );
       }
 
-      // Call Gemini to analyze
+      // Prepare strict prompt payload for Gemini
+      const competitorPayload = {
+        title: snapshot.title,
+        price: snapshot.price,
+        original_price: snapshot.originalPrice,
+        available_quantity: snapshot.availableQuantity ?? "No especificado por Mercado Libre",
+        sold_quantity:
+          snapshot.soldQuantity !== null
+            ? snapshot.soldQuantity
+            : "No disponible (Mercado Libre no expone este dato)",
+        listing_type:
+          snapshot.listingTypeId === "gold_pro"
+            ? "Premium (Ofrece Cuotas sin Interés)"
+            : snapshot.listingTypeId === "gold_special"
+              ? "Clásica (Cuotas con interés estándar)"
+              : snapshot.listingTypeId || "No especificado",
+        free_shipping: snapshot.shipping.freeShipping,
+        logistic_type: snapshot.shipping.logisticType || "No especificado",
+        seller_nickname: snapshot.seller.nickname || "No disponible",
+        seller_reputation: snapshot.seller.powerSellerStatus
+          ? `MercadoLíder ${snapshot.seller.powerSellerStatus.replace(/_/g, " ")}`
+          : snapshot.seller.reputationLevel
+            ? `Nivel ${snapshot.seller.reputationLevel}`
+            : "No disponible",
+        description: (snapshot.description || "No disponible").substring(0, 2500),
+        attributes: snapshot.attributes.slice(0, 15),
+        is_partial_data: snapshot.resolution.partial,
+        unavailable_fields: snapshot.resolution.unavailableFields,
+      };
+
       let analysisResult: any;
       try {
-        const model = getGeminiModel("gemini-2.5-flash");
+        const model = options?.mockGeminiModel || getGeminiModel("gemini-2.5-flash");
         const prompt = `
         Actúa como un analista experto en E-commerce y Mercado Libre de Latinoamérica.
         Analiza la siguiente publicación de la competencia y proporciona un análisis estratégico detallado estructurado en JSON.
+
+        INSTRUCCIONES ESTRICTAS:
+        1. Utiliza ÚNICAMENTE la información provista. NUNCA inventes información no disponible.
+        2. Cuando un atributo, descripción o vendedor figure como "No disponible" o falte en los datos, indícalo expresamente señalando que Mercado Libre no expuso ese dato.
+        3. NUNCA inventes una cantidad de ventas. Si el campo "sold_quantity" figura como "No disponible", coloca textualmente en "estimatedSales": "Mercado Libre no expone este dato".
+        4. Realiza el diagnóstico estratégico y plan de acción aprovechando al máximo los datos disponibles (precio, envío, tipo de listado, atributos).
 
         Datos de la Publicación Competidora:
         ${JSON.stringify(competitorPayload, null, 2)}
@@ -314,12 +294,12 @@ export async function POST(request: Request) {
           "price": precio_numero,
           "listingType": "Clásica o Premium",
           "shipping": "Detalle del envío",
-          "estimatedSales": "Estimación de ventas del competidor",
-          "reputation": "Nivel de reputación del vendedor",
+          "estimatedSales": "Ventas estimadas o 'Mercado Libre no expone este dato'",
+          "reputation": "Nivel de reputación del vendedor o 'No disponible'",
           "analysis": {
-            "strengths": ["Punto fuerte 1", "Punto fuerte 2", ...],
-            "weaknesses": ["Punto débil 1", "Punto débil 2", ...],
-            "opportunities": ["Oportunidad para ganarle 1", "Oportunidad para ganarle 2", ...]
+            "strengths": ["Punto fuerte 1", "Punto fuerte 2", "Punto fuerte 3"],
+            "weaknesses": ["Punto débil 1", "Punto débil 2", "Punto débil 3"],
+            "opportunities": ["Oportunidad para ganarle 1", "Oportunidad para ganarle 2", "Oportunidad para ganarle 3"]
           },
           "pricingStrategy": "Análisis detallado de su estrategia de precio, financiamiento en cuotas y envío gratis.",
           "actionPlan": [
@@ -334,31 +314,53 @@ export async function POST(request: Request) {
           contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig: {
             responseMimeType: "application/json",
-          }
+          },
         });
 
         const responseText = result.response.text();
         analysisResult = JSON.parse(responseText);
       } catch (geminiError: any) {
-        console.error("Error calling Gemini API:", geminiError);
-        return NextResponse.json({ 
-          error: `Error al conectar con la Inteligencia Artificial (Gemini): ${geminiError.message || "Por favor verifica que la clave de API sea válida."}` 
-        }, { status: 502 });
+        logger.error({
+          event: "COMPETITOR_GEMINI_CALL_FAILED",
+          tenantId,
+          correlationId,
+          error: geminiError?.message,
+        });
+        return NextResponse.json(
+          {
+            error: `Error al conectar con la Inteligencia Artificial (Gemini): ${
+              geminiError.message || "Por favor verifica que la clave de API sea válida."
+            }`,
+          },
+          { status: 502, headers: responseHeaders }
+        );
       }
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          ...analysisResult,
-          permalink: resolvedItemData.permalink || url,
-          thumbnail: thumbnail.replace("-I.jpg", "-O.jpg")
-        }
-      });
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            ...analysisResult,
+            permalink: snapshot.permalink || url,
+            thumbnail: snapshot.thumbnail,
+            resolvedId: canonicalResolvedId,
+            snapshot,
+            partial: snapshot.resolution.partial,
+          },
+        },
+        { headers: responseHeaders }
+      );
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-
+    return NextResponse.json(
+      { error: "Acción inválida. Usa 'resolve' o 'analyze'." },
+      { status: 400, headers: responseHeaders }
+    );
   } catch (error: any) {
     return toAuthErrorResponse(error, correlationId);
   }
+}
+
+export async function POST(request: Request) {
+  return handleCompetitorAnalysis(request);
 }
