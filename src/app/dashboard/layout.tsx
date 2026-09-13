@@ -3,6 +3,7 @@ import { Sidebar } from "@/components/sidebar/sidebar";
 import { Navbar } from "@/components/dashboard/navbar";
 import { Footer } from "@/components/layout/footer";
 import { TenantActivityTracker } from "@/components/analytics/TenantActivityTracker";
+import { LibretaXCopilot } from "@/components/copilot/LibretaXCopilot";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Archivo } from "next/font/google";
@@ -83,6 +84,7 @@ export default async function DashboardLayout({
             <Footer />
           </main>
         </div>
+        <LibretaXCopilot />
       </div>
     );
   }
@@ -101,6 +103,7 @@ export default async function DashboardLayout({
           <Footer />
         </main>
       </div>
+      <LibretaXCopilot />
     </div>
   );
 }

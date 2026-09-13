@@ -38,8 +38,11 @@ export async function getRecentConversationContext({
 }: ConversationContextParams) {
   const supabase = createAdminClient();
 
-  // Mapeamos el canal "web" o "dashboard" a "whatsapp" en base de datos para cumplir con el enum
-  const dbChannel = (channel === "web" || channel === "dashboard") ? "whatsapp" : channel;
+  // Canales web históricos se mapeaban a whatsapp; copilot se mantiene como copilot independiente
+  let dbChannel = channel;
+  if (channel === "web" || channel === "dashboard") {
+    dbChannel = "whatsapp";
+  }
 
   let query = supabase
     .from("messages")

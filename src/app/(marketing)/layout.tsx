@@ -1,4 +1,5 @@
 import { Archivo } from "next/font/google";
+import { LibretaXPublicAssistant } from "@/components/copilot/LibretaXPublicAssistant";
 
 const archivo = Archivo({
   subsets: ["latin"],
@@ -15,6 +16,7 @@ export default function MarketingLayout({
   return (
     <div className={`${archivo.variable} ${archivo.className} min-h-screen bg-[#F5F3EE] text-[#101828] antialiased selection:bg-[#F2C94C] selection:text-[#101828]`}>
       {children}
+      <LibretaXPublicAssistant />
     </div>
   );
 }

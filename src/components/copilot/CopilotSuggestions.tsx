@@ -1,0 +1,63 @@
+"use client";
+
+import React from "react";
+import { TrendingUp, DollarSign, AlertTriangle, BarChart3 } from "lucide-react";
+
+interface CopilotSuggestionsProps {
+  onSelectSuggestion: (question: string) => void;
+  disabled?: boolean;
+}
+
+const SUGGESTIONS = [
+  {
+    icon: DollarSign,
+    label: "¿Cuánto gané hoy?",
+    color: "text-emerald-600 bg-emerald-50 border-emerald-200 hover:bg-emerald-100",
+  },
+  {
+    icon: TrendingUp,
+    label: "¿Qué producto me dejó más ganancia?",
+    color: "text-blue-600 bg-blue-50 border-blue-200 hover:bg-blue-100",
+  },
+  {
+    icon: BarChart3,
+    label: "¿Cómo vengo este mes?",
+    color: "text-violet-600 bg-violet-50 border-violet-200 hover:bg-violet-100",
+  },
+  {
+    icon: AlertTriangle,
+    label: "¿Qué productos tienen poco stock?",
+    color: "text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100",
+  },
+];
+
+export const CopilotSuggestions: React.FC<CopilotSuggestionsProps> = ({
+  onSelectSuggestion,
+  disabled = false,
+}) => {
+  return (
+    <div className="flex flex-col gap-2 pt-2">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-1">
+        Sugerencias rápidas
+      </p>
+      <div className="grid grid-cols-1 gap-2">
+        {SUGGESTIONS.map((item, index) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={index}
+              disabled={disabled}
+              onClick={() => onSelectSuggestion(item.label)}
+              className={`flex items-center gap-3 p-2.5 rounded-xl border text-left text-xs font-medium text-slate-800 transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none active:scale-[0.99] ${item.color}`}
+            >
+              <div className="p-1.5 rounded-lg bg-white/80 shadow-xs shrink-0">
+                <Icon className="w-4 h-4" />
+              </div>
+              <span className="flex-1">{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};

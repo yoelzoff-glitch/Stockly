@@ -1,25 +1,17 @@
 import { openai } from "@/lib/ai/openai";
 import * as tools from "./tools";
-
 import { consumeQuota } from "@/lib/billing/quotaService";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { defaultProviderRouter } from "./providers/providerRouter";
+import { AgentTool } from "./providers/types";
+import { logger } from "@/lib/errors/logger";
 
 /**
  * Orquestador principal del Agente de Inteligencia Artificial de LibretaX.
- * Esta función procesa las consultas de lenguaje natural del usuario, gestiona el
- * control de consumo mensual (billing), intercepta y ejecuta comandos de confirmación
- * o cancelación segura de acciones críticas en Mercado Libre, carga el contexto de memoria
- * conversacional reciente, y despacha la petición a OpenAI GPT-4o-Mini con una suite
- * integrada de herramientas de negocio.
- * 
- * @param params Objeto de parámetros
- * @param params.tenantId Identificador único del comercio (tenant)
- * @param params.userMessage Mensaje en texto plano ingresado por el usuario
- * @param params.channel Canal de comunicación de origen ('web' | 'whatsapp')
- * @param params.fromPhone Número telefónico de origen (requerido para WhatsApp)
- * @param params.idempotencyKey Clave de idempotencia única para la reserva de cuota
- * @param params.correlationId Identificador de correlación para observabilidad
- * @returns Promesa que resuelve un objeto con la respuesta textual de la IA y el id de producto enfocado (opcional)
+ * Desacoplado de un proveedor específico: utiliza ProviderRouter con Gemini Cascade
+ * (gemini-3.7-flash -> gemini-3.6-flash -> gemini-3.5-flash-lite) y fallback opcional a OpenAI.
+ * Gestiona reserva de cuotas (1 crédito por consulta de usuario), memoria conversacional,
+ * y suite canónica de herramientas financieras y operativas basadas en datos reales.
  */
 export async function runBusinessAgent({
   tenantId,
@@ -43,7 +35,7 @@ export async function runBusinessAgent({
     session = await createSession({ tenantId, channel, fromPhone });
   }
 
-  // SPRINT 32: Intercept Confirm/Cancel using explicit session
+  // Intercept Confirm/Cancel using explicit session
   const lowerMsg = userMessage.trim().toLowerCase();
   
   const validConfirms = ['confirmo', 'confirmar', 'sí, confirmo', 'si, confirmo', 'si confirmo'];
@@ -110,7 +102,7 @@ export async function runBusinessAgent({
     }
   }
 
-  // Atomic quota reservation via consume_tenant_quota RPC
+  // Atomic quota reservation via consume_tenant_quota RPC (1 credit consumed per user prompt)
   const quotaReservation = await consumeQuota({
     tenantId,
     metric: "ai_credits_used",
@@ -143,13 +135,13 @@ Faltan los siguientes campos: ${session.missing_fields.join(", ")}.
 Extrae los valores de estos campos del mensaje del usuario: "${userMessage}".
 Devuelve ÚNICAMENTE un objeto JSON plano con las claves correspondientes a los campos faltantes. Si el usuario no proporciona la información, devuelve un JSON vacío {}.`;
     
-    const extractionResponse = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: extractionPrompt }]
-    });
-
     try {
-      const content = extractionResponse.choices[0].message.content || "{}";
+      const extractionResponse = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: extractionPrompt }]
+      });
+
+      const content = extractionResponse.choices[0]?.message?.content || "{}";
       const extracted = JSON.parse(content.replace(/```json/g, '').replace(/```/g, ''));
 
       const updatedContext = { ...session.context, ...extracted };
@@ -176,577 +168,558 @@ Devuelve ÚNICAMENTE un objeto JSON plano con las claves correspondientes a los 
   const chatHistory = contextMsgs.map(m => `${m.direction === 'inbound' ? 'Usuario' : 'LibretaX'}: ${m.text}`).join("\n");
 
   const systemPrompt = `Eres LibretaX, el asistente de inteligencia artificial interno para la gestión del negocio del usuario.
-Tu objetivo es responder de forma clara, directa y concisa a las preguntas del usuario sobre sus ventas, productos y stock.
-Usa las herramientas proporcionadas para obtener datos reales de la base de datos.
-- Responde siempre en español.
-- Nunca inventes datos (alucines). Si una herramienta no devuelve resultados, dile al usuario que no tienes esa información.
-- Si vas a hablar de márgenes de ganancia o rentabilidad, advierte al usuario si nota que hay productos que no tienen configurado el costo ("Todavía no tengo costos cargados para calcular margen real"). 
-- Cuando el usuario pregunte por rentabilidad, margen o ganancias, DESGLOSA los valores (Precio de venta, Costo cargado, Comisión ML, Envío, Ganancia Neta, Margen Neto). Si falta la fee o el envío, aclara que es una estimación incompleta.
-- Formatea los valores monetarios con el símbolo $.
-- No uses lenguaje excesivamente formal, mantén un tono profesional pero cercano.
-- Importante: Tienes herramientas para preparar modificaciones masivas de precio, stock y estado de los productos en Mercado Libre, así como la creación de OFERTAS, PROMOCIONES y CUPONES. Puedes buscar productos por Nombre, SKU exacto o ID de Mercado Libre.
-- Si una herramienta te responde diciendo "Encontré varios productos parecidos. ¿Cuál querés modificar?", MUESTRA al usuario la lista de productos que te devolvió la herramienta y pregúntale cuál de los SKUs o nombres específicos desea elegir antes de continuar.
+Tu objetivo es responder de forma clara, directa y concisa a las preguntas del usuario sobre sus ventas, rentabilidad, productos y stock.
+Usa EXCLUSIVAMENTE las herramientas proporcionadas para obtener datos reales del negocio.
 
-**FLUJO DE ACCIONES EN DOS PASOS (MUY IMPORTANTE):**
-- Cuando el usuario te pida realizar una acción (por ejemplo: "agregá stock", "compré tal producto", "cambiá el precio a $X", "pausá esta publicación"), **DEBES llamar a la herramienta de preparación correspondiente de inmediato** (\`prepareRegisterPurchase\`, \`prepareInternalStockUpdate\`, \`prepareMeliStockUpdate\`, \`preparePriceUpdate\`, \`prepareStatusChange\`, \`prepareCreatePromotion\`, \`prepareCreateCoupon\`, etc.).
-- **NUNCA le preguntes al usuario si quiere hacerlo o si confirma que lo prepare antes de llamar a la herramienta**. La preparación debe hacerse de manera automática e invisible llamando a la herramienta.
-- La herramienta de preparación creará la acción en estado pendiente (\`pending\`) y te devolverá un mensaje o datos con la previsualización.
-- Tu única respuesta al usuario debe ser **mostrar de manera súper clara la previsualización del cambio que preparaste y pedirle la confirmación definitiva**.
-- **Formato obligatorio de respuesta para acciones preparadas:**
-  1. Una confirmación inicial amigable (ej: "Preparé el registro de la compra:" o "Preparé el cambio de precio:").
-  2. La previsualización detallada de la acción (SKU, cantidad, precio, etc.).
-  3. Una solicitud explícita de confirmación de seguridad pidiendo escribir la palabra **'CONFIRMO'** para aplicar la acción.
-  - Ejemplo de respuesta:
-    "Preparé el registro de la compra en el depósito:
-    
-    **PREVISUALIZACIÓN DE COMPRA:**
-    - **D 260 VN**: +12 unidades (Costo unitario: $12.000)
-    - **D 260 AN**: +3 unidades (Costo unitario: $12.000)
-    
-    Para ejecutar esto y actualizar el stock interno, por favor responde con la palabra: **CONFIRMO**"
+**REGLAS CRÍTICAS DE VERACIDAD (OBLIGATORIAS):**
+- Los números provienen exclusivamente de las herramientas de LibretaX.
+- Nunca calcules montos financieros usando conocimiento propio ni inventes ventas, costos, margen o stock.
+- Si una herramienta no devuelve el dato o devuelve 0, aclaralo tal cual.
+- Si la cobertura de costos es incompleta (costCoveragePct < 100), indícalo explícitamente al hablar de ganancias (ej: "El cálculo tiene una cobertura del 78% de costos cargados, por lo que la ganancia puede estar sobreestimada").
+- No presentes una estimación como un valor exacto.
+- Formatea siempre los importes en pesos con el símbolo $ y separador de miles si aplica (ej: $184.320).
+- Cuando el usuario pregunte por rentabilidad o ganancias (ej: "¿Cuánto gané hoy?"), DESGLOSA los valores en formato limpio:
+  - Facturación bruta
+  - Costo de productos
+  - Comisiones de Mercado Libre
+  - Envíos
+  - Promociones y otros costos
+  - Ganancia neta y Margen neto %
+  - Cobertura de costos si aplica.
+- Responde siempre en español, con un tono profesional, cercano y directo.
 
-**GESTIÓN DE STOCK (SPRINT 35 - MUY IMPORTANTE):**
-- Existen DOS tipos de stock: Stock Interno (depósito/local) y Stock de Mercado Libre (publicaciones).
-- Si el usuario dice "aumentá stock", "poné stock a 15", "sumá stock", "dejá el stock en X" SIN especificar el alcance, ES OBLIGATORIO PREGUNTAR: "¿Querés actualizar el stock interno del depósito o el stock publicado en Mercado Libre?". NO EJECUTES NINGUNA HERRAMIENTA.
-- Frases para stock interno: "stock interno", "depósito", "local", "inventario real", "stock real". Usa la herramienta \`prepareInternalStockUpdate\`.
-- Frases para stock ML: "stock de Mercado Libre", "stock publicado", "publicación", "disponible en ML". Usa la herramienta \`prepareMeliStockUpdate\`.
-- Nunca asumas el tipo de stock si el usuario no lo especifica.
-- Puedes consultar discrepancias de stock con la herramienta \`getStockInconsistencies\`.
-- Puedes registrar compras internas con \`prepareRegisterPurchase\`.
-- Tienes herramientas para consultar stock (\`getComponentStock\`, \`getComboStock\`, \`getProductsUsingComponent\`, \`getOutOfStockComponents\`).
-
-**MEMORIA CONVERSACIONAL**
-Tenés acceso al contexto reciente de la conversación y al último producto del que estaban hablando.
-Úsalo para resolver referencias implícitas como:
-- "este producto", "ese", "el anterior"
-- "aumentalo 10%", "bajalo", "pausalo", "reactivalo", "sumale stock"
-- "cuánto margen deja?", "y el stock?"
-Si el usuario da una orden o pregunta sin especificar el producto, asume que habla de la entidad en memoria y usa su SKU como parámetro 'query' en las herramientas:
-[ENTIDAD ACTUAL EN MEMORIA]: ${entityContext.last_sku ? `SKU: ${entityContext.last_sku} (Título: ${entityContext.last_product_title}, ID: ${entityContext.last_product_id})` : 'Ninguna'}
-
-No inventes contexto. Si hay ambigüedad o la entidad actual es "Ninguna", pedí aclaración diciendo: "No estoy seguro de qué producto querés modificar o consultar. ¿Me indicás SKU o nombre?"
+**MEMORIA CONVERSACIONAL Y PREGUNTAS EN CONTEXTO:**
+Tenés acceso al contexto reciente de la conversación.
+Si el usuario hace preguntas de seguimiento como:
+- "¿Y ayer?" -> Evalúa la misma métrica (ventas o ganancia) para el día de ayer usando la herramienta analítica correspondiente con el rango de ayer.
+- "¿Y ese producto?" o "¿Cuánto vendió?" -> Asume que habla de la entidad en memoria:
+  [ENTIDAD ACTUAL EN MEMORIA]: ${entityContext.last_sku ? `SKU: ${entityContext.last_sku} (Título: ${entityContext.last_product_title}, ID: ${entityContext.last_product_id})` : 'Ninguna'}
+- Si hay ambigüedad o la entidad actual es "Ninguna", pedí aclaración brevemente.
 
 Chat reciente:
 ${chatHistory}
 `;
 
-  const runner = openai.chat.completions.runTools({
-    model: process.env.AI_MODEL || "gpt-4o-mini",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
-    tools: [
-      {
-        type: "function",
-        function: {
-          function: async () => tools.getTodaySales(tenantId),
-          name: "getTodaySales",
-          description: "Obtiene la suma total de dinero vendido en el día de hoy y la cantidad de órdenes de hoy.",
-          parse: JSON.parse,
-          parameters: { type: "object", properties: {} },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { days?: number }) => tools.getSalesDetail(tenantId, args.days),
-          name: "getSalesDetail",
-          description: "Obtiene el detalle de qué productos específicos se vendieron (títulos, SKU y cantidades) en los últimos N días (por ejemplo, days=1 para hoy, days=2 para hoy y ayer). Usar esta herramienta siempre que pregunten qué productos se vendieron hoy, ayer o en un período.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              days: { type: "number", description: "Cantidad de días hacia atrás a analizar (por defecto 2 para hoy y ayer)." }
-            }
-          },
-        },
-      },
-
-      {
-        type: "function",
-        function: {
-          function: async () => tools.getWeeklySales(tenantId),
-          name: "getWeeklySales",
-          description: "Obtiene la suma total de dinero vendido en los últimos 7 días y la cantidad de órdenes.",
-          parse: JSON.parse,
-          parameters: { type: "object", properties: {} },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async () => tools.getLowStockProducts(tenantId),
-          name: "getLowStockProducts",
-          description: "Obtiene una lista de productos que tienen un stock bajo (5 unidades o menos).",
-          parse: JSON.parse,
-          parameters: { type: "object", properties: {} },
-        },
-      },
-
-      {
-        type: "function",
-        function: {
-          function: async (args: { days: number }) => tools.getSalesByDays(tenantId, args.days),
-          name: "getSalesByDays",
-          description: "Obtiene la suma total de dinero vendido y la cantidad de órdenes en los últimos N días (por ejemplo, para el último año, days=365).",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              days: { type: "number", description: "Cantidad de días hacia atrás a consultar (ej: 365 para un año, 30 para un mes)." },
-            },
-            required: ["days"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { query: string }) => tools.searchProductByName(tenantId, args.query),
-          name: "searchProductByName",
-          description: "Busca un producto por nombre y devuelve su precio, stock disponible, estado y cantidad vendida.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              query: { type: "string", description: "El nombre, SKU exacto o ID de Mercado Libre del producto a buscar." },
-            },
-            required: ["query"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { limit?: number }) => tools.getTopProducts(tenantId, args.limit),
-          name: "getTopProducts",
-          description: "Obtiene los productos más vendidos ordenados de mayor a menor cantidad vendida.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              limit: { type: "number", description: "Cantidad máxima de productos a devolver (por defecto 5)." },
-            },
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { currentDays: number; previousDays: number }) => 
-            tools.compareSalesPeriods(tenantId, args.currentDays, args.previousDays),
-          name: "compareSalesPeriods",
-          description: "Compara las ventas totales de un periodo reciente vs un periodo anterior.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              currentDays: { type: "number", description: "Días del periodo actual a evaluar (ej: 7 para esta semana)." },
-              previousDays: { type: "number", description: "Días del periodo anterior a evaluar (ej: 7 para la semana pasada)." },
-            },
-            required: ["currentDays", "previousDays"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { productName: string }) => tools.getProductProfitability(tenantId, args.productName),
-          name: "getProductProfitability",
-          description: "Obtiene la rentabilidad (margen) de un producto específico, calculando la diferencia entre su precio de venta y su costo base.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              productName: { type: "string", description: "El nombre, SKU exacto o ID de Mercado Libre del producto a evaluar." },
-            },
-            required: ["productName"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { query: string; newPrice?: number; percentageChange?: number; allowMultiple?: boolean }) => tools.preparePriceUpdate(tenantId, args.query, args.newPrice, args.percentageChange, args.allowMultiple),
-          name: "preparePriceUpdate",
-          description: "Prepara una actualización de precio para uno o más productos. Puede ser un precio exacto o un cambio porcentual. Solo pre-calcula los cambios.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              query: { type: "string", description: "Búsqueda del producto (puede ser componente de SKU exacto, SKU exacto, ID de Mercado Libre o Nombre parcial)" },
-              newPrice: { type: "number", description: "Nuevo precio exacto" },
-              percentageChange: { type: "number", description: "Porcentaje a aumentar/disminuir (ej: 10 para aumentar 10%)" },
-              allowMultiple: { type: "boolean", description: "Debe ser true si el usuario pide explícitamente aplicar el cambio a TODOS los productos que coincidan (ej: todos los combos que tengan C 144)." }
-            },
-            required: ["query"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { query: string; newQuantity: number; operation?: 'set' | 'add' | 'subtract'; allowMultiple?: boolean }) => tools.prepareInternalStockUpdate(tenantId, args.query, args.newQuantity, args.operation, args.allowMultiple),
-          name: "prepareInternalStockUpdate",
-          description: "Prepara un cambio de stock INTERNO (físico/depósito) para uno o más componentes. No toca Mercado Libre.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              query: { type: "string", description: "Búsqueda del producto interno (SKU exacto, nombre)" },
-              newQuantity: { type: "number", description: "Cantidad de stock" },
-              operation: { type: "string", enum: ["set", "add", "subtract"], description: "Operación a realizar" },
-              allowMultiple: { type: "boolean", description: "Debe ser true si el usuario pide aplicar el cambio a TODOS los que coincidan." }
-            },
-            required: ["query", "newQuantity"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { query: string; newQuantity: number; operation?: 'set' | 'add' | 'subtract'; allowMultiple?: boolean }) => tools.prepareMeliStockUpdate(tenantId, args.query, args.newQuantity, args.operation, args.allowMultiple),
-          name: "prepareMeliStockUpdate",
-          description: "Prepara un cambio de stock EN MERCADO LIBRE (publicación) para uno o más productos. No toca stock interno.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              query: { type: "string", description: "Búsqueda del producto en ML (SKU, ID ML o Nombre parcial)" },
-              newQuantity: { type: "number", description: "Cantidad de stock" },
-              operation: { type: "string", enum: ["set", "add", "subtract"], description: "Operación a realizar" },
-              allowMultiple: { type: "boolean", description: "Debe ser true si el usuario pide aplicar el cambio a TODOS los que coincidan." }
-            },
-            required: ["query", "newQuantity"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { query: string; status: 'paused' | 'active'; allowMultiple?: boolean }) => tools.prepareStatusChange(tenantId, args.query, args.status, args.allowMultiple),
-          name: "prepareStatusChange",
-          description: "Prepara pausar o reactivar uno o más productos.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              query: { type: "string", description: "Búsqueda del producto (puede ser componente de SKU exacto, SKU exacto, ID de Mercado Libre o Nombre parcial)" },
-              status: { type: "string", enum: ["paused", "active"], description: "Nuevo estado" },
-              allowMultiple: { type: "boolean", description: "Debe ser true si el usuario pide explícitamente aplicar el cambio a TODOS los productos que coincidan." }
-            },
-            required: ["query", "status"],
-          },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async () => {
-            const { prepareAutonomousWorkflow } = await import('@/services/ai/tools_workflow');
-            return prepareAutonomousWorkflow(tenantId);
-          },
-          name: "prepareAutonomousWorkflow",
-          description: "Analiza el negocio automáticamente (busca problemas de stock, márgenes bajos y nulas ventas) y prepara un plan de acción sugerido. Úsalo cuando el usuario pide analizar el negocio o 'arreglar lo urgente'.",
-          parse: JSON.parse,
-          parameters: { type: "object", properties: {} },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async () => tools.getDelayedShipments(tenantId),
-          name: "getDelayedShipments",
-          description: "Consulta y devuelve una lista de los envíos que actualmente se encuentran demorados.",
-          parse: JSON.parse,
-          parameters: { type: "object", properties: {} },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async () => tools.getCancellationStats(tenantId),
-          name: "getCancellationStats",
-          description: "Devuelve estadísticas de ventas canceladas (total, pérdida de ingresos y desglose por motivo).",
-          parse: JSON.parse,
-          parameters: { type: "object", properties: {} },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async () => tools.getTopCancelledProducts(tenantId),
-          name: "getTopCancelledProducts",
-          description: "Devuelve una lista de los productos que tienen más cancelaciones de ventas.",
-          parse: JSON.parse,
-          parameters: { type: "object", properties: {} },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async () => tools.getGrowingProducts(tenantId),
-          name: "getGrowingProducts",
-          description: "Devuelve los productos con mejor tracción o crecimiento de ventas recientes. Úsalo cuando te pregunten qué productos están creciendo o vendiendo más.",
-          parse: JSON.parse,
-          parameters: { type: "object", properties: {} },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async () => tools.getFallingProducts(tenantId),
-          name: "getFallingProducts",
-          description: "Devuelve los productos que están cayendo en ventas o no tienen ventas (productos estancados).",
-          parse: JSON.parse,
-          parameters: { type: "object", properties: {} },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async () => tools.getProductsToReview(tenantId),
-          name: "getProductsToReview",
-          description: "Devuelve productos con alertas críticas: bajos márgenes o falta de stock. Úsalo cuando el usuario pregunte qué debe revisar o qué le preocupa a la IA.",
-          parse: JSON.parse,
-          parameters: { type: "object", properties: {} },
-        },
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { days?: string }) => tools.getFinancialSummary(tenantId, args.days),
-          name: "getFinancialSummary",
-          description: "Calcula la facturación bruta, costos, comisiones, envíos, ganancia neta real y margen del negocio en un periodo de tiempo. Úsalo cuando pregunten por rentabilidad, ganancias, margen real, o gastos.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              days: { type: "string", description: "Cantidad de días hacia atrás a analizar. Ejemplo: '30' para último mes, '7' para última semana." }
-            }
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { query: string; type: string; discountPercent?: number; discountAmount?: number; duration?: string }) => {
-            const promos = await import('@/services/ai/tools/promotions');
-            return promos.prepareCreatePromotion(tenantId, args.query, args.type, args.discountPercent, args.discountAmount, args.duration);
-          },
-          name: "prepareCreatePromotion",
-          description: "Prepara una oferta o descuento para un producto. Úsalo cuando el usuario pide poner en oferta, crear promo o descuento.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              query: { type: "string", description: "El nombre o SKU del producto" },
-              type: { type: "string", description: "El tipo de promoción (oferta, relampago, descuento)" },
-              discountPercent: { type: "number", description: "El porcentaje de descuento si aplica" },
-              discountAmount: { type: "number", description: "El monto de descuento fijo si aplica" },
-              duration: { type: "string", description: "La duración (ej: 48 horas)" }
-            },
-            required: ["query", "type"]
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { discountType: string; discountValue: number; targetAudience?: string; maxUses?: number; minPurchaseAmount?: number; duration?: string }) => {
-            const promos = await import('@/services/ai/tools/promotions');
-            return promos.prepareCreateCoupon(tenantId, args.discountType, args.discountValue, args.targetAudience, args.maxUses, args.minPurchaseAmount, args.duration);
-          },
-          name: "prepareCreateCoupon",
-          description: "Prepara la creación de un cupón de descuento.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              discountType: { type: "string", description: "'percent' o 'amount'" },
-              discountValue: { type: "number", description: "El valor del descuento" },
-              targetAudience: { type: "string", description: "Audiencia (ej: seguidores, nuevos)" },
-              maxUses: { type: "number", description: "Uso máximo del cupón" },
-              minPurchaseAmount: { type: "number", description: "Compra mínima requerida" },
-              duration: { type: "string", description: "Vigencia del cupón" }
-            },
-            required: ["discountType", "discountValue"]
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { items: any[]; supplier_name?: string; extra_costs?: number }) => {
-            const { prepareRegisterPurchase } = await import('./tools/purchaseTools');
-            return prepareRegisterPurchase(tenantId, args.items, args.supplier_name, args.extra_costs);
-          },
-          name: "prepareRegisterPurchase",
-          description: "Prepara el registro de una compra interna en el depósito físico. Extrae SKUs, cantidades y costos unitarios.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              items: {
-                type: "array",
-                description: "Lista de productos o componentes de la compra",
-                items: {
-                  type: "object",
-                  properties: {
-                    sku: { type: "string", description: "SKU del componente o producto comprado" },
-                    quantity: { type: "number", description: "Cantidad de unidades compradas" },
-                    unit_cost: { type: "number", description: "Costo unitario del componente si se especificó" }
-                  },
-                  required: ["sku", "quantity"]
-                }
-              },
-              supplier_name: { type: "string", description: "Nombre del proveedor si aplica" },
-              extra_costs: { type: "number", description: "Costos adicionales asociados a la compra si aplica" }
-            },
-            required: ["items"]
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { sku: string }) => {
-            const { getComponentStock } = await import('./tools/queryTools');
-            return getComponentStock(tenantId, args.sku);
-          },
-          name: "getComponentStock",
-          description: "Obtiene el stock real de un componente en depósito a partir de su SKU.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              sku: { type: "string", description: "SKU del componente a consultar" }
-            },
-            required: ["sku"]
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { query: string }) => {
-            const { getComboStock } = await import('./tools/queryTools');
-            return getComboStock(tenantId, args.query);
-          },
-          name: "getComboStock",
-          description: "Calcula cuántos combos o unidades compuestas se pueden fabricar en base al stock real del depósito.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              query: { type: "string", description: "SKU o nombre de la publicación o combo" }
-            },
-            required: ["query"]
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { sku: string }) => {
-            const { getProductsUsingComponent } = await import('./tools/queryTools');
-            return getProductsUsingComponent(tenantId, args.sku);
-          },
-          name: "getProductsUsingComponent",
-          description: "Muestra qué publicaciones de Mercado Libre están asociadas o usan un determinado componente.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              sku: { type: "string", description: "SKU del componente" }
-            },
-            required: ["sku"]
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          function: async () => {
-            const { getOutOfStockComponents } = await import('./tools/queryTools');
-            return getOutOfStockComponents(tenantId);
-          },
-          name: "getOutOfStockComponents",
-          description: "Obtiene la lista de componentes faltantes o críticos en depósito y las publicaciones afectadas.",
-          parse: JSON.parse,
-          parameters: { type: "object", properties: {} }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          function: async (args: { query: string }) => {
-            const { getProductComponentsCostDetail } = await import('./tools/queryTools');
-            return getProductComponentsCostDetail(tenantId, args.query);
-          },
-          name: "getProductComponentsCostDetail",
-          description: "Obtiene el detalle de costeo por componentes y costos extra de un producto.",
-          parse: JSON.parse,
-          parameters: {
-            type: "object",
-            properties: {
-              query: { type: "string", description: "SKU o nombre de la publicación" }
-            },
-            required: ["query"]
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          function: async () => {
-            const { getStockInconsistencies } = await import('./tools/queryTools');
-            return getStockInconsistencies(tenantId);
-          },
-          name: "getStockInconsistencies",
-          description: "Muestra las publicaciones donde Mercado Libre tiene más stock publicado que el stock interno disponible en depósito.",
-          parse: JSON.parse,
-          parameters: { type: "object", properties: {} }
-        }
-      }
-    ],
-  });
-
-  const finalContent = await runner.finalContent();
-
-  let foundProductId = null;
-  for (const m of runner.messages) {
-    if (m.role === "tool" && typeof m.content === "string") {
+  // Helper to capture session updates from tool results
+  const captureSession = async (result: any) => {
+    if (session && result && typeof result === "object") {
       try {
-        const parsed = JSON.parse(m.content);
-        if (parsed.product_id) foundProductId = parsed.product_id;
-        else if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].id) {
-          foundProductId = parsed[0].id;
+        if (result.action_id) {
+          await updateSessionState(session.id, { current_action_id: result.action_id });
         }
-
-        // Catch Session State changes from tools
-        if (session) {
-          if (parsed.action_id) {
-            await updateSessionState(session.id, { current_action_id: parsed.action_id });
-          }
-          if (parsed.workflow_id) {
-            await updateSessionState(session.id, { current_workflow_id: parsed.workflow_id });
-          }
-          if (parsed._session_state) {
-            await updateSessionState(session.id, {
-              current_action_type: parsed._session_state.action_type,
-              missing_fields: parsed._session_state.missing_fields,
-              context: parsed._session_state.context
-            });
-          }
+        if (result.workflow_id) {
+          await updateSessionState(session.id, { current_workflow_id: result.workflow_id });
         }
-      } catch (e) {}
+        if (result._session_state) {
+          await updateSessionState(session.id, {
+            current_action_type: result._session_state.action_type,
+            missing_fields: result._session_state.missing_fields,
+            context: result._session_state.context
+          });
+        }
+      } catch (e) {
+        logger.warn({ event: "AI_SESSION_UPDATE_WARNING", error: (e as any)?.message });
+      }
     }
+    return result;
+  };
+
+  const isWriteActionsEnabled = process.env.COPILOT_WRITE_ACTIONS_ENABLED === "true";
+  const isCopilotChannel = channel === "copilot" || channel === "web";
+
+  // Build canonical and legacy tools adhering to AgentTool interface
+  const agentTools: AgentTool[] = [
+    // 1. Canonical Analytics Tools
+    {
+      name: "getSalesSummary",
+      description: "Obtiene la facturación, cantidad de órdenes, unidades vendidas y ticket promedio de un período (hoy, ayer, esta_semana, este_mes, mes_pasado, o rango de fechas ISO from/to). Excluye órdenes canceladas.",
+      parameters: {
+        type: "object",
+        properties: {
+          period: { type: "string", description: "Período predefinido: 'hoy', 'ayer', 'esta_semana', 'este_mes', 'mes_pasado'" },
+          from: { type: "string", description: "Fecha inicio ISO (opcional si se usa period)" },
+          to: { type: "string", description: "Fecha fin ISO (opcional si se usa period)" },
+        },
+      },
+      execute: async (args) => captureSession(await tools.getSalesSummary(tenantId, args)),
+    },
+    {
+      name: "getProfitSummary",
+      description: "Obtiene el resumen financiero completo: facturación, costos de producto, comisiones ML, envíos, promociones, costos operativos, ganancia neta, margen neto % y porcentaje de cobertura de costos para un período ('hoy', 'ayer', 'esta_semana', 'este_mes', 'mes_pasado', o from/to).",
+      parameters: {
+        type: "object",
+        properties: {
+          period: { type: "string", description: "Período predefinido: 'hoy', 'ayer', 'esta_semana', 'este_mes', 'mes_pasado'" },
+          from: { type: "string", description: "Fecha inicio ISO (opcional si se usa period)" },
+          to: { type: "string", description: "Fecha fin ISO (opcional si se usa period)" },
+        },
+      },
+      execute: async (args) => captureSession(await tools.getProfitSummary(tenantId, args)),
+    },
+    {
+      name: "getTopProfitProducts",
+      description: "Obtiene los productos que dejaron mayor GANANCIA NETA ABSOLUTA en dinero ($) en un período ('hoy', 'ayer', 'esta_semana', 'este_mes'). Úsalo cuando pregunten qué producto dejó más plata o ganancia.",
+      parameters: {
+        type: "object",
+        properties: {
+          period: { type: "string", description: "Período predefinido: 'hoy', 'ayer', 'esta_semana', 'este_mes'" },
+          from: { type: "string", description: "Fecha inicio ISO" },
+          to: { type: "string", description: "Fecha fin ISO" },
+          limit: { type: "number", description: "Cantidad máxima de productos a devolver (por defecto 5)" },
+        },
+      },
+      execute: async (args) => captureSession(await tools.getTopProfitProducts(tenantId, args)),
+    },
+    {
+      name: "getTopMarginProducts",
+      description: "Obtiene los productos con MEJOR MARGEN PORCENTUAL NETO (%) en un período. Úsalo cuando pregunten qué producto tuvo mejor margen o fue más rentable en porcentaje.",
+      parameters: {
+        type: "object",
+        properties: {
+          period: { type: "string", description: "Período predefinido: 'hoy', 'ayer', 'esta_semana', 'este_mes'" },
+          from: { type: "string", description: "Fecha inicio ISO" },
+          to: { type: "string", description: "Fecha fin ISO" },
+          limit: { type: "number", description: "Cantidad máxima de productos a devolver (por defecto 5)" },
+        },
+      },
+      execute: async (args) => captureSession(await tools.getTopMarginProducts(tenantId, args)),
+    },
+    {
+      name: "getTopSellingProducts",
+      description: "Obtiene los productos con mayor cantidad de unidades vendidas o mayor facturación en un período.",
+      parameters: {
+        type: "object",
+        properties: {
+          period: { type: "string", description: "Período predefinido: 'hoy', 'ayer', 'esta_semana', 'este_mes'" },
+          from: { type: "string", description: "Fecha inicio ISO" },
+          to: { type: "string", description: "Fecha fin ISO" },
+          limit: { type: "number", description: "Cantidad máxima de productos (por defecto 5)" },
+        },
+      },
+      execute: async (args) => captureSession(await tools.getTopSellingProducts(tenantId, args)),
+    },
+    {
+      name: "compareSalesRanges",
+      description: "Compara ventas entre dos períodos equivalentes (por ejemplo 'este_mes' vs 'mes_pasado' comparando días proporcionales para evitar sesgos, o 'esta_semana' vs semana anterior).",
+      parameters: {
+        type: "object",
+        properties: {
+          currentPeriod: { type: "string", description: "Período actual ('este_mes', 'esta_semana')" },
+          previousPeriod: { type: "string", description: "Período anterior ('mes_pasado', etc.)" },
+          currentFrom: { type: "string", description: "Fecha inicio actual ISO" },
+          currentTo: { type: "string", description: "Fecha fin actual ISO" },
+          previousFrom: { type: "string", description: "Fecha inicio anterior ISO" },
+          previousTo: { type: "string", description: "Fecha fin anterior ISO" },
+        },
+      },
+      execute: async (args) => captureSession(await tools.compareSalesRanges(tenantId, args)),
+    },
+    {
+      name: "compareProfitRanges",
+      description: "Compara ganancias netas y márgenes porcentuales entre dos períodos.",
+      parameters: {
+        type: "object",
+        properties: {
+          currentPeriod: { type: "string", description: "Período actual ('este_mes', 'esta_semana')" },
+          previousPeriod: { type: "string", description: "Período anterior ('mes_pasado')" },
+          currentFrom: { type: "string", description: "Fecha inicio actual ISO" },
+          currentTo: { type: "string", description: "Fecha fin actual ISO" },
+          previousFrom: { type: "string", description: "Fecha inicio anterior ISO" },
+          previousTo: { type: "string", description: "Fecha fin anterior ISO" },
+        },
+      },
+      execute: async (args) => captureSession(await tools.compareProfitRanges(tenantId, args)),
+    },
+    {
+      name: "getStockSummary",
+      description: "Devuelve el resumen de stock del inventario: total de productos, productos con bajo stock, productos sin stock, y lista de ítems críticos.",
+      parameters: {
+        type: "object",
+        properties: {
+          lowStockThreshold: { type: "number", description: "Umbral para considerar stock bajo (por defecto 5)" },
+        },
+      },
+      execute: async (args) => captureSession(await tools.getStockSummary(tenantId, args)),
+    },
+    {
+      name: "getProductPerformance",
+      description: "Obtiene el rendimiento específico de un producto (unidades vendidas, facturación, ganancia, margen, stock actual) buscando por nombre o SKU.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Nombre o SKU del producto" },
+          period: { type: "string", description: "Período predefinido ('este_mes', 'esta_semana', 'hoy')" },
+        },
+        required: ["query"],
+      },
+      execute: async (args) => captureSession(await tools.getProductPerformance(tenantId, args)),
+    },
+
+    // 2. Legacy / Auxiliary Query Tools
+    {
+      name: "getTodaySales",
+      description: "Obtiene la suma total de dinero vendido hoy y la cantidad de órdenes de hoy.",
+      parameters: { type: "object", properties: {} },
+      execute: async () => captureSession(await tools.getTodaySales(tenantId)),
+    },
+    {
+      name: "getSalesDetail",
+      description: "Obtiene el detalle de qué productos específicos se vendieron en los últimos N días.",
+      parameters: {
+        type: "object",
+        properties: {
+          days: { type: "number", description: "Cantidad de días hacia atrás a analizar" },
+        },
+      },
+      execute: async (args) => captureSession(await tools.getSalesDetail(tenantId, args.days)),
+    },
+    {
+      name: "getWeeklySales",
+      description: "Obtiene la suma total de dinero vendido en los últimos 7 días y la cantidad de órdenes.",
+      parameters: { type: "object", properties: {} },
+      execute: async () => captureSession(await tools.getWeeklySales(tenantId)),
+    },
+    {
+      name: "getLowStockProducts",
+      description: "Obtiene una lista de productos que tienen un stock bajo (5 unidades o menos).",
+      parameters: { type: "object", properties: {} },
+      execute: async () => captureSession(await tools.getLowStockProducts(tenantId)),
+    },
+    {
+      name: "getSalesByDays",
+      description: "Obtiene la suma total de dinero vendido y la cantidad de órdenes en los últimos N días.",
+      parameters: {
+        type: "object",
+        properties: {
+          days: { type: "number", description: "Cantidad de días hacia atrás a consultar" },
+        },
+        required: ["days"],
+      },
+      execute: async (args) => captureSession(await tools.getSalesByDays(tenantId, args.days)),
+    },
+    {
+      name: "searchProductByName",
+      description: "Busca un producto por nombre y devuelve su precio, stock disponible, estado y cantidad vendida.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "El nombre, SKU exacto o ID de Mercado Libre del producto a buscar." },
+        },
+        required: ["query"],
+      },
+      execute: async (args) => captureSession(await tools.searchProductByName(tenantId, args.query)),
+    },
+    {
+      name: "getTopProducts",
+      description: "Obtiene los productos más vendidos ordenados de mayor a menor cantidad vendida.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "Cantidad máxima de productos a devolver" },
+        },
+      },
+      execute: async (args) => captureSession(await tools.getTopProducts(tenantId, args.limit)),
+    },
+    {
+      name: "compareSalesPeriods",
+      description: "Compara las ventas totales de un periodo reciente vs un periodo anterior.",
+      parameters: {
+        type: "object",
+        properties: {
+          currentDays: { type: "number", description: "Días del periodo actual a evaluar" },
+          previousDays: { type: "number", description: "Días del periodo anterior a evaluar" },
+        },
+        required: ["currentDays", "previousDays"],
+      },
+      execute: async (args) => captureSession(await tools.compareSalesPeriods(tenantId, args.currentDays, args.previousDays)),
+    },
+    {
+      name: "getProductProfitability",
+      description: "Obtiene la rentabilidad de un producto específico calculando la diferencia entre su precio de venta y su costo.",
+      parameters: {
+        type: "object",
+        properties: {
+          productName: { type: "string", description: "Nombre, SKU exacto o ID ML del producto" },
+        },
+        required: ["productName"],
+      },
+      execute: async (args) => captureSession(await tools.getProductProfitability(tenantId, args.productName)),
+    },
+    {
+      name: "getFinancialSummary",
+      description: "Calcula la facturación bruta, costos, comisiones, envíos, ganancia neta y margen en los últimos N días.",
+      parameters: {
+        type: "object",
+        properties: {
+          days: { type: "string", description: "Cantidad de días hacia atrás a analizar ('30' para mes, '7' para semana)" },
+        },
+      },
+      execute: async (args) => captureSession(await tools.getFinancialSummary(tenantId, args.days)),
+    },
+    {
+      name: "getDelayedShipments",
+      description: "Consulta y devuelve una lista de los envíos demorados.",
+      parameters: { type: "object", properties: {} },
+      execute: async () => captureSession(await tools.getDelayedShipments(tenantId)),
+    },
+    {
+      name: "getCancellationStats",
+      description: "Devuelve estadísticas de ventas canceladas (total, pérdida de ingresos y desglose por motivo).",
+      parameters: { type: "object", properties: {} },
+      execute: async () => captureSession(await tools.getCancellationStats(tenantId)),
+    },
+    {
+      name: "getTopCancelledProducts",
+      description: "Devuelve una lista de los productos que tienen más cancelaciones de ventas.",
+      parameters: { type: "object", properties: {} },
+      execute: async () => captureSession(await tools.getTopCancelledProducts(tenantId)),
+    },
+    {
+      name: "getGrowingProducts",
+      description: "Devuelve los productos con mejor crecimiento o tracción reciente.",
+      parameters: { type: "object", properties: {} },
+      execute: async () => captureSession(await tools.getGrowingProducts(tenantId)),
+    },
+    {
+      name: "getFallingProducts",
+      description: "Devuelve los productos con caída en ventas o estancados.",
+      parameters: { type: "object", properties: {} },
+      execute: async () => captureSession(await tools.getFallingProducts(tenantId)),
+    },
+    {
+      name: "getProductsToReview",
+      description: "Devuelve productos con alertas críticas de bajo margen o falta de stock.",
+      parameters: { type: "object", properties: {} },
+      execute: async () => captureSession(await tools.getProductsToReview(tenantId)),
+    },
+    {
+      name: "getComponentStock",
+      description: "Obtiene el stock real de un componente en depósito a partir de su SKU.",
+      parameters: {
+        type: "object",
+        properties: { sku: { type: "string", description: "SKU del componente" } },
+        required: ["sku"],
+      },
+      execute: async (args) => {
+        const { getComponentStock } = await import('./tools/queryTools');
+        return captureSession(await getComponentStock(tenantId, args.sku));
+      },
+    },
+    {
+      name: "getComboStock",
+      description: "Calcula cuántos combos se pueden fabricar en base al stock real del depósito.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "SKU o nombre del combo" } },
+        required: ["query"],
+      },
+      execute: async (args) => {
+        const { getComboStock } = await import('./tools/queryTools');
+        return captureSession(await getComboStock(tenantId, args.query));
+      },
+    },
+    {
+      name: "getProductsUsingComponent",
+      description: "Muestra qué publicaciones de Mercado Libre están asociadas a un componente.",
+      parameters: {
+        type: "object",
+        properties: { sku: { type: "string", description: "SKU del componente" } },
+        required: ["sku"],
+      },
+      execute: async (args) => {
+        const { getProductsUsingComponent } = await import('./tools/queryTools');
+        return captureSession(await getProductsUsingComponent(tenantId, args.sku));
+      },
+    },
+    {
+      name: "getOutOfStockComponents",
+      description: "Obtiene componentes faltantes o críticos en depósito y publicaciones afectadas.",
+      parameters: { type: "object", properties: {} },
+      execute: async () => {
+        const { getOutOfStockComponents } = await import('./tools/queryTools');
+        return captureSession(await getOutOfStockComponents(tenantId));
+      },
+    },
+    {
+      name: "getProductComponentsCostDetail",
+      description: "Obtiene el detalle de costeo por componentes y costos extra de un producto.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "SKU o nombre de la publicación" } },
+        required: ["query"],
+      },
+      execute: async (args) => {
+        const { getProductComponentsCostDetail } = await import('./tools/queryTools');
+        return captureSession(await getProductComponentsCostDetail(tenantId, args.query));
+      },
+    },
+    {
+      name: "getStockInconsistencies",
+      description: "Muestra publicaciones con más stock en Mercado Libre que el disponible en depósito.",
+      parameters: { type: "object", properties: {} },
+      execute: async () => {
+        const { getStockInconsistencies } = await import('./tools/queryTools');
+        return captureSession(await getStockInconsistencies(tenantId));
+      },
+    },
+  ];
+
+  // 3. Action Tools (Only enabled if COPILOT_WRITE_ACTIONS_ENABLED=true or not in copilot web mode)
+  if (!isCopilotChannel || isWriteActionsEnabled) {
+    agentTools.push(
+      {
+        name: "preparePriceUpdate",
+        description: "Prepara una actualización de precio para uno o más productos. Solo pre-calcula los cambios.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "Búsqueda del producto" },
+            newPrice: { type: "number", description: "Nuevo precio exacto" },
+            percentageChange: { type: "number", description: "Porcentaje a variar" },
+            allowMultiple: { type: "boolean", description: "true para aplicar a múltiples" },
+          },
+          required: ["query"],
+        },
+        execute: async (args) => captureSession(await tools.preparePriceUpdate(tenantId, args.query, args.newPrice, args.percentageChange, args.allowMultiple)),
+      },
+      {
+        name: "prepareInternalStockUpdate",
+        description: "Prepara un cambio de stock interno (depósito físico).",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "Búsqueda del producto interno" },
+            newQuantity: { type: "number", description: "Cantidad de stock" },
+            operation: { type: "string", enum: ["set", "add", "subtract"], description: "Operación" },
+            allowMultiple: { type: "boolean", description: "true para múltiples" },
+          },
+          required: ["query", "newQuantity"],
+        },
+        execute: async (args) => captureSession(await tools.prepareInternalStockUpdate(tenantId, args.query, args.newQuantity, args.operation, args.allowMultiple)),
+      },
+      {
+        name: "prepareMeliStockUpdate",
+        description: "Prepara un cambio de stock en la publicación de Mercado Libre.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "Búsqueda del producto en ML" },
+            newQuantity: { type: "number", description: "Cantidad de stock" },
+            operation: { type: "string", enum: ["set", "add", "subtract"], description: "Operación" },
+            allowMultiple: { type: "boolean", description: "true para múltiples" },
+          },
+          required: ["query", "newQuantity"],
+        },
+        execute: async (args) => captureSession(await tools.prepareMeliStockUpdate(tenantId, args.query, args.newQuantity, args.operation, args.allowMultiple)),
+      },
+      {
+        name: "prepareStatusChange",
+        description: "Prepara pausar o reactivar uno o más productos.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "Búsqueda del producto" },
+            status: { type: "string", enum: ["paused", "active"], description: "Nuevo estado" },
+            allowMultiple: { type: "boolean", description: "true para múltiples" },
+          },
+          required: ["query", "status"],
+        },
+        execute: async (args) => captureSession(await tools.prepareStatusChange(tenantId, args.query, args.status, args.allowMultiple)),
+      },
+      {
+        name: "prepareCreatePromotion",
+        description: "Prepara una oferta o descuento para un producto.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "Nombre o SKU del producto" },
+            type: { type: "string", description: "Tipo de promo" },
+            discountPercent: { type: "number", description: "Porcentaje de descuento" },
+            discountAmount: { type: "number", description: "Monto de descuento" },
+            duration: { type: "string", description: "Duración" },
+          },
+          required: ["query", "type"],
+        },
+        execute: async (args) => {
+          const promos = await import('@/services/ai/tools/promotions');
+          return captureSession(await promos.prepareCreatePromotion(tenantId, args.query, args.type, args.discountPercent, args.discountAmount, args.duration));
+        },
+      },
+      {
+        name: "prepareCreateCoupon",
+        description: "Prepara la creación de un cupón de descuento.",
+        parameters: {
+          type: "object",
+          properties: {
+            discountType: { type: "string", description: "'percent' o 'amount'" },
+            discountValue: { type: "number", description: "Valor de descuento" },
+            targetAudience: { type: "string", description: "Audiencia" },
+            maxUses: { type: "number", description: "Uso máximo" },
+            minPurchaseAmount: { type: "number", description: "Compra mínima" },
+            duration: { type: "string", description: "Vigencia" },
+          },
+          required: ["discountType", "discountValue"],
+        },
+        execute: async (args) => {
+          const promos = await import('@/services/ai/tools/promotions');
+          return captureSession(await promos.prepareCreateCoupon(tenantId, args.discountType, args.discountValue, args.targetAudience, args.maxUses, args.minPurchaseAmount, args.duration));
+        },
+      },
+      {
+        name: "prepareRegisterPurchase",
+        description: "Prepara el registro de una compra interna en el depósito físico.",
+        parameters: {
+          type: "object",
+          properties: {
+            items: {
+              type: "array",
+              description: "Lista de productos o componentes comprados",
+              items: {
+                type: "object",
+                properties: {
+                  sku: { type: "string", description: "SKU" },
+                  quantity: { type: "number", description: "Cantidad" },
+                  unit_cost: { type: "number", description: "Costo unitario" },
+                },
+                required: ["sku", "quantity"],
+              },
+            },
+            supplier_name: { type: "string", description: "Nombre del proveedor" },
+            extra_costs: { type: "number", description: "Costos adicionales" },
+          },
+          required: ["items"],
+        },
+        execute: async (args) => {
+          const { prepareRegisterPurchase } = await import('./tools/purchaseTools');
+          return captureSession(await prepareRegisterPurchase(tenantId, args.items, args.supplier_name, args.extra_costs));
+        },
+      }
+    );
   }
 
-  return {
-    response: finalContent || "Lo siento, hubo un problema procesando tu consulta.",
-    product_id: foundProductId
-  };
+  try {
+    const aiResult = await defaultProviderRouter.run({
+      systemPrompt,
+      userMessage,
+      tools: agentTools,
+      tenantId,
+      correlationId,
+    });
+
+    return {
+      response: aiResult.response || "No pude completar la consulta en este momento.",
+      product_id: aiResult.product_id,
+      duplicate: false,
+      metadata: aiResult.metadata,
+    };
+  } catch (err: any) {
+    logger.error({
+      event: "AI_BUSINESS_AGENT_ROUTER_ERROR",
+      tenantId,
+      correlationId,
+      error: err?.message,
+    });
+
+    throw err;
+  }
 }
