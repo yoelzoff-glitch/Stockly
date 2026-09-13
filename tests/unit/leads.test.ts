@@ -22,6 +22,12 @@ const leadSchema = z.object({
     .max(100, "La empresa no debe superar los 100 caracteres")
     .optional()
     .nullable(),
+  phone: z
+    .string()
+    .trim()
+    .max(50, "El teléfono no debe superar los 50 caracteres")
+    .optional()
+    .nullable(),
   intent: z.enum(["meeting", "contact"]),
   source: z.string().trim().max(50).default("landing_popup"),
   page_path: z.string().trim().max(500).optional().nullable(),
@@ -37,11 +43,12 @@ const leadSchema = z.object({
 
 describe("Sprint: Marketing Leads & Meeting Request Popup Tests", () => {
   describe("Lead Validation & Sanitization Schema", () => {
-    test("accepts valid meeting lead payload with all fields", () => {
+    test("accepts valid meeting lead payload with all fields including phone", () => {
       const payload = {
         email: "  Ventas@Empresa.COM  ",
         name: "Carlos Gomez",
         company: "Electro Total",
+        phone: "+54 9 11 6608-5798",
         intent: "meeting",
         source: "landing_popup",
         utm_source: "google",
@@ -55,6 +62,7 @@ describe("Sprint: Marketing Leads & Meeting Request Popup Tests", () => {
         assert.equal(result.data.email, "ventas@empresa.com");
         assert.equal(result.data.name, "Carlos Gomez");
         assert.equal(result.data.company, "Electro Total");
+        assert.equal(result.data.phone, "+54 9 11 6608-5798");
         assert.equal(result.data.intent, "meeting");
       }
     });

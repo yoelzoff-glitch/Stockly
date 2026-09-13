@@ -108,5 +108,6 @@ Condiciones generales:
 - **Correo de Información General:** info@libretax.com.ar para consultas generales sobre la plataforma.
 - **Instagram Oficial:** @libretax_ (https://www.instagram.com/libretax_/) para seguir novedades, guías y actualizaciones del producto.
 - **Facebook Oficial:** LibretaX (https://www.facebook.com/profile.php?id=61594040323699) para comunidad, noticias y contacto.
+- **LinkedIn Oficial:** LibretaX (https://www.linkedin.com/company/libreta-x/) para perfil corporativo, novedades y networking.
 `.trim();
 }

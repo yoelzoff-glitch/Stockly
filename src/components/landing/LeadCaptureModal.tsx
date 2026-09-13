@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, Mail, ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
+import { X, Calendar, Mail, ArrowLeft, CheckCircle2, Loader2, Phone } from "lucide-react";
+import { WhatsAppIcon } from "@/components/landing/Footer";
 import {
   trackLeadPopupView,
   trackLeadPopupDismiss,
@@ -32,6 +33,7 @@ export function LeadCaptureModal() {
   // Form states
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [company, setCompany] = useState("");
   const [honeypot, setHoneypot] = useState(""); // Bot spam trap
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -153,7 +155,8 @@ export function LeadCaptureModal() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: email.trim(),
-          name: step === "meeting" ? name.trim() : undefined,
+          name: name.trim() || undefined,
+          phone: phone.trim() || undefined,
           company: company.trim() || undefined,
           intent,
           source: "landing_popup",
@@ -258,16 +261,30 @@ export function LeadCaptureModal() {
                   <button
                     type="button"
                     onClick={() => handleSelectOption("meeting")}
-                    className="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl text-sm font-semibold text-white bg-[#102A56] hover:bg-[#0A1D3C] transition-all shadow-xs focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#5B2FE4]"
+                    className="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold text-white bg-[#102A56] hover:bg-[#0A1D3C] transition-all shadow-xs focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#5B2FE4]"
                   >
                     <Calendar className="w-4 h-4 text-[#A6F4C5]" />
                     <span>Solicitar una reunión</span>
                   </button>
 
+                  <a
+                    href="https://wa.me/5491166085798?text=Hola%20LibretaX%2C%20quisiera%20ver%20una%20demostraci%C3%B3n%20para%20mi%20negocio"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      trackWebEvent("lead_whatsapp_click", { source: "landing_popup" });
+                      handleDismiss();
+                    }}
+                    className="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold text-white bg-[#25D366] hover:bg-[#20bd5a] transition-all shadow-xs focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#25D366]"
+                  >
+                    <WhatsAppIcon className="w-4 h-4 text-white" />
+                    <span>Hablar por WhatsApp ahora</span>
+                  </a>
+
                   <button
                     type="button"
                     onClick={() => handleSelectOption("contact")}
-                    className="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl text-sm font-semibold text-[#102A56] bg-[#F5F3EE] hover:bg-[#EAE7DF] border border-[#DCDAD4] transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#102A56]"
+                    className="w-full inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold text-[#102A56] bg-[#F5F3EE] hover:bg-[#EAE7DF] border border-[#DCDAD4] transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#102A56]"
                   >
                     <Mail className="w-4 h-4 text-[#5B2FE4]" />
                     <span>Prefiero que me contacten</span>
@@ -368,6 +385,24 @@ export function LeadCaptureModal() {
 
                   <div>
                     <label
+                      htmlFor="lead-phone"
+                      className="block text-xs font-semibold text-[#101828] mb-1"
+                    >
+                      Teléfono / WhatsApp <span className="text-xs font-normal text-[#5F6875]">(opcional)</span>
+                    </label>
+                    <input
+                      id="lead-phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="11 6608-5798 o con código de área"
+                      disabled={isSubmitting}
+                      className="w-full h-10 px-3 rounded-lg border border-[#DCDAD4] bg-white text-sm text-[#101828] placeholder-[#94A3B8] focus:border-[#5B2FE4] focus:ring-1 focus:ring-[#5B2FE4] outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label
                       htmlFor="lead-company"
                       className="block text-xs font-semibold text-[#101828] mb-1"
                     >
@@ -391,7 +426,7 @@ export function LeadCaptureModal() {
                   </div>
                 )}
 
-                <div className="pt-2">
+                <div className="pt-2 space-y-2">
                   <button
                     type="submit"
                     disabled={isSubmitting}
@@ -406,6 +441,19 @@ export function LeadCaptureModal() {
                       <span>Solicitar reunión</span>
                     )}
                   </button>
+
+                  <div className="text-center pt-1">
+                    <a
+                      href="https://wa.me/5491166085798?text=Hola%20LibretaX%2C%20quisiera%20coordinar%20una%20reuni%C3%B3n"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => trackWebEvent("lead_meeting_whatsapp_click", { source: "landing_popup_form" })}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#25D366] hover:underline"
+                    >
+                      <WhatsAppIcon className="w-3.5 h-3.5" />
+                      <span>¿Preferís coordinar por WhatsApp? Escribinos acá</span>
+                    </a>
+                  </div>
                 </div>
               </form>
             )}
@@ -451,23 +499,61 @@ export function LeadCaptureModal() {
                   />
                 </div>
 
-                <div className="pt-1">
-                  <label
-                    htmlFor="contact-email"
-                    className="block text-xs font-semibold text-[#101828] mb-1"
-                  >
-                    Email <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="contact-email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="nombre@empresa.com"
-                    disabled={isSubmitting}
-                    className="w-full h-10 px-3 rounded-lg border border-[#DCDAD4] bg-white text-sm text-[#101828] placeholder-[#94A3B8] focus:border-[#5B2FE4] focus:ring-1 focus:ring-[#5B2FE4] outline-none transition-colors"
-                  />
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label
+                      htmlFor="contact-name"
+                      className="block text-xs font-semibold text-[#101828] mb-1"
+                    >
+                      Nombre <span className="text-xs font-normal text-[#5F6875]">(opcional)</span>
+                    </label>
+                    <input
+                      id="contact-name"
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Tu nombre"
+                      disabled={isSubmitting}
+                      className="w-full h-10 px-3 rounded-lg border border-[#DCDAD4] bg-white text-sm text-[#101828] placeholder-[#94A3B8] focus:border-[#5B2FE4] focus:ring-1 focus:ring-[#5B2FE4] outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="contact-email"
+                      className="block text-xs font-semibold text-[#101828] mb-1"
+                    >
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="contact-email"
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="nombre@empresa.com"
+                      disabled={isSubmitting}
+                      className="w-full h-10 px-3 rounded-lg border border-[#DCDAD4] bg-white text-sm text-[#101828] placeholder-[#94A3B8] focus:border-[#5B2FE4] focus:ring-1 focus:ring-[#5B2FE4] outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="contact-phone"
+                      className="block text-xs font-semibold text-[#101828] mb-1"
+                    >
+                      Teléfono / WhatsApp <span className="text-xs font-normal text-[#5F6875]">(opcional)</span>
+                    </label>
+                    <input
+                      id="contact-phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="11 6608-5798 o con código de área"
+                      disabled={isSubmitting}
+                      className="w-full h-10 px-3 rounded-lg border border-[#DCDAD4] bg-white text-sm text-[#101828] placeholder-[#94A3B8] focus:border-[#5B2FE4] focus:ring-1 focus:ring-[#5B2FE4] outline-none transition-colors"
+                    />
+                  </div>
                 </div>
 
                 {errorMessage && (
@@ -476,7 +562,7 @@ export function LeadCaptureModal() {
                   </div>
                 )}
 
-                <div className="pt-2">
+                <div className="pt-2 space-y-2">
                   <button
                     type="submit"
                     disabled={isSubmitting}
@@ -491,6 +577,19 @@ export function LeadCaptureModal() {
                       <span>Quiero que me contacten</span>
                     )}
                   </button>
+
+                  <div className="text-center pt-1">
+                    <a
+                      href="https://wa.me/5491166085798?text=Hola%20LibretaX%2C%20tengo%20una%20consulta"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => trackWebEvent("lead_contact_whatsapp_click", { source: "landing_popup_form" })}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#25D366] hover:underline"
+                    >
+                      <WhatsAppIcon className="w-3.5 h-3.5" />
+                      <span>¿Buscás respuesta inmediata? Escribinos por WhatsApp</span>
+                    </a>
+                  </div>
                 </div>
               </form>
             )}

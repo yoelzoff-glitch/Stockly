@@ -59,6 +59,12 @@ const leadSchema = z.object({
     .max(100, "La empresa no debe superar los 100 caracteres")
     .optional()
     .nullable(),
+  phone: z
+    .string()
+    .trim()
+    .max(50, "El teléfono no debe superar los 50 caracteres")
+    .optional()
+    .nullable(),
   intent: z.enum(["meeting", "contact"]),
   source: z.string().trim().max(50).default("landing_popup"),
   page_path: z.string().trim().max(500).optional().nullable(),
@@ -142,6 +148,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         email: data.email,
         name: data.name || null,
         company: data.company || null,
+        phone: data.phone || null,
         intent: data.intent,
         source: data.source || "landing_popup",
         page_path: data.page_path || null,

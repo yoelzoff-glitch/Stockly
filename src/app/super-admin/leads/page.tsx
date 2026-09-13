@@ -8,6 +8,7 @@ import {
   Tag,
   Clock,
   ExternalLink,
+  Phone,
 } from "lucide-react";
 
 export const revalidate = 0;
@@ -17,6 +18,7 @@ interface MarketingLead {
   email: string;
   name: string | null;
   company: string | null;
+  phone: string | null;
   intent: "meeting" | "contact";
   source: string;
   page_path: string | null;
@@ -136,7 +138,8 @@ export default async function SuperAdminLeadsPage() {
                 <tr>
                   <th className="py-3.5 px-4">Fecha</th>
                   <th className="py-3.5 px-4">Tipo</th>
-                  <th className="py-3.5 px-4">Email / Contacto</th>
+                  <th className="py-3.5 px-4">Email</th>
+                  <th className="py-3.5 px-4">Teléfono / WhatsApp</th>
                   <th className="py-3.5 px-4">Nombre</th>
                   <th className="py-3.5 px-4">Empresa / Tienda</th>
                   <th className="py-3.5 px-4">Campaña / UTM</th>
@@ -179,6 +182,28 @@ export default async function SuperAdminLeadsPage() {
                       {/* Email */}
                       <td className="py-3.5 px-4 font-medium text-white select-all">
                         {lead.email}
+                      </td>
+
+                      {/* Teléfono / WhatsApp */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        {lead.phone ? (
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[11px] text-white select-all">
+                              {lead.phone}
+                            </span>
+                            <a
+                              href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, "")}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Abrir chat de WhatsApp"
+                              className="inline-flex items-center justify-center p-1 rounded-md bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white transition-colors"
+                            >
+                              <Phone className="w-3 h-3" />
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="text-[#64748B]">—</span>
+                        )}
                       </td>
 
                       {/* Nombre */}

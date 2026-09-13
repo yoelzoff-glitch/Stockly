@@ -1828,6 +1828,7 @@ CREATE TABLE IF NOT EXISTS public.marketing_leads (
   email text NOT NULL,
   name text,
   company text,
+  phone text,
   intent text NOT NULL CHECK (intent IN ('meeting', 'contact')),
   source text NOT NULL DEFAULT 'landing_popup',
   page_path text,

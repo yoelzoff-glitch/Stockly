@@ -44,6 +44,19 @@ export function FacebookIcon({ className = "w-4 h-4" }: { className?: string }) 
   );
 }
 
+export function LinkedinIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" />
+    </svg>
+  );
+}
+
 export function Footer() {
   return (
     <footer className="bg-white text-[#5F6875] border-t border-[#DCDAD4] py-14 lg:py-16">
@@ -92,6 +105,16 @@ export function Footer() {
                 aria-label="Seguir a LibretaX en Facebook"
               >
                 <FacebookIcon className="w-4 h-4" />
+              </a>
+              <a
+                href="https://www.linkedin.com/company/libreta-x/"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="LinkedIn LibretaX"
+                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#0A66C2]/10 text-[#0A66C2] hover:bg-[#0A66C2] hover:text-white transition-all shadow-2xs"
+                aria-label="Seguir a LibretaX en LinkedIn"
+              >
+                <LinkedinIcon className="w-4 h-4" />
               </a>
               <a
                 href="mailto:info@libretax.com.ar"
@@ -204,6 +227,28 @@ export function Footer() {
                     </span>
                     <span className="text-xs text-[#5F6875] group-hover:text-[#101828]">
                       Facebook oficial
+                    </span>
+                  </div>
+                </a>
+              </li>
+
+              <li>
+                <a
+                  href="https://www.linkedin.com/company/libreta-x/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-start gap-2.5 hover:text-[#101828] transition-colors"
+                >
+                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-[#0A66C2]/10 text-[#0A66C2] shrink-0 mt-0.5 group-hover:bg-[#0A66C2] group-hover:text-white transition-colors">
+                    <LinkedinIcon className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span className="block font-semibold text-[#101828] leading-tight flex items-center gap-1">
+                      LibretaX
+                      <ArrowUpRight className="w-3 h-3 text-[#5F6875] group-hover:text-[#101828]" />
+                    </span>
+                    <span className="text-xs text-[#5F6875] group-hover:text-[#101828]">
+                      LinkedIn corporativo
                     </span>
                   </div>
                 </a>
