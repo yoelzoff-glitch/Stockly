@@ -59,7 +59,7 @@ export function Navbar() {
               className="flex items-center focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#00D4C5] rounded-lg p-1 -m-1"
               aria-label="LibretaX inicio"
             >
-              <Logo variant="light" size="md" />
+              <Logo variant="wordmark-light" size="md" />
             </Link>
           </div>
 
