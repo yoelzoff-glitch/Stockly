@@ -30,63 +30,46 @@ export default async function DashboardLayout({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  if (!user) {
+    redirect("/login");
+  }
+
   let plan = "starter";
   let daysRemaining = null;
 
-  if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select(`
-        tenant_id,
-        tenants:tenants(
-          is_demo,
-          demo_label,
-          subscriptions:subscriptions(plan, status, expires_at)
-        )
-      `)
-      .eq("id", user.id)
-      .single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select(`
+      tenant_id,
+      tenants:tenants(
+        is_demo,
+        demo_label,
+        subscriptions:subscriptions(plan, status, expires_at)
+      )
+    `)
+    .eq("id", user.id)
+    .single();
 
-    const tenant = (profile as any)?.tenants;
-    const isDemo = Boolean(tenant?.is_demo);
-    const rawSub = tenant?.subscriptions;
-    const subscription = Array.isArray(rawSub) ? rawSub[0] : rawSub;
+  const tenant = (profile as any)?.tenants;
+  const isDemo = Boolean(tenant?.is_demo);
+  const rawSub = tenant?.subscriptions;
+  const subscription = Array.isArray(rawSub) ? rawSub[0] : rawSub;
 
-    // Enforcement: redirect paused tenants to /account-paused
-    if (!isDemo && subscription?.status === "paused") {
-      redirect("/account-paused");
+  // Enforcement: redirect paused tenants to /account-paused
+  if (!isDemo && subscription?.status === "paused") {
+    redirect("/account-paused");
+  }
+
+  if (subscription) {
+    plan = isDemo ? "Demo" : subscription.plan;
+    if (subscription.expires_at && !isDemo) {
+      const expiresAt = new Date(subscription.expires_at);
+      const now = new Date();
+      const diffTime = expiresAt.getTime() - now.getTime();
+      daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     }
-
-    if (subscription) {
-      plan = isDemo ? "Demo" : subscription.plan;
-      if (subscription.expires_at && !isDemo) {
-        const expiresAt = new Date(subscription.expires_at);
-        const now = new Date();
-        const diffTime = expiresAt.getTime() - now.getTime();
-        daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      }
-    } else if (isDemo) {
-      plan = "Demo";
-    }
-
-    return (
-      <div className={`${archivo.variable} ${archivo.className} flex h-screen overflow-hidden bg-[#F5F3EE] text-[#101828] antialiased selection:bg-[#F2C94C] selection:text-[#101828]`}>
-        <div className="hidden md:flex">
-          <Sidebar />
-        </div>
-        <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-          <TenantActivityTracker />
-          <Navbar plan={plan} daysRemaining={daysRemaining} isDemo={isDemo} />
-          <main className="flex-1 overflow-y-auto flex flex-col">
-            <div className="flex-1">
-              {children}
-            </div>
-            <Footer />
-          </main>
-        </div>
-        <LibretaXCopilot />
-      </div>
-    );
+  } else if (isDemo) {
+    plan = "Demo";
   }
 
   return (
@@ -95,7 +78,8 @@ export default async function DashboardLayout({
         <Sidebar />
       </div>
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        <Navbar plan={plan} daysRemaining={daysRemaining} isDemo={false} />
+        <TenantActivityTracker />
+        <Navbar plan={plan} daysRemaining={daysRemaining} isDemo={isDemo} />
         <main className="flex-1 overflow-y-auto flex flex-col">
           <div className="flex-1">
             {children}

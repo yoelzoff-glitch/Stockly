@@ -58,9 +58,46 @@ export async function requireAuthenticatedUser(
   const correlationId = req ? getOrCreateCorrelationId(req) : getOrCreateCorrelationId();
   const supabase = customClient || (await createClient());
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  let resolvedUser: { id: string; email?: string } | null = null;
 
-  if (authError || !user) {
+  // 1. Primary auth flow: Supabase SSR cookie session
+  try {
+    const { data: cookieUserData, error: cookieAuthError } = await supabase.auth.getUser();
+    if (!cookieAuthError && cookieUserData?.user) {
+      resolvedUser = cookieUserData.user;
+    }
+  } catch (err: any) {
+    logger.debug({
+      event: "SSR_COOKIE_AUTH_LOOKUP_FAILED",
+      correlationId,
+      error: err?.message,
+    });
+  }
+
+  // 2. Technical fallback: Validated Supabase Bearer token (if cookie was not present/valid)
+  if (!resolvedUser && req) {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader && authHeader.toLowerCase().startsWith("bearer ")) {
+      const token = authHeader.substring(7).trim();
+      if (token) {
+        try {
+          // Strictly validate the token via Supabase Auth server-side (never trust unverified claims)
+          const { data: tokenUserData, error: tokenAuthError } = await supabase.auth.getUser(token);
+          if (!tokenAuthError && tokenUserData?.user) {
+            resolvedUser = tokenUserData.user;
+          }
+        } catch (err: any) {
+          logger.debug({
+            event: "BEARER_AUTH_VALIDATION_FAILED",
+            correlationId,
+            error: err?.message,
+          });
+        }
+      }
+    }
+  }
+
+  if (!resolvedUser) {
     logger.warn({
       event: "AUTH_REQUIRED",
       correlationId,
@@ -69,7 +106,7 @@ export async function requireAuthenticatedUser(
     throw new TenantAuthError("AUTH_REQUIRED", "Authentication required", 401, correlationId);
   }
 
-  return { user, correlationId };
+  return { user: resolvedUser, correlationId };
 }
 
 /**
@@ -331,7 +368,7 @@ export function toAuthErrorResponse(error: unknown, correlationId?: string): Nex
       headers[CORRELATION_ID_HEADER] = error.correlationId;
     }
     return NextResponse.json(
-      { error: error.message },
+      { error: error.message, code: error.code },
       { status: error.statusCode, headers }
     );
   }

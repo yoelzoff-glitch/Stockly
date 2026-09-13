@@ -3,12 +3,19 @@
 import React from "react";
 import { Sparkles, User } from "lucide-react";
 
+export interface ChatMessageAction {
+  label: string;
+  href?: string;
+  onClick?: () => void;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: string;
   isError?: boolean;
+  action?: ChatMessageAction;
 }
 
 interface CopilotMessageProps {
@@ -94,6 +101,27 @@ export const CopilotMessage: React.FC<CopilotMessageProps> = ({ message }) => {
           <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
         ) : (
           <div className="space-y-1">{renderFormattedContent(message.content)}</div>
+        )}
+
+        {message.action && (
+          <div className="mt-2.5 pt-2 border-t border-rose-200/60">
+            {message.action.href ? (
+              <a
+                href={message.action.href}
+                className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#0B192C] text-white hover:bg-[#1E3E62] transition-colors shadow-xs"
+              >
+                {message.action.label}
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={message.action.onClick}
+                className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#0B192C] text-white hover:bg-[#1E3E62] transition-colors shadow-xs"
+              >
+                {message.action.label}
+              </button>
+            )}
+          </div>
         )}
 
         <div
