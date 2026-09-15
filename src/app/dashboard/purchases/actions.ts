@@ -7,6 +7,7 @@ import { recalculateAllProductsByComponent } from "@/services/inventory/recalcul
 import { normalizeSku } from "@/services/products/sku/normalizeSku";
 import { revalidatePath } from "next/cache";
 import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
+import { accumulateFreightExpense, revertFreightExpense } from "@/services/finance/syncPurchaseFreight";
 
 /**
  * Obtiene todas las órdenes de compra del tenant.
@@ -192,9 +193,16 @@ export async function createManualPurchase(
     .update({ total_amount: finalTotalAmount })
     .eq("id", po.id);
 
+  // 9. Sincronizar Flete en Finanzas si corresponde
+  if (extraCosts > 0) {
+    await accumulateFreightExpense(supabase, tenantId, extraCosts);
+  }
+
   revalidatePath("/dashboard/purchases");
   revalidatePath("/dashboard/internal-stock");
   revalidatePath("/dashboard/products");
+  revalidatePath("/dashboard/accounting");
+  revalidatePath("/dashboard/finance");
 
   return { success: true, purchase_order_id: po.id };
 }
@@ -288,9 +296,16 @@ export async function voidPurchase(purchaseOrderId: string) {
     .eq("id", purchaseOrderId)
     .eq("tenant_id", tenantId);
 
+  // 7. Revertir Flete de finanzas si la orden tenía flete registrado
+  if (po.extra_costs && po.extra_costs > 0) {
+    await revertFreightExpense(supabase, tenantId, po.extra_costs, po.purchase_date || po.created_at);
+  }
+
   revalidatePath("/dashboard/purchases");
   revalidatePath("/dashboard/internal-stock");
   revalidatePath("/dashboard/products");
+  revalidatePath("/dashboard/accounting");
+  revalidatePath("/dashboard/finance");
 
   return { success: true };
 }

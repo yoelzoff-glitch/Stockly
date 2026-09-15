@@ -2,6 +2,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calculateAverageCost } from "@/services/inventory/calculateAverageCost";
 import { recalculateAllProductsByComponent } from "@/services/inventory/recalculateProductCostFromComponents";
+import { accumulateFreightExpense } from "@/services/finance/syncPurchaseFreight";
 
 /**
  * Ejecuta el registro definitivo de una compra interna confirmada.
@@ -155,11 +156,21 @@ export async function executeRegisterPurchase(tenantId: string, payload: any) {
   }
 
   // 8. Actualizar monto total en la Purchase Order cabecera
-  const finalTotalAmount = totalAmount + (payload.extra_costs || 0);
+  const extraCosts = Number(payload.extra_costs || 0);
+  const finalTotalAmount = totalAmount + extraCosts;
   await supabase
     .from("purchase_orders")
     .update({ total_amount: finalTotalAmount })
     .eq("id", po.id);
+
+  // 9. Sincronizar Flete en Finanzas si corresponde
+  if (extraCosts > 0) {
+    try {
+      await accumulateFreightExpense(supabase, tenantId, extraCosts);
+    } catch (freightErr: any) {
+      console.error("Error syncing freight to monthly expenses:", freightErr.message);
+    }
+  }
 
   return { success: true, purchase_order_id: po.id };
 }
