@@ -55,7 +55,7 @@ export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] 
   // Filtering
   const filteredPurchases = purchases.filter(p => {
     const supplierMatch = p.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase());
-    const skuMatch = p.purchase_order_items?.some((i: any) => i.sku_normalized.toLowerCase().includes(searchTerm.toLowerCase()));
+    const skuMatch = p.purchase_order_items?.some((i: any) => (i.sku_normalized || i.sku || "").toLowerCase().includes(searchTerm.toLowerCase()));
     const idMatch = p.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSearch = supplierMatch || skuMatch || idMatch;
 
@@ -311,14 +311,17 @@ export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] 
 
                   <td className="px-3 py-3">
                     <div className="flex flex-wrap gap-1 max-w-[280px]">
-                      {po.purchase_order_items?.map((item: any, idx: number) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-[#F5F3EE] border border-[#DCDAD4] text-[#101828]"
-                        >
-                          {item.sku_normalized}: {item.quantity_purchased} u.
-                        </span>
-                      ))}
+                      {po.purchase_order_items?.map((item: any, idx: number) => {
+                        const qty = item.quantity ?? item.quantity_purchased ?? 0;
+                        return (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-[#F5F3EE] border border-[#DCDAD4] text-[#101828]"
+                          >
+                            {item.sku_normalized || item.sku}: {qty} u.
+                          </span>
+                        );
+                      })}
                     </div>
                   </td>
 
@@ -404,16 +407,20 @@ export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E2E8F0]">
-                    {selectedPO.purchase_order_items?.map((it: any, i: number) => (
-                      <tr key={i}>
-                        <td className="px-3 py-2 font-mono font-medium text-[#101828]">{it.sku_normalized}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{it.quantity_purchased}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">${Number(it.unit_cost || 0).toLocaleString("es-AR")}</td>
-                        <td className="px-3 py-2 text-right font-semibold tabular-nums text-[#101828]">
-                          ${(it.quantity_purchased * (it.unit_cost || 0)).toLocaleString("es-AR")}
-                        </td>
-                      </tr>
-                    ))}
+                    {selectedPO.purchase_order_items?.map((it: any, i: number) => {
+                      const qty = it.quantity ?? it.quantity_purchased ?? 0;
+                      const subtotal = it.total_cost != null ? Number(it.total_cost) : (qty * Number(it.unit_cost || 0));
+                      return (
+                        <tr key={i}>
+                          <td className="px-3 py-2 font-mono font-medium text-[#101828]">{it.sku_normalized || it.sku}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{qty}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">${Number(it.unit_cost || 0).toLocaleString("es-AR")}</td>
+                          <td className="px-3 py-2 text-right font-semibold tabular-nums text-[#101828]">
+                            ${subtotal.toLocaleString("es-AR")}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
