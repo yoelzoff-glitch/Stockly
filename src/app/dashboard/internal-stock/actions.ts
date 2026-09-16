@@ -41,16 +41,34 @@ export async function getInventoryItems() {
   if (error) throw new Error(`Failed to fetch inventory: ${error.message}`);
   if (!items || items.length === 0) return [];
 
-  // Calculate aggregated sales velocity and restock recommendations
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  // Calculate aggregated sales velocity and restock recommendations across multiple periods
+  const now = new Date();
+  const nowMs = now.getTime();
+  const startOfCurrentMonthMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const thirtyDaysAgoMs = nowMs - 30 * 24 * 60 * 60 * 1000;
+  const sixtyDaysAgoMs = nowMs - 60 * 24 * 60 * 60 * 1000;
+  const ninetyDaysAgoMs = nowMs - 90 * 24 * 60 * 60 * 1000;
+  const ninetyDaysAgoIso = new Date(ninetyDaysAgoMs).toISOString();
+
   const { data: recentOrders } = await supabase
     .from("orders")
-    .select("id")
+    .select("id, date_created")
     .eq("tenant_id", profile.tenant_id)
-    .gt("date_created", thirtyDaysAgo);
+    .neq("status", "cancelled")
+    .gte("date_created", ninetyDaysAgoIso);
 
-  const orderIds = recentOrders?.map(o => o.id) || [];
-  let salesPerComponent: Record<string, number> = {};
+  const orderDateMap = new Map<string, number>();
+  (recentOrders || []).forEach(o => {
+    if (o.id && o.date_created) {
+      orderDateMap.set(o.id, new Date(o.date_created).getTime());
+    }
+  });
+
+  const orderIds = Array.from(orderDateMap.keys());
+  let salesCurrentMonth: Record<string, number> = {};
+  let salesLast30: Record<string, number> = {};
+  let salesLast60: Record<string, number> = {};
+  let salesLast90: Record<string, number> = {};
 
   // Map of inventory item SKU -> ID for quick fallback lookup
   const inventoryItemSkuMap = new Map<string, string>();
@@ -61,49 +79,77 @@ export async function getInventoryItems() {
   });
 
   if (orderIds.length > 0) {
-    const { data: orderItems } = await supabase
-      .from("order_items")
-      .select("product_id, quantity, sku")
-      .in("order_id", orderIds);
+    const chunkSize = 500;
+    let orderItems: any[] = [];
+    for (let i = 0; i < orderIds.length; i += chunkSize) {
+      const chunk = orderIds.slice(i, i + chunkSize);
+      const { data: chunkItems } = await supabase
+        .from("order_items")
+        .select("order_id, product_id, quantity, sku")
+        .in("order_id", chunk);
+      if (chunkItems) {
+        orderItems.push(...chunkItems);
+      }
+    }
 
     const productIds = Array.from(new Set(orderItems?.map(item => item.product_id).filter(Boolean))) as string[];
 
     // Load existing linkages
     const productComponentsMap = new Map<string, Array<{ inventory_item_id: string; quantity: number }>>();
     if (productIds.length > 0) {
-      const { data: productComponents } = await supabase
-        .from("product_components")
-        .select("product_id, inventory_item_id, quantity")
-        .in("product_id", productIds);
+      for (let i = 0; i < productIds.length; i += chunkSize) {
+        const prodChunk = productIds.slice(i, i + chunkSize);
+        const { data: productComponents } = await supabase
+          .from("product_components")
+          .select("product_id, inventory_item_id, quantity")
+          .in("product_id", prodChunk);
 
-      productComponents?.forEach(comp => {
-        if (comp.product_id && comp.inventory_item_id) {
-          const list = productComponentsMap.get(comp.product_id) || [];
-          list.push({
-            inventory_item_id: comp.inventory_item_id,
-            quantity: comp.quantity || 1
-          });
-          productComponentsMap.set(comp.product_id, list);
-        }
-      });
+        productComponents?.forEach(comp => {
+          if (comp.product_id && comp.inventory_item_id) {
+            const list = productComponentsMap.get(comp.product_id) || [];
+            list.push({
+              inventory_item_id: comp.inventory_item_id,
+              quantity: comp.quantity || 1
+            });
+            productComponentsMap.set(comp.product_id, list);
+          }
+        });
+      }
     }
 
     const { parseCompositeSku } = await import("@/services/products/sku/parseCompositeSku");
 
+    const recordComponentSales = (compItemId: string, qtyUsed: number, orderTime: number) => {
+      if (orderTime >= ninetyDaysAgoMs) {
+        salesLast90[compItemId] = (salesLast90[compItemId] || 0) + qtyUsed;
+      }
+      if (orderTime >= sixtyDaysAgoMs) {
+        salesLast60[compItemId] = (salesLast60[compItemId] || 0) + qtyUsed;
+      }
+      if (orderTime >= thirtyDaysAgoMs) {
+        salesLast30[compItemId] = (salesLast30[compItemId] || 0) + qtyUsed;
+      }
+      if (orderTime >= startOfCurrentMonthMs) {
+        salesCurrentMonth[compItemId] = (salesCurrentMonth[compItemId] || 0) + qtyUsed;
+      }
+    };
+
     orderItems?.forEach(item => {
+      const orderTime = item.order_id ? orderDateMap.get(item.order_id) : undefined;
+      if (!orderTime) return;
+
       let linkedComponents = item.product_id ? productComponentsMap.get(item.product_id) : undefined;
 
       if (linkedComponents && linkedComponents.length > 0) {
         // Use database linkages (primary source of truth)
         linkedComponents.forEach(comp => {
           const qtyUsed = (item.quantity || 1) * comp.quantity;
-          salesPerComponent[comp.inventory_item_id] = (salesPerComponent[comp.inventory_item_id] || 0) + qtyUsed;
+          recordComponentSales(comp.inventory_item_id, qtyUsed, orderTime);
         });
       } else if (item.sku) {
         // Fallback: Parse the composite SKU dynamically
         const parsed = parseCompositeSku(item.sku);
         if (parsed.components.length > 0) {
-          // Count occurrences of each component in the SKU
           const compCounts: Record<string, number> = {};
           parsed.components.forEach(comp => {
             compCounts[comp] = (compCounts[comp] || 0) + 1;
@@ -113,7 +159,7 @@ export async function getInventoryItems() {
             const itemId = inventoryItemSkuMap.get(comp);
             if (itemId) {
               const qtyUsed = (item.quantity || 1) * qty;
-              salesPerComponent[itemId] = (salesPerComponent[itemId] || 0) + qtyUsed;
+              recordComponentSales(itemId, qtyUsed, orderTime);
             }
           }
         }
@@ -194,8 +240,8 @@ export async function getInventoryItems() {
 
   // Enhance items with calculations
   const enhancedItems = items.map(item => {
-    const salesLast30 = salesPerComponent[item.id] || 0;
-    const targetStock = Math.ceil(salesLast30 * 1.2); // 30 days + 20% safety
+    const s30 = salesLast30[item.id] || 0;
+    const targetStock = Math.ceil(s30 * 1.2); // 30 days + 20% safety
     const stock = item.current_stock || 0;
     const fullStock = fullStockByCompId[item.id] || (item.sku_normalized ? fullStockByCompSku[normalizeSku(item.sku_normalized)] : 0) || 0;
     const totalStock = stock;
@@ -207,8 +253,11 @@ export async function getInventoryItems() {
       local_stock: stock,
       full_stock: fullStock,
       total_stock: totalStock,
-      sales_last_30_days: salesLast30,
-      recommended_restock: salesLast30 > 0 ? recommended_restock : 0
+      sales_current_month: salesCurrentMonth[item.id] || 0,
+      sales_last_30_days: s30,
+      sales_last_60_days: salesLast60[item.id] || 0,
+      sales_last_90_days: salesLast90[item.id] || 0,
+      recommended_restock: s30 > 0 ? recommended_restock : 0
     };
   });
 

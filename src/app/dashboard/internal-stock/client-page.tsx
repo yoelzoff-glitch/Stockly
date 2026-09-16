@@ -65,8 +65,16 @@ export function InternalStockClient({
   const [activeTab, setActiveTab] = useState<"local" | "full">("local");
   const [searchTerm, setSearchTerm] = useState("");
   const [stockFilter, setStockFilter] = useState("all");
+  const [salesPeriod, setSalesPeriod] = useState<"current_month" | "30d" | "60d" | "90d">("30d");
   const [fullFilter, setFullFilter] = useState<"all" | "critical" | "high" | "ok" | "has_internal">("all");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const periodLabels: Record<string, string> = {
+    current_month: "Mes actual",
+    "30d": "Últimos 30 días",
+    "60d": "Últimos 60 días",
+    "90d": "Últimos 90 días"
+  };
 
   // FULL Data
   const fullProducts = initialFullData?.fullProducts || [];
@@ -308,6 +316,10 @@ export function InternalStockClient({
         "Stock Total": totalStock,
         "Stock Local (Taller)": localStock,
         "Stock Bodega FULL": fullStock,
+        "Vendidos (Mes Actual)": item.sales_current_month || 0,
+        "Vendidos (Ultimos 30d)": item.sales_last_30_days || 0,
+        "Vendidos (Ultimos 60d)": item.sales_last_60_days || 0,
+        "Vendidos (Ultimos 90d)": item.sales_last_90_days || 0,
         "Stock Minimo": item.minimum_stock || 0,
         "Costo Promedio": avgCost,
         "Valuacion Total": totalStock * avgCost
@@ -515,20 +527,36 @@ export function InternalStockClient({
       <OperationalToolbar>
         <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           {activeTab === "local" && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875]">Filtro de stock:</span>
-              <select
-                value={stockFilter}
-                onChange={(e) => setStockFilter(e.target.value)}
-                className="h-8 rounded-md border border-[#DCDAD4] bg-white px-2.5 text-xs text-[#101828] font-medium shadow-none focus:outline-none focus:ring-1 focus:ring-[#102A56]"
-              >
-                <option value="all">Todos los componentes</option>
-                <option value="has_full">Con stock en Bodega FULL</option>
-                <option value="out_local">Sin stock físico en taller</option>
-                <option value="out">Sin stock total (Agotados)</option>
-                <option value="low">Bajo stock mínimo</option>
-              </select>
-            </div>
+            <>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875]">Filtro de stock:</span>
+                <select
+                  value={stockFilter}
+                  onChange={(e) => setStockFilter(e.target.value)}
+                  className="h-8 rounded-md border border-[#DCDAD4] bg-white px-2.5 text-xs text-[#101828] font-medium shadow-none focus:outline-none focus:ring-1 focus:ring-[#102A56]"
+                >
+                  <option value="all">Todos los componentes</option>
+                  <option value="has_full">Con stock en Bodega FULL</option>
+                  <option value="out_local">Sin stock físico en taller</option>
+                  <option value="out">Sin stock total (Agotados)</option>
+                  <option value="low">Bajo stock mínimo</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875]">Período ventas:</span>
+                <select
+                  value={salesPeriod}
+                  onChange={(e: any) => setSalesPeriod(e.target.value)}
+                  className="h-8 rounded-md border border-[#DCDAD4] bg-white px-2.5 text-xs text-[#101828] font-medium shadow-none focus:outline-none focus:ring-1 focus:ring-[#102A56]"
+                >
+                  <option value="current_month">Mes actual</option>
+                  <option value="30d">Últimos 30 días</option>
+                  <option value="60d">Últimos 60 días</option>
+                  <option value="90d">Últimos 90 días</option>
+                </select>
+              </div>
+            </>
           )}
 
           {activeTab === "full" && (
@@ -578,6 +606,12 @@ export function InternalStockClient({
                 <th className="px-4 py-3 font-semibold">SKU / Identificador</th>
                 <th className="px-3 py-3 font-semibold">Nombre del Componente</th>
                 <th className="px-3 py-3 font-semibold text-center">Stock</th>
+                <th className="px-3 py-3 font-semibold text-center">
+                  <span>Vendidos</span>
+                  <span className="block text-[9px] font-normal text-[#5F6875] lowercase tracking-normal">
+                    ({periodLabels[salesPeriod]})
+                  </span>
+                </th>
                 <th className="px-3 py-3 font-semibold text-center">Punto Reposición</th>
                 <th className="px-3 py-3 font-semibold text-right">Costo Promedio</th>
                 <th className="px-3 py-3 font-semibold text-right">Valuación Total</th>
@@ -591,6 +625,12 @@ export function InternalStockClient({
                 const isOut = totalStock <= 0;
                 const isLow = item.minimum_stock && totalStock < item.minimum_stock;
                 const valuation = totalStock * (item.average_cost || 0);
+
+                const soldUnits =
+                  salesPeriod === "current_month" ? (item.sales_current_month || 0) :
+                  salesPeriod === "60d" ? (item.sales_last_60_days || 0) :
+                  salesPeriod === "90d" ? (item.sales_last_90_days || 0) :
+                  (item.sales_last_30_days || 0);
 
                 return (
                   <tr key={item.id} className="hover:bg-[#F5F3EE]/30 transition-colors">
@@ -628,6 +668,16 @@ export function InternalStockClient({
                           </span>
                         )}
                       </div>
+                    </td>
+
+                    <td className="px-3 py-3 text-center">
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold tabular-nums bg-[#F5F3EE] text-[#102A56] border border-[#DCDAD4]"
+                        style={{ fontVariantNumeric: "tabular-nums" }}
+                        title={`${soldUnits} unidades vendidas en ${periodLabels[salesPeriod]}`}
+                      >
+                        {soldUnits} u.
+                      </span>
                     </td>
 
                     <td className="px-3 py-3 text-center text-[#5F6875] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>

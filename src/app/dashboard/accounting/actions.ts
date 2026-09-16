@@ -80,6 +80,7 @@ export async function createMonthlyExpense(expense: {
   percentage?: number;
   target_month?: string | null;
   start_month?: string | null;
+  end_month?: string | null;
   is_daily?: boolean;
   has_iva?: boolean;
 }) {
@@ -99,8 +100,14 @@ export async function createMonthlyExpense(expense: {
       is_active: true
     };
 
-    if (expense.type !== "fixed_one_off") {
-      payload.start_month = expense.start_month || `${new Date().toISOString().substring(0, 7)}-01`;
+    if (expense.start_month) {
+      payload.start_month = expense.start_month;
+    } else if (expense.type !== "fixed_one_off") {
+      payload.start_month = `${new Date().toISOString().substring(0, 7)}-01`;
+    }
+
+    if (expense.end_month) {
+      payload.end_month = expense.end_month;
     }
 
     const { data, error } = await supabase
@@ -171,8 +178,6 @@ export async function updateMonthlyExpense(
         payload.target_month = null;
       } else if (updates.type === "fixed_one_off") {
         payload.percentage = 0;
-        payload.start_month = null;
-        payload.end_month = null;
       }
     }
 
@@ -277,6 +282,144 @@ export async function updateMonthlyExpenseWithHistory(
     return { success: true, data: newExpense };
   } catch (err: any) {
     console.error("Error updating expense with history:", err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Actualiza un gasto diario dividiéndolo a partir de una fecha de vigencia específica.
+ * El gasto original finaliza el día anterior a effectiveDate (preservando los días transcurridos a su tarifa anterior),
+ * y se crea un nuevo gasto con la nueva tarifa a partir de effectiveDate.
+ */
+export async function updateDailyExpenseWithSplit(
+  id: string,
+  updates: {
+    name?: string;
+    type?: "fixed_recurring" | "fixed_one_off" | "percent_variable";
+    amount: number;
+    has_iva?: boolean;
+    is_daily?: boolean;
+  },
+  effectiveDate: string // YYYY-MM-DD
+) {
+  const supabase = await createClient();
+  try {
+    const tenantId = await getTenantId(supabase, true);
+
+    // 1. Obtener el gasto original
+    const { data: original, error: fetchErr } = await supabase
+      .from("monthly_expenses")
+      .select("*")
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (fetchErr || !original) {
+      throw new Error("No se encontró el gasto original");
+    }
+
+    // Calcular el día anterior para cerrar el gasto original
+    const effDate = new Date(effectiveDate + "T12:00:00Z");
+    effDate.setUTCDate(effDate.getUTCDate() - 1);
+    const prevDateStr = effDate.toISOString().substring(0, 10); // YYYY-MM-DD
+
+    // Determinar start_month del gasto original si no lo tenía
+    const originalStart = original.start_month || original.target_month || (original.created_at ? original.created_at.substring(0, 10) : `${effectiveDate.substring(0, 7)}-01`);
+
+    // 2. Finalizar el gasto original el día anterior
+    const { error: updateErr } = await supabase
+      .from("monthly_expenses")
+      .update({
+        name: updates.name !== undefined ? updates.name : original.name,
+        start_month: originalStart,
+        end_month: prevDateStr,
+        is_active: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", id)
+      .eq("tenant_id", tenantId);
+
+    if (updateErr) {
+      throw new Error("Error al finalizar el gasto anterior: " + updateErr.message);
+    }
+
+    // 3. Crear el nuevo gasto a partir de effectiveDate
+    const newPayload: any = {
+      tenant_id: tenantId,
+      name: updates.name !== undefined ? updates.name : original.name,
+      type: original.type,
+      amount: updates.amount,
+      percentage: 0,
+      is_daily: updates.is_daily !== undefined ? updates.is_daily : original.is_daily,
+      has_iva: updates.has_iva !== undefined ? updates.has_iva : original.has_iva,
+      target_month: original.type === "fixed_one_off" ? (original.target_month || `${effectiveDate.substring(0, 7)}-01`) : null,
+      start_month: effectiveDate,
+      end_month: null,
+      is_active: true
+    };
+
+    const { data: newExpense, error: insertErr } = await supabase
+      .from("monthly_expenses")
+      .insert([newPayload])
+      .select()
+      .single();
+
+    if (insertErr) {
+      throw new Error("Error al crear el nuevo gasto: " + insertErr.message);
+    }
+
+    revalidatePath("/dashboard/accounting");
+    revalidatePath("/dashboard/finance");
+    return { success: true, data: newExpense };
+  } catch (err: any) {
+    console.error("Error updating daily expense with split:", err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Finaliza un gasto fijando su fecha de corte exacta y marcándolo inactivo.
+ */
+export async function finalizeMonthlyExpense(id: string, endDate: string) {
+  const supabase = await createClient();
+  try {
+    const tenantId = await getTenantId(supabase, true);
+
+    const { data: original, error: fetchErr } = await supabase
+      .from("monthly_expenses")
+      .select("*")
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (fetchErr || !original) {
+      throw new Error("No se encontró el gasto");
+    }
+
+    const startMonth = original.start_month || original.target_month || (original.created_at ? original.created_at.substring(0, 10) : `${endDate.substring(0, 7)}-01`);
+
+    const { data, error } = await supabase
+      .from("monthly_expenses")
+      .update({
+        start_month: startMonth,
+        end_month: endDate,
+        is_active: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", id)
+      .eq("tenant_id", tenantId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath("/dashboard/accounting");
+    revalidatePath("/dashboard/finance");
+    return { success: true, data };
+  } catch (err: any) {
+    console.error("Error finalizing expense:", err.message);
     return { success: false, error: err.message };
   }
 }

@@ -577,7 +577,7 @@ export async function getFinancialData(
           // Check if this expense is valid/active for month `m.key`
           let isValidForMonth = false;
           if (e.type === "fixed_one_off") {
-            if (e.target_month && e.target_month.substring(0, 7) === m.key && e.is_active) {
+            if (e.target_month && e.target_month.substring(0, 7) === m.key && (e.is_active || e.end_month)) {
               isValidForMonth = true;
             }
           } else {
@@ -602,16 +602,44 @@ export async function getFinancialData(
           if (!isValidForMonth) return;
 
           if (e.is_daily) {
-            if (disableProration) {
-              let daysToCount = m.daysInMonth;
-              if (m.key === tenantCurrentMonthStr) {
-                daysToCount = Math.min(tenantCurrentDay, m.daysInMonth);
-              } else if (m.key > tenantCurrentMonthStr) {
-                daysToCount = 0;
+            const daysInMonth = m.daysInMonth;
+            let expenseStartDay = 1;
+            let expenseEndDay = daysInMonth;
+
+            if (e.start_month) {
+              const sMonth = e.start_month.substring(0, 7);
+              if (sMonth === m.key) {
+                expenseStartDay = parseInt(e.start_month.substring(8, 10), 10) || 1;
+              } else if (sMonth > m.key) {
+                expenseStartDay = daysInMonth + 1;
               }
+            }
+            if (e.end_month) {
+              const eMonth = e.end_month.substring(0, 7);
+              if (eMonth === m.key) {
+                expenseEndDay = parseInt(e.end_month.substring(8, 10), 10) || daysInMonth;
+              } else if (eMonth < m.key) {
+                expenseEndDay = 0;
+              }
+            }
+
+            if (disableProration) {
+              let maxDayToCount = daysInMonth;
+              if (m.key === tenantCurrentMonthStr) {
+                maxDayToCount = Math.min(tenantCurrentDay, daysInMonth);
+              } else if (m.key > tenantCurrentMonthStr) {
+                maxDayToCount = 0;
+              }
+              const actualStart = Math.max(1, expenseStartDay);
+              const actualEnd = Math.min(maxDayToCount, expenseEndDay);
+              const daysToCount = actualEnd >= actualStart ? (actualEnd - actualStart + 1) : 0;
               appliedAmount = Number(e.amount) * daysToCount;
             } else {
-              appliedAmount = Number(e.amount) * m.daysInRange;
+              const actualStart = Math.max(1, expenseStartDay);
+              const actualEnd = Math.min(daysInMonth, expenseEndDay);
+              const expenseActiveDays = actualEnd >= actualStart ? (actualEnd - actualStart + 1) : 0;
+              const ratio = daysInMonth > 0 ? (expenseActiveDays / daysInMonth) : 0;
+              appliedAmount = Number(e.amount) * (m.daysInRange * ratio);
             }
           } else if (e.type === "fixed_recurring") {
             appliedAmount = Number(e.amount) * (disableProration ? 1 : m.proration);

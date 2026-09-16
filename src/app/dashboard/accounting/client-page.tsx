@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Edit3, Trash2, Download, Calendar, RefreshCw } from "lucide-react";
+import { Plus, Edit3, Trash2, Download, Calendar, RefreshCw, Clock, AlertCircle } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { OperationalPageHeader } from "@/components/operational/page-header";
 import { MetricStrip, MetricItem } from "@/components/operational/metric-strip";
@@ -19,6 +19,8 @@ import {
   updateMonthlyExpense,
   deleteMonthlyExpense,
   updateMonthlyExpenseWithHistory,
+  updateDailyExpenseWithSplit,
+  finalizeMonthlyExpense,
   MonthlyExpense
 } from "./actions";
 
@@ -44,6 +46,17 @@ export function AccountingClient({
     setExpenses(initialExpenses);
   }, [initialExpenses]);
 
+  // Fechas de referencia para cálculos y cortes
+  const now = new Date();
+  const todayYear = now.getFullYear();
+  const todayMonth = now.getMonth() + 1;
+  const todayDay = now.getDate();
+  const todayStr = `${todayYear}-${String(todayMonth).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}`;
+
+  const yesterdayDate = new Date(now);
+  yesterdayDate.setDate(now.getDate() - 1);
+  const yesterdayStr = `${yesterdayDate.getFullYear()}-${String(yesterdayDate.getMonth() + 1).padStart(2, '0')}-${String(yesterdayDate.getDate()).padStart(2, '0')}`;
+
   // Create Modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -51,6 +64,8 @@ export function AccountingClient({
   const [newAmount, setNewAmount] = useState("");
   const [newPercentage, setNewPercentage] = useState("");
   const [newTargetMonth, setNewTargetMonth] = useState(currentMonthStr);
+  const [newStartDate, setNewStartDate] = useState(`${currentMonthStr}-01`);
+  const [newEndDate, setNewEndDate] = useState("");
   const [newIsDaily, setNewIsDaily] = useState(false);
   const [newHasIva, setNewHasIva] = useState(false);
 
@@ -61,12 +76,22 @@ export function AccountingClient({
   const [editAmount, setEditAmount] = useState("");
   const [editPercentage, setEditPercentage] = useState("");
   const [editTargetMonth, setEditTargetMonth] = useState("");
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editEndDate, setEditEndDate] = useState("");
   const [editIsDaily, setEditIsDaily] = useState(false);
   const [editHasIva, setEditHasIva] = useState(false);
   const [editMode, setEditMode] = useState<"history" | "global">("history");
+  const [dailySplitMode, setDailySplitMode] = useState<"from_today" | "custom_date" | "all_month">("from_today");
+  const [dailySplitCustomDate, setDailySplitCustomDate] = useState("");
+
+  // Finalize Modal state
+  const [finalizingExpense, setFinalizingExpense] = useState<MonthlyExpense | null>(null);
+  const [finalizeDateMode, setFinalizeDateMode] = useState<"yesterday" | "today" | "custom">("yesterday");
+  const [finalizeCustomDate, setFinalizeCustomDate] = useState("");
 
   useEffect(() => {
     setNewTargetMonth(currentMonthStr);
+    setNewStartDate(`${currentMonthStr}-01`);
   }, [currentMonthStr]);
 
   const handleMonthChange = (newMonth: string) => {
@@ -87,22 +112,36 @@ export function AccountingClient({
 
     const [year, month] = monthStr.split("-").map(Number);
     const daysInMonth = new Date(year, month, 0).getDate();
-
-    const now = new Date();
-    const todayYear = now.getFullYear();
-    const todayMonth = now.getMonth() + 1;
-    const todayDay = now.getDate();
     const todayMonthStr = `${todayYear}-${String(todayMonth).padStart(2, '0')}`;
 
-    let elapsedDays = daysInMonth;
-    let isCurrentMonth = false;
+    let expenseStartDay = 1;
+    let expenseEndDay = daysInMonth;
 
-    if (monthStr === todayMonthStr) {
-      elapsedDays = Math.min(todayDay, daysInMonth);
-      isCurrentMonth = true;
-    } else if (monthStr > todayMonthStr) {
-      elapsedDays = 0;
+    if (expense.start_month) {
+      const sMonth = expense.start_month.substring(0, 7);
+      if (sMonth === monthStr) {
+        expenseStartDay = parseInt(expense.start_month.substring(8, 10), 10) || 1;
+      } else if (sMonth > monthStr) {
+        expenseStartDay = daysInMonth + 1;
+      }
     }
+    if (expense.end_month) {
+      const eMonth = expense.end_month.substring(0, 7);
+      if (eMonth === monthStr) {
+        expenseEndDay = parseInt(expense.end_month.substring(8, 10), 10) || daysInMonth;
+      } else if (eMonth < monthStr) {
+        expenseEndDay = 0;
+      }
+    }
+
+    const isCurrentMonth = monthStr === todayMonthStr;
+    const maxDayToCount = isCurrentMonth
+      ? Math.min(todayDay, daysInMonth)
+      : (monthStr > todayMonthStr ? 0 : daysInMonth);
+
+    const actualStart = Math.max(1, expenseStartDay);
+    const actualEnd = Math.min(maxDayToCount, expenseEndDay);
+    const elapsedDays = actualEnd >= actualStart ? (actualEnd - actualStart + 1) : 0;
 
     const subtotal = baseAmount * elapsedDays;
     const finalAmount = expense.has_iva ? subtotal * 1.21 : subtotal;
@@ -113,7 +152,10 @@ export function AccountingClient({
     if (!e.is_active && !e.end_month) return false;
 
     if (e.type === "fixed_one_off") {
-      return e.target_month && e.target_month.startsWith(currentMonthStr);
+      const matchTarget = e.target_month && e.target_month.startsWith(currentMonthStr);
+      const matchDates = (e.start_month && e.start_month.startsWith(currentMonthStr)) ||
+                         (e.end_month && e.end_month.startsWith(currentMonthStr));
+      return matchTarget || matchDates;
     } else {
       const startMonthStr = e.start_month ? e.start_month.substring(0, 7) : null;
       const endMonthStr = e.end_month ? e.end_month.substring(0, 7) : null;
@@ -137,8 +179,11 @@ export function AccountingClient({
 
   const totalTemporalThisMonth = activeExpenses
     .filter(e => {
-      if (e.type !== "fixed_one_off" || !e.target_month) return false;
-      return e.target_month.startsWith(currentMonthStr);
+      if (e.type !== "fixed_one_off") return false;
+      const matchTarget = e.target_month && e.target_month.startsWith(currentMonthStr);
+      const matchDates = (e.start_month && e.start_month.startsWith(currentMonthStr)) ||
+                         (e.end_month && e.end_month.startsWith(currentMonthStr));
+      return matchTarget || matchDates;
     })
     .reduce((sum, e) => sum + getExpenseCalculatedInfo(e, currentMonthStr).totalAmount, 0);
 
@@ -153,7 +198,8 @@ export function AccountingClient({
 
     try {
       const formattedMonth = newType === "fixed_one_off" ? `${newTargetMonth}-01` : null;
-      const startMonth = newType !== "fixed_one_off" ? `${currentMonthStr}-01` : null;
+      const startMonth = newIsDaily ? (newStartDate || formattedMonth) : (newType !== "fixed_one_off" ? `${currentMonthStr}-01` : formattedMonth);
+      const endMonth = newIsDaily && newEndDate ? newEndDate : null;
 
       const res = await createMonthlyExpense({
         name: newName.trim(),
@@ -162,6 +208,7 @@ export function AccountingClient({
         percentage: newType === "percent_variable" ? parseFloat(newPercentage) || 0 : 0,
         target_month: formattedMonth,
         start_month: startMonth,
+        end_month: endMonth,
         is_daily: newType !== "percent_variable" ? newIsDaily : false,
         has_iva: newType !== "percent_variable" ? newHasIva : false
       });
@@ -175,6 +222,8 @@ export function AccountingClient({
         setNewPercentage("");
         setNewIsDaily(false);
         setNewHasIva(false);
+        setNewStartDate(`${currentMonthStr}-01`);
+        setNewEndDate("");
         router.refresh();
       } else {
         alert("Error creando gasto: " + res.error);
@@ -195,6 +244,10 @@ export function AccountingClient({
     setEditIsDaily(!!expense.is_daily);
     setEditHasIva(!!expense.has_iva);
     setEditMode("history");
+    setEditStartDate(expense.start_month || (expense.target_month ? `${expense.target_month.substring(0, 7)}-01` : `${currentMonthStr}-01`));
+    setEditEndDate(expense.end_month || "");
+    setDailySplitMode("from_today");
+    setDailySplitCustomDate(todayStr);
 
     if (expense.target_month) {
       setEditTargetMonth(expense.target_month.substring(0, 7));
@@ -210,18 +263,38 @@ export function AccountingClient({
 
     try {
       const formattedMonth = editType === "fixed_one_off" ? `${editTargetMonth}-01` : null;
+      const amountNum = editType === "percent_variable" ? 0 : parseFloat(editAmount) || 0;
 
       let res;
-      if (editType !== "fixed_one_off" && editMode === "history") {
+      // Caso 1: Gasto diario donde se modificó el monto y se eligió corte a partir de hoy o fecha específica
+      if (
+        editingExpense.is_daily &&
+        editIsDaily &&
+        amountNum !== Number(editingExpense.amount) &&
+        (dailySplitMode === "from_today" || dailySplitMode === "custom_date")
+      ) {
+        const effectiveDate = dailySplitMode === "from_today" ? todayStr : (dailySplitCustomDate || todayStr);
+        res = await updateDailyExpenseWithSplit(
+          editingExpense.id,
+          {
+            name: editName.trim(),
+            type: editType,
+            amount: amountNum,
+            has_iva: editHasIva,
+            is_daily: true
+          },
+          effectiveDate
+        );
+      } else if (editType !== "fixed_one_off" && editMode === "history" && !editIsDaily) {
         res = await updateMonthlyExpenseWithHistory(
           editingExpense.id,
           {
             name: editName.trim(),
             type: editType,
-            amount: editType === "percent_variable" ? 0 : parseFloat(editAmount) || 0,
+            amount: amountNum,
             percentage: editType === "percent_variable" ? parseFloat(editPercentage) || 0 : 0,
-            is_daily: editType !== "percent_variable" ? editIsDaily : false,
-            has_iva: editType !== "percent_variable" ? editHasIva : false
+            is_daily: false,
+            has_iva: editHasIva
           },
           currentMonthStr
         );
@@ -229,9 +302,11 @@ export function AccountingClient({
         res = await updateMonthlyExpense(editingExpense.id, {
           name: editName.trim(),
           type: editType,
-          amount: editType === "percent_variable" ? 0 : parseFloat(editAmount) || 0,
+          amount: amountNum,
           percentage: editType === "percent_variable" ? parseFloat(editPercentage) || 0 : 0,
           target_month: formattedMonth,
+          start_month: editStartDate || null,
+          end_month: editEndDate || null,
           is_daily: editType !== "percent_variable" ? editIsDaily : false,
           has_iva: editType !== "percent_variable" ? editHasIva : false
         });
@@ -248,6 +323,79 @@ export function AccountingClient({
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleOpenFinalize = (expense: MonthlyExpense) => {
+    setFinalizingExpense(expense);
+    setFinalizeDateMode("yesterday");
+    setFinalizeCustomDate(todayStr);
+  };
+
+  const handleConfirmFinalize = async () => {
+    if (!finalizingExpense) return;
+    setIsProcessing(true);
+    try {
+      const targetDate = finalizeDateMode === "yesterday"
+        ? yesterdayStr
+        : finalizeDateMode === "today"
+        ? todayStr
+        : finalizeCustomDate || todayStr;
+
+      const res = await finalizeMonthlyExpense(finalizingExpense.id, targetDate);
+      if (res.success) {
+        setFinalizingExpense(null);
+        router.refresh();
+      } else {
+        alert("Error finalizando gasto: " + res.error);
+      }
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const formatExpenseVigencia = (expense: MonthlyExpense) => {
+    if (expense.start_month && expense.end_month && expense.start_month.substring(0, 7) === expense.end_month.substring(0, 7)) {
+      const d1 = parseInt(expense.start_month.substring(8, 10), 10);
+      const d2 = parseInt(expense.end_month.substring(8, 10), 10);
+      return `${d1} al ${d2} ${formatTargetMonth(expense.start_month)}`;
+    }
+    if (expense.type === "fixed_one_off") {
+      if (expense.start_month && parseInt(expense.start_month.substring(8, 10), 10) > 1) {
+        const d1 = parseInt(expense.start_month.substring(8, 10), 10);
+        return `Desde ${d1} ${formatTargetMonth(expense.start_month)}`;
+      }
+      if (expense.end_month) {
+        const d2 = parseInt(expense.end_month.substring(8, 10), 10);
+        return `Hasta ${d2} ${formatTargetMonth(expense.end_month)}`;
+      }
+      return formatTargetMonth(expense.target_month || currentMonthStr);
+    } else {
+      const sDay = expense.start_month ? parseInt(expense.start_month.substring(8, 10), 10) : 1;
+      const eDay = expense.end_month ? parseInt(expense.end_month.substring(8, 10), 10) : null;
+      const startText = expense.start_month ? `Desde: ${sDay > 1 ? `${sDay} ` : ""}${formatTargetMonth(expense.start_month)}` : "Desde: Inicial";
+      const endText = expense.end_month ? `Hasta: ${eDay && eDay < 28 ? `${eDay} ` : ""}${formatTargetMonth(expense.end_month)}` : "Indefinido";
+      return (
+        <div>
+          <div>{startText}</div>
+          <div className={expense.end_month ? "text-[#D92D20]" : "text-[#5F6875]"}>{endText}</div>
+        </div>
+      );
+    }
+  };
+
+  const getExpenseStatus = (expense: MonthlyExpense) => {
+    if (!expense.is_active && expense.end_month) {
+      return { label: "Finalizado", variant: "neutral" as const };
+    }
+    if (!expense.is_active) {
+      return { label: "Pausado", variant: "neutral" as const };
+    }
+    if (expense.end_month && expense.end_month < todayStr) {
+      return { label: "Finalizado", variant: "neutral" as const };
+    }
+    return { label: "Activo", variant: "success" as const };
   };
 
   const handleToggleActive = async (expense: MonthlyExpense) => {
@@ -526,34 +674,39 @@ export function AccountingClient({
                             )}
                           </td>
                           <td className="px-3 py-2.5 text-[#5F6875] text-[11px]">
-                            {expense.type === "fixed_one_off" ? (
-                              formatTargetMonth(expense.target_month)
-                            ) : (
-                              <div>
-                                {expense.start_month && (
-                                  <div>Desde: {formatTargetMonth(expense.start_month)}</div>
-                                )}
-                                {expense.end_month ? (
-                                  <div className="text-[#D92D20]">Hasta: {formatTargetMonth(expense.end_month)}</div>
-                                ) : (
-                                  <div className="text-[#5F6875]">Indefinido</div>
-                                )}
-                              </div>
-                            )}
+                            {formatExpenseVigencia(expense)}
                           </td>
                           <td className="px-3 py-2.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleActive(expense)}
-                              className="focus:outline-none"
-                              title="Haz clic para alternar estado"
-                            >
-                              <StatusBadge variant={expense.is_active ? "success" : "neutral"}>
-                                {expense.is_active ? "Activo" : "Pausado"}
-                              </StatusBadge>
-                            </button>
+                            {(() => {
+                              const status = getExpenseStatus(expense);
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleActive(expense)}
+                                  className="focus:outline-none"
+                                  title="Haz clic para alternar estado"
+                                >
+                                  <StatusBadge variant={status.variant}>
+                                    {status.label}
+                                  </StatusBadge>
+                                </button>
+                              );
+                            })()}
                           </td>
                           <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                            {expense.is_active && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenFinalize(expense)}
+                                disabled={isProcessing}
+                                className="h-7 px-2 text-xs font-medium text-[#B54708] hover:bg-[#FFFAEB]"
+                                title="Finalizar vigencia de este gasto"
+                              >
+                                <Clock className="w-3.5 h-3.5 mr-1" />
+                                Finalizar
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -730,6 +883,31 @@ export function AccountingClient({
                     <span>Adicionar 21% de IVA sobre el valor base</span>
                   </label>
                 </div>
+
+                {newIsDaily && (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-[#101828]">Vigencia desde</Label>
+                      <Input
+                        type="date"
+                        value={newStartDate}
+                        onChange={(e) => setNewStartDate(e.target.value)}
+                        required
+                        className="h-8 border-[#DCDAD4] text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-[#101828]">Vigencia hasta (opcional)</Label>
+                      <Input
+                        type="date"
+                        value={newEndDate}
+                        onChange={(e) => setNewEndDate(e.target.value)}
+                        placeholder="Indefinido"
+                        className="h-8 border-[#DCDAD4] text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <div className="space-y-1">
@@ -844,6 +1022,99 @@ export function AccountingClient({
                       <span>+21% de IVA</span>
                     </label>
                   </div>
+
+                  {/* Banner de cambio de presupuesto diario */}
+                  {editingExpense.is_daily && editIsDaily && parseFloat(editAmount) !== Number(editingExpense.amount) && (
+                    <div className="p-3 bg-[#F0F9FF] border border-[#B9E6FE] rounded-md space-y-2.5">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-[#026AA2]">
+                        <AlertCircle className="w-4 h-4 text-[#026AA2]" />
+                        <span>Actualización de Presupuesto Diario</span>
+                      </div>
+                      <p className="text-[11px] text-[#026AA2] leading-relaxed">
+                        Estás modificando el valor diario de <strong>${Number(editingExpense.amount).toLocaleString("es-AR")}/día</strong> a <strong>${(parseFloat(editAmount) || 0).toLocaleString("es-AR")}/día</strong>.
+                      </p>
+                      <div className="space-y-2 pt-1">
+                        <label className="flex items-start gap-2 cursor-pointer text-[11px] text-[#101828]">
+                          <input
+                            type="radio"
+                            name="dailySplitMode"
+                            value="from_today"
+                            checked={dailySplitMode === "from_today"}
+                            onChange={() => setDailySplitMode("from_today")}
+                            className="mt-0.5 text-[#102A56]"
+                          />
+                          <div>
+                            <span className="font-semibold text-[#101828]">A partir de hoy ({todayDay} de {formatTargetMonth(currentMonthStr)}) <span className="text-[#026AA2] font-semibold">[Recomendado]</span></span>
+                            <p className="text-[#5F6875] text-[10px]">
+                              Preserva lo gastado hasta ayer ({yesterdayDate.getDate()} de {formatTargetMonth(currentMonthStr)}) a ${Number(editingExpense.amount).toLocaleString("es-AR")}/día y suma ${(parseFloat(editAmount) || 0).toLocaleString("es-AR")}/día desde hoy.
+                            </p>
+                          </div>
+                        </label>
+
+                        <label className="flex items-start gap-2 cursor-pointer text-[11px] text-[#101828]">
+                          <input
+                            type="radio"
+                            name="dailySplitMode"
+                            value="custom_date"
+                            checked={dailySplitMode === "custom_date"}
+                            onChange={() => setDailySplitMode("custom_date")}
+                            className="mt-0.5 text-[#102A56]"
+                          />
+                          <div className="space-y-1">
+                            <span className="font-semibold text-[#101828]">A partir de una fecha específica:</span>
+                            {dailySplitMode === "custom_date" && (
+                              <Input
+                                type="date"
+                                value={dailySplitCustomDate}
+                                onChange={(e) => setDailySplitCustomDate(e.target.value)}
+                                className="h-7 text-xs w-40 border-[#DCDAD4] mt-1"
+                              />
+                            )}
+                          </div>
+                        </label>
+
+                        <label className="flex items-start gap-2 cursor-pointer text-[11px] text-[#101828]">
+                          <input
+                            type="radio"
+                            name="dailySplitMode"
+                            value="all_month"
+                            checked={dailySplitMode === "all_month"}
+                            onChange={() => setDailySplitMode("all_month")}
+                            className="mt-0.5 text-[#102A56]"
+                          />
+                          <div>
+                            <span className="font-semibold text-[#101828]">Todo el mes retroactivamente</span>
+                            <p className="text-[#5F6875] text-[10px]">
+                              Recalcula todo el mes con el nuevo valor (${(parseFloat(editAmount) || 0).toLocaleString("es-AR")}/día).
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Configuración de fechas de vigencia */}
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-[#101828]">Vigencia desde</Label>
+                      <Input
+                        type="date"
+                        value={editStartDate}
+                        onChange={(e) => setEditStartDate(e.target.value)}
+                        className="h-8 border-[#DCDAD4] text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-[#101828]">Vigencia hasta (opcional)</Label>
+                      <Input
+                        type="date"
+                        value={editEndDate}
+                        onChange={(e) => setEditEndDate(e.target.value)}
+                        placeholder="Indefinido"
+                        className="h-8 border-[#DCDAD4] text-xs"
+                      />
+                    </div>
+                  </div>
                 </>
               ) : (
                 <div className="space-y-1">
@@ -852,7 +1123,7 @@ export function AccountingClient({
                     type="number"
                     step="0.01"
                     value={editPercentage}
-                    onChange={(e) => setNewPercentage(e.target.value)}
+                    onChange={(e) => setEditPercentage(e.target.value)}
                     required
                     className="h-8 border-[#DCDAD4] text-xs"
                   />
@@ -872,7 +1143,7 @@ export function AccountingClient({
                 </div>
               )}
 
-              {editType !== "fixed_one_off" && (
+              {editType !== "fixed_one_off" && !editIsDaily && (
                 <div className="p-3 bg-[#FCFCFA] border border-[#DCDAD4] rounded-md space-y-2">
                   <span className="text-[11px] font-semibold text-[#101828] block">Alcance del cambio:</span>
                   <label className="flex items-start gap-2 cursor-pointer text-[11px] text-[#101828]">
@@ -909,6 +1180,93 @@ export function AccountingClient({
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Finalize Modal */}
+      {finalizingExpense && (
+        <Dialog open={!!finalizingExpense} onOpenChange={(open) => !open && setFinalizingExpense(null)}>
+          <DialogContent className="max-w-md border-[#DCDAD4] bg-[#FFFFFF]">
+            <DialogHeader>
+              <DialogTitle className="text-base font-semibold text-[#101828]">
+                Finalizar Gasto: {finalizingExpense.name}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-[#5F6875]">
+                Fija la fecha de corte para este gasto. Su acumulado quedará registrado hasta la fecha elegida y no seguirá sumando.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 text-xs py-2">
+              <div className="space-y-2.5 p-3 bg-[#FCFCFA] border border-[#DCDAD4] rounded-md">
+                <label className="flex items-start gap-2 cursor-pointer text-xs text-[#101828]">
+                  <input
+                    type="radio"
+                    name="finalizeDateMode"
+                    value="yesterday"
+                    checked={finalizeDateMode === "yesterday"}
+                    onChange={() => setFinalizeDateMode("yesterday")}
+                    className="mt-0.5 text-[#102A56]"
+                  />
+                  <div>
+                    <span className="font-semibold">Hasta ayer ({yesterdayDate.getDate()} de {formatTargetMonth(currentMonthStr)}) [Recomendado]</span>
+                    <p className="text-[11px] text-[#5F6875]">Cierra la vigencia ayer. Ideal si hoy aumentó o se reemplaza este presupuesto.</p>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-2 cursor-pointer text-xs text-[#101828]">
+                  <input
+                    type="radio"
+                    name="finalizeDateMode"
+                    value="today"
+                    checked={finalizeDateMode === "today"}
+                    onChange={() => setFinalizeDateMode("today")}
+                    className="mt-0.5 text-[#102A56]"
+                  />
+                  <div>
+                    <span className="font-semibold">Hasta hoy ({todayDay} de {formatTargetMonth(currentMonthStr)})</span>
+                    <p className="text-[11px] text-[#5F6875]">Incluye el día de hoy en el acumulado y concluye la vigencia.</p>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-2 cursor-pointer text-xs text-[#101828]">
+                  <input
+                    type="radio"
+                    name="finalizeDateMode"
+                    value="custom"
+                    checked={finalizeDateMode === "custom"}
+                    onChange={() => setFinalizeDateMode("custom")}
+                    className="mt-0.5 text-[#102A56]"
+                  />
+                  <div className="space-y-1">
+                    <span className="font-semibold">Fecha específica:</span>
+                    {finalizeDateMode === "custom" && (
+                      <Input
+                        type="date"
+                        value={finalizeCustomDate}
+                        onChange={(e) => setFinalizeCustomDate(e.target.value)}
+                        className="h-7 text-xs w-40 border-[#DCDAD4] mt-1"
+                      />
+                    )}
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2 border-t border-[#DCDAD4]">
+              <Button type="button" variant="outline" size="sm" onClick={() => setFinalizingExpense(null)} disabled={isProcessing}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleConfirmFinalize}
+                disabled={isProcessing}
+                className="bg-[#B54708] hover:bg-[#B54708]/90 text-white font-semibold"
+              >
+                {isProcessing ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" /> : "Confirmar Finalización"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
