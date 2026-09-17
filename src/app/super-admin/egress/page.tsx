@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getTenantEgressSummary } from "@/lib/observability/egress";
+import { getPersistentTenantEgressSummary } from "@/lib/observability/egress";
 import { Database, AlertTriangle, ShieldCheck, HardDrive } from "lucide-react";
 
 export const revalidate = 0;
@@ -14,24 +14,8 @@ export default async function SuperAdminEgressPage() {
 
   const tenantMap = new Map((tenants || []).map((t) => [t.id, t.name]));
 
-  // Get current day telemetry summary
-  const egressSummaries = getTenantEgressSummary();
-
-  // Augment with all known tenants if they haven't emitted samples yet today
-  const allSummaries = (tenants || []).map((t) => {
-    const existing = egressSummaries.find((s) => s.tenantId === t.id);
-    if (existing) return existing;
-    return {
-      tenantId: t.id,
-      date: new Date().toISOString().split("T")[0],
-      estimatedBytes: 0,
-      estimatedMb: 0,
-      queryCount: 0,
-      topOperation: "none",
-      topTable: "none",
-      budgetStatus: "NORMAL" as const,
-    };
-  });
+  // Get current day telemetry summary backed by persistent database activity + live memory
+  const allSummaries = await getPersistentTenantEgressSummary(adminDb);
 
   return (
     <div className="space-y-8">
