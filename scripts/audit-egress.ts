@@ -17,7 +17,7 @@ interface EgressWarning {
 
 export function runEgressAudit(): EgressViolation[] {
   console.log("=================================================");
-  console.log("LIBRETAX SPRINT 38A: EGRESS AUDIT V2");
+  console.log("LIBRETAX SPRINT 39: ZERO-WASTE EGRESS AUDIT V3");
   console.log("=================================================");
 
   const rootDir = path.resolve(__dirname, "..");
@@ -393,6 +393,144 @@ export function runEgressAudit(): EgressViolation[] {
               category: "UI_CONTRACT_VIOLATION",
               line: 1,
               message: `Products page query must preserve shipping logistic_type for Fulfillment UI filtering.`,
+            });
+          }
+        }
+
+        // ==============================================================================
+        // SPRINT 39 RULES: EGRESS AUDIT V3
+        // ==============================================================================
+
+        // Rule 1: FULL_RAW_DATA_ON_HOT_READ_PATH
+        const hotReadPaths = [
+          "src/services/finance/getFinancialData.ts",
+          "src/services/analytics/forecast/buildDailyProfitSeries.ts",
+          "src/app/dashboard/analytics/page.tsx",
+        ];
+        if (hotReadPaths.includes(relPath)) {
+          lines.forEach((lineText, idx) => {
+            if (lineText.includes('.select(') && (lineText.includes('"raw_data"') || lineText.includes(', raw_data,')) && !lineText.includes("raw_data->")) {
+              violations.push({
+                file: relPath,
+                category: "FULL_RAW_DATA_ON_HOT_READ_PATH",
+                line: idx + 1,
+                message: `Hot read path must not fetch unprojected raw_data JSONB. Use JSON path projection (e.g. coupon:raw_data->coupon).`,
+              });
+            }
+          });
+        }
+
+        // Rule 2: DUPLICATE_ANALYTICS_DATASET_FETCH
+        if (relPath === "src/app/dashboard/analytics/page.tsx") {
+          if (!content.includes("getAnalyticsDataset")) {
+            violations.push({
+              file: relPath,
+              category: "DUPLICATE_ANALYTICS_DATASET_FETCH",
+              line: 1,
+              message: `/dashboard/analytics must fetch consolidated dataset via getAnalyticsDataset() to prevent redundant parallel queries.`,
+            });
+          }
+          if (content.includes('.from("orders").select(')) {
+            violations.push({
+              file: relPath,
+              category: "DUPLICATE_ANALYTICS_DATASET_FETCH",
+              line: 1,
+              message: `/dashboard/analytics must not execute separate direct orders query when shared dataset is available.`,
+            });
+          }
+        }
+
+        // Rule 3: SYNC_FROM_GET_ROUTE
+        if (relPath.startsWith("src/app/api/") && relPath.endsWith("/route.ts")) {
+          const getFuncIdx = content.indexOf("export async function GET");
+          if (getFuncIdx !== -1) {
+            const getSlice = content.slice(getFuncIdx, getFuncIdx + 2000);
+            if (
+              getSlice.includes("syncOrders(") ||
+              getSlice.includes("syncProducts(") ||
+              getSlice.includes("syncShipments(") ||
+              getSlice.includes("syncCancellations(")
+            ) {
+              violations.push({
+                file: relPath,
+                category: "SYNC_FROM_GET_ROUTE",
+                line: 1,
+                message: `GET route must NEVER initiate heavy sync routines (syncOrders/syncProducts/syncShipments/syncCancellations). Read available data only.`,
+              });
+            }
+          }
+        }
+
+        // Rule 4: UNFILTERED_HISTORICAL_CHILD_QUERY
+        if (relPath === "src/services/finance/getFinancialData.ts") {
+          const shipmentsIdx = content.indexOf('.from("shipments")');
+          if (shipmentsIdx !== -1) {
+            const sliceAround = content.slice(shipmentsIdx, shipmentsIdx + 300);
+            if (!sliceAround.includes(".in(") && !sliceAround.includes("chunk")) {
+              violations.push({
+                file: relPath,
+                category: "UNFILTERED_HISTORICAL_CHILD_QUERY",
+                line: 1,
+                message: `getFinancialData must query shipments filtered by active order shipment IDs (.in), not download all historical shipments.`,
+              });
+            }
+          }
+        }
+        if (relPath === "src/app/api/products/[id]/stats/route.ts") {
+          if (content.includes('.select("*")')) {
+            violations.push({
+              file: relPath,
+              category: "UNFILTERED_HISTORICAL_CHILD_QUERY",
+              line: 1,
+              message: `Product stats route must not query select("*"). Explicit columns required.`,
+            });
+          }
+        }
+
+        // Rule 5: FULL_SHIPMENT_SYNC_FROM_ORDER_SYNC
+        if (relPath === "src/services/meli/syncOrders.ts") {
+          if (!content.includes("LIBRETAX_SHIPMENTS_FROM_ORDERS_FULL_SYNC")) {
+            violations.push({
+              file: relPath,
+              category: "FULL_SHIPMENT_SYNC_FROM_ORDER_SYNC",
+              line: 1,
+              message: `syncOrders must guard full syncShipments behind LIBRETAX_SHIPMENTS_FROM_ORDERS_FULL_SYNC feature flag.`,
+            });
+          }
+        }
+
+        // Rule 6: FULL_CANCELLATION_SYNC_FROM_ORDER_SYNC
+        if (relPath === "src/services/meli/syncOrders.ts") {
+          if (!content.includes("LIBRETAX_CANCELLATIONS_FROM_ORDERS_FULL_SYNC")) {
+            violations.push({
+              file: relPath,
+              category: "FULL_CANCELLATION_SYNC_FROM_ORDER_SYNC",
+              line: 1,
+              message: `syncOrders must guard full syncCancellations behind LIBRETAX_CANCELLATIONS_FROM_ORDERS_FULL_SYNC feature flag.`,
+            });
+          }
+        }
+
+        // Rule 7: PAGE_LOAD_EXTERNAL_SYNC
+        if (relPath === "src/app/dashboard/shipments/page.tsx") {
+          if (content.includes('process.env.LIBRETAX_SHIPMENT_SYNC_ON_PAGE_LOAD !== "false"')) {
+            violations.push({
+              file: relPath,
+              category: "PAGE_LOAD_EXTERNAL_SYNC",
+              line: 1,
+              message: `Shipments page load sync must default to false (check === "true", not !== "false").`,
+            });
+          }
+        }
+
+        // Rule 8: N_PLUS_ONE_STOCK_IDEMPOTENCY_CHECK
+        if (relPath === "src/services/meli/syncOrders.ts") {
+          if (!content.includes("internal_stock_processed") || !content.includes("pendingStockOrders")) {
+            violations.push({
+              file: relPath,
+              category: "N_PLUS_ONE_STOCK_IDEMPOTENCY_CHECK",
+              line: 1,
+              message: `syncOrders must batch check internal_stock_processed = false before looping to decrement internal stock.`,
             });
           }
         }

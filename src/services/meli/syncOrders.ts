@@ -480,13 +480,25 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
         }
       }
 
-      // --- SPRINT 35: Descuento automático de stock interno ---
+      // --- SPRINT 35: Descuento automático de stock interno (Batch Fast-Path Sprint 39) ---
       const paidOrders = ordersToUpsert.filter(o => o.status === 'paid');
-      for (const order of paidOrders) {
-        const localOrderId = orderMap[order.meli_order_id];
-        if (localOrderId) {
-          await decrementInternalStockFromOrder(tenantId, localOrderId).catch(err => {
-            console.error(`Error decrementando stock interno para orden ${localOrderId}:`, err);
+      const paidLocalOrderIds = paidOrders
+        .map(o => orderMap[o.meli_order_id])
+        .filter(Boolean);
+
+      if (paidLocalOrderIds.length > 0) {
+        // Sprint 39: Single query fast-path to filter only orders with pending internal stock processing
+        const { data: pendingStockOrders } = await supabase
+          .from("orders")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .in("id", paidLocalOrderIds)
+          .eq("status", "paid")
+          .eq("internal_stock_processed", false);
+
+        for (const pendingOrder of pendingStockOrders || []) {
+          await decrementInternalStockFromOrder(tenantId, pendingOrder.id).catch(err => {
+            console.error(`Error decrementando stock interno para orden ${pendingOrder.id}:`, err);
           });
         }
       }
@@ -569,16 +581,22 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     console.error("Error dispatching sale notifications in syncOrders:", notifErr);
   }
 
-  // --- SPRINT 36: Sincronización automática de envíos ---
-    await syncShipments(tenantId).catch((err) => {
-      console.error(`Failed to sync shipments during syncOrders for tenant ${tenantId}:`, err);
-    });
+    // --- SPRINT 36 / SPRINT 39: Sincronización automática de envíos desacoplada ---
+    const shouldSyncShipmentsFromOrders = process.env.LIBRETAX_SHIPMENTS_FROM_ORDERS_FULL_SYNC !== "false";
+    if (shouldSyncShipmentsFromOrders) {
+      await syncShipments(tenantId).catch((err) => {
+        console.error(`Failed to sync shipments during syncOrders for tenant ${tenantId}:`, err);
+      });
+    }
 
-    // --- SPRINT 37: Sincronización automática de cancelaciones ---
-    const { syncCancellations } = await import("./syncCancellations");
-    await syncCancellations(tenantId).catch((err) => {
-      console.error(`Failed to sync cancellations during syncOrders for tenant ${tenantId}:`, err);
-    });
+    // --- SPRINT 37 / SPRINT 39: Sincronización automática de cancelaciones desacoplada ---
+    const shouldSyncCancellationsFromOrders = process.env.LIBRETAX_CANCELLATIONS_FROM_ORDERS_FULL_SYNC !== "false";
+    if (shouldSyncCancellationsFromOrders) {
+      const { syncCancellations } = await import("./syncCancellations");
+      await syncCancellations(tenantId).catch((err) => {
+        console.error(`Failed to sync cancellations during syncOrders for tenant ${tenantId}:`, err);
+      });
+    }
 
     // Actualizar timestamp de última sincronización en meli_accounts
     await supabase

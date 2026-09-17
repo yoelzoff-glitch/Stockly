@@ -16,6 +16,7 @@ import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 import { TimeFilter } from "./time-filter";
 import { getFinancialData } from "@/services/finance/getFinancialData";
 import { getCampaignRecommendations } from "@/services/analytics/campaignRecommendations";
+import { getAnalyticsDataset } from "@/services/analytics/analyticsDataset";
 import SalesAnalytics from "./sales-analytics";
 import CompetitorAnalyzer from "./competitor-analyzer";
 
@@ -71,22 +72,22 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   const periodLabel = daysParam === "current_month" ? "Mes actual" : `Últimos ${daysParam} días`;
   const productsLabel = daysParam === "current_month" ? "el mes actual" : `los últimos ${daysParam} días`;
 
-  // Parallel database queries
-  const [
-    { data: orders },
-    { data: cancellations },
-    { data: shipments },
-    { data: products }
-  ] = await Promise.all([
-    supabase.from("orders").select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id, raw_data").eq("tenant_id", tenantId).neq("status", "cancelled").gte("date_created", sevenDaysAgo.toISOString()).order("date_created", { ascending: false }),
-    supabase.from("order_cancellations").select("refund_amount").eq("tenant_id", tenantId).gte("date_cancelled", sevenDaysAgo.toISOString()).lte("date_cancelled", new Date().toISOString()),
-    supabase.from("shipments").select("substatus, shipping_cost, meli_shipment_id, receiver_state").eq("tenant_id", tenantId).gte("date_created", sevenDaysAgo.toISOString()),
-    supabase.from("products").select("id, title, cost, sku, sold_quantity, margin_percent, available_quantity, profit_real_estimated, status, estimated_shipping_cost, meli_item_id, extra_fee_amount, promotion_discount_amount").eq("tenant_id", tenantId)
-  ]);
+  // Consolidated shared analytics dataset (Phases 4 & 5 - single round-trip with short cache)
+  const dataset = await getAnalyticsDataset({
+    supabase,
+    tenantId,
+    dateFrom: sevenDaysAgo,
+    dateTo: new Date(),
+    ignoredOrderIds,
+  });
 
-  const activeOrders = (orders || []).filter(o => !ignoredOrderIds.includes(o.meli_order_id));
+  const orders = dataset.orders;
+  const cancellations = dataset.cancellations;
+  const shipments = dataset.shipments;
+  const products = dataset.products;
+  const activeOrders = dataset.activeOrders;
 
-  // Unified financial data
+  // Unified financial data consuming shared dataset
   const periodFinancials = await getFinancialData(
     supabase,
     tenantId,
@@ -95,7 +96,8 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
     packagingCost,
     ignoredOrderIds,
     false,
-    timezone
+    timezone,
+    dataset
   );
 
   const totalOrders = activeOrders.length;
@@ -106,16 +108,18 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   const currentMonthStart = getMidnightInTimezone(new Date(Date.UTC(tenantYear, tenantMonth - 1, 1, 12, 0, 0)), timezone);
   const daysElapsed = Math.max(1, tenantDay);
 
-  const currentMonthFinancials = await getFinancialData(
-    supabase,
-    tenantId,
-    currentMonthStart,
-    new Date(),
-    packagingCost,
-    ignoredOrderIds,
-    true,
-    timezone
-  );
+  const currentMonthFinancials = daysParam === "current_month"
+    ? periodFinancials
+    : await getFinancialData(
+        supabase,
+        tenantId,
+        currentMonthStart,
+        new Date(),
+        packagingCost,
+        ignoredOrderIds,
+        true,
+        timezone
+      );
 
   const currentMonthProfit = currentMonthFinancials.gananciaNeta;
 
@@ -210,14 +214,15 @@ export default async function AnalyticsAndInsightsPage(props: { searchParams: Pr
   const avgEstimatedShipping = productsWithShipping.length > 0 ? productsWithShipping.reduce((acc, p) => acc + Number(p.estimated_shipping_cost), 0) / productsWithShipping.length : 0;
   const avgShippingCost = totalShipments > 0 ? (totalShippingCost / totalShipments) : avgEstimatedShipping;
 
-  // Pareto Analysis
-  const pareto = await getParetoAnalysis({ tenantId, dateFrom: sevenDaysAgo });
+  // Pareto Analysis consuming shared dataset
+  const pareto = await getParetoAnalysis({ tenantId, dateFrom: sevenDaysAgo, dataset });
 
-  // Campaign Recommendations
+  // Campaign Recommendations consuming shared dataset
   const { topProducts: campaignTopProducts, recommendations: campaignRecommendations } = await getCampaignRecommendations(
     supabase,
     tenantId,
-    sevenDaysAgo
+    sevenDaysAgo,
+    dataset
   );
 
   // Top products chart data

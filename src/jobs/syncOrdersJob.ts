@@ -17,6 +17,21 @@ export const syncOrdersDispatcherJob = inngest.createFunction(
     triggers: [{ cron: "*/5 * * * *" }],
   },
   async ({ step }) => {
+    // Sprint 39 Phase 13: Protected rollout of orders reconciliation schedule
+    const reconciliationMode = process.env.LIBRETAX_ORDERS_RECONCILIATION_MODE || "legacy";
+    if (reconciliationMode === "reduced") {
+      const currentMinute = new Date().getUTCMinutes();
+      if (currentMinute % 15 !== 0) {
+        logger.info({
+          event: "SYNC_ORDERS_DISPATCHER_SKIPPED_REDUCED_MODE",
+          currentMinute,
+          mode: "reduced",
+          message: "Skipping orders cron tick in reduced mode (15-minute slot)",
+        });
+        return { status: "skipped", reason: "reduced_mode_slot_skip" };
+      }
+    }
+
     const supabase = createAdminClient();
     let offset = 0;
     let hasMore = true;

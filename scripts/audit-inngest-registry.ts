@@ -98,6 +98,18 @@ export const CANONICAL_INNGEST_FUNCTIONS: InngestFunctionDefinition[] = [
     triggerType: "cron",
     triggerValue: "0 4 * * *",
   },
+  {
+    id: "reconcile-shipments-dispatcher",
+    file: "src/jobs/reconciliationJobs.ts",
+    triggerType: "cron",
+    triggerValue: "0 */2 * * *",
+  },
+  {
+    id: "reconcile-cancellations-dispatcher",
+    file: "src/jobs/reconciliationJobs.ts",
+    triggerType: "cron",
+    triggerValue: "0 * * * *",
+  },
 ];
 
 export function auditInngestRegistry(): { passed: boolean; errors: string[] } {

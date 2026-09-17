@@ -8,6 +8,7 @@ import { DataTableShell } from "@/components/operational/data-table-shell";
 import { OperationalEmptyState } from "@/components/operational/empty-state";
 import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 import PeriodSelector from "./period-selector";
+import { SyncShipmentsButton } from "./sync-shipments-button";
 
 export default async function ShipmentsPage(props: { searchParams: Promise<{ period?: string }> }) {
   const searchParams = await props.searchParams;
@@ -63,8 +64,8 @@ export default async function ShipmentsPage(props: { searchParams: Promise<{ per
     dateFrom = new Date(2000, 0, 1);
   }
 
-  // Sprint 38A: Encapsulate on-demand shipment sync behind feature flag (defaults to true)
-  const shouldSyncOnLoad = process.env.LIBRETAX_SHIPMENT_SYNC_ON_PAGE_LOAD !== "false";
+  // Sprint 38A / Sprint 39: Encapsulate on-demand shipment sync behind feature flag (defaults to false)
+  const shouldSyncOnLoad = process.env.LIBRETAX_SHIPMENT_SYNC_ON_PAGE_LOAD === "true";
   if (shouldSyncOnLoad) {
     try {
       const { syncShipments } = await import("@/services/meli/syncShipments");
@@ -142,7 +143,12 @@ export default async function ShipmentsPage(props: { searchParams: Promise<{ per
         eyebrow="Operación logística"
         title="Envíos y logística"
         description="Control de paquetes en tránsito, entregas demoradas y estados reportados por Mercado Envíos."
-        actions={<PeriodSelector currentPeriod={period} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <SyncShipmentsButton />
+            <PeriodSelector currentPeriod={period} />
+          </div>
+        }
       />
 
       {/* Franja de Indicadores */}

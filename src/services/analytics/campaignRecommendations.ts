@@ -87,47 +87,84 @@ function getListingTypeFriendlyName(listingTypeId?: string): string {
   return `Clásica (${listingTypeId})`;
 }
 
+import { AnalyticsDataset } from "@/services/analytics/analyticsDataset";
+import { logEgressSample } from "@/lib/observability/egress";
+
 export async function getCampaignRecommendations(
   supabase: SupabaseClient,
   tenantId: string,
-  dateFrom: Date
+  dateFrom: Date,
+  dataset?: AnalyticsDataset
 ): Promise<{
   topProducts: TopProductSales[];
   recommendations: CampaignRecommendation[];
 }> {
-  // 1. Fetch all products (publications) in catalog
-  const { data: allProducts, error: productsError } = await supabase
-    .from("products")
-    .select("id, tenant_id, sku, title, price, listing_type_id, permalink, status, available_quantity, sold_quantity")
-    .eq("tenant_id", tenantId);
+  let allProducts: any[];
+  let items: any[];
 
-  if (productsError || !allProducts) {
-    console.error("Error fetching products for campaign recommendations:", productsError);
-    return { topProducts: [], recommendations: [] };
-  }
+  if (dataset && dataset.tenantId === tenantId) {
+    allProducts = dataset.products;
+    items = dataset.orderItems;
+  } else {
+    // 1. Fetch all products (publications) in catalog
+    const { data: fetchedProducts, error: productsError } = await supabase
+      .from("products")
+      .select("id, tenant_id, sku, title, price, listing_type_id, permalink, status, available_quantity, sold_quantity")
+      .eq("tenant_id", tenantId);
 
-  // 2. Fetch all orders in the selected period
-  const { data: orders, error: ordersError } = await supabase
-    .from("orders")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .neq("status", "cancelled")
-    .gte("date_created", dateFrom.toISOString());
+    logEgressSample({
+      tenantId,
+      operation: "campaignRecommendations.products",
+      table: "products",
+      data: fetchedProducts,
+    });
 
-  const orderIds = orders?.map(o => o.id) || [];
-  if (orderIds.length === 0) {
-    return { topProducts: [], recommendations: [] };
-  }
+    if (productsError || !fetchedProducts) {
+      console.error("Error fetching products for campaign recommendations:", productsError);
+      return { topProducts: [], recommendations: [] };
+    }
 
-  // 3. Fetch order items for these orders
-  const { data: items, error: itemsError } = await supabase
-    .from("order_items")
-    .select("product_id, quantity, unit_price, title, sku")
-    .in("order_id", orderIds);
+    allProducts = fetchedProducts;
 
-  if (itemsError || !items) {
-    console.error("Error fetching order items for campaign recommendations:", itemsError);
-    return { topProducts: [], recommendations: [] };
+    // 2. Fetch all orders in the selected period
+    const { data: orders, error: ordersError } = await supabase
+      .from("orders")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .neq("status", "cancelled")
+      .gte("date_created", dateFrom.toISOString());
+
+    logEgressSample({
+      tenantId,
+      operation: "campaignRecommendations.orders",
+      table: "orders",
+      data: orders,
+    });
+
+    const orderIds = orders?.map(o => o.id) || [];
+    if (orderIds.length === 0) {
+      return { topProducts: [], recommendations: [] };
+    }
+
+    // 3. Fetch order items for these orders
+    const { data: fetchedItems, error: itemsError } = await supabase
+      .from("order_items")
+      .select("product_id, quantity, unit_price, title, sku")
+      .in("order_id", orderIds);
+
+    logEgressSample({
+      tenantId,
+      operation: "campaignRecommendations.orderItems",
+      table: "order_items",
+      data: fetchedItems,
+    });
+
+    if (itemsError || !fetchedItems) {
+      console.error("Error fetching order items for campaign recommendations:", itemsError);
+      return { topProducts: [], recommendations: [] };
+    }
+
+    items = fetchedItems;
   }
 
   // 4. Aggregate sales by SKU

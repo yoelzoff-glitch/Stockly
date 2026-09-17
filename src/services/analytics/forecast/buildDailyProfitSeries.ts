@@ -15,13 +15,17 @@ import { getMidnightInTimezone, getTenantDateTimeParts } from "@/lib/dates";
  * 3. Days with zero sales/profit are explicitly included as { netProfit: 0, orderCount: 0, revenue: 0 }.
  * 4. Single batch query for orders, products, cancellations and shipments to ensure fast performance.
  */
+import { AnalyticsDataset } from "@/services/analytics/analyticsDataset";
+import { logEgressSample } from "@/lib/observability/egress";
+
 export async function buildDailyProfitSeries(
   supabase: SupabaseClient,
   tenantId: string,
   days = 90,
   timezone = "America/Argentina/Buenos_Aires",
   packagingCost = 0,
-  ignoredOrderIds: string[] = []
+  ignoredOrderIds: string[] = [],
+  dataset?: AnalyticsDataset
 ): Promise<DailyProfitPoint[]> {
   const now = new Date();
   const { year: curY, month: curM, day: curD } = getTenantDateTimeParts(now, timezone);
@@ -31,50 +35,131 @@ export async function buildDailyProfitSeries(
   startRef.setUTCDate(startRef.getUTCDate() - days + 1);
   const dateFrom = getMidnightInTimezone(startRef, timezone);
 
-  // 1. Parallel fetch of required canonical data
-  const [
-    { data: orders },
-    { data: cancellations },
-    { data: products },
-    { data: shipments },
-  ] = await Promise.all([
-    supabase
-      .from("orders")
-      .select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id, raw_data, packaging_cost_snapshot, cost_snapshot_frozen_at")
-      .eq("tenant_id", tenantId)
-      .neq("status", "cancelled")
-      .gte("date_created", dateFrom.toISOString())
-      .lte("date_created", now.toISOString()),
-    supabase
-      .from("order_cancellations")
-      .select("refund_amount, date_cancelled, orders(raw_data)")
-      .eq("tenant_id", tenantId)
-      .gte("date_cancelled", dateFrom.toISOString())
-      .lte("date_cancelled", now.toISOString()),
-    supabase
-      .from("products")
-      .select("id, meli_item_id, title, sku, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount, status")
-      .eq("tenant_id", tenantId),
-    supabase
-      .from("shipments")
-      .select("meli_shipment_id, shipping_cost")
-      .eq("tenant_id", tenantId)
-      .gte("date_created", dateFrom.toISOString()),
-  ]);
+  let activeOrders: any[];
+  let cancellations: any[];
+  let products: any[];
+  let shipments: any[];
+  let orderItems: any[];
 
-  const activeOrders = (orders || []).filter(
-    (o) => !ignoredOrderIds.includes(o.meli_order_id)
-  );
+  if (dataset && dataset.tenantId === tenantId && dataset.dateFrom <= dateFrom) {
+    // Phase 4: Shared Dataset Fast-Path
+    activeOrders = dataset.activeOrders;
+    cancellations = dataset.cancellations;
+    products = dataset.products;
+    shipments = dataset.shipments;
+    orderItems = dataset.orderItems;
+  } else {
+    // 1. Parallel fetch with JSONB projections (omitting full raw_data)
+    const [
+      { data: ordersData },
+      { data: cancellationsData },
+      { data: productsData },
+    ] = await Promise.all([
+      supabase
+        .from("orders")
+        .select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id, coupon:raw_data->coupon, payments:raw_data->payments, libretax_operational_costs:raw_data->libretax_operational_costs, klyvo_operational_costs:raw_data->klyvo_operational_costs, packaging_cost_snapshot, cost_snapshot_frozen_at")
+        .eq("tenant_id", tenantId)
+        .neq("status", "cancelled")
+        .gte("date_created", dateFrom.toISOString())
+        .lte("date_created", now.toISOString()),
+      supabase
+        .from("order_cancellations")
+        .select("refund_amount, date_cancelled, orders(payments:raw_data->payments)")
+        .eq("tenant_id", tenantId)
+        .gte("date_cancelled", dateFrom.toISOString())
+        .lte("date_cancelled", now.toISOString()),
+      supabase
+        .from("products")
+        .select("id, meli_item_id, title, sku, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount, status")
+        .eq("tenant_id", tenantId),
+    ]);
 
-  const orderIds = activeOrders.map((o) => o.id);
+    const orders = (ordersData || []).map((o: any) => {
+      const raw = o.raw_data || {
+        coupon: o.coupon,
+        payments: o.payments,
+        libretax_operational_costs: o.libretax_operational_costs,
+        klyvo_operational_costs: o.klyvo_operational_costs,
+      };
+      return { ...o, raw_data: raw };
+    });
 
-  // Fetch order items
-  const { data: orderItems } = orderIds.length > 0
-    ? await supabase
-        .from("order_items")
-        .select("order_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost, sku, unit_cost, unit_cost_snapshot, cost_snapshot_frozen_at, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot")
-        .in("order_id", orderIds)
-    : { data: [] };
+    logEgressSample({
+      tenantId,
+      operation: "forecast.orders",
+      table: "orders",
+      data: orders,
+    });
+
+    cancellations = cancellationsData || [];
+    logEgressSample({
+      tenantId,
+      operation: "forecast.cancellations",
+      table: "order_cancellations",
+      data: cancellations,
+    });
+
+    products = productsData || [];
+    logEgressSample({
+      tenantId,
+      operation: "forecast.products",
+      table: "products",
+      data: products,
+    });
+
+    activeOrders = orders.filter((o: any) => !ignoredOrderIds.includes(o.meli_order_id));
+    const orderIds = activeOrders.map((o: any) => o.id);
+
+    // Fetch order items for active orders
+    orderItems = [];
+    if (orderIds.length > 0) {
+      const CHUNK_SIZE = 150;
+      for (let i = 0; i < orderIds.length; i += CHUNK_SIZE) {
+        const chunkIds = orderIds.slice(i, i + CHUNK_SIZE);
+        const { data: itemsChunk } = await supabase
+          .from("order_items")
+          .select("order_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost, sku, unit_cost, unit_cost_snapshot, cost_snapshot_frozen_at, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot")
+          .in("order_id", chunkIds);
+
+        if (itemsChunk && itemsChunk.length > 0) {
+          orderItems = orderItems.concat(itemsChunk);
+        }
+      }
+    }
+
+    logEgressSample({
+      tenantId,
+      operation: "forecast.orderItems",
+      table: "order_items",
+      data: orderItems,
+    });
+
+    // Bounded shipments query
+    const shipmentIds = Array.from(new Set(activeOrders.map((o: any) => o.meli_shipment_id).filter(Boolean)));
+    shipments = [];
+    if (shipmentIds.length > 0) {
+      const SHIPMENT_CHUNK = 200;
+      for (let i = 0; i < shipmentIds.length; i += SHIPMENT_CHUNK) {
+        const chunkIds = shipmentIds.slice(i, i + SHIPMENT_CHUNK);
+        const { data: shipChunk } = await supabase
+          .from("shipments")
+          .select("meli_shipment_id, shipping_cost")
+          .eq("tenant_id", tenantId)
+          .in("meli_shipment_id", chunkIds);
+
+        if (shipChunk && shipChunk.length > 0) {
+          shipments = shipments.concat(shipChunk);
+        }
+      }
+    }
+
+    logEgressSample({
+      tenantId,
+      operation: "forecast.shipments",
+      table: "shipments",
+      data: shipments,
+    });
+  }
 
   const itemsByOrder = new Map<string, any[]>();
   orderItems?.forEach((item) => {

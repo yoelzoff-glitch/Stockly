@@ -151,13 +151,27 @@ export const syncProductsTenantJob = inngest.createFunction(
           ttlSeconds: 300,
         },
         async () => {
+          const rawSource = event.data?.source || event.name;
+          const source = rawSource === "cron_dispatcher" || rawSource === "cron"
+            ? "cron"
+            : event.name === "meli/items.updated" || rawSource === "webhook"
+            ? "webhook"
+            : "manual";
+
           logger.info({
             event: "SYNC_PRODUCTS_TENANT_STARTED",
             tenantId,
-            source: event.data?.source || event.name,
+            source,
           });
 
           const syncedCount = await syncProducts(tenantId);
+
+          logger.info({
+            event: "SYNC_PRODUCTS_EXECUTION",
+            tenantId,
+            source,
+            syncedCount,
+          });
 
           try {
             const { recordMlSyncActivity } = await import("@/services/super-admin/activity");

@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   ShieldCheck,
   Inbox,
+  HardDrive,
 } from "lucide-react";
 
 interface SuperAdminSidebarProps {
@@ -33,6 +34,7 @@ const navItems = [
   { name: "Cancelaciones", href: "/super-admin/cancellations", icon: UserMinus },
   { name: "Actividad", href: "/super-admin/activity", icon: Activity },
   { name: "Analytics", href: "/super-admin/analytics", icon: BarChart3 },
+  { name: "Egress Budget", href: "/super-admin/egress", icon: HardDrive },
 ];
 
 export function SuperAdminSidebar({ adminEmail, adminRole }: SuperAdminSidebarProps) {

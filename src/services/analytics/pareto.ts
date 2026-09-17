@@ -20,71 +20,86 @@ export interface ParetoAnalysisResult {
   longTailProducts: ParetoProduct[];
 }
 
+import { AnalyticsDataset } from "@/services/analytics/analyticsDataset";
+import { logEgressSample } from "@/lib/observability/egress";
+
 export async function getParetoAnalysis({
   tenantId,
   dateFrom,
-  dateTo
+  dateTo,
+  dataset,
 }: {
   tenantId: string;
   dateFrom?: Date;
   dateTo?: Date;
+  dataset?: AnalyticsDataset;
 }): Promise<ParetoAnalysisResult> {
-  const supabase = createAdminClient();
+  let items: any[];
 
-  let query = supabase
-    .from("orders")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .neq("status", "cancelled");
+  if (dataset && dataset.tenantId === tenantId) {
+    items = dataset.orderItems;
+  } else {
+    const supabase = createAdminClient();
 
-  if (dateFrom) {
-    query = query.gte("date_created", dateFrom.toISOString());
-  }
-  if (dateTo) {
-    query = query.lte("date_created", dateTo.toISOString());
-  }
+    let query = supabase
+      .from("orders")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .neq("status", "cancelled");
 
-  const { data: orders, error } = await query;
+    if (dateFrom) {
+      query = query.gte("date_created", dateFrom.toISOString());
+    }
+    if (dateTo) {
+      query = query.lte("date_created", dateTo.toISOString());
+    }
 
-  if (error || !orders) {
-    console.error("Error fetching orders for pareto:", error);
-    return {
-      totalRevenue: 0,
-      totalProductsSold: 0,
-      productsToReach80: 0,
-      percentageOfCatalog: 0,
-      paretoProducts: [],
-      longTailProducts: []
-    };
-  }
+    const { data: orders, error } = await query;
 
-  const orderIds = orders.map(o => o.id);
-  if (orderIds.length === 0) {
-    return {
-      totalRevenue: 0,
-      totalProductsSold: 0,
-      productsToReach80: 0,
-      percentageOfCatalog: 0,
-      paretoProducts: [],
-      longTailProducts: []
-    };
-  }
+    logEgressSample({
+      tenantId,
+      operation: "pareto.orders",
+      table: "orders",
+      data: orders,
+    });
 
-  const { data: items, error: itemsError } = await supabase
-    .from("order_items")
-    .select("product_id, title, sku, quantity, unit_price")
-    .in("order_id", orderIds);
+    if (error || !orders || orders.length === 0) {
+      return {
+        totalRevenue: 0,
+        totalProductsSold: 0,
+        productsToReach80: 0,
+        percentageOfCatalog: 0,
+        paretoProducts: [],
+        longTailProducts: []
+      };
+    }
 
-  if (itemsError || !items) {
-    console.error("Error fetching order items for pareto:", itemsError);
-    return {
-      totalRevenue: 0,
-      totalProductsSold: 0,
-      productsToReach80: 0,
-      percentageOfCatalog: 0,
-      paretoProducts: [],
-      longTailProducts: []
-    };
+    const orderIds = orders.map(o => o.id);
+    const { data: fetchedItems, error: itemsError } = await supabase
+      .from("order_items")
+      .select("product_id, title, sku, quantity, unit_price")
+      .in("order_id", orderIds);
+
+    logEgressSample({
+      tenantId,
+      operation: "pareto.orderItems",
+      table: "order_items",
+      data: fetchedItems,
+    });
+
+    if (itemsError || !fetchedItems) {
+      console.error("Error fetching order items for pareto:", itemsError);
+      return {
+        totalRevenue: 0,
+        totalProductsSold: 0,
+        productsToReach80: 0,
+        percentageOfCatalog: 0,
+        paretoProducts: [],
+        longTailProducts: []
+      };
+    }
+
+    items = fetchedItems;
   }
 
   // Aggregate by SKU when available, otherwise by title

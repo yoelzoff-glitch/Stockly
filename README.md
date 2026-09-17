@@ -1,86 +1,232 @@
-# LibretaX — Plataforma SaaS de gestión y rentabilidad para vendedores de Mercado Libre
+# LibretaX — Plataforma SaaS de Gestión, Inventario y Rentabilidad para Vendedores de Mercado Libre
 
-LibretaX es una plataforma SaaS multi-tenant diseñada para centralizar la operativa comercial, el control de inventario y el cálculo de rentabilidad neta en tiempo real para vendedores del ecosistema de Mercado Libre. Combina sincronización asíncrona resiliente, auditoría contable por publicación y herramientas de inteligencia artificial bajo estrictos controles de cuota y seguridad transaccional.
+LibretaX es una plataforma SaaS multi-tenant de alto rendimiento diseñada para centralizar la operativa comercial, el control exhaustivo de inventario físico y el cálculo de rentabilidad neta en tiempo real ("Bolsillo Limpio") para vendedores profesionales del ecosistema de Mercado Libre.
 
-**Estado actual:** `Release Candidate — listo para piloto privado multi-cuenta`
+Combina sincronización asíncrona resiliente mediante webhooks, auditoría contable por publicación, control de depósitos físicos con desglose de insumos, y herramientas de inteligencia artificial aplicada bajo estrictos controles transaccionales, de cuota y seguridad multi-tenant.
+
+**Estado actual:** `Release Candidate — Listo para producción y piloto privado multi-cuenta`
+
+---
+
+## Índice General
+
+1. [Problema que resuelve](#1-problema-que-resuelve)
+2. [Recorrido Funcional Completo](#2-recorrido-funcional-completo)
+   - [2.1 Módulo Operación](#21-módulo-operación)
+     - [Dashboard Principal](#dashboard-principal)
+     - [Ventas y Órdenes](#ventas-y-órdenes)
+     - [Envíos y Logística](#envíos-y-logística)
+     - [Cancelaciones y Devoluciones](#cancelaciones-y-devoluciones)
+   - [2.2 Módulo Catálogo & Stock](#22-módulo-catálogo--stock)
+     - [Productos y Publicaciones](#productos-y-publicaciones)
+     - [Stock Interno y Depósito Físico](#stock-interno-y-depósito-físico)
+     - [Compras Internas y Proveedores](#compras-internas-y-proveedores)
+   - [2.3 Módulo Rentabilidad & Marketing](#23-módulo-rentabilidad--marketing)
+     - [Analíticas e Insights Comerciales](#analíticas-e-insights-comerciales)
+     - [Finanzas y Estado de Resultados (P&L)](#finanzas-y-estado-de-resultados-pl)
+     - [Contabilidad y Estructura de Gastos](#contabilidad-y-estructura-de-gastos)
+     - [Promociones y Cupones](#promociones-y-cupones)
+     - [Mercado Libre ADS (Publicidad)](#mercado-libre-ads-publicidad)
+   - [2.4 Módulo Sistema & Automatizaciones](#24-módulo-sistema--automatizaciones)
+     - [Copiloto Operacional IA & Mensajes](#copiloto-operacional-ia--mensajes)
+     - [Workflows y Reglas de Automatización](#workflows-y-reglas-de-automatización)
+     - [Integraciones Multi-Plataforma](#integraciones-multi-plataforma)
+     - [Configuración del Comercio](#configuración-del-comercio)
+     - [Facturación y Planes SaaS](#facturación-y-planes-saas)
+     - [Panel SuperAdmin](#panel-superadmin)
+3. [Arquitectura Técnica y Seguridad Multi-Tenant](#3-arquitectura-técnica-y-seguridad-multi-tenant)
+4. [Stack Tecnológico](#4-stack-tecnológico)
+5. [Calidad, Testing y Resiliencia](#5-calidad-testing-y-resiliencia)
+6. [Instalación y Configuración Local](#6-instalación-y-configuración-local)
+7. [Licencia y Estado](#7-licencia-y-estado)
 
 ---
 
 ## 1. Problema que resuelve
 
-Operar como vendedor profesional en Mercado Libre implica gestionar múltiples variables dispersas:
-- **Incertidumbre en el margen neto:** Dificultad para conocer la ganancia real por producto tras descontar comisiones por categoría, costos de envío dinámicos, retenciones impositivas, costos financieros de cuotas y descuentos de campañas.
-- **Información fragmentada:** Los datos de órdenes, métricas publicitarias (Product Ads), promociones activas y stock físico en depósito se administran en paneles desacoplados.
-- **Procesos manuales y falta de trazabilidad:** Modificaciones de precios o stock realizadas directamente sin registro de auditoría ni validación previa de márgenes.
-- **Riesgo en multi-cuenta:** Operar varios comercios sin un aislamiento estricto de datos expone a fugas de información y colisiones en sincronizaciones concurrentes.
+Vender a escala en Mercado Libre presenta desafíos críticos que afectan directamente la rentabilidad:
 
-LibretaX nació para resolver estas fricciones operativas unificando la administración en una sola plataforma con respaldo transaccional.
+- **Falta de visibilidad sobre el margen neto real:** Dificultad para conocer la ganancia de bolsillo tras deducir comisiones variables por categoría y tipo de publicación (Clásica vs Premium), costos dinámicos de envío bonificado, cargos por financiamiento en cuotas, retenciones impositivas y costo de mercadería vendida (CMV).
+- **Desconexión entre stock publicado y stock físico:** Falta de sincronización entre las existencias publicadas en Mercado Libre y el inventario real en depósito propio, especialmente al trabajar con insumos, embalajes o kits/combos.
+- **Herramientas fragmentadas:** La analítica publicitaria (Product Ads), las promociones co-financiadas, las órdenes de compra y los costos fijos de estructura suelen gestionarse en planillas de cálculo separadas y propensas a errores humanos.
+- **Riesgo en multi-cuenta:** La necesidad de administrar múltiples cuentas de Mercado Libre sin colisiones operativas, mezclas de inventario ni fugas de información.
 
----
-
-## 2. Funcionalidades implementadas
-
-### Dashboard y analítica
-- **KPIs del negocio:** Facturación, ticket promedio, margen neto acumulado y órdenes procesadas en ventanas configurables (7, 30, 90 días o rangos personalizados).
-- **Control de costos faltantes:** Detección inmediata de publicaciones sin costo unitario asignado para evitar ventas a ciegas.
-- **Alertas de stock crítico:** Monitoreo preventivo de publicaciones próximas a agotar existencias.
-- **Estado de sincronización:** Observabilidad del estado de conexión de las cuentas vinculadas y última fecha de actualización.
-
-### Productos y catálogo
-- **Sincronización bidireccional:** Ingesta de publicaciones con SKU, categoría, precio de lista, stock y estado desde Mercado Libre.
-- **Estructura de costos y componentes:** Vinculación N-a-M de insumos/componentes por producto para composición de costos unitarios.
-- **Importación masiva:** Carga y actualización de costos base mediante planillas Excel (`.xlsx`).
-- **Historial y métricas por ítem:** Seguimiento de rotación, unidades vendidas y margen por publicación.
-
-### Ventas y órdenes
-- **Sincronización idempotente:** Ingesta automática mediante webhooks y reconciliación periódica con detección de duplicados.
-- **Rentabilidad unitaria:** Cálculo detallado por orden (ingreso bruto, comisión ML, costo de envío, descuento comercial, costo de mercadería y ganancia neta).
-- **Exportación contable en streaming:** Descarga de reportes en formato CSV estándar (`libretax_ventas_YYYY-MM-DD.csv`) optimizado para grandes volúmenes.
-- **Gestión de cancelaciones:** Reversión controlada de stock y ajuste contable ante órdenes canceladas o devueltas.
-
-### Stock interno y depósitos
-- **Inventario físico centralizado:** Control de existencias en bodega propia independiente del stock publicado.
-- **Deducción automática:** Consumo de stock y componentes disparado por eventos de venta confirmados.
-- **Registro de movimientos:** Trazabilidad de ingresos, egresos y ajustes manuales con motivo de movimiento.
-- **Órdenes de compra:** Registro de adquisiciones a proveedores para reposición de stock.
-
-### Envíos (Shipments)
-- **Sincronización logística:** Seguimiento de estados de envío (listo para despachar, en camino, entregado).
-- **Cálculo de impacto en margen:** Incorporación del costo de envío absorbido por el vendedor en la rentabilidad de cada orden.
-
-### Rentabilidad y finanzas
-- **Desglose financiero:** Balance consolidado de ingresos, costos de mercadería vendida (CMV), cargos por servicio de Mercado Libre e impuestos.
-- **Reportes contables:** Exportación y visualización de flujo de caja operativo.
-
-### Mercado Libre Ads (Publicidad)
-- **Métricas de campañas:** Sincronización de inversión publicitaria, clics, costo por clic (CPC) y ventas atribuidas.
-- **Rentabilidad publicitaria:** Cruce de ingresos publicitarios con costos de producto para calcular el ROAS y beneficio neto real por campaña.
-
-### Promociones y cupones
-- **Monitoreo de ofertas activas:** Integración con la Seller Promotions API para listar promociones tradicionales, relámpago y personalizadas.
-- **Desglose de subsidios:** Visualización del porcentaje de descuento aportado por el vendedor versus el financiado por Mercado Libre.
-
-### Inteligencia artificial y asistente de negocio
-- **Chat operacional:** Asistente conversacional con acceso a herramientas seguras de base de datos para responder consultas sobre ventas, stock y márgenes.
-- **Consultas sobre productos:** Análisis contextualizado de publicaciones específicas y detección de oportunidades de mejora.
-- **Sugerencias de títulos:** Generación de alternativas de títulos optimizadas para búsqueda en Mercado Libre.
-- **Análisis de competidores:** Evaluación de publicaciones competidoras (precio, tipo de publicación, logística y reputación).
-- **Acciones con confirmación explícita:** Operaciones críticas requieren validación en dos pasos mediante la palabra `"confirmo"`.
-- **Cuotas atómicas e idempotencia:** Deducción atómica previa vía `consume_tenant_quota` con llaves vinculadas al hash normalizado del payload para evitar sobreconsumo y duplicación de costos.
-
-> **Nota:** LibretaX no responde automáticamente preguntas de compradores en publicaciones de Mercado Libre. Los webhooks del tópico `questions` se registran únicamente con fines de auditoría e ignorados por diseño.
-
-### Suscripciones y facturación
-- **Planes comerciales:** Esquemas Starter, Pro y Ultra con límites de uso diferenciados.
-- **Integración con Mercado Pago:** Cobro recurrente vía suscripciones (`subscription_preapproval`).
-- **Control de cuotas:** Asignación y débito de límites mensuales (créditos de IA, mensajes y ejecuciones).
-- **Períodos de gracia:** Mantenimiento de acceso hasta la fecha de expiración tras cancelaciones de plan.
+LibretaX unifica toda esta operativa en una única consola gerencial automatizada con respaldo transaccional.
 
 ---
 
-## 3. Arquitectura técnica
+## 2. Recorrido Funcional Completo
 
-LibretaX está construido como un monolito modular serverless sobre Next.js y PostgreSQL, desacoplando tareas pesadas a través de colas de eventos en segundo plano.
+### 2.1 Módulo Operación
+
+#### Dashboard Principal
+El centro neurálgico de la plataforma. Proporciona una vista en tiempo real de la salud del negocio:
+- **KPIs Principales:** Facturación bruta, ganancia operativa de Mercado Libre, margen neto consolidado, ticket promedio y cantidad de órdenes despachadas.
+- **Ventanas Temporales Configurables:** Filtros rápidos por Hoy, Últimos 7 días, 30 días, 90 días, mes en curso o selector de rango personalizado.
+- **Gráficos Interactivos de Evolución:** Tendencia diaria de facturación versus ganancia real para detectar fluctuaciones en la rentabilidad.
+- **Control de Costos Faltantes:** Detección instantánea de publicaciones con ventas activas que no tienen un costo de mercadería asignado, evitando operar "a ciegas".
+- **Alertas de Stock Crítico:** Monitoreo preventivo de productos con unidades por debajo del umbral mínimo de seguridad para evitar pausas en publicaciones por quiebre de stock.
+- **Top de Productos:** Clasificación de los productos más vendidos y los más rentables tanto en volumen monetario como en porcentaje de margen.
+- **Estado de Sincronización:** Monitor del enlace OAuth con Mercado Libre y última marca temporal de sincronización de webhooks.
+
+#### Ventas y Órdenes
+Módulo para auditoría y trazabilidad unitaria de cada transacción:
+- **Sincronización en Tiempo Real:** Ingesta automática e idempotente vía webhooks de Mercado Libre de cada orden creada o actualizada.
+- **Buscador y Filtros Avanzados:** Búsqueda por ID de orden, nombre del comprador, SKU o estado del pedido (Pagado, En camino, Entregado, Cancelado).
+- **Desglose Contable por Orden:**
+  - Precio de venta unitario y total cobrado.
+  - Comisión de Mercado Libre discriminada (según categoría y si la publicación es Clásica o Premium).
+  - Costo de envío asumido por el vendedor (bonificaciones de Mercado Envíos).
+  - Descuentos de promociones y cupones aplicados.
+  - Costo de Mercadería Vendida (CMV) del producto o sus insumos.
+  - Retenciones impositivas estimadas.
+  - **Ganancia Neta ($)** y **Margen Neto Porcentual (%)**.
+- **Exportación Contable en Streaming:** Descarga de reportes en formato CSV de alta velocidad (`libretax_ventas_YYYY-MM-DD.csv`) adaptado para contadores y sistemas de gestión contable externos.
+
+#### Envíos y Logística
+Supervisión operativa de las entregas y su costo asociado:
+- **Seguimiento Logístico Integral:** Control de paquetes en Mercado Envíos (Colecta, Lugares de Despacho, Flex y Full).
+- **Trazabilidad de Estados:** Listo para despachar, En camino, En distribución, Entregado, Demorado o Con reclamo.
+- **Impacto Logístico en el Margen:** Identificación precisa del costo de envío que absorbe el comercio en publicaciones con envío "gratis", reflejando cómo impacta en la rentabilidad final.
+
+#### Cancelaciones y Devoluciones
+Gestión de contingencias posventa:
+- **Registro Unificado:** Listado de órdenes canceladas por el comprador, por el vendedor o devueltas en reclamo.
+- **Reversión Automática de Stock:** Reingreso inmediato de las unidades al inventario físico al confirmarse la cancelación o retorno del paquete.
+- **Reconciliación Financiera:** Reversión contable automática de las comisiones de Mercado Libre y ajuste en la ganancia del período.
+- **Motivos de Cancelación:** Registro y categorización de causas para identificar problemas recurrentes de calidad o logística.
+
+---
+
+### 2.2 Módulo Catálogo & Stock
+
+#### Productos y Publicaciones
+Gestión centralizada del catálogo comercial sincronizado con Mercado Libre:
+- **Sincronización Bidireccional:** Ingesta de títulos, SKUs, imágenes, precio de venta, categoría, tipo de publicación, stock publicado y estado (activa, pausada, finalizada).
+- **Asignación de Costo Unitario:** Posibilidad de fijar un costo unitario manual o calcularlo a través de componentes.
+- **Estructura de Insumos y Componentes (BOM):** Relación N-a-M de insumos (materia prima, envases, etiquetas, embalaje) para costear productos terminados de forma dinámica.
+- **Importación y Exportación Masiva en Excel (`.xlsx`):** Carga masiva y actualización rápida de costos de catálogo mediante planillas de cálculo.
+- **Simulador de Precios y Márgenes:** Calculadora interactiva que proyecta comisiones, cargos de envío, impuestos y ganancia neta antes de modificar un precio o publicar un producto nuevo.
+- **Métricas Históricas por Ítem:** Seguimiento de rotación, unidades vendidas y rentabilidad acumulada por SKU.
+
+#### Stock Interno y Depósito Físico
+Administración del inventario real en depósito propio:
+- **Desacoplamiento Operativo:** Gestión del stock físico independiente del stock publicado en Mercado Libre.
+- **Soporte para Combos y Kits:** Explosión automática de productos compuestos en sus componentes unitarios al momento de deducir existencias por venta.
+- **Control de Estados:** Stock Disponible, Stock Reservado (comprometido en órdenes en preparación) y Stock Total.
+- **Kárdex de Movimientos:** Historial auditable de entradas por compras, salidas por ventas, mermas, roturas y ajustes de inventario manuales con motivo registrado.
+- **Análisis de Rotación Multi-Período:** Métricas de velocidad de venta y unidades consumidas en 4 ventanas de tiempo:
+  - Mes en curso.
+  - Últimos 30 días.
+  - Últimos 60 días.
+  - Últimos 90 días.
+  Permite planificar compras inteligentes y evitar sobre-stock o quiebres.
+- **Alertas Visuales de Reposición:** Avisos inmediatos de punto de pedido sugerido.
+
+#### Compras Internas y Proveedores
+Circuito de compras y abastecimiento de mercadería:
+- **Órdenes de Compra (PO):** Creación y seguimiento de pedidos a proveedores con costo unitario pactado y cantidades.
+- **Recepción de Mercadería:** Ingreso formal de pedidos con actualización automática del stock físico en depósito.
+- **Sincronización de Fletes de Compra:** Imputación automática de gastos de flete y transporte de abastecimiento hacia Contabilidad y Finanzas para reflejar el impacto real en caja.
+
+---
+
+### 2.3 Módulo Rentabilidad & Marketing
+
+#### Analíticas e Insights Comerciales
+Métricas avanzadas para la toma de decisiones comerciales:
+- **Desglose por Tipo de Publicación:** Comparativa de rendimiento entre publicaciones Clásicas y Premium para evaluar el costo financiero de las cuotas sin interés.
+- **Resolución Geográfica de Ventas:** Mapa y distribución de compradores por provincia y región de Argentina (CABA, Buenos Aires, Córdoba, Santa Fe, Mendoza, etc.), útil para pautas logísticas y publicitarias.
+- **Métricas de Comportamiento:** Visitas únicas, sesiones, tasa de rebote y tasa de conversión por publicación.
+- **Tendencias y Estacionalidad:** Detección de patrones de compra semanales y mensuales.
+
+#### Finanzas y Estado de Resultados (P&L)
+Consolidación financiera integral del negocio:
+- **Estado de Resultados Completo:** Conciliación transparente desde el ingreso bruto hasta la ganancia de bolsillo.
+  - Facturación Total Bruta.
+  - (-) Comisiones por venta de Mercado Libre.
+  - (-) Costo de Envíos bonificados por el vendedor.
+  - (-) Descuentos comerciales otorgados.
+  - (-) Costo de Mercadería Vendida (CMV).
+  - (-) Deducciones impositivas variables (IIBB).
+  - (-) Costos fijos operativos del período.
+  - (-) Gastos temporales imputados.
+- **Bolsillo Limpio Real:** Métrica insignia de LibretaX que muestra el resultado neto de caja libre que le queda efectivamente al comerciante tras liquidar todos los compromisos.
+- **Margen de Caja Limpio (%):** Relación porcentual entre el Bolsillo Limpio y la facturación bruta total.
+
+#### Contabilidad y Estructura de Gastos
+Administración de la estructura de costos fijos, impuestos y gastos operativos:
+- **Gastos Fijos Recurrentes:** Registro de costos estructurales mensuales continuos (sueldos, alquileres de depósitos, servicios, honorarios contables, monotributo, software).
+- **Alícuotas Impositivas Variables:** Deducción porcentual automática calculada sobre la facturación bruta (ej. 3% o 5% de Ingresos Brutos / IIBB provincial).
+- **Gastos Temporales del Mes:** Imputaciones que aplican a un único período mensual (campañas especiales, fletes acumulados de compras, packaging específico).
+- **Gastos con Acumulación Diaria:**
+  - Gastos computados proporcionalmente por cada día transcurrido en el mes (ej. pautas publicitarias externas, agencias de marketing o servicios por jornada).
+  - Opción de **adicionar 21% de IVA** automáticamente sobre el valor base diario.
+  - **Corte de Presupuesto Diario Inteligente con Historial Preservado:** Si se modifica el valor diario a mitad de mes (ej. de $40.000 a $60.000 el día 15):
+    - Finaliza automáticamente el gasto anterior al día de ayer (14 días transcurridos a $40.000/día congelados).
+    - Crea el nuevo gasto con la nueva tarifa a partir de hoy ($60.000/día desde el día 15 en adelante).
+    - No recalcula retroactivamente los días anteriores, preservando la exactitud del acumulado de caja.
+  - **Acción "Finalizar Gasto":** Botón para cerrar la vigencia de cualquier gasto en una fecha específica (hasta ayer, hasta hoy o fecha elegida) sin borrar su historial contable.
+- **Exportación Contable:** Descarga de la matriz de gastos en CSV.
+
+#### Promociones y Cupones
+Monitoreo estratégico de promociones en Mercado Libre:
+- **Integración con Seller Promotions API:** Listado en tiempo real de ofertas activas, tradicionales, ofertas relámpago (lightning deals) y cupones de descuento.
+- **Desglose de Subsidios:** Identificación clara de qué porcentaje del descuento aporta el vendedor y qué porcentaje subsidia Mercado Libre.
+- **Protección de Margen:** Control para evitar participar en campañas que lleven el producto a vender por debajo del costo unitario.
+
+#### Mercado Libre ADS (Publicidad)
+Rendimiento de las campañas de Product Ads:
+- **Métricas de Pauta Publicitaria:** Inversión acumulada, impresiones, clics, CTR y CPC promedio.
+- **Ingresos Atribuidos y Ventas Asistidas:** Órdenes generadas por impacto publicitario directo e indirecto.
+- **ACOS y ROAS en Tiempo Real:** Control de eficiencia de inversión publicitaria.
+- **Rentabilidad Publicitaria Neta:** Cruce entre la venta atribuida, el CMV del producto y el costo publicitario para determinar el beneficio neto real generado por cada campaña.
+
+---
+
+### 2.4 Módulo Sistema & Automatizaciones
+
+#### Copiloto Operacional IA & Mensajes
+Asistente conversacional con inteligencia artificial integrada en todo el sistema:
+- **LibretaX Copilot (Panel Flotante y Chat Completo):** Accesible desde cualquier pantalla para realizar consultas operativas en lenguaje natural.
+- **Consultas con Datos Reales:** Responde preguntas complejas sobre ventas del mes, productos con stock en riesgo, publicaciones con mayor margen, evolución de pedidos y más.
+- **Sugerencias de Títulos SEO:** Genera alternativas de títulos optimizados para los motores de búsqueda de Mercado Libre basadas en las mejores prácticas de conversión.
+- **Análisis de Competidores:** Evaluación de publicaciones de la competencia (precios, tipo de publicación, nivel de reputación, modalidades de entrega).
+- **Acciones Críticas con Doble Factor ("confirmo"):** Las operaciones que alteran precios o estados de publicación exigen confirmación explícita del usuario mediante la palabra clave `"confirmo"`.
+- **Cuotas Atómicas e Idempotentes:** Deducción segura de créditos vía RPCs de base de datos (`consume_tenant_quota`) con llaves vinculadas al hash del payload para prevenir sobreconsumos y duplicados.
+- *(Aclaración de seguridad: LibretaX no responde preguntas de compradores en publicaciones de Mercado Libre; los webhooks del tópico `questions` se auditan pero se ignoran por diseño).*
+
+#### Workflows y Reglas de Automatización
+Motor para automatizar procesos repetitivos y alertas operativas:
+- Reglas configurables ante eventos de venta, alertas de quiebre de stock o detección de publicaciones sin costo cargado.
+
+#### Integraciones Multi-Plataforma
+Centro de conexiones y APIs externas:
+- **Mercado Libre (OAuth2):** Vinculación multi-cuenta con renovación atómica de tokens y mecanismo de refresco ante expiración (401).
+- **Webhooks en Tiempo Real:** Endpoint dedicado para recepción de eventos de órdenes, envíos y catálogo.
+- **Mercado Pago:** Conexión para facturación recurrente de suscripciones vía `subscription_preapproval`.
+- **WhatsApp Cloud API:** Envío de resúmenes operativos diarios y alertas críticas por mensaje de WhatsApp, con validación de firmas criptográficas `X-Hub-Signature-256`.
+
+#### Configuración del Comercio
+Ajustes generales del tenant:
+- Definición de moneda predeterminada (`ARS`), zona horaria comercial (`America/Argentina/Buenos_Aires`) y alícuota por defecto de Ingresos Brutos.
+- Perfil de empresa y preferencias de visualización.
+
+#### Facturación y Planes SaaS
+Gestión de suscripciones y límites de la plataforma:
+- Planes comerciales escalables: **Starter**, **Pro** y **Ultra**.
+- Monitoreo de cuotas mensuales: créditos de IA consumidos, límite de SKUs administrados y automatizaciones permitidas.
+- Manejo de períodos de gracia y cancelaciones seguras.
+
+#### Panel SuperAdmin
+Herramienta de observabilidad para administradores de LibretaX:
+- Monitoreo global de tenants, comercios activos, planes contratados, consumo global de APIs y estado de salud de la plataforma.
+
+---
+
+## 3. Arquitectura Técnica y Seguridad Multi-Tenant
+
+LibretaX está construido como un monolito modular serverless de alta disponibilidad sobre Next.js y PostgreSQL, desacoplando tareas de cómputo intensivo mediante workers asíncronos y colas de eventos.
 
 ```mermaid
 flowchart TD
@@ -88,89 +234,100 @@ flowchart TD
     N --> S["Supabase / PostgreSQL 16"]
     N --> I["APIs Externas"]
     I --> M["Mercado Libre & Mercado Pago"]
+    I --> WSP["WhatsApp Cloud API"]
     I --> AI["OpenAI & Google Gemini"]
     N --> Q["Inngest Engine"]
     Q --> W["Workers & Sincronizaciones Asíncronas"]
     W --> S
 ```
 
-### Seguridad y aislamiento multi-tenant
-- **Row Level Security (RLS) integral:** 44 tablas protegidas mediante políticas RLS estrictas vinculadas al `tenant_id` de la sesión activa.
-- **Verificación de contexto en capa de aplicación:** Todas las rutas y acciones invocan `requireTenantContext` y `assertRequestedTenant`, impidiendo accesos cruzados incluso ante parámetros manipulados.
-- **Autenticación y roles:** Control de acceso granular (`owner`, `admin`, `user`) con evaluación de feature flags (`strict_tenant_authorization`).
-- **Firmas criptográficas en webhooks:** Validación con comparación de tiempo constante (`timingSafeEqual`) de cabeceras `X-Hub-Signature-256` (WhatsApp) y firmas V2 (Mercado Pago).
-- **Sanitización de observabilidad:** Enmascaramiento automático de credenciales, tokens OAuth y datos confidenciales en registros de logs y Sentry.
+### Seguridad y Aislamiento de Datos
+- **Row Level Security (RLS) Estricto:** 44 tablas protegidas en PostgreSQL donde cada consulta está forzada al `tenant_id` de la sesión autenticada.
+- **Doble Barrera en Aplicación:** Verificación obligatoria en cada Server Action y Route Handler mediante `requireTenantContext` y `assertRequestedTenant`, impidiendo escalamiento de privilegios o acceso cruzado entre comercios.
+- **Protección de Tenants Demo:** Validación de escritura vía `assertTenantWritable` para garantizar que las cuentas de demostración no contaminen registros productivos.
+- **Firmas Criptográficas de Webhooks:** Validación en tiempo constante (`timingSafeEqual`) de firmas `X-Hub-Signature-256` (WhatsApp) y firmas V2 (Mercado Pago).
+- **Sanitización de Observabilidad:** Filtro automático que enmascara credenciales, tokens OAuth y datos personales en logs y Sentry.
 
-### Resiliencia y escalabilidad
-- **Leases distribuidos:** Prevención de colisiones concurrentes mediante `acquire_operation_lease` y `release_operation_lease` con expiración automática.
-- **Rate limiting en base de datos:** Limitación de tasa basada en ventanas deslizantes por tenant y endpoint (`check_rate_limit`).
-- **Clasificación de errores externos:** Clasificador unificado que distingue fallos no reintentables (400, 403, 402, `invalid_grant` -> fail-fast), refresco controlado ante 401 de Mercado Libre (exactamente 1 reintento con nuevo token), y reintentos con backoff exponencial y respeto a `Retry-After` (hasta 3 intentos) para errores 408, 429 y 5xx.
-- **Registro canónico de workers:** Inngest auditado con 12 funciones registradas y validadas estáticamente, evitando ejecuciones huérfanas o no autorizadas.
+### Resiliencia y Concurrencia
+- **Leases Distribuidos:** Mecanismo de candados distribuidos (`acquire_operation_lease` / `release_operation_lease`) en base de datos para evitar ejecuciones concurrentes conflictivas en tareas pesadas.
+- **Clasificador de Errores Externos Unificado:**
+  - *Errores No Reintentables (400, 403, 402, `invalid_grant`):* Falla rápida sin saturar la red.
+  - *Tokens Expirados (401 de Mercado Libre):* Refresco atómico controlado de credenciales y reintento único.
+  - *Errores Transitorios (408, 429, 5xx):* Reintentos automáticos con retroceso exponencial (backoff) respetando la cabecera `Retry-After` hasta un máximo de 3 intentos.
+- **Registro Canónico de Workers:** 12 funciones de Inngest registradas, auditadas estáticamente y validadas para evitar procesos huérfanos.
 
 ---
 
-## 4. Stack tecnológico
+## 4. Stack Tecnológico
 
 | Capa | Tecnologías |
 |---|---|
 | **Frontend** | Next.js 16.2.6 (App Router, Turbopack), React 19.2.6, Tailwind CSS 4.3.0, Radix UI, TanStack Table, Recharts, Lucide Icons |
 | **Backend & Runtime** | Node.js `>=22.20.0`, Next.js Route Handlers, Server Actions, TypeScript 6.0.3, Sentry 10.53.1 |
-| **Base de Datos** | Supabase (PostgreSQL 16), Row Level Security (RLS), PL/pgSQL RPCs, `postgres.js` |
-| **Procesamiento en Segundo Plano** | Inngest 4.4.0 (Event-Driven Workers, Cron Schedules, Step Functions) |
+| **Base de Datos & Storage** | Supabase (PostgreSQL 16), Row Level Security (RLS), PL/pgSQL RPCs, `postgres.js` |
+| **Procesamiento Asíncrono** | Inngest 4.4.0 (Event-Driven Workers, Cron Jobs, Step Functions) |
 | **Modelos de IA** | OpenAI API (`gpt-4o-mini`), Google Generative AI (`gemini-1.5-flash`) |
-| **Integraciones Externas** | Mercado Libre API (OAuth2, Webhooks, Items, Orders, Shipments, Promos, Ads), Mercado Pago SDK, WhatsApp Cloud API |
+| **Integraciones Externas** | Mercado Libre API (OAuth2, Items, Orders, Shipments, Promos, Ads), Mercado Pago SDK, WhatsApp Cloud API |
 | **Testing & CI/CD** | Node.js Native Test Runner (TAP), Playwright 1.62.1 (E2E), GitHub Actions |
 
 ---
 
-## 5. Pruebas y validación de calidad
+## 5. Calidad, Testing y Resiliencia
 
-El proyecto cuenta con un pipeline de validación automatizado que se ejecuta de forma reproducible en entornos locales y en CI mediante bases de datos PostgreSQL descartables:
+El proyecto implementa un estricto pipeline de control de calidad reproducible en entornos locales y de integración continua con bases de datos PostgreSQL descartables:
 
-- **160 tests unitarios:** Pruebas de lógica de negocio, validación de esquemas, firmas criptográficas, clasificadores de errores e idempotencia.
-- **8 suites de auditoría estática:** Verificación de autenticación de rutas, cobertura RLS en 44 tablas, endpoints de webhooks, integridad de facturación, rendimiento de índices, configuración de release, funciones de Inngest y cuotas de IA.
-- **Tests de integración multi-tenant:** Validación sobre PostgreSQL real de aislamiento de tenants, idempotencia de webhooks, concurrencia en cuotas, leases distribuidos, cantidad exacta de reintentos por error e inyección de fallas.
-- **Tests E2E (Playwright):** 11 flujos críticos de usuario (autenticación, aislamiento RLS, navegación de catálogo, exportación de ventas, permisos y límites de plan).
-- **Soak testing sintético:** Suite de prueba de carga sostenida (perfil de 30 minutos) con 5 tenants concurrentes, evaluando throughput, consumo plano de memoria RSS (con histogramas acotados y muestreo reservoir), y ausencia de fugas cross-tenant o leases zombis.
+- **+430 Tests Unitarios y de Integración:** Verificación completa de cálculos financieros, kárdex de inventario, clasificación de errores externos, firmas criptográficas, idempotencia y corte de presupuestos diarios.
+- **Suites de Auditoría Estática Automatizada:**
+  - `audit:auth`: Cobertura de autenticación en todas las rutas del App Router.
+  - `audit:rls`: Cobertura de políticas RLS en las 44 tablas canónicas.
+  - `audit:webhooks`: Integridad de contratos y endpoints de webhooks.
+  - `audit:billing`: Verificación de consistencia en planes y suscripciones.
+  - `audit:inngest`: Registro canónico de funciones de background.
+  - `audit:performance`: Verificación de índices y consultas críticas.
+- **Tests E2E con Playwright:** Flujos críticos de usuario (login, aislamiento multi-tenant, catálogo, exportación contable, límites de plan).
+- **Soak Testing Sintético:** Prueba de carga sostenida (30 minutos) con 5 tenants concurrentes para auditar estabilidad de memoria RSS, throughput y ausencia de leases zombis.
 
 ---
 
-## 6. Configuración y ejecución local
+## 6. Instalación y Configuración Local
 
-### Requisitos previos
+### Requisitos Previos
 - Node.js `22.20.0` (o compatible con `.nvmrc`)
 - npm `10.x`
-- Proyecto en Supabase o instancia de PostgreSQL local
+- Instancia de PostgreSQL 16 o proyecto de Supabase
 
-### Instalación
+### Pasos de Instalación
 
 ```bash
-# Clonar el repositorio
+# 1. Clonar el repositorio
 git clone https://github.com/yoelzoff-glitch/Stockly.git
 cd Stockly
 
-# Instalar dependencias
+# 2. Instalar dependencias
 npm install
 
-# Configurar variables de entorno
+# 3. Configurar variables de entorno
 cp .env.example .env.local
 ```
 
-### Comandos principales
+### Comandos de Desarrollo y Verificación
 
 ```bash
-# Iniciar servidor de desarrollo
+# Iniciar servidor de desarrollo con Turbopack
 npm run dev
 
-# Ejecutar verificación de tipos y tests unitarios
+# Verificación de tipos TypeScript
 npm run typecheck
+
+# Ejecutar suite de pruebas unitarias
 npm test
 
-# Ejecutar el release gate completo con base de datos descartable
-npm run verify:sprint8:disposable
+# Ejecutar suite de auditoría de seguridad y RLS
+npm run audit:rls
+npm run audit:auth
 
-# Ejecutar perfil CI de soak test
-npm run test:pilot-soak:ci
+# Ejecutar pruebas end-to-end con Playwright
+npm run test:e2e
 
 # Compilar para producción
 npm run build
@@ -178,6 +335,6 @@ npm run build
 
 ---
 
-## 7. Licencia y estado del proyecto
+## 7. Licencia y Estado
 
-Proyecto desarrollado bajo licencia privada como plataforma SaaS. Actualmente en fase de **Release Candidate** con release gates automatizados y preparación integral para incorporación de cuentas piloto.
+Proyecto desarrollado como plataforma SaaS propietaria. En fase de **Release Candidate** con release gates automatizados, suite de auditorías aprobada y listo para la incorporación de cuentas piloto y producción comercial.

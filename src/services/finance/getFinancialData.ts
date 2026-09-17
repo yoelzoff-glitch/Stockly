@@ -49,6 +49,9 @@ export interface FinancialData {
   appliedExpensesBreakdown: { name: string; amount: number; type: string }[];
 }
 
+import { AnalyticsDataset } from "@/services/analytics/analyticsDataset";
+import { logEgressSample } from "@/lib/observability/egress";
+
 export async function getFinancialData(
   supabase: SupabaseClient,
   tenantId: string,
@@ -57,48 +60,138 @@ export async function getFinancialData(
   packagingCost: number,
   ignoredOrderIds: string[],
   disableProration = false,
-  timezone = 'America/Argentina/Buenos_Aires'
+  timezone = 'America/Argentina/Buenos_Aires',
+  dataset?: AnalyticsDataset
 ): Promise<FinancialData> {
-  // 1. Fetch orders
-  const { data: orders } = await supabase
-    .from("orders")
-    .select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id, raw_data, packaging_cost_snapshot, flex_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_status")
-    .eq("tenant_id", tenantId)
-    .neq("status", "cancelled")
-    .gte("date_created", dateFrom.toISOString())
-    .lte("date_created", dateTo.toISOString());
+  let orders: any[];
+  let cancellations: any[];
+  let products: any[];
+  let activeOrders: any[];
+  let orderItems: any[];
+  let shipments: any[];
 
-  // 2. Fetch cancellations (only those that correspond to actual paid/refunded orders, not rejected/unpaid)
-  const { data: cancellations } = await supabase
-    .from("order_cancellations")
-    .select("refund_amount, orders(raw_data)")
-    .eq("tenant_id", tenantId)
-    .gte("date_cancelled", dateFrom.toISOString())
-    .lte("date_cancelled", dateTo.toISOString());
+  if (dataset && dataset.tenantId === tenantId) {
+    // Phase 4: Shared Dataset Fast-Path
+    orders = dataset.orders;
+    cancellations = dataset.cancellations;
+    products = dataset.products;
+    activeOrders = dataset.activeOrders;
+    orderItems = dataset.orderItems;
+    shipments = dataset.shipments;
+  } else {
+    // 1. Fetch orders with explicit JSONB projections (Phase 2 - eliminate full raw_data)
+    const { data: ordersData } = await supabase
+      .from("orders")
+      .select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id, coupon:raw_data->coupon, payments:raw_data->payments, legacy_order_items:raw_data->order_items, libretax_operational_costs:raw_data->libretax_operational_costs, klyvo_operational_costs:raw_data->klyvo_operational_costs, packaging_cost_snapshot, flex_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_status")
+      .eq("tenant_id", tenantId)
+      .neq("status", "cancelled")
+      .gte("date_created", dateFrom.toISOString())
+      .lte("date_created", dateTo.toISOString());
 
-  // 3. Fetch products (cost and extra info)
-  const { data: products } = await supabase
-    .from("products")
-    .select("id, meli_item_id, title, sku, status, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount")
-    .eq("tenant_id", tenantId);
+    orders = (ordersData || []).map((o: any) => {
+      const raw = o.raw_data || {
+        coupon: o.coupon,
+        payments: o.payments,
+        order_items: o.legacy_order_items,
+        libretax_operational_costs: o.libretax_operational_costs,
+        klyvo_operational_costs: o.klyvo_operational_costs,
+      };
+      return { ...o, raw_data: raw };
+    });
 
-  // Filter out ignored/test orders
-  const activeOrders = (orders || []).filter(o => !ignoredOrderIds.includes(o.meli_order_id));
+    logEgressSample({
+      tenantId,
+      operation: "financial.orders",
+      table: "orders",
+      data: orders,
+    });
 
-  // 4. Fetch order items for active orders
-  const orderIds = activeOrders.map(o => o.id);
-  const { data: orderItems } = orderIds.length > 0
-    ? await supabase
-        .from("order_items")
-        .select("order_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost, sku, unit_cost, line_key, unit_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_version, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot, estimated_tax_snapshot")
-        .in("order_id", orderIds)
-    : { data: [] };
+    // 2. Fetch cancellations with JSONB projection on payments
+    const { data: cancellationsData } = await supabase
+      .from("order_cancellations")
+      .select("refund_amount, orders(payments:raw_data->payments)")
+      .eq("tenant_id", tenantId)
+      .gte("date_cancelled", dateFrom.toISOString())
+      .lte("date_cancelled", dateTo.toISOString());
 
-  // 5. Fetch shipments for fallbacks
-  const { data: shipments } = await supabase
-    .from("shipments")
-    .select("meli_shipment_id, shipping_cost")
-    .eq("tenant_id", tenantId);
+    cancellations = cancellationsData || [];
+
+    logEgressSample({
+      tenantId,
+      operation: "financial.cancellations",
+      table: "order_cancellations",
+      data: cancellations,
+    });
+
+    // 3. Fetch products
+    const { data: productsData } = await supabase
+      .from("products")
+      .select("id, meli_item_id, title, sku, status, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount")
+      .eq("tenant_id", tenantId);
+
+    products = productsData || [];
+
+    logEgressSample({
+      tenantId,
+      operation: "financial.products",
+      table: "products",
+      data: products,
+    });
+
+    // Filter out ignored/test orders
+    activeOrders = orders.filter(o => !ignoredOrderIds.includes(o.meli_order_id));
+
+    // 4. Fetch order items for active orders
+    const orderIds = activeOrders.map(o => o.id);
+    orderItems = [];
+    if (orderIds.length > 0) {
+      const CHUNK_SIZE = 150;
+      for (let i = 0; i < orderIds.length; i += CHUNK_SIZE) {
+        const chunkIds = orderIds.slice(i, i + CHUNK_SIZE);
+        const { data: itemsChunk } = await supabase
+          .from("order_items")
+          .select("order_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost, sku, unit_cost, line_key, unit_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_version, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot, estimated_tax_snapshot")
+          .in("order_id", chunkIds);
+
+        if (itemsChunk && itemsChunk.length > 0) {
+          orderItems = orderItems.concat(itemsChunk);
+        }
+      }
+    }
+
+    logEgressSample({
+      tenantId,
+      operation: "financial.orderItems",
+      table: "order_items",
+      data: orderItems,
+    });
+
+    // 5. Fetch shipments for fallbacks (Phase 3: bounded to activeOrders in chunks of 200 IDs)
+    const shipmentIds = Array.from(new Set(activeOrders.map(o => o.meli_shipment_id).filter(Boolean)));
+    shipments = [];
+    if (shipmentIds.length > 0) {
+      const SHIPMENT_CHUNK = 200;
+      for (let i = 0; i < shipmentIds.length; i += SHIPMENT_CHUNK) {
+        const chunkIds = shipmentIds.slice(i, i + SHIPMENT_CHUNK);
+        const { data: shipChunk } = await supabase
+          .from("shipments")
+          .select("meli_shipment_id, shipping_cost")
+          .eq("tenant_id", tenantId)
+          .in("meli_shipment_id", chunkIds);
+
+        if (shipChunk && shipChunk.length > 0) {
+          shipments = shipments.concat(shipChunk);
+        }
+      }
+    }
+
+    logEgressSample({
+      tenantId,
+      operation: "financial.shipments",
+      table: "shipments",
+      data: shipments,
+    });
+  }
 
   // Variables for aggregation
   let facturacionBruta = 0;
@@ -476,7 +569,7 @@ export async function getFinancialData(
   const validCancellations = (cancellations || []).filter((c: any) => {
     const order = c.orders;
     if (!order) return false;
-    const payments = order.raw_data?.payments || [];
+    const payments = order.payments || order.raw_data?.payments || [];
     return payments.some((p: any) => p.status === 'approved' || p.status === 'refunded');
   });
 

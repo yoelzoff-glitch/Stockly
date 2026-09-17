@@ -2,13 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { meliFetch } from "@/services/meli/client";
 import { normalizeSku } from "@/lib/sku";
-import { syncOrders } from "@/services/meli/syncOrders";
-
+import { logEgressSample } from "@/lib/observability/egress";
 import { requireTenantContext, toAuthErrorResponse } from "@/lib/security/tenantAuth";
 import { CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
-
-// Keep track of the last time we performed a historical orders sync for each tenant to avoid hitting rate limits
-const lastSyncedHistory: Record<string, number> = {};
 
 export async function GET(
   request: Request,
@@ -36,41 +32,20 @@ export async function GET(
     const filterDate = new Date();
     filterDate.setDate(filterDate.getDate() - daysCount);
 
-    // Dynamic historical orders sync if we might be missing data
-    const nowMs = Date.now();
-    const lastSync = lastSyncedHistory[tenantId] || 0;
-    if (nowMs - lastSync > 10 * 60 * 1000) {
-      try {
-        // Find the oldest order we have in the database for this tenant
-        const { data: oldestOrder } = await supabase
-          .from("orders")
-          .select("date_created")
-          .eq("tenant_id", tenantId)
-          .order("date_created", { ascending: true })
-          .limit(1)
-          .maybeSingle();
-
-        const oldestOrderDate = oldestOrder?.date_created ? new Date(oldestOrder.date_created) : null;
-        
-        // If we have no orders at all, or if our oldest order is more recent than the filterDate, sync older history
-        if (!oldestOrderDate || oldestOrderDate > filterDate) {
-          await syncOrders(tenantId, undefined, filterDate.toISOString());
-        }
-        
-        // Mark as synced for this session to throttle requests
-        lastSyncedHistory[tenantId] = nowMs;
-      } catch (err: any) {
-        console.error("Error during dynamic historical order sync:", err.message);
-      }
-    }
-
-    // 1. Fetch the product details
+    // 1. Fetch the product details with explicit column projection (no select(*))
     const { data: product, error: productError } = await supabase
       .from("products")
-      .select("*")
+      .select("id, tenant_id, sku, meli_item_id, meli_account_id, title, listing_type_id, status, price, permalink, thumbnail_url")
       .eq("id", id)
       .eq("tenant_id", tenantId)
       .single();
+
+    logEgressSample({
+      tenantId,
+      operation: "productStats.product",
+      table: "products",
+      data: product,
+    });
 
     if (productError || !product) {
       return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
@@ -83,7 +58,7 @@ export async function GET(
     if (normSku) {
       let query = supabase
         .from("products")
-        .select("id, sku, meli_item_id, meli_account_id, title, listing_type_id, status, price, permalink, thumbnail_url")
+        .select("id, tenant_id, sku, meli_item_id, meli_account_id, title, listing_type_id, status, price, permalink, thumbnail_url")
         .eq("tenant_id", tenantId)
         .not("sku", "is", null);
 
@@ -135,20 +110,8 @@ export async function GET(
       totalVisitsMap[productId] = total;
     });
 
-    // 3. Fetch real daily sales for the specified period from Supabase order_items for all family products
+    // 3. Fetch real daily sales for the specified period filtered in PostgreSQL (no lifetime downloads)
     const familyProductIds = familyProducts.map(p => p.id);
-    const { data: orderItems, error: itemsError } = await supabase
-      .from("order_items")
-      .select(`
-        product_id,
-        quantity,
-        orders (
-          date_created
-        )
-      `)
-      .in("product_id", familyProductIds)
-      .eq("tenant_id", tenantId);
-
     const salesMap: Record<string, Record<string, number>> = {}; // productId -> dateStr -> sales
     const totalSalesMap: Record<string, number> = {};
 
@@ -157,17 +120,50 @@ export async function GET(
       totalSalesMap[pid] = 0;
     });
 
-    if (!itemsError && orderItems) {
-      orderItems.forEach((item: any) => {
-        if (!item.orders?.date_created || !item.product_id) return;
-        const orderDate = new Date(item.orders.date_created);
-        if (orderDate >= filterDate) {
-          const dateStr = orderDate.toISOString().split("T")[0];
-          salesMap[item.product_id][dateStr] = (salesMap[item.product_id][dateStr] || 0) + (item.quantity || 0);
-          totalSalesMap[item.product_id] = (totalSalesMap[item.product_id] || 0) + (item.quantity || 0);
+    // Fetch only active orders in the requested date window
+    const { data: periodOrders } = await supabase
+      .from("orders")
+      .select("id, date_created")
+      .eq("tenant_id", tenantId)
+      .neq("status", "cancelled")
+      .gte("date_created", filterDate.toISOString());
+
+    const periodOrderIds = (periodOrders || []).map((o: any) => o.id);
+    const orderDateMap = new Map<string, string>();
+    periodOrders?.forEach((o: any) => orderDateMap.set(o.id, o.date_created));
+
+    let orderItems: any[] = [];
+    if (periodOrderIds.length > 0 && familyProductIds.length > 0) {
+      const CHUNK_SIZE = 150;
+      for (let i = 0; i < periodOrderIds.length; i += CHUNK_SIZE) {
+        const chunk = periodOrderIds.slice(i, i + CHUNK_SIZE);
+        const { data: itemsChunk } = await supabase
+          .from("order_items")
+          .select("order_id, product_id, quantity")
+          .in("order_id", chunk)
+          .in("product_id", familyProductIds)
+          .eq("tenant_id", tenantId);
+
+        if (itemsChunk && itemsChunk.length > 0) {
+          orderItems = orderItems.concat(itemsChunk);
         }
-      });
+      }
     }
+
+    logEgressSample({
+      tenantId,
+      operation: "productStats.orderItems",
+      table: "order_items",
+      data: orderItems,
+    });
+
+    orderItems.forEach((item: any) => {
+      const dateCreated = orderDateMap.get(item.order_id);
+      if (!dateCreated || !item.product_id) return;
+      const dateStr = new Date(dateCreated).toISOString().split("T")[0];
+      salesMap[item.product_id][dateStr] = (salesMap[item.product_id][dateStr] || 0) + (item.quantity || 0);
+      totalSalesMap[item.product_id] = (totalSalesMap[item.product_id] || 0) + (item.quantity || 0);
+    });
 
     // 4. Map visits and sales into the specified period structure for the main product chart
     const days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
