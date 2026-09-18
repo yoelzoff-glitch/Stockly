@@ -1842,3 +1842,34 @@ CREATE TABLE IF NOT EXISTS public.marketing_leads (
 );
 ALTER TABLE public.marketing_leads ENABLE ROW LEVEL SECURITY;
 
+CREATE TABLE IF NOT EXISTS public.meli_sync_state (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  resource_type text NOT NULL,
+  last_successful_sync_at timestamp with time zone,
+  products_dirty boolean NOT NULL DEFAULT false,
+  sync_in_progress boolean NOT NULL DEFAULT false,
+  last_item_event_at timestamp with time zone,
+  last_full_sync_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT meli_sync_state_tenant_resource_key UNIQUE (tenant_id, resource_type)
+);
+ALTER TABLE public.meli_sync_state ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS public.egress_hourly_metrics (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  bucket_hour timestamp with time zone NOT NULL,
+  operation text NOT NULL,
+  table_name text NOT NULL,
+  query_count integer NOT NULL DEFAULT 1,
+  rows_count integer NOT NULL DEFAULT 0,
+  estimated_bytes bigint NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT egress_hourly_metrics_unique UNIQUE (tenant_id, bucket_hour, operation, table_name)
+);
+ALTER TABLE public.egress_hourly_metrics ENABLE ROW LEVEL SECURITY;
+
+

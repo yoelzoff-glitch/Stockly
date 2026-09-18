@@ -3,6 +3,25 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeLogData } from "@/lib/observability/sanitizer";
 
 export type OperationRunStatus = "started" | "completed" | "partial" | "failed" | "skipped";
+export type SyncExecutionSource = "webhook" | "cron_incremental" | "cron_deep" | "manual" | "onboarding";
+
+export interface RecordSyncExecutionParams {
+  tenantId: string;
+  operationType: "sync_orders" | "sync_products" | "sync_shipments" | "sync_cancellations";
+  source: SyncExecutionSource;
+  correlationId?: string | null;
+  startedAt?: string;
+  finishedAt?: string;
+  status?: OperationRunStatus;
+  rowsRead?: number;
+  rowsWritten?: number;
+  estimatedBytes?: number;
+  skipReason?: string;
+  itemsProcessed?: number;
+  errorCode?: string;
+  errorMessage?: string;
+  metadata?: Record<string, any>;
+}
 
 export interface StartOperationParams {
   tenantId?: string | null;
@@ -240,5 +259,61 @@ export async function cleanupZombieOperationRuns(
     return data?.length || 0;
   } catch {
     return 0;
+  }
+}
+
+/**
+ * Sprint 40 Phase 16: Records complete sync execution telemetry into `operation_runs`.
+ * Logs tenant, source (webhook, cron_incremental, cron_deep, manual, onboarding),
+ * started_at, finished_at, rows read, rows written, estimated Supabase bytes, and skip reason.
+ */
+export async function recordSyncExecution(
+  params: RecordSyncExecutionParams,
+  customClient?: any
+): Promise<string | null> {
+  try {
+    const supabase = customClient || createAdminClient();
+    const startedAt = params.startedAt || new Date().toISOString();
+    const finishedAt = params.finishedAt || new Date().toISOString();
+    const durationMs = Math.max(0, new Date(finishedAt).getTime() - new Date(startedAt).getTime());
+
+    const metadata = {
+      ...(params.metadata || {}),
+      rows_read: params.rowsRead ?? 0,
+      rows_written: params.rowsWritten ?? 0,
+      estimated_bytes: params.estimatedBytes ?? 0,
+      skip_reason: params.skipReason || null,
+    };
+
+    const status =
+      params.status ||
+      (params.skipReason ? "skipped" : params.errorCode ? "failed" : "completed");
+
+    const { data, error } = await supabase
+      .from("operation_runs")
+      .insert({
+        tenant_id: params.tenantId,
+        operation_type: params.operationType,
+        source: params.source,
+        status,
+        correlation_id: params.correlationId || null,
+        started_at: startedAt,
+        finished_at: finishedAt,
+        duration_ms: durationMs,
+        items_processed: params.itemsProcessed ?? params.rowsWritten ?? 0,
+        metadata: sanitizeLogData(metadata),
+        error_code: params.errorCode || null,
+        error_message: params.errorMessage || null,
+      })
+      .select("id")
+      .single();
+
+    if (error || !data?.id) {
+      return null;
+    }
+
+    return data.id;
+  } catch {
+    return null;
   }
 }

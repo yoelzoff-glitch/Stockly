@@ -51,7 +51,10 @@ export async function POST(request: Request) {
     });
 
     // 3. Sync orders
-    const syncedCount = await syncOrders(tenantId);
+    const syncedCount = await syncOrders(tenantId, undefined, undefined, {
+      source: "manual",
+      correlationId,
+    });
 
     await completeOperationRun(runId, {
       itemsProcessed: typeof syncedCount === "number" ? syncedCount : 0,

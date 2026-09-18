@@ -25,11 +25,28 @@ function extractSku(item: any): string | null {
   return null;
 }
 
-export async function syncProducts(tenantId: string) {
+import { recordSyncExecution, SyncExecutionSource } from "@/lib/observability/operationRuns";
+
+export async function syncProducts(
+  tenantId: string,
+  options?: { source?: SyncExecutionSource; correlationId?: string }
+) {
+  const executionSource: SyncExecutionSource = options?.source || "cron_incremental";
+  const executionStartedAt = new Date().toISOString();
+
   const lockKey = `sync-products:${tenantId}`;
   const acquired = await acquireLock(lockKey, 15000);
   if (!acquired) {
     console.log(`[syncProducts] Could not acquire lock for key ${lockKey}. Skipping to prevent concurrent sync.`);
+    await recordSyncExecution({
+      tenantId,
+      operationType: "sync_products",
+      source: executionSource,
+      status: "skipped",
+      skipReason: "lock_contention",
+      startedAt: executionStartedAt,
+      correlationId: options?.correlationId,
+    });
     return 0;
   }
 
@@ -560,6 +577,20 @@ export async function syncProducts(tenantId: string) {
   } catch (reconcileErr: any) {
     console.error(`[syncProducts] Failed to reconcile state alerts for tenant ${tenantId}:`, reconcileErr.message);
   }
+
+    await recordSyncExecution({
+      tenantId,
+      operationType: "sync_products",
+      source: executionSource,
+      status: "completed",
+      startedAt: executionStartedAt,
+      finishedAt: new Date().toISOString(),
+      rowsRead: (rawProducts?.length || 0) + (existingProducts?.length || 0),
+      rowsWritten: productsToUpsert.length,
+      estimatedBytes: Math.round(productsToUpsert.length * 400),
+      itemsProcessed: productsToUpsert.length,
+      correlationId: options?.correlationId,
+    });
 
     return productsToUpsert.length;
   } finally {

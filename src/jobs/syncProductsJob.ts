@@ -16,10 +16,27 @@ export const syncProductsDispatcherJob = inngest.createFunction(
     triggers: [{ cron: "*/15 * * * *" }],
   },
   async ({ step }) => {
+    // Sprint 40 Phase 8: Product cron reduced mode (hourly instead of every 15 min)
+    const reconciliationMode = process.env.LIBRETAX_PRODUCTS_RECONCILIATION_MODE || "reduced";
+    if (reconciliationMode === "reduced") {
+      const currentMinute = new Date().getUTCMinutes();
+      if (currentMinute % 60 !== 0) {
+        logger.info({
+          event: "SYNC_PRODUCTS_DISPATCHER_SKIPPED_REDUCED_MODE",
+          currentMinute,
+          mode: "reduced",
+          message: "Skipping product cron in reduced mode (runs hourly at 00)",
+        });
+        return { status: "skipped", reason: "reduced_mode_hourly_skip" };
+      }
+    }
+
     const supabase = createAdminClient();
     let offset = 0;
     let hasMore = true;
     let totalDispatched = 0;
+
+    const { shouldSkipProductCron } = await import("@/services/meli/productCoalescer");
 
     while (hasMore) {
       const { data: accounts, error } = await supabase
@@ -36,14 +53,37 @@ export const syncProductsDispatcherJob = inngest.createFunction(
 
       const tenantIds = Array.from(new Set(accounts.map((a) => a.tenant_id)));
 
-      if (tenantIds.length > 0) {
-        const events = tenantIds.map((tenantId) => ({
+      // Sprint 40 Phase 9: Lightweight dirty check per tenant
+      const activeTenants: string[] = [];
+      for (const tId of tenantIds) {
+        const check = await shouldSkipProductCron(tId);
+        if (check.skip) {
+          logger.info({
+            event: "SYNC_PRODUCTS_DISPATCHER_TENANT_SKIPPED_CLEAN",
+            tenantId: tId,
+            reason: check.reason,
+          });
+          const { recordSyncExecution } = await import("@/lib/observability/operationRuns");
+          await recordSyncExecution({
+            tenantId: tId,
+            operationType: "sync_products",
+            source: "cron_incremental",
+            status: "skipped",
+            skipReason: check.reason,
+          });
+        } else {
+          activeTenants.push(tId);
+        }
+      }
+
+      if (activeTenants.length > 0) {
+        const events = activeTenants.map((tenantId) => ({
           name: "meli/tenant.sync-products.requested" as any,
           data: { tenantId, source: "cron_dispatcher" },
         }));
 
         await step.sendEvent(`dispatch-products-batch-${offset}`, events);
-        totalDispatched += tenantIds.length;
+        totalDispatched += activeTenants.length;
       }
 
       if (accounts.length < BATCH_PAGE_SIZE) {
@@ -140,6 +180,20 @@ export const syncProductsTenantJob = inngest.createFunction(
       return { status: "skipped", reason: "skipped_subscription_inactive" };
     }
 
+    // Sprint 40 Phase 6 & 7: Webhook Coalescing for meli/items.updated
+    const isWebhook = event.name === "meli/items.updated" || event.data?.source === "webhook";
+    const isCoalescingEnabled = process.env.LIBRETAX_PRODUCT_WEBHOOK_COALESCING !== "false";
+
+    if (isWebhook && isCoalescingEnabled) {
+      const { recordProductItemWebhook } = await import("@/services/meli/productCoalescer");
+      const decision = await recordProductItemWebhook(tenantId);
+      if (!decision.shouldSchedule) {
+        return { status: "coalesced", reason: decision.reason, tenantId };
+      }
+      // Wait for burst events to settle (45s coalescing window)
+      await step.sleep("wait-coalescing-window", "45s");
+    }
+
     const workerId = `sync-products-${tenantId}-${Date.now()}`;
 
     return await step.run("execute-tenant-products-sync", async () => {
@@ -164,7 +218,25 @@ export const syncProductsTenantJob = inngest.createFunction(
             source,
           });
 
-          const syncedCount = await syncProducts(tenantId);
+          const { markProductSyncStarted, markProductSyncFinished } = await import("@/services/meli/productCoalescer");
+          await markProductSyncStarted(tenantId);
+
+          const syncSource = isWebhook ? "webhook" : "cron_incremental";
+          let syncedCount = await syncProducts(tenantId, { source: syncSource });
+
+          // If new items arrived during sync execution, perform a second pass so no updates are lost
+          const hasPending = await markProductSyncFinished(tenantId);
+          if (hasPending) {
+            logger.info({
+              event: "SYNC_PRODUCTS_SECOND_PASS_TRIGGERED",
+              tenantId,
+              message: "Additional item webhooks arrived during sync; running second pass",
+            });
+            await markProductSyncStarted(tenantId);
+            const secondCount = await syncProducts(tenantId, { source: syncSource });
+            syncedCount += secondCount;
+            await markProductSyncFinished(tenantId);
+          }
 
           logger.info({
             event: "SYNC_PRODUCTS_EXECUTION",

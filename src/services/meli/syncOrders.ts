@@ -6,12 +6,32 @@ import { syncShipments } from "./syncShipments";
 import { normalizeSku } from "../products/sku/normalizeSku";
 import { acquireLock, releaseLock, isLocked } from "@/lib/locks";
 import { logEgressSample } from "@/lib/observability/egress";
+import { recordSyncExecution, SyncExecutionSource } from "@/lib/observability/operationRuns";
 
-export async function syncOrders(tenantId: string, specificMeliOrderId?: string, dateFrom?: string) {
+export async function syncOrders(
+  tenantId: string,
+  specificMeliOrderId?: string,
+  dateFrom?: string,
+  options?: { source?: SyncExecutionSource; correlationId?: string }
+) {
+  const executionSource: SyncExecutionSource =
+    options?.source ||
+    (specificMeliOrderId ? "webhook" : dateFrom ? "cron_deep" : "cron_incremental");
+  const executionStartedAt = new Date().toISOString();
+
   const lockKey = `sync-orders:${tenantId}:${specificMeliOrderId || "all"}`;
   const acquired = await acquireLock(lockKey, 15000);
   if (!acquired) {
     console.log(`[syncOrders] Could not acquire lock for key ${lockKey}. Skipping to prevent concurrent sync.`);
+    await recordSyncExecution({
+      tenantId,
+      operationType: "sync_orders",
+      source: executionSource,
+      status: "skipped",
+      skipReason: "lock_contention",
+      startedAt: executionStartedAt,
+      correlationId: options?.correlationId,
+    });
     return 0;
   }
 
@@ -57,6 +77,15 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
   if (isFullSync) {
     if (tenantMetadata.orders_sync_lock && now - tenantMetadata.orders_sync_lock < 60000) {
       console.log(`[syncOrders] Tenant ${tenantId} is already running a full sync. Skipping to prevent duplicates.`);
+      await recordSyncExecution({
+        tenantId,
+        operationType: "sync_orders",
+        source: executionSource,
+        status: "skipped",
+        skipReason: "tenant_concurrent_full_sync",
+        startedAt: executionStartedAt,
+        correlationId: options?.correlationId,
+      });
       releaseLock(lockKey);
       return 0;
     }
@@ -91,19 +120,58 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
       return 0;
     }
   } else {
-    // Incremental sync: custom dateFrom or last 7 days only
+    // Incremental watermark sync (Sprint 40 Phase 4) or custom dateFrom or fallback 7 days
     let startIso: string;
     if (dateFrom) {
       startIso = dateFrom;
     } else {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      startIso = sevenDaysAgo.toISOString();
+      const isIncrementalEnabled = process.env.LIBRETAX_INCREMENTAL_ORDERS_SYNC !== "false";
+      let watermarkDate: Date | null = null;
+
+      if (isIncrementalEnabled) {
+        try {
+          const { data: syncState } = await supabase
+            .from("meli_sync_state")
+            .select("last_successful_sync_at")
+            .eq("tenant_id", tenantId)
+            .eq("resource_type", "orders")
+            .maybeSingle();
+
+          if (syncState?.last_successful_sync_at) {
+            watermarkDate = new Date(syncState.last_successful_sync_at);
+          }
+        } catch {
+          // Table missing or db error: graceful fallback
+        }
+      }
+
+      if (watermarkDate && !isNaN(watermarkDate.getTime())) {
+        // Apply 30-minute safety overlap to absorb delays and clock skew
+        const overlapMs = 30 * 60 * 1000;
+        startIso = new Date(watermarkDate.getTime() - overlapMs).toISOString();
+      } else {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        startIso = sevenDaysAgo.toISOString();
+      }
     }
     rawOrders = await getOrders(tenantId, meli_user_id, startIso);
   }
 
   if (rawOrders.length === 0) {
+    await recordSyncExecution({
+      tenantId,
+      operationType: "sync_orders",
+      source: executionSource,
+      status: "completed",
+      startedAt: executionStartedAt,
+      finishedAt: new Date().toISOString(),
+      rowsRead: 0,
+      rowsWritten: 0,
+      estimatedBytes: 0,
+      itemsProcessed: 0,
+      correlationId: options?.correlationId,
+    });
     return 0; // No orders to sync
   }
 
@@ -549,9 +617,17 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
           console.error(`Failed to publish sale_created notification for order ${meliId}:`, err);
         });
       } else {
-        // Sprint 32: Do not publish sale_cancelled if already known as cancelled
+        // Sprint 32 / Sprint 40: Do not publish sale_cancelled if already known as cancelled
         if (existing && existing.status === "cancelled") {
           continue;
+        }
+
+        // Sprint 40 Phase 3: Targeted single order cancellation processing (revert stock, register cancellation)
+        try {
+          const { syncSingleOrderCancellation } = await import("./syncCancellations");
+          await syncSingleOrderCancellation(tenantId, localId, meliId, rawOrder);
+        } catch (singleCancelErr: any) {
+          console.error(`Failed targeted cancellation for order ${localId}:`, singleCancelErr?.message);
         }
 
         const formattedAmount = `$${Math.round(Number(rawOrder.total_amount) || 0).toLocaleString("es-AR")}`;
@@ -581,16 +657,18 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     console.error("Error dispatching sale notifications in syncOrders:", notifErr);
   }
 
-    // --- SPRINT 36 / SPRINT 39: Sincronización automática de envíos desacoplada ---
-    const shouldSyncShipmentsFromOrders = process.env.LIBRETAX_SHIPMENTS_FROM_ORDERS_FULL_SYNC !== "false";
+    // --- SPRINT 36 / SPRINT 39 / SPRINT 40: Sincronización automática de envíos desacoplada ---
+    // In Sprint 40 default is FALSE: webhooks handle specific shipments, background job handles periodic safety
+    const shouldSyncShipmentsFromOrders = process.env.LIBRETAX_SHIPMENTS_FROM_ORDERS_FULL_SYNC === "true";
     if (shouldSyncShipmentsFromOrders) {
       await syncShipments(tenantId).catch((err) => {
         console.error(`Failed to sync shipments during syncOrders for tenant ${tenantId}:`, err);
       });
     }
 
-    // --- SPRINT 37 / SPRINT 39: Sincronización automática de cancelaciones desacoplada ---
-    const shouldSyncCancellationsFromOrders = process.env.LIBRETAX_CANCELLATIONS_FROM_ORDERS_FULL_SYNC !== "false";
+    // --- SPRINT 37 / SPRINT 39 / SPRINT 40: Sincronización automática de cancelaciones desacoplada ---
+    // In Sprint 40 default is FALSE: targeted cancellation transitions handle status changes, background job handles periodic safety
+    const shouldSyncCancellationsFromOrders = process.env.LIBRETAX_CANCELLATIONS_FROM_ORDERS_FULL_SYNC === "true";
     if (shouldSyncCancellationsFromOrders) {
       const { syncCancellations } = await import("./syncCancellations");
       await syncCancellations(tenantId).catch((err) => {
@@ -603,6 +681,23 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
       .from("meli_accounts")
       .update({ last_sync_at: syncTimestamp, updated_at: syncTimestamp })
       .eq("tenant_id", tenantId);
+
+    // Sprint 40 Phase 4: Update orders watermark in meli_sync_state
+    if (!specificMeliOrderId) {
+      try {
+        await supabase.from("meli_sync_state").upsert(
+          {
+            tenant_id: tenantId,
+            resource_type: "orders",
+            last_successful_sync_at: syncTimestamp,
+            updated_at: syncTimestamp,
+          },
+          { onConflict: "tenant_id,resource_type" }
+        );
+      } catch (wmErr: any) {
+        console.warn(`Failed to update meli_sync_state watermark for tenant ${tenantId}:`, wmErr?.message);
+      }
+    }
 
     // Invalidate Next.js dashboard route caches & tags so refresh immediately reflects the synced orders
     try {
@@ -619,6 +714,20 @@ export async function syncOrders(tenantId: string, specificMeliOrderId?: string,
     } catch {
       // Safe no-op when executing in background worker / non-request context
     }
+
+    await recordSyncExecution({
+      tenantId,
+      operationType: "sync_orders",
+      source: executionSource,
+      status: "completed",
+      startedAt: executionStartedAt,
+      finishedAt: new Date().toISOString(),
+      rowsRead: (rawOrders?.length || 0) + (localProducts?.length || 0) + (existingOrders?.length || 0),
+      rowsWritten: ordersToUpsert.length,
+      estimatedBytes: Math.round(ordersToUpsert.length * 350),
+      itemsProcessed: ordersToUpsert.length,
+      correlationId: options?.correlationId,
+    });
 
     return ordersToUpsert.length;
   } finally {

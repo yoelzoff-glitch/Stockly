@@ -1,8 +1,16 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getShipment } from "./getShipment";
 import { logEgressSample } from "@/lib/observability/egress";
+import { recordSyncExecution, SyncExecutionSource } from "@/lib/observability/operationRuns";
 
-export async function syncShipments(tenantId: string, specificShipmentId?: string) {
+export async function syncShipments(
+  tenantId: string,
+  specificShipmentId?: string,
+  options?: { source?: SyncExecutionSource; correlationId?: string }
+) {
+  const executionSource: SyncExecutionSource =
+    options?.source || (specificShipmentId ? "webhook" : "cron_incremental");
+  const executionStartedAt = new Date().toISOString();
   const supabase = createAdminClient();
 
   // 1. Fetch recent orders (last 30 days) with a shipment ID
@@ -155,6 +163,20 @@ export async function syncShipments(tenantId: string, specificShipmentId?: strin
         console.error("Error inserting shipments:", insertError);
     }
   }
+
+  await recordSyncExecution({
+    tenantId,
+    operationType: "sync_shipments",
+    source: executionSource,
+    status: "completed",
+    startedAt: executionStartedAt,
+    finishedAt: new Date().toISOString(),
+    rowsRead: orders?.length || 0,
+    rowsWritten: syncedCount,
+    estimatedBytes: Math.round(syncedCount * 300),
+    itemsProcessed: syncedCount,
+    correlationId: options?.correlationId,
+  });
 
   return syncedCount;
 }

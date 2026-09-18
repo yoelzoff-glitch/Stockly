@@ -64,16 +64,7 @@ export default async function ShipmentsPage(props: { searchParams: Promise<{ per
     dateFrom = new Date(2000, 0, 1);
   }
 
-  // Sprint 38A / Sprint 39: Encapsulate on-demand shipment sync behind feature flag (defaults to false)
-  const shouldSyncOnLoad = process.env.LIBRETAX_SHIPMENT_SYNC_ON_PAGE_LOAD === "true";
-  if (shouldSyncOnLoad) {
-    try {
-      const { syncShipments } = await import("@/services/meli/syncShipments");
-      await syncShipments(tenantId);
-    } catch (err) {
-      console.error("Failed to run on-demand shipment sync on page load:", err);
-    }
-  }
+  // Sprint 40 Phase 10: Page load strictly performs zero syncs. Manual sync available via button.
 
   // Fetch shipments within date range with explicit lightweight columns (omitting heavy raw_data JSONB)
   const { data: shipments } = await supabase

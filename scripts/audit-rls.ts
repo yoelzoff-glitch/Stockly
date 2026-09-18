@@ -184,7 +184,8 @@ function runRlsAudit() {
     "platform_admins", "plans", "subscription_events", "billing_transactions",
     "platform_activity_events", "platform_admin_audit_log", "tenant_activity_state",
     "web_analytics_sessions", "web_analytics_pageviews", "web_analytics_events",
-    "analytics_attribution", "web_analytics_daily", "marketing_leads"
+    "analytics_attribution", "web_analytics_daily", "marketing_leads",
+    "meli_sync_state", "egress_hourly_metrics"
   ];
 
   const sprint3BMigration = migrationFiles.find((m) => m.name.includes("sprint03_b_policies"))?.content || "";
@@ -204,7 +205,8 @@ function runRlsAudit() {
     // Authenticated tables must have explicit RLS policies (in Migration B for Sprint 3 tables, or in migration file for later tables)
     const backendOnlyTables = [
       "tenant_feature_flags", "operation_runs", "webhook_events", "usage_events", 
-      "operation_leases", "rate_limit_buckets", "platform_admins", "platform_admin_audit_log"
+      "operation_leases", "rate_limit_buckets", "platform_admins", "platform_admin_audit_log",
+      "meli_sync_state", "egress_hourly_metrics"
     ];
     if (!backendOnlyTables.includes(tbl)) {
       const isPostSprint3 = tbl === "full_replenishment_recommendations" || [

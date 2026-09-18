@@ -110,7 +110,14 @@ export const CANONICAL_INNGEST_FUNCTIONS: InngestFunctionDefinition[] = [
     triggerType: "cron",
     triggerValue: "0 * * * *",
   },
+  {
+    id: "orders-deep-reconciliation",
+    file: "src/jobs/reconciliationJobs.ts",
+    triggerType: "cron",
+    triggerValue: "0 */4 * * *",
+  },
 ];
+
 
 export function auditInngestRegistry(): { passed: boolean; errors: string[] } {
   console.log("=================================================");

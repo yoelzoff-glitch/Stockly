@@ -9,7 +9,11 @@ import { cleanupZombieUsersJob } from "../../../jobs/cleanupZombieUsersJob";
 import { applySubscriptionDowngradesJob } from "../../../jobs/applySubscriptionDowngradesJob";
 import { meliShipmentsJob, mercadopagoWebhookJob, whatsappWebhookJob } from "../../../jobs/webhookJobs";
 import { fullReplenishmentAnalysisJob } from "../../../jobs/fullReplenishmentJob";
-import { reconcileShipmentsDispatcherJob, reconcileCancellationsDispatcherJob } from "../../../jobs/reconciliationJobs";
+import { 
+  reconcileShipmentsDispatcherJob, 
+  reconcileCancellationsDispatcherJob,
+  reconcileOrdersDeepDispatcherJob 
+} from "../../../jobs/reconciliationJobs";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -29,5 +33,7 @@ export const { GET, POST, PUT } = serve({
     fullReplenishmentAnalysisJob,
     reconcileShipmentsDispatcherJob,
     reconcileCancellationsDispatcherJob,
+    reconcileOrdersDeepDispatcherJob,
   ],
 });
+

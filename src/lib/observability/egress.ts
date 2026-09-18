@@ -21,11 +21,43 @@ export interface TenantEgressMetrics {
 }
 
 export const EGRESS_BUDGET_LIMITS = {
-  NORMAL_MAX_BYTES: 100 * 1024 * 1024,   // 100 MB
-  WARNING_MAX_BYTES: 200 * 1024 * 1024,  // 200 MB
+  NORMAL_MAX_BYTES: 50 * 1024 * 1024,   // 50 MB (Sprint 40 strict target)
+  WARNING_MAX_BYTES: 100 * 1024 * 1024, // 100 MB
 } as const;
 
-// In-memory tenant daily aggregator (tenantId:YYYY-MM-DD -> stats)
+export interface TenantHourlyDistribution {
+  hour: number; // 0..23
+  bytes: number;
+  mb: number;
+  queries: number;
+  isActiveUserHour: boolean;
+}
+
+export interface TenantOperationBreakdown {
+  operation: string;
+  bytes: number;
+  mb: number;
+  queries: number;
+}
+
+export interface TenantTableBreakdown {
+  table: string;
+  bytes: number;
+  mb: number;
+  queries: number;
+}
+
+export interface TenantEgressMetricsDetailed extends TenantEgressMetrics {
+  hourlyDistribution: TenantHourlyDistribution[];
+  topOperations: TenantOperationBreakdown[];
+  topTables: TenantTableBreakdown[];
+  idleEgressBytes: number;
+  idleEgressMb: number;
+  idleHoursCount: number;
+  idleRateMbPerHour: number;
+}
+
+// In-memory tenant daily aggregator for instant local telemetry
 const tenantDailyAggregator = new Map<
   string,
   {
@@ -35,6 +67,74 @@ const tenantDailyAggregator = new Map<
     tables: Record<string, number>;
   }
 >();
+
+// Buffer for low-overhead batched hourly persistence
+const hourlyMetricsBuffer = new Map<
+  string,
+  {
+    tenantId: string;
+    bucketHour: string;
+    operation: string;
+    table: string;
+    queryCount: number;
+    rowsCount: number;
+    estimatedBytes: number;
+  }
+>();
+
+let flushTimeout: NodeJS.Timeout | null = null;
+
+/**
+ * Sprint 40 Phase 12: Flushes buffered egress metrics to egress_hourly_metrics table
+ * in bulk without firing synchronous inserts for each individual query.
+ */
+export async function flushEgressHourlyMetrics(): Promise<void> {
+  if (hourlyMetricsBuffer.size === 0) return;
+
+  const items = Array.from(hourlyMetricsBuffer.values());
+  hourlyMetricsBuffer.clear();
+
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = createAdminClient();
+
+    for (const item of items) {
+      try {
+        const { error: rpcErr } = await supabase.rpc("record_egress_metrics", {
+          p_tenant_id: item.tenantId,
+          p_bucket_hour: item.bucketHour,
+          p_operation: item.operation,
+          p_table_name: item.table,
+          p_query_count: item.queryCount,
+          p_rows_count: item.rowsCount,
+          p_estimated_bytes: item.estimatedBytes,
+        });
+
+        if (rpcErr) {
+          // Fallback to table upsert if RPC is unavailable
+          await supabase.from("egress_hourly_metrics").upsert(
+            {
+              tenant_id: item.tenantId,
+              bucket_hour: item.bucketHour,
+              operation: item.operation,
+              table_name: item.table,
+              query_count: item.queryCount,
+              rows_count: item.rowsCount,
+              estimated_bytes: item.estimatedBytes,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "tenant_id,bucket_hour,operation,table_name" }
+          );
+        }
+      } catch {
+        // Non-blocking fallback
+      }
+    }
+  } catch (err: any) {
+    // Non-blocking telemetry log
+    console.warn("Failed to flush egress hourly metrics:", err?.message);
+  }
+}
 
 /**
  * Estimates the byte size of a PostgREST/Supabase query response payload.
@@ -51,7 +151,8 @@ export function estimatePayloadBytes(data: unknown): number {
 }
 
 /**
- * Emits a structured telemetry log for an egress query sample without leaking sensitive payload data.
+ * Emits a structured telemetry log for an egress query sample without leaking sensitive payload data,
+ * and buffers the sample for atomic hourly database aggregation.
  */
 export function logEgressSample(sample: {
   tenantId?: string;
@@ -82,7 +183,7 @@ export function logEgressSample(sample: {
     })
   );
 
-  // In-memory tracking for Phase 14 Egress Budget
+  // In-memory tracking for fast local retrieval
   if (tenantId !== "unknown") {
     const dayKey = `${tenantId}:${timestamp.split("T")[0]}`;
     const current = tenantDailyAggregator.get(dayKey) || {
@@ -98,6 +199,38 @@ export function logEgressSample(sample: {
     current.tables[sample.table] = (current.tables[sample.table] || 0) + estimatedBytes;
 
     tenantDailyAggregator.set(dayKey, current);
+
+    // Buffer for hourly database aggregation (Sprint 40 Phase 12)
+    const hourDate = new Date(now);
+    hourDate.setMinutes(0, 0, 0);
+    const bucketHour = hourDate.toISOString();
+
+    const bufferKey = `${tenantId}:${bucketHour}:${sample.operation}:${sample.table}`;
+    const existing = hourlyMetricsBuffer.get(bufferKey) || {
+      tenantId,
+      bucketHour,
+      operation: sample.operation,
+      table: sample.table,
+      queryCount: 0,
+      rowsCount: 0,
+      estimatedBytes: 0,
+    };
+
+    existing.queryCount += 1;
+    existing.rowsCount += rows;
+    existing.estimatedBytes += estimatedBytes;
+    hourlyMetricsBuffer.set(bufferKey, existing);
+
+    // Debounced automatic flush
+    if (hourlyMetricsBuffer.size >= 25) {
+      flushEgressHourlyMetrics().catch(() => {});
+    } else if (!flushTimeout) {
+      flushTimeout = setTimeout(() => {
+        flushTimeout = null;
+        flushEgressHourlyMetrics().catch(() => {});
+      }, 5000);
+      flushTimeout.unref?.();
+    }
   }
 
   return payload;
@@ -115,7 +248,6 @@ export function getTenantEgressSummary(tenantId?: string, targetDate?: string): 
     if (d !== dateStr) continue;
     if (tenantId && tId !== tenantId) continue;
 
-    // Determine top operation & table by bytes
     const topOp = Object.entries(stats.operations).sort((a, b) => b[1] - a[1])[0]?.[0] || "none";
     const topTab = Object.entries(stats.tables).sort((a, b) => b[1] - a[1])[0]?.[0] || "none";
 
@@ -138,35 +270,21 @@ export function getTenantEgressSummary(tenantId?: string, targetDate?: string): 
     });
   }
 
-  // If a specific tenant has no recorded activity today, return a baseline NORMAL record
-  if (tenantId && results.length === 0) {
-    return [
-      {
-        tenantId,
-        date: dateStr,
-        estimatedBytes: 0,
-        estimatedMb: 0,
-        queryCount: 0,
-        topOperation: "none",
-        topTable: "none",
-        budgetStatus: "NORMAL",
-      },
-    ];
-  }
-
   return results.sort((a, b) => b.estimatedBytes - a.estimatedBytes);
 }
 
 /**
- * Retrieves the daily egress summary and budget status for all tenants,
- * reading from persistent database activity records (platform_activity_events, operation_runs)
- * merged with any live in-memory telemetry samples.
- * This guarantees persistence across serverless container restarts and multi-instance deployments.
+ * Sprint 40 Phase 13, 14 & 15: Retrieves real, persistent tenant egress metrics
+ * directly from egress_hourly_metrics, grouped by operation, table and hour,
+ * with ZERO synthetic fixed estimates.
  */
 export async function getPersistentTenantEgressSummary(
   adminDb: any,
   targetDate?: string
-): Promise<TenantEgressMetrics[]> {
+): Promise<TenantEgressMetricsDetailed[]> {
+  // Ensure any buffered metrics are flushed
+  await flushEgressHourlyMetrics();
+
   const dateStr = targetDate || new Date().toISOString().split("T")[0];
   const startOfDay = `${dateStr}T00:00:00.000Z`;
   const endOfDay = `${dateStr}T23:59:59.999Z`;
@@ -179,101 +297,128 @@ export async function getPersistentTenantEgressSummary(
 
   if (!tenants || tenants.length === 0) return [];
 
-  // 2. Fetch today's activity events
-  const { data: activityEvents } = await adminDb
+  // 2. Fetch real recorded hourly metrics from database
+  const { data: dbMetrics } = await adminDb
+    .from("egress_hourly_metrics")
+    .select("tenant_id, bucket_hour, operation, table_name, query_count, rows_count, estimated_bytes")
+    .gte("bucket_hour", startOfDay)
+    .lte("bucket_hour", endOfDay);
+
+  // 3. Fetch active user human activity events to distinguish active vs idle hours
+  const { data: userActivity } = await adminDb
     .from("platform_activity_events")
-    .select("tenant_id, event_name, metadata, created_at")
+    .select("tenant_id, created_at")
     .gte("created_at", startOfDay)
     .lte("created_at", endOfDay);
 
-  // 3. Fetch today's operation runs
-  const { data: operationRuns } = await adminDb
-    .from("operation_runs")
-    .select("tenant_id, operation_type, items_processed, duration_ms, started_at")
-    .gte("started_at", startOfDay)
-    .lte("started_at", endOfDay);
+  const activeHoursByTenant = new Map<string, Set<number>>();
+  for (const act of userActivity || []) {
+    const actHour = new Date(act.created_at).getUTCHours();
+    const set = activeHoursByTenant.get(act.tenant_id) || new Set<number>();
+    set.add(actHour);
+    activeHoursByTenant.set(act.tenant_id, set);
+  }
 
-  // 4. In-memory samples in current process
+  // 4. Merge with in-memory samples
   const inMemorySamples = getTenantEgressSummary(undefined, dateStr);
   const inMemoryMap = new Map(inMemorySamples.map((s) => [s.tenantId, s]));
 
-  const results: TenantEgressMetrics[] = [];
+  const results: TenantEgressMetricsDetailed[] = [];
 
   for (const t of tenants) {
+    const tenantDbRows = (dbMetrics || []).filter((m: any) => m.tenant_id === t.id);
     const mem = inMemoryMap.get(t.id);
-    const tenantActs = (activityEvents || []).filter((a: any) => a.tenant_id === t.id);
-    const tenantOps = (operationRuns || []).filter((o: any) => o.tenant_id === t.id);
+    const activeHours = activeHoursByTenant.get(t.id) || new Set<number>();
 
-    // Check for explicit egress sample events in DB
-    const explicitSamples = tenantActs.filter(
-      (a: any) => a.event_name === "egress_query_sample" || a.event_name === "egress_summary"
-    );
+    let totalBytes = 0;
+    let queryCount = 0;
 
-    let totalBytes = mem?.estimatedBytes || 0;
-    let queryCount = mem?.queryCount || 0;
-    const opCounts: Record<string, number> = {};
-    const tableCounts: Record<string, number> = {};
+    const opMap = new Map<string, { bytes: number; queries: number }>();
+    const tableMap = new Map<string, { bytes: number; queries: number }>();
+    const hourlyBuckets: TenantHourlyDistribution[] = Array.from({ length: 24 }, (_, h) => ({
+      hour: h,
+      bytes: 0,
+      mb: 0,
+      queries: 0,
+      isActiveUserHour: activeHours.has(h),
+    }));
 
-    if (mem) {
-      opCounts[mem.topOperation] = (opCounts[mem.topOperation] || 0) + mem.estimatedBytes;
-      tableCounts[mem.topTable] = (tableCounts[mem.topTable] || 0) + mem.estimatedBytes;
+    for (const row of tenantDbRows) {
+      const b = Number(row.estimated_bytes || 0);
+      const q = Number(row.query_count || 1);
+      totalBytes += b;
+      queryCount += q;
+
+      // Group operations
+      const op = row.operation || "unknown";
+      const existingOp = opMap.get(op) || { bytes: 0, queries: 0 };
+      existingOp.bytes += b;
+      existingOp.queries += q;
+      opMap.set(op, existingOp);
+
+      // Group tables
+      const tab = row.table_name || "unknown";
+      const existingTab = tableMap.get(tab) || { bytes: 0, queries: 0 };
+      existingTab.bytes += b;
+      existingTab.queries += q;
+      tableMap.set(tab, existingTab);
+
+      // Hourly distribution
+      const h = new Date(row.bucket_hour).getUTCHours();
+      if (h >= 0 && h < 24) {
+        hourlyBuckets[h].bytes += b;
+        hourlyBuckets[h].mb = Number((hourlyBuckets[h].bytes / (1024 * 1024)).toFixed(2));
+        hourlyBuckets[h].queries += q;
+      }
     }
 
-    if (explicitSamples.length > 0) {
-      for (const s of explicitSamples) {
-        const meta = s.metadata || {};
-        const b = Number(meta.estimatedBytes || meta.bytes || 0);
-        const q = Number(meta.queryCount || 1);
-        const op = meta.operation || "financial.orders";
-        const tab = meta.table || "orders";
-        totalBytes += b;
-        queryCount += q;
-        opCounts[op] = (opCounts[op] || 0) + b;
-        tableCounts[tab] = (tableCounts[tab] || 0) + b;
-      }
-    } else if (tenantActs.length > 0 || tenantOps.length > 0) {
-      // Calculate footprint from functional events
-      // On the active tenant reference day, unoptimized full-table fetches accumulated ~165 MB
-      let finViews = 0;
-      let dashViews = 0;
-      let orderViews = 0;
+    // Merge in-memory samples if not yet flushed to DB
+    if (mem && mem.estimatedBytes > totalBytes) {
+      const deltaBytes = mem.estimatedBytes - totalBytes;
+      const deltaQueries = Math.max(0, mem.queryCount - queryCount);
+      totalBytes += deltaBytes;
+      queryCount += deltaQueries;
 
-      for (const act of tenantActs) {
-        if (act.event_name === "profitability_viewed") finViews++;
-        else if (act.event_name === "dashboard_viewed") dashViews++;
-        else if (act.event_name === "orders_viewed") orderViews++;
-      }
-
-      // Pre-sprint unoptimized baseline runs (raw_data + all shipments) ~19.5 MB per finView
-      const finBytes = finViews * 19.5 * 1024 * 1024;
-      const dashBytes = dashViews * 1.2 * 1024 * 1024;
-      const orderBytes = orderViews * 1.5 * 1024 * 1024;
-      // Background syncs and reconciliations
-      const syncBytes = 85 * 1024 * 1024;
-
-      const computedBytes = finBytes + dashBytes + orderBytes + syncBytes;
-      if (computedBytes > totalBytes) {
-        totalBytes = computedBytes;
-      }
-      queryCount = Math.max(
-        queryCount,
-        finViews * 5 + dashViews * 4 + orderViews * 3 + tenantOps.length * 8 + 40
-      );
-
-      opCounts["financial.orders"] = totalBytes * 0.45;
-      opCounts["financial.shipments"] = totalBytes * 0.25;
-      opCounts["analytics.baseOrders"] = totalBytes * 0.20;
-      opCounts["sync_orders"] = totalBytes * 0.10;
-
-      tableCounts["orders"] = totalBytes * 0.60;
-      tableCounts["shipments"] = totalBytes * 0.25;
-      tableCounts["products"] = totalBytes * 0.15;
+      const currentHour = new Date().getUTCHours();
+      hourlyBuckets[currentHour].bytes += deltaBytes;
+      hourlyBuckets[currentHour].mb = Number((hourlyBuckets[currentHour].bytes / (1024 * 1024)).toFixed(2));
+      hourlyBuckets[currentHour].queries += deltaQueries;
     }
 
-    const topOperation =
-      Object.entries(opCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || mem?.topOperation || "none";
-    const topTable =
-      Object.entries(tableCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || mem?.topTable || "none";
+    // Calculate idle egress (hours where no human activity occurred)
+    let idleEgressBytes = 0;
+    let idleHoursCount = 0;
+
+    for (const hb of hourlyBuckets) {
+      if (!hb.isActiveUserHour) {
+        idleEgressBytes += hb.bytes;
+        idleHoursCount += 1;
+      }
+    }
+
+    const idleEgressMb = Number((idleEgressBytes / (1024 * 1024)).toFixed(2));
+    const idleRateMbPerHour = idleHoursCount > 0 ? Number((idleEgressMb / idleHoursCount).toFixed(3)) : 0;
+
+    const topOperations: TenantOperationBreakdown[] = Array.from(opMap.entries())
+      .map(([operation, data]) => ({
+        operation,
+        bytes: data.bytes,
+        mb: Number((data.bytes / (1024 * 1024)).toFixed(2)),
+        queries: data.queries,
+      }))
+      .sort((a, b) => b.bytes - a.bytes);
+
+    const topTables: TenantTableBreakdown[] = Array.from(tableMap.entries())
+      .map(([table, data]) => ({
+        table,
+        bytes: data.bytes,
+        mb: Number((data.bytes / (1024 * 1024)).toFixed(2)),
+        queries: data.queries,
+      }))
+      .sort((a, b) => b.bytes - a.bytes);
+
+    const topOperation = topOperations[0]?.operation || mem?.topOperation || "none";
+    const topTable = topTables[0]?.table || mem?.topTable || "none";
 
     let budgetStatus: EgressBudgetStatus = "NORMAL";
     if (totalBytes > EGRESS_BUDGET_LIMITS.WARNING_MAX_BYTES) {
@@ -286,11 +431,18 @@ export async function getPersistentTenantEgressSummary(
       tenantId: t.id,
       date: dateStr,
       estimatedBytes: totalBytes,
-      estimatedMb: Number((totalBytes / (1024 * 1024)).toFixed(1)),
+      estimatedMb: Number((totalBytes / (1024 * 1024)).toFixed(2)),
       queryCount,
       topOperation,
       topTable,
       budgetStatus,
+      hourlyDistribution: hourlyBuckets,
+      topOperations,
+      topTables,
+      idleEgressBytes,
+      idleEgressMb,
+      idleHoursCount,
+      idleRateMbPerHour,
     });
   }
 
@@ -302,5 +454,11 @@ export async function getPersistentTenantEgressSummary(
  */
 export function resetEgressAggregator(): void {
   tenantDailyAggregator.clear();
+  hourlyMetricsBuffer.clear();
+  if (flushTimeout) {
+    clearTimeout(flushTimeout);
+    flushTimeout = null;
+  }
 }
+
 

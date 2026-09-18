@@ -2,8 +2,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { refreshMeliToken } from "./refreshToken";
 import { revertInternalStockFromCancelledOrder } from "../inventory/revertInternalStockFromCancelledOrder";
 import { logEgressSample } from "@/lib/observability/egress";
+import { recordSyncExecution, SyncExecutionSource } from "@/lib/observability/operationRuns";
 
-export async function syncCancellations(tenantId: string) {
+export async function syncCancellations(
+  tenantId: string,
+  options?: { source?: SyncExecutionSource; correlationId?: string }
+) {
+  const executionSource: SyncExecutionSource = options?.source || "cron_incremental";
+  const executionStartedAt = new Date().toISOString();
   const supabase = createAdminClient();
 
   // 1. Stage 1: Get lightweight cancelled orders without heavy raw_data
@@ -89,9 +95,103 @@ export async function syncCancellations(tenantId: string) {
           console.error(`Error revirtiendo stock para orden cancelada ${cancellation.order_id}:`, err);
         });
       }
+
+      await recordSyncExecution({
+        tenantId,
+        operationType: "sync_cancellations",
+        source: executionSource,
+        status: "completed",
+        startedAt: executionStartedAt,
+        finishedAt: new Date().toISOString(),
+        rowsRead: cancelledOrders?.length || 0,
+        rowsWritten: cancellationsToUpsert.length,
+        estimatedBytes: Math.round(cancellationsToUpsert.length * 250),
+        itemsProcessed: cancellationsToUpsert.length,
+        correlationId: options?.correlationId,
+      });
+
       return cancellationsToUpsert.length;
     }
   }
 
+  await recordSyncExecution({
+    tenantId,
+    operationType: "sync_cancellations",
+    source: executionSource,
+    status: "completed",
+    startedAt: executionStartedAt,
+    finishedAt: new Date().toISOString(),
+    rowsRead: cancelledOrders?.length || 0,
+    rowsWritten: 0,
+    estimatedBytes: 0,
+    itemsProcessed: 0,
+    correlationId: options?.correlationId,
+  });
+
   return 0;
 }
+
+/**
+ * Sprint 40 Phase 3: Targeted processing for a single order transitioning to cancelled.
+ * Avoids global table scans and only acts on the specific order.
+ */
+export async function syncSingleOrderCancellation(
+  tenantId: string,
+  orderId: string,
+  meliOrderId?: string,
+  rawData?: any
+): Promise<boolean> {
+  const supabase = createAdminClient();
+
+  // Check if cancellation already registered
+  const { data: existing } = await supabase
+    .from("order_cancellations")
+    .select("id")
+    .eq("order_id", orderId)
+    .maybeSingle();
+
+  if (existing) {
+    return false; // Already processed
+  }
+
+  const cancelDetail = rawData?.cancel_detail;
+  const reason = cancelDetail?.description || "Cancelada";
+  const cancelledBy = cancelDetail?.requested_by || "Desconocido";
+  const refundAmount = rawData?.total_amount || 0;
+  const dateCancelled = cancelDetail?.date || rawData?.last_updated || new Date().toISOString();
+
+  const { error: insertError } = await supabase.from("order_cancellations").insert({
+    tenant_id: tenantId,
+    order_id: orderId,
+    meli_order_id: meliOrderId || rawData?.id?.toString() || "unknown",
+    reason,
+    cancelled_by: cancelledBy,
+    refund_amount: refundAmount,
+    date_cancelled: dateCancelled,
+    raw_data: cancelDetail || {},
+  });
+
+  if (insertError) {
+    console.error(`Error registering targeted cancellation for order ${orderId}:`, insertError);
+    return false;
+  }
+
+  // Revert internal stock atomically
+  await revertInternalStockFromCancelledOrder(tenantId, orderId).catch((err) => {
+    console.error(`Error revirtiendo stock en cancelación específica ${orderId}:`, err);
+  });
+
+  await recordSyncExecution({
+    tenantId,
+    operationType: "sync_cancellations",
+    source: "webhook",
+    status: "completed",
+    rowsRead: 1,
+    rowsWritten: 1,
+    estimatedBytes: 250,
+    itemsProcessed: 1,
+  });
+
+  return true;
+}
+

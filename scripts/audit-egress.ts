@@ -17,7 +17,7 @@ interface EgressWarning {
 
 export function runEgressAudit(): EgressViolation[] {
   console.log("=================================================");
-  console.log("LIBRETAX SPRINT 39: ZERO-WASTE EGRESS AUDIT V3");
+  console.log("LIBRETAX SPRINT 40: ZERO-WASTE & EVENT-DRIVEN EGRESS AUDIT V4");
   console.log("=================================================");
 
   const rootDir = path.resolve(__dirname, "..");
@@ -272,7 +272,7 @@ export function runEgressAudit(): EgressViolation[] {
             }
           }
 
-          // Check 10: WARNING - Sync triggered from page render
+          // Check 10: SYNC_FROM_UI_READ_PATH violation
           if (isPageFile) {
             if (
               lineText.includes("syncShipments(") ||
@@ -280,29 +280,11 @@ export function runEgressAudit(): EgressViolation[] {
               lineText.includes("syncOrders(") ||
               lineText.includes("syncCancellations(")
             ) {
-              warnings.push({
+              violations.push({
                 file: relPath,
-                category: "PAGE_RENDER_SYNC_TRIGGERED",
+                category: "SYNC_FROM_UI_READ_PATH",
                 line: lineNum,
-                message: `Page render triggers background sync (${lineText.trim()}). Ensure this is guarded by feature flags or moved to background workers.`,
-              });
-            }
-          }
-
-          // Check 11: WARNING - Full sync triggered from specific webhook
-          if (
-            relPath.includes("webhook") ||
-            relPath === "src/jobs/syncProductsJob.ts"
-          ) {
-            if (
-              lineText.includes('"meli/items.updated"') ||
-              lineText.includes("'meli/items.updated'")
-            ) {
-              warnings.push({
-                file: relPath,
-                category: "WEBHOOK_FULL_SYNC_TRIGGERED",
-                line: lineNum,
-                message: `Webhook 'meli/items.updated' currently triggers full catalog sync. Targeted for granular resolution in Sprint 38B.`,
+                message: `Page render / UI read path must NEVER trigger sync routines (${lineText.trim()}).`,
               });
             }
           }
@@ -531,6 +513,133 @@ export function runEgressAudit(): EgressViolation[] {
               category: "N_PLUS_ONE_STOCK_IDEMPOTENCY_CHECK",
               line: 1,
               message: `syncOrders must batch check internal_stock_processed = false before looping to decrement internal stock.`,
+            });
+          }
+        }
+
+        // ==============================================================================
+        // SPRINT 40 RULES: EVENT-DRIVEN EGRESS AUDIT V4
+        // ==============================================================================
+
+        // Rule S40-1: FULL_ORDERS_SYNC_HIGH_FREQUENCY
+        if (relPath === "src/jobs/syncOrdersJob.ts") {
+          if (
+            !content.includes("LIBRETAX_ORDERS_RECONCILIATION_MODE") ||
+            !content.includes("reducedMinutes") ||
+            !content.includes("0, 15, 30, 45")
+          ) {
+            violations.push({
+              file: relPath,
+              category: "FULL_ORDERS_SYNC_HIGH_FREQUENCY",
+              line: 1,
+              message: `syncOrdersJob must enforce reduced reconciliation mode (minutes 00, 15, 30, 45) to prevent 288 daily full syncs.`,
+            });
+          }
+        }
+
+        // Rule S40-2: FULL_PRODUCTS_SYNC_HIGH_FREQUENCY
+        if (relPath === "src/jobs/syncProductsJob.ts") {
+          if (
+            !content.includes("LIBRETAX_PRODUCTS_RECONCILIATION_MODE") ||
+            !content.includes("shouldSkipProductCron")
+          ) {
+            violations.push({
+              file: relPath,
+              category: "FULL_PRODUCTS_SYNC_HIGH_FREQUENCY",
+              line: 1,
+              message: `syncProductsJob must enforce reduced reconciliation mode (hourly + dirty check) to avoid polling clean catalogs.`,
+            });
+          }
+        }
+
+        // Rule S40-3: UNCOLLAPSED_PRODUCT_WEBHOOK
+        if (relPath === "src/jobs/syncProductsJob.ts") {
+          if (
+            !content.includes("LIBRETAX_PRODUCT_WEBHOOK_COALESCING") ||
+            !content.includes("recordProductItemWebhook") ||
+            !content.includes("markProductSyncStarted")
+          ) {
+            violations.push({
+              file: relPath,
+              category: "UNCOLLAPSED_PRODUCT_WEBHOOK",
+              line: 1,
+              message: `syncProductsJob must coalesce product item webhooks with a debounce window and state tracking.`,
+            });
+          }
+        }
+
+        // Rule S40-4: FULL_SHIPMENTS_FROM_ORDER_SYNC
+        if (relPath === "src/services/meli/syncOrders.ts") {
+          if (!content.includes('process.env.LIBRETAX_SHIPMENTS_FROM_ORDERS_FULL_SYNC === "true"')) {
+            violations.push({
+              file: relPath,
+              category: "FULL_SHIPMENTS_FROM_ORDER_SYNC",
+              line: 1,
+              message: `syncOrders must decouple syncShipments and only run if LIBRETAX_SHIPMENTS_FROM_ORDERS_FULL_SYNC is explicitly 'true'.`,
+            });
+          }
+        }
+
+        // Rule S40-5: FULL_CANCELLATIONS_FROM_ORDER_SYNC
+        if (relPath === "src/services/meli/syncOrders.ts") {
+          if (!content.includes('process.env.LIBRETAX_CANCELLATIONS_FROM_ORDERS_FULL_SYNC === "true"')) {
+            violations.push({
+              file: relPath,
+              category: "FULL_CANCELLATIONS_FROM_ORDER_SYNC",
+              line: 1,
+              message: `syncOrders must decouple syncCancellations and only run if LIBRETAX_CANCELLATIONS_FROM_ORDERS_FULL_SYNC is explicitly 'true'.`,
+            });
+          }
+        }
+
+        // Rule S40-6: MISSING_INCREMENTAL_WATERMARK
+        if (relPath === "src/services/meli/syncOrders.ts") {
+          if (
+            !content.includes("meli_sync_state") ||
+            !content.includes("last_successful_sync_at") ||
+            !content.includes("overlapMs")
+          ) {
+            violations.push({
+              file: relPath,
+              category: "MISSING_INCREMENTAL_WATERMARK",
+              line: 1,
+              message: `syncOrders must query meli_sync_state watermark with safety overlap and update it upon successful execution.`,
+            });
+          }
+        }
+
+        // Rule S40-7: SYNTHETIC_EGRESS_METRIC
+        if (
+          relPath === "src/lib/observability/egress.ts" ||
+          relPath.startsWith("src/app/super-admin/egress/")
+        ) {
+          if (
+            content.includes("19.5") ||
+            content.includes("85 * 1024 * 1024") ||
+            content.includes("0.45 *") ||
+            content.includes("0.25 *")
+          ) {
+            violations.push({
+              file: relPath,
+              category: "SYNTHETIC_EGRESS_METRIC",
+              line: 1,
+              message: `Egress observability must NOT contain hardcoded synthetic multipliers. Metrics must originate from real egress_hourly_metrics.`,
+            });
+          }
+        }
+
+        // Rule S40-8: UNBOUNDED_PERIODIC_RECONCILIATION
+        if (relPath === "src/jobs/reconciliationJobs.ts") {
+          if (
+            !content.includes("orders-deep-reconciliation") ||
+            !content.includes("LIBRETAX_DEEP_ORDER_RECONCILIATION") ||
+            !content.includes("0 */4 * * *")
+          ) {
+            violations.push({
+              file: relPath,
+              category: "UNBOUNDED_PERIODIC_RECONCILIATION",
+              line: 1,
+              message: `Deep reconciliation must be bounded to low frequency (e.g. 4h) and guarded by LIBRETAX_DEEP_ORDER_RECONCILIATION.`,
             });
           }
         }
