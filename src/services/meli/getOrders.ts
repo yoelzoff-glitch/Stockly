@@ -18,6 +18,9 @@ export async function getOrders(tenantId: string, meliUserId: string, dateFrom?:
           endpoint: searchUrl,
           method: "GET"
         });
+        if (!data || !Array.isArray(data.results)) {
+          throw new Error(`Invalid orders response from ${endpointBase}`);
+        }
         
         if (data.results && Array.isArray(data.results) && data.results.length > 0) {
           data.results.forEach((order: any) => {
@@ -40,8 +43,13 @@ export async function getOrders(tenantId: string, meliUserId: string, dateFrom?:
           hasMore = false;
         }
       }
-    } catch (error) {
-      console.error(`Error fetching user orders from Meli endpoint ${endpointBase}:`, error);
+    } catch (error: any) {
+      // Archived search is optional on accounts where ML does not expose it.
+      // Partial results must never advance the reconciliation watermark.
+      if (endpointBase.endsWith("/archived") && (error?.statusCode === 404 || error?.statusCode === 410)) {
+        continue;
+      }
+      throw error;
     }
   }
 

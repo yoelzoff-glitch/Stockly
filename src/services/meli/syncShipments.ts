@@ -1,12 +1,13 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getShipment } from "./getShipment";
+import { RetryAfterError } from "inngest";
 import { logEgressSample } from "@/lib/observability/egress";
 import { recordSyncExecution, SyncExecutionSource } from "@/lib/observability/operationRuns";
 
 export async function syncShipments(
   tenantId: string,
   specificShipmentId?: string,
-  options?: { source?: SyncExecutionSource; correlationId?: string }
+  options?: { source?: SyncExecutionSource; correlationId?: string; shipmentData?: any }
 ) {
   const executionSource: SyncExecutionSource =
     options?.source || (specificShipmentId ? "webhook" : "cron_incremental");
@@ -38,7 +39,10 @@ export async function syncShipments(
     data: orders,
   });
 
-  if (ordersError || !orders || orders.length === 0) {
+  if (ordersError) throw new Error(`Failed to read shipment orders: ${ordersError.message}`);
+  if (!orders || orders.length === 0) {
+    // A shipment notification can arrive before its order notification.
+    if (specificShipmentId) throw new RetryAfterError("Shipment order is not synced yet", "30s");
     return 0;
   }
 
@@ -46,9 +50,10 @@ export async function syncShipments(
   let ordersToSync = orders;
   if (!specificShipmentId) {
     const orderIds = orders.map(o => o.id);
-    const { data: completedShipments } = await supabase
+    const { data: completedShipments, error: completedError } = await supabase
       .from("shipments")
       .select("order_id")
+      .eq("tenant_id", tenantId)
       .in("order_id", orderIds)
       .in("status", ["delivered", "cancelled", "returned"]);
 
@@ -59,6 +64,7 @@ export async function syncShipments(
       data: completedShipments,
     });
 
+    if (completedError) throw new Error(`Failed to read existing shipments: ${completedError.message}`);
     const completedOrderIds = new Set(completedShipments?.map(s => s.order_id) || []);
     ordersToSync = orders.filter(o => !completedOrderIds.has(o.id));
   }
@@ -68,26 +74,42 @@ export async function syncShipments(
   }
 
   // 1.5 Fetch tenant metadata for flex zones
-  const { data: tenantData } = await supabase
+  const { data: tenantData, error: tenantError } = await supabase
     .from("tenants")
     .select("metadata")
     .eq("id", tenantId)
     .single();
 
+  if (tenantError) throw new Error(`Failed to read shipment settings: ${tenantError.message}`);
   const tenantMetadata = (tenantData?.metadata as any) || {};
   const flexZones = tenantMetadata.flex_zones || [];
 
   let syncedCount = 0;
   const shipmentsToUpsert: any[] = [];
 
+  const fetchedShipments = new Map<string, any>();
+  const failures: string[] = [];
+
   // 2. Fetch each shipment
   for (const order of ordersToSync) {
     try {
       // getShipment now accepts tenantId directly and uses meliFetch
-      const shipment = await getShipment(tenantId, order.meli_shipment_id);
+      const shipmentId = String(order.meli_shipment_id);
+      let shipment = fetchedShipments.get(shipmentId);
+      if (!shipment) {
+        shipment = options?.shipmentData?.id?.toString() === shipmentId
+          ? options.shipmentData
+          : await getShipment(tenantId, shipmentId);
+        if (!shipment?.id) throw new RetryAfterError(`Shipment ${shipmentId} is not available yet`, "30s");
+        fetchedShipments.set(shipmentId, shipment);
+      }
       
       if (shipment) {
-        let shippingCost = shipment.shipping_option?.list_cost ?? shipment.base_cost ?? 0;
+        let shippingCost = shipment.shipping_option?.list_cost ?? shipment.base_cost;
+        if (shipment.logistic_type !== "self_service" &&
+            (shippingCost == null || !Number.isFinite(Number(shippingCost)))) {
+          throw new Error(`Shipping cost is not available for ${shipmentId}`);
+        }
 
         if (shipment.logistic_type === "self_service") {
           const mlCost = shipment.base_cost || shipment.shipping_option?.list_cost || 0;
@@ -141,28 +163,42 @@ export async function syncShipments(
           raw_data: shipment,
         });
       }
-    } catch (e) {
-      console.error(`Error fetching shipment ${order.meli_shipment_id}`, e);
+    } catch (e: any) {
+      failures.push(`${order.meli_shipment_id}: ${e?.message || "shipment fetch failed"}`);
     }
   }
 
-  // 3. Upsert shipments safely
-  if (shipmentsToUpsert.length > 0) {
-    const orderIds = shipmentsToUpsert.map(s => s.order_id);
-    
-    // In chunks
-    for (let i = 0; i < orderIds.length; i += 100) {
-        const chunk = orderIds.slice(i, i + 100);
-        await supabase.from("shipments").delete().in("order_id", chunk);
-    }
-
-    const { error: insertError } = await supabase.from("shipments").insert(shipmentsToUpsert);
-    if (!insertError) {
-        syncedCount = shipmentsToUpsert.length;
-    } else {
-        console.error("Error inserting shipments:", insertError);
-    }
+  // Serialize per order and persist in one database transaction. Never delete
+  // a good shipment in a separate request before writing its replacement.
+  for (const shipment of shipmentsToUpsert) {
+    const { error } = await supabase.rpc("persist_meli_shipment", {
+      p_tenant_id: tenantId,
+      p_order_id: shipment.order_id,
+      p_shipment: shipment,
+    });
+    if (error) failures.push(`${shipment.meli_shipment_id}: ${error.message}`);
+    else syncedCount++;
   }
+
+  if (failures.length) {
+    await recordSyncExecution({
+      tenantId, operationType: "sync_shipments", source: executionSource,
+      status: "failed", startedAt: executionStartedAt, rowsWritten: syncedCount,
+      errorCode: "SYNC_SHIPMENTS_FAILED", errorMessage: failures.join("; "),
+      correlationId: options?.correlationId,
+    });
+    throw new RetryAfterError(`Incomplete shipment sync: ${failures.join("; ")}`, "30s");
+  }
+
+  try {
+    const { revalidatePath, revalidateTag } = await import("next/cache");
+    revalidatePath("/dashboard/sales", "layout");
+    revalidatePath("/dashboard/shipments");
+    revalidatePath("/dashboard/finance");
+    revalidatePath("/dashboard");
+    (revalidateTag as any)(`orders-${tenantId}`);
+    (revalidateTag as any)(`tenant-${tenantId}`);
+  } catch { /* Background/test contexts may not provide Next's cache store. */ }
 
   await recordSyncExecution({
     tenantId,

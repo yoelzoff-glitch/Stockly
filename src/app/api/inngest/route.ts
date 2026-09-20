@@ -9,6 +9,7 @@ import { cleanupZombieUsersJob } from "../../../jobs/cleanupZombieUsersJob";
 import { applySubscriptionDowngradesJob } from "../../../jobs/applySubscriptionDowngradesJob";
 import { meliShipmentsJob, mercadopagoWebhookJob, whatsappWebhookJob } from "../../../jobs/webhookJobs";
 import { fullReplenishmentAnalysisJob } from "../../../jobs/fullReplenishmentJob";
+import { repairOrdersJob } from "../../../jobs/repairOrdersJob";
 import { 
   reconcileShipmentsDispatcherJob, 
   reconcileCancellationsDispatcherJob,
@@ -34,6 +35,6 @@ export const { GET, POST, PUT } = serve({
     reconcileShipmentsDispatcherJob,
     reconcileCancellationsDispatcherJob,
     reconcileOrdersDeepDispatcherJob,
+    repairOrdersJob,
   ],
 });
-

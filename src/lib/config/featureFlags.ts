@@ -4,16 +4,8 @@
  */
 
 export const SPRINT40_FEATURE_FLAGS = {
-  /**
-   * Mode for orders reconciliation job.
-   * 'reduced': runs only at minutes 00, 15, 30, 45 (96 runs/day/tenant).
-   * 'legacy': runs every 5 minutes (288 runs/day/tenant).
-   */
-  getOrdersReconciliationMode: (): "reduced" | "legacy" => {
-    return (process.env.LIBRETAX_ORDERS_RECONCILIATION_MODE || "reduced").toLowerCase() === "legacy"
-      ? "legacy"
-      : "reduced";
-  },
+  /** Orders require a five-minute safety net; the old reduced mode is retired. */
+  getOrdersReconciliationMode: (): "legacy" => "legacy",
 
   /**
    * Whether syncOrders executes syncShipments upon completion.

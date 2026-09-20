@@ -18,7 +18,7 @@ export const meliShipmentsJob = inngest.createFunction(
   {
     id: "meli-shipments-webhook",
     triggers: [{ event: "meli/shipments.updated" as any }],
-    retries: 3,
+    retries: 6,
     concurrency: {
       limit: 2,
       key: "event.data.tenantId",

@@ -521,18 +521,13 @@ export function runEgressAudit(): EgressViolation[] {
         // SPRINT 40 RULES: EVENT-DRIVEN EGRESS AUDIT V4
         // ==============================================================================
 
-        // Rule S40-1: FULL_ORDERS_SYNC_HIGH_FREQUENCY
+        // Orders use incremental queries every five minutes; full shipment scans
+        // remain opt-in. A wall-clock slot gate can silently drop delayed ticks.
         if (relPath === "src/jobs/syncOrdersJob.ts") {
-          if (
-            !content.includes("LIBRETAX_ORDERS_RECONCILIATION_MODE") ||
-            !content.includes("reducedMinutes") ||
-            !content.includes("0, 15, 30, 45")
-          ) {
+          if (!content.includes('cron: "*/5 * * * *"') || content.includes("getUTCMinutes()")) {
             violations.push({
-              file: relPath,
-              category: "FULL_ORDERS_SYNC_HIGH_FREQUENCY",
-              line: 1,
-              message: `syncOrdersJob must enforce reduced reconciliation mode (minutes 00, 15, 30, 45) to prevent 288 daily full syncs.`,
+              file: relPath, category: "ORDERS_RECONCILIATION_LATENCY", line: 1,
+              message: "Orders reconciliation must run every five minutes without wall-clock slot skipping.",
             });
           }
         }

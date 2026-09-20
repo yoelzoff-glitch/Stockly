@@ -115,47 +115,22 @@ export const reconcileOrdersDeepDispatcherJob = inngest.createFunction(
     }
 
     const supabase = createAdminClient();
-    const { data: accounts, error } = await supabase
-      .from("meli_accounts")
-      .select("tenant_id, tenants!inner(is_demo)")
-      .eq("status", "connected")
-      .eq("tenants.is_demo", false)
-      .limit(BATCH_PAGE_SIZE);
-
-    if (error || !accounts || accounts.length === 0) {
-      return { reconciled: 0 };
+    let dispatched = 0;
+    for (let offset = 0; ; offset += BATCH_PAGE_SIZE) {
+      const { data: accounts, error } = await supabase.from("meli_accounts")
+        .select("tenant_id, tenants!inner(is_demo)").eq("status", "connected")
+        .eq("tenants.is_demo", false).order("tenant_id")
+        .range(offset, offset + BATCH_PAGE_SIZE - 1);
+      if (error) throw new Error(error.message);
+      if (!accounts?.length) break;
+      const tenantIds = [...new Set(accounts.map(a => a.tenant_id))];
+      await step.sendEvent(`deep-orders-${offset}`, tenantIds.map(tenantId => ({
+        name: "meli/orders.repair.requested" as any,
+        data: { tenantId, dateFrom: new Date(Date.now() - 7 * 86400000).toISOString(), source: "cron_deep" },
+      })));
+      dispatched += tenantIds.length;
+      if (accounts.length < BATCH_PAGE_SIZE) break;
     }
-
-    const tenantIds = Array.from(new Set(accounts.map((a: any) => a.tenant_id)));
-    let reconciledCount = 0;
-
-    // Explicit 7-day deep historical window
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const deepDateFrom = sevenDaysAgo.toISOString();
-
-    for (const tenantId of tenantIds) {
-      await step.run(`deep-reconcile-orders-${tenantId}`, async () => {
-        try {
-          const { syncOrders } = await import("@/services/meli/syncOrders");
-          logger.info({
-            event: "DEEP_ORDERS_RECONCILIATION_STARTED",
-            tenantId,
-            deepDateFrom,
-          });
-          await syncOrders(tenantId, undefined, deepDateFrom, { source: "cron_deep" });
-          reconciledCount++;
-        } catch (err: any) {
-          logger.error({
-            event: "DEEP_ORDERS_RECONCILIATION_FAILED",
-            tenantId,
-            error: err?.message,
-          });
-        }
-      });
-    }
-
-    return { reconciled: reconciledCount };
+    return { dispatched };
   }
 );
-

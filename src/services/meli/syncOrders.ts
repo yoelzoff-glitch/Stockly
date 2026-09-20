@@ -7,6 +7,9 @@ import { normalizeSku } from "../products/sku/normalizeSku";
 import { acquireLock, releaseLock, isLocked } from "@/lib/locks";
 import { logEgressSample } from "@/lib/observability/egress";
 import { recordSyncExecution, SyncExecutionSource } from "@/lib/observability/operationRuns";
+import { getShipment } from "./getShipment";
+import { RetryAfterError } from "inngest";
+import { meliFetch } from "./client";
 
 export async function syncOrders(
   tenantId: string,
@@ -32,7 +35,7 @@ export async function syncOrders(
       startedAt: executionStartedAt,
       correlationId: options?.correlationId,
     });
-    return 0;
+    throw new RetryAfterError("Orders sync is busy", "30s");
   }
 
   const supabase = createAdminClient();
@@ -52,11 +55,16 @@ export async function syncOrders(
   const { meli_user_id, id: meli_account_id } = meliAccount;
 
   // 1.5 Get tenant metadata for operational costs
-  const { data: tenantData } = await supabase
+  const { data: tenantData, error: tenantError } = await supabase
     .from("tenants")
     .select("metadata")
     .eq("id", tenantId)
     .single();
+
+  if (tenantError) {
+    releaseLock(lockKey);
+    throw new Error(`Failed to read order cost settings: ${tenantError.message}`);
+  }
   
   const tenantMetadata = (tenantData?.metadata as any) || {};
   const isFullSync = !specificMeliOrderId;
@@ -87,7 +95,7 @@ export async function syncOrders(
         correlationId: options?.correlationId,
       });
       releaseLock(lockKey);
-      return 0;
+      throw new RetryAfterError("Full orders sync is busy", "30s");
     }
 
     // Establecer bloqueo en base de datos solo para sincronizaciones completas
@@ -105,20 +113,16 @@ export async function syncOrders(
     // 2. Fetch orders from Meli API
     let rawOrders: any[] = [];
   if (specificMeliOrderId) {
-    const { meliFetch } = await import("./client");
-    try {
       const orderData = await meliFetch({
         tenantId,
         endpoint: `/orders/${specificMeliOrderId}`,
         method: "GET"
       });
-      if (orderData) {
-        rawOrders = [orderData];
+      if (!orderData?.id) throw new Error(`Invalid order response: ${specificMeliOrderId}`);
+      if (orderData.seller?.id != null && String(orderData.seller.id) !== String(meli_user_id)) {
+        throw new Error("Order seller does not match connected tenant");
       }
-    } catch (err: any) {
-      console.error(`Failed to fetch specific order ${specificMeliOrderId}:`, err.message);
-      return 0;
-    }
+      rawOrders = [orderData];
   } else {
     // Incremental watermark sync (Sprint 40 Phase 4) or custom dateFrom or fallback 7 days
     let startIso: string;
@@ -187,6 +191,7 @@ export async function syncOrders(
     table: "products",
     data: localProducts,
   });
+  if (productsError) throw new Error(`Failed to read product costs: ${productsError.message}`);
 
   // Map of meli_item_id -> local product info
   const productMap: Record<string, any> = {};
@@ -208,13 +213,13 @@ export async function syncOrders(
   }
 
   // 2.5 Fetch shipment details using multiget to resolve flex zones
-  const shipmentIds = rawOrders
+  const shipmentIds = [...new Set(rawOrders
     .map((o: any) => o.shipping?.id)
-    .filter((id: any) => id); // get all non-null shipment ids
+    .filter((id: any) => id).map(String))];
 
   const shipmentsMap: Record<string, any> = {};
+  const shipmentErrors: string[] = [];
   if (shipmentIds.length > 0) {
-    const { meliFetch } = await import("./client");
     // ML allows up to 50 ids per multiget request
     for (let i = 0; i < shipmentIds.length; i += 50) {
       const chunk = shipmentIds.slice(i, i + 50);
@@ -239,14 +244,31 @@ export async function syncOrders(
     }
   }
 
+  // A failed/partial multiget must not freeze an unknown Flex cost as zero.
+  // Reuse these responses when persisting shipments below (no second API read).
+  for (const shipmentId of shipmentIds) {
+    if (!shipmentsMap[shipmentId]) {
+      try {
+        const shipment = await getShipment(tenantId, shipmentId);
+        if (!shipment?.id) throw new Error(`Shipment ${shipmentId} is not available yet`);
+        shipmentsMap[shipmentId] = shipment;
+      } catch (error: any) {
+        // Persist sales first, including other healthy orders in this batch.
+        // Report the failure after hydration and keep the watermark unchanged.
+        shipmentErrors.push(error?.message || `Failed to fetch shipment ${shipmentId}`);
+      }
+    }
+  }
+
   // 4. Check existing orders for new sales / cancelled transitions and cost snapshots
   const syncTimestamp = new Date().toISOString();
   const meliOrderIds = rawOrders.map((o: any) => o.id?.toString()).filter(Boolean);
-  const { data: existingOrders } = await supabase
+  const { data: existingOrders, error: existingOrdersError } = await supabase
     .from("orders")
     .select("id, meli_order_id, status, packaging_cost_snapshot, flex_cost_snapshot, operational_cost_snapshot_version, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_status")
     .eq("tenant_id", tenantId)
     .in("meli_order_id", meliOrderIds);
+  if (existingOrdersError) throw new Error(`Failed to read order snapshots: ${existingOrdersError.message}`);
 
   logEgressSample({
     tenantId,
@@ -311,7 +333,7 @@ export async function syncOrders(
       let snapshotVersion = existing?.operational_cost_snapshot_version ?? "v1";
       let snapshotStatus = existing?.cost_snapshot_status ?? null;
 
-      if (!snapshotFrozenAt && isPaid) {
+      if (!snapshotFrozenAt && isPaid && (!order.shipping?.id || shipmentData)) {
         // Freeze operational cost snapshots upon observing valid paid sale
         packagingSnapshot = packagingCost;
         flexSnapshot = orderFlexCost;
@@ -410,13 +432,14 @@ export async function syncOrders(
 
     // 6. Map Order Items with deterministic line_key and cost snapshots
     const localOrderIds = Array.from(new Set(Object.values(orderMap)));
-    const { data: existingOrderItems } = localOrderIds.length > 0
+    const { data: existingOrderItems, error: existingItemsError } = localOrderIds.length > 0
       ? await supabase
           .from("order_items")
           .select("id, order_id, line_key, meli_item_id, sku, unit_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_version, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot, estimated_tax_snapshot")
           .eq("tenant_id", tenantId)
           .in("order_id", localOrderIds)
-      : { data: [] };
+      : { data: [], error: null };
+    if (existingItemsError) throw new Error(`Failed to read item snapshots: ${existingItemsError.message}`);
 
     logEgressSample({
       tenantId,
@@ -542,7 +565,7 @@ export async function syncOrders(
                 onConflict: "tenant_id, order_id, line_key",
               });
             if (singleError) {
-              console.error(`Error upserting single order item for order ${singleItem.order_id} (line_key: ${singleItem.line_key}):`, singleError.message);
+              throw new Error(`Failed to save item for order ${singleItem.order_id}: ${singleError.message}`);
             }
           }
         }
@@ -657,8 +680,23 @@ export async function syncOrders(
     console.error("Error dispatching sale notifications in syncOrders:", notifErr);
   }
 
-    // --- SPRINT 36 / SPRINT 39 / SPRINT 40: Sincronización automática de envíos desacoplada ---
-    // In Sprint 40 default is FALSE: webhooks handle specific shipments, background job handles periodic safety
+    // Always hydrate ONLY the shipments referenced by this batch. This also
+    // repairs shipment-before-order webhook delivery without a 30-day scan.
+    for (const shipmentId of shipmentIds) {
+      if (!shipmentsMap[shipmentId]) continue;
+      try {
+        await syncShipments(tenantId, shipmentId, {
+          source: executionSource,
+          correlationId: options?.correlationId,
+          shipmentData: shipmentsMap[shipmentId],
+        });
+      } catch (error: any) {
+        shipmentErrors.push(error?.message || `Failed to persist shipment ${shipmentId}`);
+      }
+    }
+    if (shipmentErrors.length) throw new RetryAfterError(shipmentErrors.join("; "), "30s");
+
+    // Optional legacy full scan remains disabled by default.
     const shouldSyncShipmentsFromOrders = process.env.LIBRETAX_SHIPMENTS_FROM_ORDERS_FULL_SYNC === "true";
     if (shouldSyncShipmentsFromOrders) {
       await syncShipments(tenantId).catch((err) => {
@@ -683,20 +721,17 @@ export async function syncOrders(
       .eq("tenant_id", tenantId);
 
     // Sprint 40 Phase 4: Update orders watermark in meli_sync_state
-    if (!specificMeliOrderId) {
-      try {
-        await supabase.from("meli_sync_state").upsert(
+    if (!specificMeliOrderId && !dateFrom) {
+        const { error: watermarkError } = await supabase.from("meli_sync_state").upsert(
           {
             tenant_id: tenantId,
             resource_type: "orders",
-            last_successful_sync_at: syncTimestamp,
+            last_successful_sync_at: executionStartedAt,
             updated_at: syncTimestamp,
           },
           { onConflict: "tenant_id,resource_type" }
         );
-      } catch (wmErr: any) {
-        console.warn(`Failed to update meli_sync_state watermark for tenant ${tenantId}:`, wmErr?.message);
-      }
+        if (watermarkError) throw new Error(`Failed to save orders watermark: ${watermarkError.message}`);
     }
 
     // Invalidate Next.js dashboard route caches & tags so refresh immediately reflects the synced orders
@@ -730,6 +765,14 @@ export async function syncOrders(
     });
 
     return ordersToUpsert.length;
+  } catch (error: any) {
+    await recordSyncExecution({
+      tenantId, operationType: "sync_orders", source: executionSource,
+      status: "failed", startedAt: executionStartedAt,
+      errorCode: "SYNC_ORDERS_FAILED", errorMessage: error?.message,
+      correlationId: options?.correlationId,
+    });
+    throw error;
   } finally {
     // Release in-memory lock
     releaseLock(lockKey);

@@ -104,11 +104,12 @@ export async function POST(req: NextRequest) {
 
     // 4. Resolve Tenant
     const supabase = createAdminClient();
-    const { data: account } = await supabase
+    const { data: account, error: accountError } = await supabase
       .from("meli_accounts")
       .select("tenant_id")
       .eq("meli_user_id", userId)
       .maybeSingle();
+    if (accountError) throw new Error(`Failed to resolve webhook tenant: ${accountError.message}`);
 
     if (!account?.tenant_id) {
       logger.info({

@@ -5,7 +5,11 @@ import { withOperationLease } from "@/lib/security/leases";
 import { logger } from "@/lib/errors/logger";
 import { isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 
+import { RetryAfterError } from "inngest";
+import { updateWebhookEventStatus } from "@/lib/security/idempotency";
+
 const BATCH_PAGE_SIZE = 50;
+const REPAIR_RESOURCE = "orders_shipments_repair_v41";
 
 /**
  * Inngest Cron Dispatcher: Paginates active connected tenants and dispatches individual Inngest events.
@@ -17,22 +21,8 @@ export const syncOrdersDispatcherJob = inngest.createFunction(
     triggers: [{ cron: "*/5 * * * *" }],
   },
   async ({ step }) => {
-    // Sprint 39/40: Active reduced orders reconciliation schedule (15m slot: 00, 15, 30, 45)
-    const reconciliationMode = process.env.LIBRETAX_ORDERS_RECONCILIATION_MODE || "reduced";
-    if (reconciliationMode === "reduced") {
-      const currentMinute = new Date().getUTCMinutes();
-      const reducedMinutes = [0, 15, 30, 45];
-      if (!reducedMinutes.includes(currentMinute)) {
-        logger.info({
-          event: "SYNC_ORDERS_DISPATCHER_SKIPPED_REDUCED_MODE",
-          currentMinute,
-          mode: "reduced",
-          message: "Skipping orders cron tick in reduced mode (runs only at minutes 00, 15, 30, 45)",
-        });
-        return { status: "skipped", reason: "reduced_mode_slot_skip" };
-      }
-    }
-
+    // Five-minute incremental safety net. Never gate on wall-clock minutes:
+    // delayed Inngest delivery must still execute the scheduled reconciliation.
     const supabase = createAdminClient();
     let offset = 0;
     let hasMore = true;
@@ -44,9 +34,11 @@ export const syncOrdersDispatcherJob = inngest.createFunction(
         .select("tenant_id, tenants!inner(is_demo)")
         .eq("status", "connected")
         .eq("tenants.is_demo", false)
+        .order("tenant_id")
         .range(offset, offset + BATCH_PAGE_SIZE - 1);
 
-      if (error || !accounts || accounts.length === 0) {
+      if (error) throw new Error(`Failed to list ML accounts: ${error.message}`);
+      if (!accounts || accounts.length === 0) {
         hasMore = false;
         break;
       }
@@ -54,6 +46,14 @@ export const syncOrdersDispatcherJob = inngest.createFunction(
       const tenantIds = Array.from(new Set(accounts.map((a) => a.tenant_id)));
 
       if (tenantIds.length > 0) {
+        // One-time bounded recovery for missing sales/shipments from Sprint 40.
+        // The marker is written by the worker only after orders + shipments succeed.
+        const { data: repairs, error: repairError } = await supabase
+          .from("meli_sync_state").select("tenant_id")
+          .eq("resource_type", REPAIR_RESOURCE).in("tenant_id", tenantIds);
+        if (repairError) throw new Error(`Failed to read repair state: ${repairError.message}`);
+        const repaired = new Set((repairs || []).map(r => r.tenant_id));
+        const repairFrom = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
         const events = tenantIds.map((tenantId) => ({
           name: "meli/tenant.sync-orders.requested" as any,
           data: { tenantId, source: "cron_dispatcher" },
@@ -61,6 +61,11 @@ export const syncOrdersDispatcherJob = inngest.createFunction(
 
         await step.sendEvent(`dispatch-orders-batch-${offset}`, events);
         totalDispatched += tenantIds.length;
+        const repairEvents = tenantIds.filter(id => !repaired.has(id)).map(tenantId => ({
+          name: "meli/orders.repair.requested" as any,
+          data: { tenantId, source: "sprint41_repair", dateFrom: repairFrom, repair: true },
+        }));
+        if (repairEvents.length) await step.sendEvent(`repair-orders-batch-${offset}`, repairEvents);
       }
 
       if (accounts.length < BATCH_PAGE_SIZE) {
@@ -87,14 +92,18 @@ export const syncOrdersTenantJob = inngest.createFunction(
       { event: "meli/tenant.sync-orders.requested" as any },
       { event: "meli/orders.updated" as any },
     ],
-    retries: 3,
+    retries: 6,
     concurrency: {
       key: "event.data.tenantId",
       limit: 1,
     },
     onFailure: async ({ event, error }: { event: any; error: any }) => {
-      const tenantId = (event?.data?.event?.data as any)?.tenantId;
+      const originalData = event?.data?.event?.data as any;
+      const tenantId = originalData?.tenantId;
       if (!tenantId) return;
+      if (originalData?.eventId) await updateWebhookEventStatus(originalData.eventId, "dead_letter", {
+        lastErrorCode: "SYNC_ORDERS_RETRIES_EXHAUSTED", lastErrorMessage: error?.message,
+      });
 
       try {
         const { upsertStateAlert } = await import("@/services/notifications/notificationService");
@@ -121,6 +130,7 @@ export const syncOrdersTenantJob = inngest.createFunction(
   },
   async ({ event, step }) => {
     const tenantId = event.data?.tenantId;
+    const eventId = event.data?.eventId;
     if (!tenantId) {
       return { status: "ignored", reason: "missing_tenant_id" };
     }
@@ -132,12 +142,13 @@ export const syncOrdersTenantJob = inngest.createFunction(
         operation: "sync_orders",
         message: "Skipping sync orders worker for demo tenant",
       });
+      if (eventId) await updateWebhookEventStatus(eventId, "ignored");
       return { skipped: true, reason: "demo_tenant" };
     }
 
     // Requirement 14: Check subscription status before executing heavy work
     const supabase = createAdminClient();
-    const { data: sub } = await supabase
+    const { data: sub, error: subscriptionError } = await supabase
       .from("subscriptions")
       .select("status")
       .eq("tenant_id", tenantId)
@@ -145,6 +156,8 @@ export const syncOrdersTenantJob = inngest.createFunction(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (subscriptionError) throw new Error(subscriptionError.message);
 
     if (sub && (sub.status === "paused" || sub.status === "cancelled" || sub.status === "expired")) {
       logger.info({
@@ -154,6 +167,7 @@ export const syncOrdersTenantJob = inngest.createFunction(
         operation: "sync_orders",
         message: "Skipping sync orders for inactive/paused tenant",
       });
+      if (eventId) await updateWebhookEventStatus(eventId, "ignored");
       return { status: "skipped", reason: "skipped_subscription_inactive" };
     }
 
@@ -162,59 +176,70 @@ export const syncOrdersTenantJob = inngest.createFunction(
     const workerId = `sync-orders-${tenantId}-${Date.now()}`;
 
     return await step.run("execute-tenant-orders-sync", async () => {
-      const leaseResult = await withOperationLease(
-        {
-          tenantId,
-          operationType: "sync_orders",
-          leaseOwner: workerId,
-          ttlSeconds: 180,
-        },
-        async () => {
-          logger.info({
-            event: "SYNC_ORDERS_TENANT_STARTED",
+      if (eventId) await updateWebhookEventStatus(eventId, "processing");
+      try {
+        const leaseResult = await withOperationLease(
+          {
             tenantId,
-            specificOrderId,
-            source: event.data?.source || event.name,
-          });
-
-          const syncedCount = await syncOrders(tenantId, specificOrderId);
-
-          try {
-            const { recordMlSyncActivity } = await import("@/services/super-admin/activity");
-            await recordMlSyncActivity(tenantId);
-          } catch {}
-
-          // Resolve sync_failed alert on success
-          try {
-            const { upsertStateAlert } = await import("@/services/notifications/notificationService");
-            await upsertStateAlert({
+            operationType: "sync_orders",
+            leaseOwner: workerId,
+            ttlSeconds: 180,
+          },
+          async () => {
+            logger.info({
+              event: "SYNC_ORDERS_TENANT_STARTED",
               tenantId,
-              type: "sync_failed",
-              title: "No pudimos actualizar los datos de Mercado Libre",
-              body: "LibretaX agotó los reintentos automáticos.",
-              actionUrl: "/dashboard/integrations",
-              actionLabel: "Revisar integración",
-              dedupeKey: `tenant:${tenantId}:state:sync_failed:sync_orders`,
-              count: 0,
+              specificOrderId,
+              source: event.data?.source || event.name,
             });
-          } catch (e: any) {
-            console.error("Failed to auto-resolve sync_failed alert:", e.message);
+
+            const syncedCount = await syncOrders(tenantId, specificOrderId, undefined, {
+              correlationId: event.data?.correlationId,
+            });
+
+            try {
+              const { recordMlSyncActivity } = await import("@/services/super-admin/activity");
+              await recordMlSyncActivity(tenantId);
+            } catch {}
+
+            // Resolve sync_failed alert on success
+            try {
+              const { upsertStateAlert } = await import("@/services/notifications/notificationService");
+              await upsertStateAlert({
+                tenantId,
+                type: "sync_failed",
+                title: "No pudimos actualizar los datos de Mercado Libre",
+                body: "LibretaX agotó los reintentos automáticos.",
+                actionUrl: "/dashboard/integrations",
+                actionLabel: "Revisar integración",
+                dedupeKey: `tenant:${tenantId}:state:sync_failed:sync_orders`,
+                count: 0,
+              });
+            } catch (e: any) {
+              console.error("Failed to auto-resolve sync_failed alert:", e.message);
+            }
+
+            return { tenantId, status: "completed", syncedCount };
           }
+        );
 
-          return { tenantId, status: "completed", syncedCount };
+        if (!leaseResult.executed) {
+          logger.info({
+            event: "SYNC_ORDERS_TENANT_SKIPPED_ACTIVE_LEASE",
+            tenantId,
+            reason: leaseResult.skipReason,
+          });
+          throw new RetryAfterError(`Orders lease unavailable: ${leaseResult.skipReason}`, "30s");
         }
-      );
 
-      if (!leaseResult.executed) {
-        logger.info({
-          event: "SYNC_ORDERS_TENANT_SKIPPED_ACTIVE_LEASE",
-          tenantId,
-          reason: leaseResult.skipReason,
+        if (eventId) await updateWebhookEventStatus(eventId, "completed");
+        return leaseResult.result;
+      } catch (error: any) {
+        if (eventId) await updateWebhookEventStatus(eventId, "retrying", {
+          lastErrorCode: "SYNC_ORDERS_FAILED", lastErrorMessage: error?.message, incrementAttempts: true,
         });
-        return { tenantId, status: "skipped", reason: leaseResult.skipReason };
+        throw new RetryAfterError(error?.message || "Orders sync failed", "30s", { cause: error });
       }
-
-      return leaseResult.result;
     });
   }
 );

@@ -8,7 +8,7 @@ export async function getShipment(tenantId: string, shipment_id: string) {
       method: "GET"
     });
   } catch (error: any) {
-    if (error.status === 404) {
+    if (error.statusCode === 404 || error.status === 404) {
       return null;
     }
     throw error;

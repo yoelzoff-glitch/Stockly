@@ -185,5 +185,10 @@ export async function updateWebhookEventStatus(
     }
   }
 
-  await supabase.from("webhook_events").update(updatePayload).eq("id", eventId);
+  let query = supabase.from("webhook_events").update(updatePayload).eq("id", eventId);
+  // Inngest can finish before the receiver returns from send(). Never move a
+  // completed/processing event back to queued after a fast worker execution.
+  if (status === "queued") query = query.in("status", ["received", "retrying"]);
+  const { error } = await query;
+  if (error) throw new Error(`Failed to update webhook status: ${error.message}`);
 }

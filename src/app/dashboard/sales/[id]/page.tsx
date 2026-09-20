@@ -90,6 +90,7 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
   ) || 0;
 
   // Logistics costs
+  const logisticsPending = Boolean(order.meli_shipment_id) && (!shipment || shipment.shipping_cost == null);
   const shippingCost = Number(shipment?.shipping_cost) || 0;
   const packagingCost = Number(order.packaging_cost_snapshot ?? operationalCosts.packaging_cost) || 0;
   const totalLogisticsCost = shippingCost + packagingCost;
@@ -141,10 +142,10 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
     },
     {
       label: "Resultado Neto",
-      value: `$${netProfit.toLocaleString("es-AR")}`,
-      subtext: `Margen: ${marginPercent.toFixed(1)}%`,
+      value: logisticsPending ? "Pendiente" : `$${netProfit.toLocaleString("es-AR")}`,
+      subtext: logisticsPending ? "Falta sincronizar el envío" : `Margen: ${marginPercent.toFixed(1)}%`,
       icon: netProfit >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />,
-      highlight: netProfit >= 0 ? "positive" : "critical"
+      highlight: logisticsPending ? undefined : netProfit >= 0 ? "positive" : "critical"
     }
   ];
 
@@ -266,7 +267,7 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
                 <div className="flex justify-between text-xs font-semibold text-[#5F6875]">
                   <span>Margen Neto sobre Venta</span>
                   <span className={netProfit >= 0 ? "text-[#198754] font-bold" : "text-[#D92D20] font-bold"}>
-                    {marginPercent.toFixed(1)}%
+                    {logisticsPending ? "Pendiente" : `${marginPercent.toFixed(1)}%`}
                   </span>
                 </div>
                 <div className="w-full h-2.5 bg-[#F5F3EE] rounded-full overflow-hidden border border-[#DCDAD4]">
@@ -280,7 +281,7 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
                             ? "bg-[#F2C94C]"
                             : "bg-[#D92D20]"
                     }`}
-                    style={{ width: `${Math.max(0, Math.min(100, marginPercent))}%` }}
+                    style={{ width: `${logisticsPending ? 0 : Math.max(0, Math.min(100, marginPercent))}%` }}
                   />
                 </div>
               </div>
@@ -298,7 +299,7 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
                 }`} />
                 <div className="text-xs space-y-1">
                   <h4 className="font-bold text-[#101828]">
-                    {marginPercent >= 20
+                    {logisticsPending ? "Rentabilidad pendiente de sincronización del envío" : marginPercent >= 20
                       ? "Rentabilidad óptima (supera el 20%)"
                       : marginPercent >= 10
                         ? "Margen operativo aceptable"
@@ -307,7 +308,7 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
                           : "Venta a pérdida"}
                   </h4>
                   <p className="text-[#5F6875] leading-relaxed">
-                    {marginPercent >= 20
+                    {logisticsPending ? "El costo logístico todavía no está disponible. La ganancia y el margen se mostrarán cuando termine la sincronización." : marginPercent >= 20
                       ? "Esta operación deja una contribución sólida. Los costos logísticos y de producto están equilibrados frente al precio de venta."
                       : marginPercent >= 10
                         ? "La venta genera resultado positivo. En productos de alta rotación es admisible; para catálogo general considerá optimizar embalaje o ajustar el precio."
@@ -376,7 +377,7 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
               <div className="flex justify-between items-center py-1 border-b border-[#E2E8F0]">
                 <span className="text-[#5F6875]">Costo Total Logístico</span>
                 <span className="font-bold text-[#101828] tabular-nums" style={{ fontVariantNumeric: "tabular-nums" }}>
-                  -${totalLogisticsCost.toLocaleString("es-AR")}
+                  {logisticsPending ? "Pendiente" : `-$${totalLogisticsCost.toLocaleString("es-AR")}`}
                 </span>
               </div>
 
@@ -393,7 +394,7 @@ export default async function SaleDetailPage(props: { params: Promise<{ id: stri
                   className={`font-bold tabular-nums ${netProfit >= 0 ? "text-[#198754]" : "text-[#D92D20]"}`}
                   style={{ fontVariantNumeric: "tabular-nums" }}
                 >
-                  ${netProfit.toLocaleString("es-AR")}
+                  {logisticsPending ? "Pendiente" : `$${netProfit.toLocaleString("es-AR")}`}
                 </span>
               </div>
             </div>

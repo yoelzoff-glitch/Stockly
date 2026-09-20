@@ -34,6 +34,7 @@
     "test:rls:integration": "node -r ./tests/setup.cjs --import tsx --test tests/integration/multiTenantRls.test.ts",
     "test:webhooks:integration": "node -r ./tests/setup.cjs --import tsx --test tests/integration/webhookIdempotency.test.ts",
     "test:billing:integration": "node -r ./tests/setup.cjs --import tsx --test tests/integration/billingConcurrency.test.ts",
+    "test:shipments:integration": "node -r ./tests/setup.cjs --import tsx --test tests/integration/shipmentPersistence.test.ts",
     "test:leases:integration": "node -r ./tests/setup.cjs --import tsx --test tests/integration/leasesAndRateLimits.test.ts",
     "test:error-retry:integration": "node -r ./tests/setup.cjs --import tsx --test tests/integration/externalErrorRetry.test.ts",
     "test:fault": "node -r ./tests/setup.cjs --import tsx --test tests/integration/faultInjection.test.ts",

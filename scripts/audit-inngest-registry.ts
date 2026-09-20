@@ -13,6 +13,14 @@ export interface InngestFunctionDefinition {
 
 export const CANONICAL_INNGEST_FUNCTIONS: InngestFunctionDefinition[] = [
   {
+    id: "orders-history-recovery",
+    file: "src/jobs/repairOrdersJob.ts",
+    triggerType: "event",
+    triggerValue: "meli/orders.repair.requested",
+    retries: 6,
+    concurrency: { limit: 1, key: "event.data.tenantId" },
+  },
+  {
     id: "sync-products-dispatcher",
     file: "src/jobs/syncProductsJob.ts",
     triggerType: "cron",
@@ -37,7 +45,7 @@ export const CANONICAL_INNGEST_FUNCTIONS: InngestFunctionDefinition[] = [
     file: "src/jobs/syncOrdersJob.ts",
     triggerType: "event",
     triggerValue: "meli/tenant.sync-orders.requested",
-    retries: 3,
+    retries: 6,
     concurrency: { limit: 1, key: "event.data.tenantId" },
   },
   {
@@ -75,7 +83,7 @@ export const CANONICAL_INNGEST_FUNCTIONS: InngestFunctionDefinition[] = [
     file: "src/jobs/webhookJobs.ts",
     triggerType: "event",
     triggerValue: "meli/shipments.updated",
-    retries: 3,
+    retries: 6,
     concurrency: { limit: 2, key: "event.data.tenantId" },
   },
   {
