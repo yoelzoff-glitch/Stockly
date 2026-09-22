@@ -79,25 +79,57 @@ export async function getFinancialData(
     orderItems = dataset.orderItems;
     shipments = dataset.shipments;
   } else {
-    // 1. Fetch orders with explicit JSONB projections (Phase 2 - eliminate full raw_data)
-    const { data: ordersData } = await supabase
-      .from("orders")
-      .select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id, coupon:raw_data->coupon, payments:raw_data->payments, legacy_order_items:raw_data->order_items, libretax_operational_costs:raw_data->libretax_operational_costs, klyvo_operational_costs:raw_data->klyvo_operational_costs, packaging_cost_snapshot, flex_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_status")
-      .eq("tenant_id", tenantId)
-      .neq("status", "cancelled")
-      .gte("date_created", dateFrom.toISOString())
-      .lte("date_created", dateTo.toISOString());
+    // 1. Fetch orders with explicit JSONB projections and stable ID tiebreaker pagination
+    orders = [];
+    let ordersOffset = 0;
+    const ORDERS_CHUNK = 1000;
+    let hasMoreOrders = true;
 
-    orders = (ordersData || []).map((o: any) => {
-      const raw = o.raw_data || {
-        coupon: o.coupon,
-        payments: o.payments,
-        order_items: o.legacy_order_items,
-        libretax_operational_costs: o.libretax_operational_costs,
-        klyvo_operational_costs: o.klyvo_operational_costs,
-      };
-      return { ...o, raw_data: raw };
-    });
+    while (hasMoreOrders) {
+      let ordersQuery = supabase
+        .from("orders")
+        .select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id, coupon:raw_data->coupon, payments:raw_data->payments, legacy_order_items:raw_data->order_items, libretax_operational_costs:raw_data->libretax_operational_costs, klyvo_operational_costs:raw_data->klyvo_operational_costs, packaging_cost_snapshot, flex_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_status")
+        .eq("tenant_id", tenantId)
+        .neq("status", "cancelled")
+        .gte("date_created", dateFrom.toISOString())
+        .lte("date_created", dateTo.toISOString());
+
+      if (typeof (ordersQuery as any).order === "function") {
+        ordersQuery = (ordersQuery as any)
+          .order("date_created", { ascending: false })
+          .order("id", { ascending: false });
+      }
+
+      const hasRangeSupport = typeof (ordersQuery as any).range === "function";
+      if (hasRangeSupport) {
+        ordersQuery = (ordersQuery as any).range(ordersOffset, ordersOffset + ORDERS_CHUNK - 1);
+      }
+
+      const { data: ordersData, error: ordersErr } = await ordersQuery;
+
+      if (ordersErr) {
+        throw new Error(`Error al consultar órdenes en Finanzas: ${ordersErr.message}`);
+      }
+
+      const batch = (ordersData || []).map((o: any) => {
+        const raw = o.raw_data || {
+          coupon: o.coupon,
+          payments: o.payments,
+          order_items: o.legacy_order_items,
+          libretax_operational_costs: o.libretax_operational_costs,
+          klyvo_operational_costs: o.klyvo_operational_costs,
+        };
+        return { ...o, raw_data: raw };
+      });
+
+      orders.push(...batch);
+
+      if (!hasRangeSupport || batch.length < ORDERS_CHUNK) {
+        hasMoreOrders = false;
+      } else {
+        ordersOffset += ORDERS_CHUNK;
+      }
+    }
 
     logEgressSample({
       tenantId,
@@ -106,15 +138,46 @@ export async function getFinancialData(
       data: orders,
     });
 
-    // 2. Fetch cancellations with JSONB projection on payments
-    const { data: cancellationsData } = await supabase
-      .from("order_cancellations")
-      .select("refund_amount, orders(payments:raw_data->payments)")
-      .eq("tenant_id", tenantId)
-      .gte("date_cancelled", dateFrom.toISOString())
-      .lte("date_cancelled", dateTo.toISOString());
+    // 2. Fetch cancellations with JSONB projection on payments and stable tiebreaker pagination
+    cancellations = [];
+    let cancOffset = 0;
+    const CANC_CHUNK = 1000;
+    let hasMoreCanc = true;
 
-    cancellations = cancellationsData || [];
+    while (hasMoreCanc) {
+      let cancQuery = supabase
+        .from("order_cancellations")
+        .select("id, refund_amount, orders(payments:raw_data->payments)")
+        .eq("tenant_id", tenantId)
+        .gte("date_cancelled", dateFrom.toISOString())
+        .lte("date_cancelled", dateTo.toISOString());
+
+      if (typeof (cancQuery as any).order === "function") {
+        cancQuery = (cancQuery as any)
+          .order("date_cancelled", { ascending: false })
+          .order("id", { ascending: false });
+      }
+
+      const hasRangeSupport = typeof (cancQuery as any).range === "function";
+      if (hasRangeSupport) {
+        cancQuery = (cancQuery as any).range(cancOffset, cancOffset + CANC_CHUNK - 1);
+      }
+
+      const { data: cancellationsData, error: cancellationsErr } = await cancQuery;
+
+      if (cancellationsErr) {
+        throw new Error(`Error al consultar cancelaciones en Finanzas: ${cancellationsErr.message}`);
+      }
+
+      const batch = cancellationsData || [];
+      cancellations.push(...batch);
+
+      if (!hasRangeSupport || batch.length < CANC_CHUNK) {
+        hasMoreCanc = false;
+      } else {
+        cancOffset += CANC_CHUNK;
+      }
+    }
 
     logEgressSample({
       tenantId,
@@ -123,13 +186,43 @@ export async function getFinancialData(
       data: cancellations,
     });
 
-    // 3. Fetch products
-    const { data: productsData } = await supabase
-      .from("products")
-      .select("id, meli_item_id, title, sku, status, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount")
-      .eq("tenant_id", tenantId);
+    // 3. Fetch products with stable tiebreaker pagination
+    products = [];
+    let prodOffset = 0;
+    const PROD_CHUNK = 1000;
+    let hasMoreProd = true;
 
-    products = productsData || [];
+    while (hasMoreProd) {
+      let prodQuery = supabase
+        .from("products")
+        .select("id, meli_item_id, title, sku, status, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount")
+        .eq("tenant_id", tenantId);
+
+      if (typeof (prodQuery as any).order === "function") {
+        prodQuery = (prodQuery as any)
+          .order("id", { ascending: false });
+      }
+
+      const hasRangeSupport = typeof (prodQuery as any).range === "function";
+      if (hasRangeSupport) {
+        prodQuery = (prodQuery as any).range(prodOffset, prodOffset + PROD_CHUNK - 1);
+      }
+
+      const { data: productsData, error: productsErr } = await prodQuery;
+
+      if (productsErr) {
+        throw new Error(`Error al consultar productos en Finanzas: ${productsErr.message}`);
+      }
+
+      const batch = productsData || [];
+      products.push(...batch);
+
+      if (!hasRangeSupport || batch.length < PROD_CHUNK) {
+        hasMoreProd = false;
+      } else {
+        prodOffset += PROD_CHUNK;
+      }
+    }
 
     logEgressSample({
       tenantId,
@@ -141,20 +234,47 @@ export async function getFinancialData(
     // Filter out ignored/test orders
     activeOrders = orders.filter(o => !ignoredOrderIds.includes(o.meli_order_id));
 
-    // 4. Fetch order items for active orders
+    // 4. Fetch order items for active orders in chunks of order IDs, with pagination per chunk
     const orderIds = activeOrders.map(o => o.id);
     orderItems = [];
     if (orderIds.length > 0) {
       const CHUNK_SIZE = 150;
       for (let i = 0; i < orderIds.length; i += CHUNK_SIZE) {
         const chunkIds = orderIds.slice(i, i + CHUNK_SIZE);
-        const { data: itemsChunk } = await supabase
-          .from("order_items")
-          .select("order_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost, sku, unit_cost, line_key, unit_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_version, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot, estimated_tax_snapshot")
-          .in("order_id", chunkIds);
+        let itemsOffset = 0;
+        const ITEMS_CHUNK = 1000;
+        let hasMoreItems = true;
 
-        if (itemsChunk && itemsChunk.length > 0) {
-          orderItems = orderItems.concat(itemsChunk);
+        while (hasMoreItems) {
+          let itemsQuery = supabase
+            .from("order_items")
+            .select("id, order_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost, sku, unit_cost, line_key, unit_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_version, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot, estimated_tax_snapshot")
+            .in("order_id", chunkIds);
+
+          if (typeof (itemsQuery as any).order === "function") {
+            itemsQuery = (itemsQuery as any)
+              .order("id", { ascending: false });
+          }
+
+          const hasRangeSupport = typeof (itemsQuery as any).range === "function";
+          if (hasRangeSupport) {
+            itemsQuery = (itemsQuery as any).range(itemsOffset, itemsOffset + ITEMS_CHUNK - 1);
+          }
+
+          const { data: itemsChunk, error: itemsChunkErr } = await itemsQuery;
+
+          if (itemsChunkErr) {
+            throw new Error(`Error al consultar ítems de órdenes en Finanzas: ${itemsChunkErr.message}`);
+          }
+
+          const batch = itemsChunk || [];
+          orderItems.push(...batch);
+
+          if (!hasRangeSupport || batch.length < ITEMS_CHUNK) {
+            hasMoreItems = false;
+          } else {
+            itemsOffset += ITEMS_CHUNK;
+          }
         }
       }
     }
@@ -166,21 +286,48 @@ export async function getFinancialData(
       data: orderItems,
     });
 
-    // 5. Fetch shipments for fallbacks (Phase 3: bounded to activeOrders in chunks of 200 IDs)
+    // 5. Fetch shipments for fallbacks (Phase 3: bounded to activeOrders in chunks of 200 IDs, with pagination per chunk)
     const shipmentIds = Array.from(new Set(activeOrders.map(o => o.meli_shipment_id).filter(Boolean)));
     shipments = [];
     if (shipmentIds.length > 0) {
       const SHIPMENT_CHUNK = 200;
       for (let i = 0; i < shipmentIds.length; i += SHIPMENT_CHUNK) {
         const chunkIds = shipmentIds.slice(i, i + SHIPMENT_CHUNK);
-        const { data: shipChunk } = await supabase
-          .from("shipments")
-          .select("meli_shipment_id, shipping_cost")
-          .eq("tenant_id", tenantId)
-          .in("meli_shipment_id", chunkIds);
+        let shipOffset = 0;
+        const SHIP_CHUNK = 1000;
+        let hasMoreShip = true;
 
-        if (shipChunk && shipChunk.length > 0) {
-          shipments = shipments.concat(shipChunk);
+        while (hasMoreShip) {
+          let shipQuery = supabase
+            .from("shipments")
+            .select("id, meli_shipment_id, shipping_cost")
+            .eq("tenant_id", tenantId)
+            .in("meli_shipment_id", chunkIds);
+
+          if (typeof (shipQuery as any).order === "function") {
+            shipQuery = (shipQuery as any)
+              .order("id", { ascending: false });
+          }
+
+          const hasRangeSupport = typeof (shipQuery as any).range === "function";
+          if (hasRangeSupport) {
+            shipQuery = (shipQuery as any).range(shipOffset, shipOffset + SHIP_CHUNK - 1);
+          }
+
+          const { data: shipChunk, error: shipChunkErr } = await shipQuery;
+
+          if (shipChunkErr) {
+            throw new Error(`Error al consultar envíos en Finanzas: ${shipChunkErr.message}`);
+          }
+
+          const batch = shipChunk || [];
+          shipments.push(...batch);
+
+          if (!hasRangeSupport || batch.length < SHIP_CHUNK) {
+            hasMoreShip = false;
+          } else {
+            shipOffset += SHIP_CHUNK;
+          }
         }
       }
     }
@@ -584,10 +731,42 @@ export async function getFinancialData(
   const appliedExpensesBreakdown: { name: string; amount: number; type: string }[] = [];
 
   try {
-    const { data: expenses } = await supabase
-      .from("monthly_expenses")
-      .select("*")
-      .eq("tenant_id", tenantId);
+    let expenses: any[] = [];
+    let expOffset = 0;
+    const EXP_CHUNK = 1000;
+    let hasMoreExp = true;
+
+    while (hasMoreExp) {
+      let expQuery = supabase
+        .from("monthly_expenses")
+        .select("*")
+        .eq("tenant_id", tenantId);
+
+      if (typeof (expQuery as any).order === "function") {
+        expQuery = (expQuery as any)
+          .order("id", { ascending: false });
+      }
+
+      const hasRangeSupport = typeof (expQuery as any).range === "function";
+      if (hasRangeSupport) {
+        expQuery = (expQuery as any).range(expOffset, expOffset + EXP_CHUNK - 1);
+      }
+
+      const { data: expBatch, error: expensesErr } = await expQuery;
+
+      if (expensesErr) {
+        throw new Error(`Error al consultar gastos mensuales en Finanzas: ${expensesErr.message}`);
+      }
+
+      const batch = expBatch || [];
+      expenses.push(...batch);
+
+      if (!hasRangeSupport || batch.length < EXP_CHUNK) {
+        hasMoreExp = false;
+      } else {
+        expOffset += EXP_CHUNK;
+      }
+    }
 
     if (expenses && expenses.length > 0) {
       const orderDateFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -773,6 +952,7 @@ export async function getFinancialData(
     }
   } catch (err: any) {
     console.error("Error calculating monthly expenses in getFinancialData:", err.message);
+    throw err;
   }
 
   const gananciaBolsilloLimpia = gananciaNeta - monthlyExpensesTotal;
