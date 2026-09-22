@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -13,8 +13,6 @@ import {
   ArrowRight,
   ShoppingBag,
   DollarSign,
-  TrendingDown,
-  TrendingUp,
   RotateCcw,
   Calendar,
 } from "lucide-react";
@@ -25,13 +23,13 @@ import { OperationalNotice } from "@/components/operational/notice";
 import { DataTableShell } from "@/components/operational/data-table-shell";
 import { OperationalEmptyState } from "@/components/operational/empty-state";
 import { BalanceData } from "@/services/balance/getBalanceData";
-import { ProcessedPurchaseOrder } from "@/services/balance/calculateBalance";
 
 interface BalanceClientPageProps {
   initialData: BalanceData | null;
   currentPeriod: string;
   fromParam?: string;
   toParam?: string;
+  timezone?: string;
   errorMessage?: string | null;
 }
 
@@ -40,6 +38,7 @@ export default function BalanceClientPage({
   currentPeriod,
   fromParam = "",
   toParam = "",
+  timezone = "America/Argentina/Buenos_Aires",
   errorMessage = null,
 }: BalanceClientPageProps) {
   const router = useRouter();
@@ -50,12 +49,18 @@ export default function BalanceClientPage({
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
+  // Reset pagination on period or date filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [currentPeriod, fromParam, toParam]);
+
   // Custom date range state
   const [customFrom, setCustomFrom] = useState(fromParam);
   const [customTo, setCustomTo] = useState(toParam);
 
   const handlePeriodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const nextPeriod = e.target.value;
+    setCurrentPage(1);
     const params = new URLSearchParams();
     params.set("period", nextPeriod);
     if (nextPeriod === "custom") {
@@ -66,6 +71,7 @@ export default function BalanceClientPage({
   };
 
   const applyCustomDates = () => {
+    setCurrentPage(1);
     const params = new URLSearchParams();
     params.set("period", "custom");
     if (customFrom) params.set("from", customFrom);
@@ -101,7 +107,7 @@ export default function BalanceClientPage({
     );
   }
 
-  const { balance, financials } = initialData;
+  const { balance } = initialData;
   const {
     cmv,
     gananciaDespuesDeGastos,
@@ -110,6 +116,12 @@ export default function BalanceClientPage({
     balanceDespuesDeCompras,
     proporcionDestinadaACompras,
     comprasVsCMV,
+    isProporcionEstimated,
+    isComprasVsCMVEstimated,
+    integrityStatus,
+    integrityLabel,
+    integrityExplanation,
+    freightAudit,
     totalExtraCosts,
     validPurchasesCount,
     voidedPurchasesCount,
@@ -130,10 +142,12 @@ export default function BalanceClientPage({
   const isBalancePositive = balanceDespuesDeCompras > 0;
   const isBalanceNegative = balanceDespuesDeCompras < 0;
 
+  // Format purchase date strictly in tenant timezone
   const formatDate = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
       return new Intl.DateTimeFormat("es-AR", {
+        timeZone: timezone,
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -143,6 +157,26 @@ export default function BalanceClientPage({
     }
   };
 
+  // Safe finance link (Finances does not support custom date ranges)
+  const isCustomPeriod = currentPeriod === "custom";
+  const financeLinkHref = isCustomPeriod ? "/dashboard/finance" : `/dashboard/finance?period=${currentPeriod}`;
+
+  // Status badge styling
+  let statusBadgeVariant: "success" | "warning" | "info" = "success";
+  let StatusBadgeIcon = CheckCircle2;
+  if (
+    integrityStatus === "partial_costs" ||
+    integrityStatus === "freight_unverified" ||
+    integrityStatus === "freight_discrepancy" ||
+    integrityStatus === "items_discrepancy"
+  ) {
+    statusBadgeVariant = "warning";
+    StatusBadgeIcon = AlertTriangle;
+  } else if (integrityStatus === "freight_prorated") {
+    statusBadgeVariant = "info";
+    StatusBadgeIcon = AlertCircle;
+  }
+
   return (
     <div className="space-y-6">
       {/* 1. Page Header */}
@@ -150,17 +184,10 @@ export default function BalanceClientPage({
         title="Balance después de Compras"
         description="Evalúa cuánto del resultado de tus ventas queda disponible tras reponer o ampliar inventario."
         status={
-          hasIncompleteCosts ? (
-            <StatusBadge variant="warning">
-              <AlertTriangle className="w-3 h-3 mr-1 shrink-0" />
-              Cálculo Parcial ({incompletePurchasesCount} compra(s) sin costo exacto)
-            </StatusBadge>
-          ) : (
-            <StatusBadge variant="success">
-              <CheckCircle2 className="w-3 h-3 mr-1 shrink-0" />
-              Conciliación Completa
-            </StatusBadge>
-          )
+          <StatusBadge variant={statusBadgeVariant}>
+            <StatusBadgeIcon className="w-3 h-3 mr-1 shrink-0" />
+            {integrityLabel}
+          </StatusBadge>
         }
         actions={
           <div className="flex flex-wrap items-center gap-2.5">
@@ -175,14 +202,14 @@ export default function BalanceClientPage({
               <option value="custom">Personalizado</option>
             </select>
 
-            <Link href={`/dashboard/finance?period=${currentPeriod}`}>
+            <Link href={financeLinkHref} title={isCustomPeriod ? "Finanzas no admite filtros personalizados; abre vista general" : undefined}>
               <Button
                 variant="outline"
                 size="sm"
                 className="h-9 border-[#DCDAD4] bg-[#FFFFFF] text-xs font-semibold text-[#101828] hover:bg-[#F5F3EE]"
               >
                 <DollarSign className="w-3.5 h-3.5 mr-1" />
-                Ir a Finanzas
+                {isCustomPeriod ? "Ir a Finanzas (Vista Estándar)" : "Ir a Finanzas"}
               </Button>
             </Link>
 
@@ -205,7 +232,7 @@ export default function BalanceClientPage({
         <div className="flex flex-wrap items-center gap-3 p-3 bg-[#FCFCFA] rounded-lg border border-[#DCDAD4] text-xs">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-[#5F6875]" />
-            <span className="font-semibold text-[#101828]">Rango de fechas:</span>
+            <span className="font-semibold text-[#101828]">Rango de fechas (Zona: {timezone}):</span>
           </div>
           <div className="flex items-center gap-2">
             <label className="text-[#5F6875]">Desde:</label>
@@ -264,6 +291,22 @@ export default function BalanceClientPage({
         </OperationalNotice>
       )}
 
+      {/* Freight Reconciliation Notice (Supervisor check) */}
+      {freightAudit.status !== "none" && freightAudit.status !== "reconciled" && (
+        <OperationalNotice
+          variant={freightAudit.status === "prorated_estimate" ? "info" : "warning"}
+          title={
+            freightAudit.status === "prorated_estimate"
+              ? "Prorrateo de fletes en rango personalizado"
+              : freightAudit.status === "unverified"
+              ? "Fletes de compras sin imputación en Finanzas"
+              : "Discrepancia en conciliación de fletes"
+          }
+        >
+          {freightAudit.reason}
+        </OperationalNotice>
+      )}
+
       {/* Discrepancies Warning Notice */}
       {discrepancies.length > 0 && (
         <OperationalNotice
@@ -284,7 +327,7 @@ export default function BalanceClientPage({
                 Generado antes de reinvertir
               </span>
               <span className="text-[10px] font-semibold bg-[#F5F3EE] text-[#5F6875] px-2 py-0.5 rounded">
-                Ventas + CMV
+                Ganancia después de gastos + CMV
               </span>
             </div>
             <div
@@ -529,7 +572,7 @@ export default function BalanceClientPage({
               </p>
               <div className="flex items-center gap-3 mt-2 sm:mt-0">
                 <Link
-                  href={`/dashboard/finance?period=${currentPeriod}`}
+                  href={financeLinkHref}
                   className="font-semibold text-[#102A56] hover:underline inline-flex items-center gap-1"
                 >
                   Ver módulo Finanzas <ArrowRight className="w-3.5 h-3.5" />
@@ -551,15 +594,24 @@ export default function BalanceClientPage({
         {/* Proporción destinada a compras */}
         <div className="rounded-xl border border-[#DCDAD4] bg-[#FFFFFF] p-4 flex flex-col justify-between shadow-sm">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875] block">
-              Proporción destinada a compras
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875] block">
+                Proporción destinada a compras
+              </span>
+              {isProporcionEstimated && (
+                <span className="text-[10px] font-semibold text-[#B54708] bg-[#FFF9EB] px-1.5 py-0.5 rounded">
+                  {hasIncompleteCosts ? "Parcial" : "Estimado"}
+                </span>
+              )}
+            </div>
             <div className="text-2xl font-bold font-mono text-[#101828] mt-1" style={{ fontVariantNumeric: "tabular-nums" }}>
               {proporcionDestinadaACompras !== null ? `${proporcionDestinadaACompras}%` : "No aplica"}
             </div>
             <p className="text-xs text-[#5F6875] mt-1">
               {proporcionDestinadaACompras !== null
-                ? "Porcentaje de lo generado en el período reinvertido en compra de stock."
+                ? isProporcionEstimated
+                  ? "Cálculo preliminar del porcentaje generado reinvertido en stock (sujeto a conciliación)."
+                  : "Porcentaje de lo generado en el período reinvertido en compra de stock."
                 : "No aplica porque lo generado antes de reinvertir es cero o negativo."}
             </p>
           </div>
@@ -571,9 +623,16 @@ export default function BalanceClientPage({
         {/* Compras por encima / debajo del CMV */}
         <div className="rounded-xl border border-[#DCDAD4] bg-[#FFFFFF] p-4 flex flex-col justify-between shadow-sm">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875] block">
-              Compras vs. CMV
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875] block">
+                Compras vs. CMV
+              </span>
+              {isComprasVsCMVEstimated && (
+                <span className="text-[10px] font-semibold text-[#B54708] bg-[#FFF9EB] px-1.5 py-0.5 rounded">
+                  {hasIncompleteCosts ? "Parcial" : "Estimado"}
+                </span>
+              )}
+            </div>
             <div
               className={`text-2xl font-bold font-mono mt-1 ${
                 comprasVsCMV > 0 ? "text-[#102A56]" : comprasVsCMV < 0 ? "text-[#5F6875]" : "text-[#101828]"
@@ -598,9 +657,24 @@ export default function BalanceClientPage({
         {/* Fletes / Extras en Finanzas */}
         <div className="rounded-xl border border-[#DCDAD4] bg-[#FFFFFF] p-4 flex flex-col justify-between shadow-sm">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875] block">
-              Fletes y extras en Finanzas
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6875] block">
+                Fletes y extras en Finanzas
+              </span>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                freightAudit.status === "reconciled" || freightAudit.status === "none"
+                  ? "bg-[#ECFDF3] text-[#067647]"
+                  : freightAudit.status === "prorated_estimate"
+                  ? "bg-[#F0F5FF] text-[#102A56]"
+                  : "bg-[#FFF9EB] text-[#B54708]"
+              }`}>
+                {freightAudit.status === "reconciled" || freightAudit.status === "none"
+                  ? "Verificado"
+                  : freightAudit.status === "prorated_estimate"
+                  ? "Prorrateado"
+                  : "Discrepancia"}
+              </span>
+            </div>
             <div className="text-2xl font-bold font-mono text-[#5F6875] mt-1" style={{ fontVariantNumeric: "tabular-nums" }}>
               ${totalExtraCosts.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
             </div>
@@ -621,7 +695,7 @@ export default function BalanceClientPage({
             <h3 className="text-sm font-bold text-[#101828]">Detalle de Compras del Período</h3>
             <p className="text-xs text-[#5F6875]">
               Órdenes de compra consideradas en el cálculo ({validPurchasesCount} activas
-              {voidedPurchasesCount > 0 ? `, ${voidedPurchasesCount} anulada(s)` : ""}).
+              {voidedPurchasesCount > 0 ? `, ${voidedPurchasesCount} anulada(s)` : ""}). Fechas en zona horaria: {timezone}.
             </p>
           </div>
           <Link href="/dashboard/purchases">

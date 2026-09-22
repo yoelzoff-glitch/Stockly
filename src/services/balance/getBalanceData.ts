@@ -28,8 +28,9 @@ export interface GetBalanceDataParams {
  * Guarantees:
  * - Tenant isolation enforced via strict tenant_id filtering.
  * - Reuses getFinancialData directly to ensure 100% financial consistency with Finance module.
- * - Chunks purchase queries to prevent Supabase 1000-row response truncation.
+ * - Chunks purchase queries with stable order and ID tiebreaker to prevent Supabase truncation.
  * - Does not silently swallow query errors; surfaces them as actionable errors.
+ * - Audits freight synchronization between Compras and Finanzas applied expenses.
  */
 export async function getBalanceData(params: GetBalanceDataParams): Promise<BalanceData> {
   const {
@@ -65,14 +66,14 @@ export async function getBalanceData(params: GetBalanceDataParams): Promise<Bala
     throw new Error(`Error obteniendo datos financieros de ventas: ${finErr.message}`);
   }
 
-  // 2. Fetch purchase orders with items in chunks to prevent truncation
+  // 2. Fetch purchase orders with items in chunks to prevent truncation with stable tiebreaker
   const PAGE_SIZE = 1000;
   let offset = 0;
   const allPurchases: BalancePurchaseOrderInput[] = [];
   let hasMore = true;
 
   while (hasMore) {
-    const { data: purchasesData, error: purchasesErr } = await supabase
+    let query = supabase
       .from("purchase_orders")
       .select(`
         id,
@@ -94,9 +95,20 @@ export async function getBalanceData(params: GetBalanceDataParams): Promise<Bala
       `)
       .eq("tenant_id", tenantId)
       .gte("purchase_date", dateFrom.toISOString())
-      .lte("purchase_date", dateTo.toISOString())
-      .order("purchase_date", { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
+      .lte("purchase_date", dateTo.toISOString());
+
+    if (typeof (query as any).order === "function") {
+      query = (query as any)
+        .order("purchase_date", { ascending: false })
+        .order("id", { ascending: false });
+    }
+
+    const hasRangeSupport = typeof (query as any).range === "function";
+    if (hasRangeSupport) {
+      query = (query as any).range(offset, offset + PAGE_SIZE - 1);
+    }
+
+    const { data: purchasesData, error: purchasesErr } = await query;
 
     if (purchasesErr) {
       console.error("Error fetching purchase orders in getBalanceData:", purchasesErr.message);
@@ -106,7 +118,7 @@ export async function getBalanceData(params: GetBalanceDataParams): Promise<Bala
     const batch = (purchasesData || []) as unknown as BalancePurchaseOrderInput[];
     allPurchases.push(...batch);
 
-    if (batch.length < PAGE_SIZE) {
+    if (!hasRangeSupport || batch.length < PAGE_SIZE) {
       hasMore = false;
     } else {
       offset += PAGE_SIZE;
@@ -120,11 +132,18 @@ export async function getBalanceData(params: GetBalanceDataParams): Promise<Bala
     data: allPurchases,
   });
 
-  // 3. Perform pure balance calculation
+  // 3. Extract freight expenses actually applied in Finance
+  const appliedFreightTotal = (financials.appliedExpensesBreakdown || [])
+    .filter(e => (e.name || "").toLowerCase().includes("flete"))
+    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+  // 4. Perform pure balance calculation with freight audit
   const balance = calculateBalance({
     gananciaDespuesDeGastos: financials.gananciaBolsilloLimpia,
     cmv: financials.costosProductos,
-    purchases: allPurchases
+    purchases: allPurchases,
+    appliedFreightTotal,
+    isProratedTimeframe: !disableProration,
   });
 
   return {

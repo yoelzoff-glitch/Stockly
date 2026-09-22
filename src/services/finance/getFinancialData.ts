@@ -79,25 +79,57 @@ export async function getFinancialData(
     orderItems = dataset.orderItems;
     shipments = dataset.shipments;
   } else {
-    // 1. Fetch orders with explicit JSONB projections (Phase 2 - eliminate full raw_data)
-    const { data: ordersData } = await supabase
-      .from("orders")
-      .select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id, coupon:raw_data->coupon, payments:raw_data->payments, legacy_order_items:raw_data->order_items, libretax_operational_costs:raw_data->libretax_operational_costs, klyvo_operational_costs:raw_data->klyvo_operational_costs, packaging_cost_snapshot, flex_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_status")
-      .eq("tenant_id", tenantId)
-      .neq("status", "cancelled")
-      .gte("date_created", dateFrom.toISOString())
-      .lte("date_created", dateTo.toISOString());
+    // 1. Fetch orders with explicit JSONB projections and stable ID tiebreaker pagination
+    orders = [];
+    let ordersOffset = 0;
+    const ORDERS_CHUNK = 1000;
+    let hasMoreOrders = true;
 
-    orders = (ordersData || []).map((o: any) => {
-      const raw = o.raw_data || {
-        coupon: o.coupon,
-        payments: o.payments,
-        order_items: o.legacy_order_items,
-        libretax_operational_costs: o.libretax_operational_costs,
-        klyvo_operational_costs: o.klyvo_operational_costs,
-      };
-      return { ...o, raw_data: raw };
-    });
+    while (hasMoreOrders) {
+      let ordersQuery = supabase
+        .from("orders")
+        .select("id, total_amount, date_created, status, meli_order_id, meli_shipment_id, coupon:raw_data->coupon, payments:raw_data->payments, legacy_order_items:raw_data->order_items, libretax_operational_costs:raw_data->libretax_operational_costs, klyvo_operational_costs:raw_data->klyvo_operational_costs, packaging_cost_snapshot, flex_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_status")
+        .eq("tenant_id", tenantId)
+        .neq("status", "cancelled")
+        .gte("date_created", dateFrom.toISOString())
+        .lte("date_created", dateTo.toISOString());
+
+      if (typeof (ordersQuery as any).order === "function") {
+        ordersQuery = (ordersQuery as any)
+          .order("date_created", { ascending: false })
+          .order("id", { ascending: false });
+      }
+
+      const hasRangeSupport = typeof (ordersQuery as any).range === "function";
+      if (hasRangeSupport) {
+        ordersQuery = (ordersQuery as any).range(ordersOffset, ordersOffset + ORDERS_CHUNK - 1);
+      }
+
+      const { data: ordersData, error: ordersErr } = await ordersQuery;
+
+      if (ordersErr) {
+        throw new Error(`Error al consultar órdenes en Finanzas: ${ordersErr.message}`);
+      }
+
+      const batch = (ordersData || []).map((o: any) => {
+        const raw = o.raw_data || {
+          coupon: o.coupon,
+          payments: o.payments,
+          order_items: o.legacy_order_items,
+          libretax_operational_costs: o.libretax_operational_costs,
+          klyvo_operational_costs: o.klyvo_operational_costs,
+        };
+        return { ...o, raw_data: raw };
+      });
+
+      orders.push(...batch);
+
+      if (!hasRangeSupport || batch.length < ORDERS_CHUNK) {
+        hasMoreOrders = false;
+      } else {
+        ordersOffset += ORDERS_CHUNK;
+      }
+    }
 
     logEgressSample({
       tenantId,
@@ -107,12 +139,16 @@ export async function getFinancialData(
     });
 
     // 2. Fetch cancellations with JSONB projection on payments
-    const { data: cancellationsData } = await supabase
+    const { data: cancellationsData, error: cancellationsErr } = await supabase
       .from("order_cancellations")
       .select("refund_amount, orders(payments:raw_data->payments)")
       .eq("tenant_id", tenantId)
       .gte("date_cancelled", dateFrom.toISOString())
       .lte("date_cancelled", dateTo.toISOString());
+
+    if (cancellationsErr) {
+      throw new Error(`Error al consultar cancelaciones en Finanzas: ${cancellationsErr.message}`);
+    }
 
     cancellations = cancellationsData || [];
 
@@ -124,10 +160,14 @@ export async function getFinancialData(
     });
 
     // 3. Fetch products
-    const { data: productsData } = await supabase
+    const { data: productsData, error: productsErr } = await supabase
       .from("products")
       .select("id, meli_item_id, title, sku, status, cost, estimated_fee, estimated_shipping_cost, extra_fee_amount, promotion_discount_amount")
       .eq("tenant_id", tenantId);
+
+    if (productsErr) {
+      throw new Error(`Error al consultar productos en Finanzas: ${productsErr.message}`);
+    }
 
     products = productsData || [];
 
@@ -148,10 +188,14 @@ export async function getFinancialData(
       const CHUNK_SIZE = 150;
       for (let i = 0; i < orderIds.length; i += CHUNK_SIZE) {
         const chunkIds = orderIds.slice(i, i + CHUNK_SIZE);
-        const { data: itemsChunk } = await supabase
+        const { data: itemsChunk, error: itemsChunkErr } = await supabase
           .from("order_items")
           .select("order_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost, sku, unit_cost, line_key, unit_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_version, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot, estimated_tax_snapshot")
           .in("order_id", chunkIds);
+
+        if (itemsChunkErr) {
+          throw new Error(`Error al consultar ítems de órdenes en Finanzas: ${itemsChunkErr.message}`);
+        }
 
         if (itemsChunk && itemsChunk.length > 0) {
           orderItems = orderItems.concat(itemsChunk);
@@ -173,11 +217,15 @@ export async function getFinancialData(
       const SHIPMENT_CHUNK = 200;
       for (let i = 0; i < shipmentIds.length; i += SHIPMENT_CHUNK) {
         const chunkIds = shipmentIds.slice(i, i + SHIPMENT_CHUNK);
-        const { data: shipChunk } = await supabase
+        const { data: shipChunk, error: shipChunkErr } = await supabase
           .from("shipments")
           .select("meli_shipment_id, shipping_cost")
           .eq("tenant_id", tenantId)
           .in("meli_shipment_id", chunkIds);
+
+        if (shipChunkErr) {
+          throw new Error(`Error al consultar envíos en Finanzas: ${shipChunkErr.message}`);
+        }
 
         if (shipChunk && shipChunk.length > 0) {
           shipments = shipments.concat(shipChunk);
@@ -584,10 +632,14 @@ export async function getFinancialData(
   const appliedExpensesBreakdown: { name: string; amount: number; type: string }[] = [];
 
   try {
-    const { data: expenses } = await supabase
+    const { data: expenses, error: expensesErr } = await supabase
       .from("monthly_expenses")
       .select("*")
       .eq("tenant_id", tenantId);
+
+    if (expensesErr) {
+      throw new Error(`Error al consultar gastos mensuales en Finanzas: ${expensesErr.message}`);
+    }
 
     if (expenses && expenses.length > 0) {
       const orderDateFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -773,6 +825,7 @@ export async function getFinancialData(
     }
   } catch (err: any) {
     console.error("Error calculating monthly expenses in getFinancialData:", err.message);
+    throw err;
   }
 
   const gananciaBolsilloLimpia = gananciaNeta - monthlyExpensesTotal;

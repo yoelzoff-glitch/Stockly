@@ -107,6 +107,7 @@ export default async function BalancePage(props: {
         currentPeriod={period}
         fromParam={searchParams.from || ""}
         toParam={searchParams.to || ""}
+        timezone={timezone}
         errorMessage={loadError}
       />
     </div>

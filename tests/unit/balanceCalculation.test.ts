@@ -36,6 +36,8 @@ describe("Balance Calculation Module — Pure Logic Unit Tests", () => {
     assert.equal(result.comprasVsCMV, 200000); // 700.000 - 500.000
     assert.equal(result.hasIncompleteCosts, false);
     assert.equal(result.validPurchasesCount, 1);
+    assert.equal(result.integrityStatus, "full");
+    assert.equal(result.integrityLabel, "Conciliación Completa");
   });
 
   test("Reinversión superior a lo generado: Generado $800.000, Compras $950.000 -> Balance -$150.000", () => {
@@ -97,17 +99,12 @@ describe("Balance Calculation Module — Pure Logic Unit Tests", () => {
     assert.equal(result.comprasVsCMV, 0);
   });
 
-  test("Flete sin doble descuento: Flete sincronizado en Finanzas no se vuelve a descontar en Compras", () => {
-    // Ganancia antes de gastos mensuales: $300.000
-    // Único gasto mensual: flete de $20.000
-    // Ganancia después de gastos: $280.000
-    // CMV: $500.000
-    // Compra: $700.000 de mercadería + $20.000 de flete (total_amount = $720.000, extra_costs = $20.000)
-    // Generado: $780.000
-    // Balance: $80.000
+  test("Flete sincronizado y verificado: no hay doble descuento y estado es 'full'", () => {
     const result = calculateBalance({
       gananciaDespuesDeGastos: 280000,
       cmv: 500000,
+      appliedFreightTotal: 20000,
+      isProratedTimeframe: false,
       purchases: [
         {
           id: "po-with-freight",
@@ -131,6 +128,103 @@ describe("Balance Calculation Module — Pure Logic Unit Tests", () => {
     assert.equal(result.comprasMercaderia, 700000);
     assert.equal(result.totalExtraCosts, 20000);
     assert.equal(result.balanceDespuesDeCompras, 80000);
+    assert.equal(result.freightAudit.status, "reconciled");
+    assert.equal(result.integrityStatus, "full");
+    assert.equal(result.integrityLabel, "Conciliación Completa");
+  });
+
+  test("Flete no sincronizado en Finanzas: no muestra Conciliación Completa y marca estimado", () => {
+    // Compra registra flete de $25.000 pero en Finanzas no existe gasto de flete ($0)
+    const result = calculateBalance({
+      gananciaDespuesDeGastos: 300000,
+      cmv: 500000,
+      appliedFreightTotal: 0,
+      isProratedTimeframe: false,
+      purchases: [
+        {
+          id: "po-unsynced-freight",
+          created_at: "2026-09-18T10:00:00Z",
+          total_amount: 525000,
+          extra_costs: 25000,
+          status: "completed",
+          purchase_order_items: [
+            {
+              id: "item-1",
+              quantity: 5,
+              unit_cost: 100000,
+              total_cost: 500000
+            }
+          ]
+        }
+      ]
+    });
+
+    assert.notEqual(result.integrityStatus, "full");
+    assert.equal(result.integrityStatus, "freight_unverified");
+    assert.equal(result.integrityLabel, "Pendiente de Conciliación (Flete no verificado)");
+    assert.equal(result.isProporcionEstimated, true);
+    assert.equal(result.isComprasVsCMVEstimated, true);
+  });
+
+  test("Flete prorrateado en rango personalizado: marca 'freight_prorated' y resultado estimado", () => {
+    // Período de 10 días donde Finanzas prorrateó el flete mensual a $6.667
+    const result = calculateBalance({
+      gananciaDespuesDeGastos: 150000,
+      cmv: 200000,
+      appliedFreightTotal: 6667,
+      isProratedTimeframe: true,
+      purchases: [
+        {
+          id: "po-prorated",
+          created_at: "2026-09-05T10:00:00Z",
+          total_amount: 220000,
+          extra_costs: 20000,
+          status: "completed",
+          purchase_order_items: [
+            {
+              id: "item-1",
+              quantity: 2,
+              unit_cost: 100000,
+              total_cost: 200000
+            }
+          ]
+        }
+      ]
+    });
+
+    assert.equal(result.integrityStatus, "freight_prorated");
+    assert.equal(result.integrityLabel, "Resultado Estimado (Prorrateo temporal)");
+    assert.equal(result.isProporcionEstimated, true);
+  });
+
+  test("Discrepancia entre flete de compras y Finanzas: marca 'freight_discrepancy'", () => {
+    // Compras registra flete de $30.000 pero Finanzas tiene $15.000
+    const result = calculateBalance({
+      gananciaDespuesDeGastos: 300000,
+      cmv: 500000,
+      appliedFreightTotal: 15000,
+      isProratedTimeframe: false,
+      purchases: [
+        {
+          id: "po-diff-freight",
+          created_at: "2026-09-10T10:00:00Z",
+          total_amount: 530000,
+          extra_costs: 30000,
+          status: "completed",
+          purchase_order_items: [
+            {
+              id: "item-1",
+              quantity: 5,
+              unit_cost: 100000,
+              total_cost: 500000
+            }
+          ]
+        }
+      ]
+    });
+
+    assert.equal(result.integrityStatus, "freight_discrepancy");
+    assert.equal(result.integrityLabel, "Pendiente de Conciliación (Discrepancia de fletes)");
   });
 
   test("Exclusión de compras anuladas (voided) del balance", () => {
@@ -179,8 +273,6 @@ describe("Balance Calculation Module — Pure Logic Unit Tests", () => {
   });
 
   test("Costos desconocidos vs costo cero válido: marca cálculo parcial correctamente", () => {
-    // Compra 1: Costo 0 válido (ej. mercadería bonificada o de regalo)
-    // Compra 2: Costo desconocido (null)
     const result = calculateBalance({
       gananciaDespuesDeGastos: 100000,
       cmv: 50000,
@@ -220,6 +312,8 @@ describe("Balance Calculation Module — Pure Logic Unit Tests", () => {
 
     assert.equal(result.hasIncompleteCosts, true);
     assert.equal(result.incompletePurchasesCount, 1);
+    assert.equal(result.integrityStatus, "partial_costs");
+    assert.equal(result.isProporcionEstimated, true);
     assert.equal(result.processedPurchases.find(p => p.id === "po-free-sample")?.hasIncompleteCost, false);
     assert.equal(result.processedPurchases.find(p => p.id === "po-unknown-cost")?.hasIncompleteCost, true);
   });
@@ -228,6 +322,8 @@ describe("Balance Calculation Module — Pure Logic Unit Tests", () => {
     const result = calculateBalance({
       gananciaDespuesDeGastos: 100000,
       cmv: 50000,
+      appliedFreightTotal: 10000,
+      isProratedTimeframe: false,
       purchases: [
         {
           id: "po-discrepancy",
@@ -250,10 +346,11 @@ describe("Balance Calculation Module — Pure Logic Unit Tests", () => {
     assert.equal(result.discrepancies.length, 1);
     assert.equal(result.discrepancies[0].orderId, "po-discrepancy");
     assert.equal(result.discrepancies[0].diff, 5000);
+    assert.equal(result.integrityStatus, "items_discrepancy");
+    assert.notEqual(result.integrityLabel, "Conciliación Completa");
   });
 
   test("Valores cero y resultado negativo: Proporción devuelve null ('No aplica')", () => {
-    // Negocio con pérdida operativa previa (generado <= 0)
     const result = calculateBalance({
       gananciaDespuesDeGastos: -200000,
       cmv: 50000,

@@ -40,10 +40,28 @@ export interface BalanceDiscrepancy {
   diff: number;
 }
 
+export interface FreightReconciliationAudit {
+  status: "reconciled" | "unverified" | "prorated_estimate" | "discrepancy" | "none";
+  purchasesFreightTotal: number;
+  appliedFreightTotal: number;
+  difference: number;
+  reason: string;
+}
+
+export type BalanceIntegrityStatus =
+  | "full"
+  | "partial_costs"
+  | "freight_unverified"
+  | "freight_prorated"
+  | "freight_discrepancy"
+  | "items_discrepancy";
+
 export interface CalculateBalanceParams {
   gananciaDespuesDeGastos: number; // financials.gananciaBolsilloLimpia
   cmv: number;                     // financials.costosProductos
   purchases: BalancePurchaseOrderInput[];
+  appliedFreightTotal?: number;   // Sum of freight expenses actually applied in Finance
+  isProratedTimeframe?: boolean;  // True if period prorates expenses (e.g. custom or partial month)
 }
 
 export interface BalanceCalculationResult {
@@ -56,8 +74,14 @@ export interface BalanceCalculationResult {
   // Secondary metrics
   proporcionDestinadaACompras: number | null; // null if generado <= 0 -> "No aplica"
   comprasVsCMV: number;                       // comprasMercaderia - cmv
+  isProporcionEstimated: boolean;
+  isComprasVsCMVEstimated: boolean;
 
-  // Integrity and audits
+  // Integrity, audits and freights
+  integrityStatus: BalanceIntegrityStatus;
+  integrityLabel: string;
+  integrityExplanation: string;
+  freightAudit: FreightReconciliationAudit;
   totalExtraCosts: number;
   validPurchasesCount: number;
   voidedPurchasesCount: number;
@@ -77,16 +101,20 @@ export interface BalanceCalculationResult {
  * Rules:
  * 1. Generado antes de reinvertir = gananciaDespuesDeGastos + cmv
  * 2. Compras de mercadería = sum of merchandise costs of valid purchases (status != 'voided').
- *    Does NOT include freight/extra_costs if they were already discounted in monthly_expenses.
+ *    Does NOT double-count freight/extra_costs if they were discounted in monthly_expenses.
  * 3. Balance después de compras = Generado antes de reinvertir - Compras de mercadería.
- * 4. Detects incomplete/unknown costs vs valid zero cost.
+ * 4. Detects incomplete/unknown costs vs valid zero cost ($0).
  * 5. Reconciles header (total_amount - extra_costs) with items.total_cost sum.
+ * 6. Audits freight against Finance applied expenses to detect unverified or prorated freights.
+ * 7. Strictly avoids showing "Conciliación Completa" if there are discrepancies or unverified freights.
  */
 export function calculateBalance(params: CalculateBalanceParams): BalanceCalculationResult {
   const {
     gananciaDespuesDeGastos,
     cmv,
-    purchases = []
+    purchases = [],
+    appliedFreightTotal = 0,
+    isProratedTimeframe = false,
   } = params;
 
   const generadoAntesDeReinvertir = Number((gananciaDespuesDeGastos + cmv).toFixed(2));
@@ -197,15 +225,91 @@ export function calculateBalance(params: CalculateBalanceParams): BalanceCalcula
   comprasMercaderia = Number(comprasMercaderia.toFixed(2));
   const balanceDespuesDeCompras = Number((generadoAntesDeReinvertir - comprasMercaderia).toFixed(2));
 
-  // Proporción destinada a compras = (Compras de mercadería / Generado antes de reinvertir) * 100
-  // Si el denominador es cero o negativo, mostrar "No aplica" (null)
+  // Secondary metrics
   let proporcionDestinadaACompras: number | null = null;
   if (generadoAntesDeReinvertir > 0) {
     proporcionDestinadaACompras = Number(((comprasMercaderia / generadoAntesDeReinvertir) * 100).toFixed(1));
   }
-
-  // Compras por encima / debajo del CMV = Compras de mercadería - CMV
   const comprasVsCMV = Number((comprasMercaderia - cmv).toFixed(2));
+
+  // Freight reconciliation audit
+  const appliedFreight = Number(Number(appliedFreightTotal || 0).toFixed(2));
+  const purchasesFreight = Number(totalExtraCosts.toFixed(2));
+  const freightDiff = Number(Math.abs(purchasesFreight - appliedFreight).toFixed(2));
+
+  let freightAudit: FreightReconciliationAudit;
+
+  if (purchasesFreight === 0 && appliedFreight === 0) {
+    freightAudit = {
+      status: "none",
+      purchasesFreightTotal: 0,
+      appliedFreightTotal: 0,
+      difference: 0,
+      reason: "Sin costos de flete registrados en el período.",
+    };
+  } else if (isProratedTimeframe) {
+    freightAudit = {
+      status: "prorated_estimate",
+      purchasesFreightTotal: purchasesFreight,
+      appliedFreightTotal: appliedFreight,
+      difference: freightDiff,
+      reason: `El período seleccionado prorratea los gastos mensuales. El flete computado en Finanzas ($${appliedFreight.toLocaleString("es-AR")}) difiere del flete total de compras ($${purchasesFreight.toLocaleString("es-AR")}).`,
+    };
+  } else if (purchasesFreight > 0 && appliedFreight === 0) {
+    freightAudit = {
+      status: "unverified",
+      purchasesFreightTotal: purchasesFreight,
+      appliedFreightTotal: 0,
+      difference: purchasesFreight,
+      reason: `Las compras registran fletes por $${purchasesFreight.toLocaleString("es-AR")}, pero no se encontró un gasto de flete correspondiente en Finanzas. El balance se presenta como pendiente de conciliación.`,
+    };
+  } else if (freightDiff <= 1) {
+    freightAudit = {
+      status: "reconciled",
+      purchasesFreightTotal: purchasesFreight,
+      appliedFreightTotal: appliedFreight,
+      difference: 0,
+      reason: "Fletes de compras sincronizados y verificados exactamente contra Finanzas.",
+    };
+  } else {
+    freightAudit = {
+      status: "discrepancy",
+      purchasesFreightTotal: purchasesFreight,
+      appliedFreightTotal: appliedFreight,
+      difference: freightDiff,
+      reason: `Existe una diferencia de $${freightDiff.toLocaleString("es-AR")} entre los fletes de compras ($${purchasesFreight.toLocaleString("es-AR")}) y los imputados en Finanzas ($${appliedFreight.toLocaleString("es-AR")}).`,
+    };
+  }
+
+  // Determine global integrity status
+  let integrityStatus: BalanceIntegrityStatus = "full";
+  let integrityLabel = "Conciliación Completa";
+  let integrityExplanation = "Todos los importes de compras y ventas fueron conciliados y verificados.";
+
+  if (incompletePurchasesCount > 0) {
+    integrityStatus = "partial_costs";
+    integrityLabel = `Cálculo Parcial (${incompletePurchasesCount} compra(s) sin costo exacto)`;
+    integrityExplanation = "Existen compras con costo unitario desconocido. La inversión real en mercadería podría ser superior.";
+  } else if (freightAudit.status === "unverified") {
+    integrityStatus = "freight_unverified";
+    integrityLabel = "Pendiente de Conciliación (Flete no verificado)";
+    integrityExplanation = freightAudit.reason;
+  } else if (freightAudit.status === "discrepancy") {
+    integrityStatus = "freight_discrepancy";
+    integrityLabel = "Pendiente de Conciliación (Discrepancia de fletes)";
+    integrityExplanation = freightAudit.reason;
+  } else if (freightAudit.status === "prorated_estimate") {
+    integrityStatus = "freight_prorated";
+    integrityLabel = "Resultado Estimado (Prorrateo temporal)";
+    integrityExplanation = freightAudit.reason;
+  } else if (discrepancies.length > 0) {
+    integrityStatus = "items_discrepancy";
+    integrityLabel = "Pendiente de Conciliación (Diferencia ítems/cabecera)";
+    integrityExplanation = "Existen compras donde la suma de ítems difiere del total neto de cabecera.";
+  }
+
+  const isProporcionEstimated = integrityStatus !== "full";
+  const isComprasVsCMVEstimated = integrityStatus !== "full";
 
   return {
     cmv,
@@ -215,13 +319,19 @@ export function calculateBalance(params: CalculateBalanceParams): BalanceCalcula
     balanceDespuesDeCompras,
     proporcionDestinadaACompras,
     comprasVsCMV,
-    totalExtraCosts: Number(totalExtraCosts.toFixed(2)),
+    isProporcionEstimated,
+    isComprasVsCMVEstimated,
+    integrityStatus,
+    integrityLabel,
+    integrityExplanation,
+    freightAudit,
+    totalExtraCosts: purchasesFreight,
     validPurchasesCount,
     voidedPurchasesCount,
     totalPurchasesCount: purchases.length,
     hasIncompleteCosts: incompletePurchasesCount > 0,
     incompletePurchasesCount,
     discrepancies,
-    processedPurchases
+    processedPurchases,
   };
 }
