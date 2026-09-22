@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { calculateAverageCost } from "@/services/inventory/calculateAverageCost";
 import { recalculateAllProductsByComponent } from "@/services/inventory/recalculateProductCostFromComponents";
 import { accumulateFreightExpense } from "@/services/finance/syncPurchaseFreight";
+import { revalidatePath } from "next/cache";
 
 /**
  * Ejecuta el registro definitivo de una compra interna confirmada.
@@ -170,6 +171,16 @@ export async function executeRegisterPurchase(tenantId: string, payload: any) {
     } catch (freightErr: any) {
       console.error("Error syncing freight to monthly expenses:", freightErr.message);
     }
+  }
+
+  try {
+    revalidatePath("/dashboard/purchases");
+    revalidatePath("/dashboard/internal-stock");
+    revalidatePath("/dashboard/products");
+    revalidatePath("/dashboard/finance");
+    revalidatePath("/dashboard/balance");
+  } catch {
+    // Next.js cache revalidation may be ignored in background worker contexts
   }
 
   return { success: true, purchase_order_id: po.id };

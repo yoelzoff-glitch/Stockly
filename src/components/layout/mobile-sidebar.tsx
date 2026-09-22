@@ -21,6 +21,7 @@ import {
   Layers,
   Calculator,
   Megaphone,
+  Scale,
 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
@@ -56,6 +57,7 @@ const navGroups: NavGroup[] = [
     items: [
       { name: "Analíticas e Insights", href: "/dashboard/analytics", icon: BarChart3 },
       { name: "Finanzas", href: "/dashboard/finance", icon: DollarSign },
+      { name: "Balance", href: "/dashboard/balance", icon: Scale },
       { name: "Contabilidad", href: "/dashboard/accounting", icon: Calculator },
       { name: "Promociones", href: "/dashboard/promotions", icon: Tag },
       { name: "Mercado Libre ADS", href: "/dashboard/ads", icon: Megaphone },

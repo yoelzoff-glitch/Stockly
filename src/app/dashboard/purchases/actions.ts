@@ -203,6 +203,7 @@ export async function createManualPurchase(
   revalidatePath("/dashboard/products");
   revalidatePath("/dashboard/accounting");
   revalidatePath("/dashboard/finance");
+  revalidatePath("/dashboard/balance");
 
   return { success: true, purchase_order_id: po.id };
 }
@@ -306,6 +307,7 @@ export async function voidPurchase(purchaseOrderId: string) {
   revalidatePath("/dashboard/products");
   revalidatePath("/dashboard/accounting");
   revalidatePath("/dashboard/finance");
+  revalidatePath("/dashboard/balance");
 
   return { success: true };
 }
