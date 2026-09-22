@@ -99,12 +99,13 @@ describe("Balance Calculation Module — Pure Logic Unit Tests", () => {
     assert.equal(result.comprasVsCMV, 0);
   });
 
-  test("Flete sincronizado y verificado: no hay doble descuento y estado es 'full'", () => {
+  test("Flete con importes coincidentes pero sin vinculación comprobable: no resulta conciliación completa y conserva 'Sin trazabilidad verificable'", () => {
     const result = calculateBalance({
       gananciaDespuesDeGastos: 280000,
       cmv: 500000,
       appliedFreightTotal: 20000,
       isProratedTimeframe: false,
+      hasVerifiableLinkage: false, // Sin vinculación comprobable
       purchases: [
         {
           id: "po-with-freight",
@@ -127,7 +128,41 @@ describe("Balance Calculation Module — Pure Logic Unit Tests", () => {
     assert.equal(result.generadoAntesDeReinvertir, 780000);
     assert.equal(result.comprasMercaderia, 700000);
     assert.equal(result.totalExtraCosts, 20000);
-    assert.equal(result.balanceDespuesDeCompras, 80000);
+    assert.equal(result.freightAudit.purchasesFreightTotal, 20000);
+    assert.equal(result.freightAudit.appliedFreightTotal, 20000);
+    assert.equal(result.freightAudit.status, "unverified");
+    assert.notEqual(result.integrityStatus, "full");
+    assert.equal(result.integrityStatus, "freight_unverified");
+    assert.equal(result.integrityLabel, "Sin trazabilidad verificable (Fletes y extras)");
+    assert.notEqual(result.integrityLabel, "Conciliación Completa");
+  });
+
+  test("Flete con vinculación comprobable explícita: estado es 'reconciled' y 'full'", () => {
+    const result = calculateBalance({
+      gananciaDespuesDeGastos: 280000,
+      cmv: 500000,
+      appliedFreightTotal: 20000,
+      isProratedTimeframe: false,
+      hasVerifiableLinkage: true,
+      purchases: [
+        {
+          id: "po-linked-freight",
+          created_at: "2026-09-18T10:00:00Z",
+          total_amount: 720000,
+          extra_costs: 20000,
+          status: "completed",
+          purchase_order_items: [
+            {
+              id: "item-1",
+              quantity: 7,
+              unit_cost: 100000,
+              total_cost: 700000
+            }
+          ]
+        }
+      ]
+    });
+
     assert.equal(result.freightAudit.status, "reconciled");
     assert.equal(result.integrityStatus, "full");
     assert.equal(result.integrityLabel, "Conciliación Completa");
@@ -161,7 +196,7 @@ describe("Balance Calculation Module — Pure Logic Unit Tests", () => {
 
     assert.notEqual(result.integrityStatus, "full");
     assert.equal(result.integrityStatus, "freight_unverified");
-    assert.equal(result.integrityLabel, "Pendiente de Conciliación (Flete no verificado)");
+    assert.equal(result.integrityLabel, "Sin trazabilidad verificable (Fletes y extras)");
     assert.equal(result.isProporcionEstimated, true);
     assert.equal(result.isComprasVsCMVEstimated, true);
   });
@@ -322,14 +357,14 @@ describe("Balance Calculation Module — Pure Logic Unit Tests", () => {
     const result = calculateBalance({
       gananciaDespuesDeGastos: 100000,
       cmv: 50000,
-      appliedFreightTotal: 10000,
+      appliedFreightTotal: 0,
       isProratedTimeframe: false,
       purchases: [
         {
           id: "po-discrepancy",
           created_at: "2026-09-01T10:00:00Z",
-          total_amount: 100000,
-          extra_costs: 10000, // Header merchandise = 90.000
+          total_amount: 90000,
+          extra_costs: 0, // Header merchandise = 90.000
           status: "completed",
           purchase_order_items: [
             {

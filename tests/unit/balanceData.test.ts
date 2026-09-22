@@ -269,4 +269,239 @@ describe("getBalanceData Service Unit, High Volume & Error Propagation Tests", (
     assert.ok(orderedFields["orders"].includes("id"), "Orders must have ID tiebreaker in ordering");
     assert.ok(orderedFields["purchase_orders"].includes("id"), "Purchases must have ID tiebreaker in ordering");
   });
+
+  test("compra con flete no sincronizado y gasto manual llamado 'Flete' del mismo importe: NO debe resultar conciliación completa", async () => {
+    const mockSupabaseUnlinkedFreight: any = {
+      from: (table: string) => {
+        const query: any = {
+          select: () => query,
+          eq: () => query,
+          neq: () => query,
+          gte: () => query,
+          lte: () => query,
+          order: () => query,
+          range: () => query,
+          in: () => query,
+          then: (resolve: any) => {
+            if (table === "orders") {
+              // 1 order with 500.000 sales
+              resolve({
+                data: [
+                  {
+                    id: "order-1",
+                    total_amount: 500000,
+                    date_created: "2026-09-10T12:00:00Z",
+                    status: "paid",
+                    meli_order_id: "meli-1",
+                    meli_shipment_id: null,
+                    raw_data: { payments: [], order_items: [] }
+                  }
+                ],
+                error: null
+              });
+            } else if (table === "purchase_orders") {
+              // Compra con flete de $30.000 no sincronizado por IA / sistema
+              resolve({
+                data: [
+                  {
+                    id: "po-unsynced",
+                    supplier_name: "Proveedor Textil",
+                    purchase_date: "2026-09-12T10:00:00Z",
+                    created_at: "2026-09-12T10:00:00Z",
+                    total_amount: 150000,
+                    extra_costs: 30000,
+                    status: "completed",
+                    purchase_order_items: [
+                      { id: "item-1", quantity: 12, unit_cost: 10000, total_cost: 120000 }
+                    ]
+                  }
+                ],
+                error: null
+              });
+            } else if (table === "monthly_expenses") {
+              // Gasto manual cargado por el usuario llamado "Flete" por exactamente el mismo importe ($30.000)
+              resolve({
+                data: [
+                  {
+                    id: "exp-manual-flete",
+                    name: "Flete",
+                    type: "fixed_one_off",
+                    amount: 30000,
+                    target_month: "2026-09-01",
+                    is_active: true
+                  }
+                ],
+                error: null
+              });
+            } else {
+              resolve({ data: [], error: null });
+            }
+          }
+        };
+        return query;
+      }
+    };
+
+    const res = await getBalanceData({
+      supabase: mockSupabaseUnlinkedFreight,
+      tenantId: tenantA,
+      dateFrom,
+      dateTo,
+      packagingCost: 0,
+      ignoredOrderIds: [],
+      disableProration: true
+    });
+
+    // Both show $30.000 separately
+    assert.equal(res.balance.freightAudit.purchasesFreightTotal, 30000, "Extras en compras deben ser 30.000");
+    assert.equal(res.balance.freightAudit.appliedFreightTotal, 30000, "Gastos de flete en finanzas deben ser 30.000");
+
+    // Without verifiable linkage, status must remain 'unverified' and NOT result in full reconciliation
+    assert.equal(res.balance.freightAudit.status, "unverified");
+    assert.notEqual(res.balance.integrityStatus, "full");
+    assert.equal(res.balance.integrityStatus, "freight_unverified");
+    assert.equal(res.balance.integrityLabel, "Sin trazabilidad verificable (Fletes y extras)");
+    assert.notEqual(res.balance.integrityLabel, "Conciliación Completa");
+  });
+
+  test("high volume pagination in products, monthly_expenses, cancellations and order_items (>1000 lines within an orders batch)", async () => {
+    let productsRangeCalls = 0;
+    let cancRangeCalls = 0;
+    let expRangeCalls = 0;
+    let itemsRangeCalls = 0;
+    const orderedFields: Record<string, string[]> = {};
+
+    const TOTAL_PRODUCTS = 1200;
+    const TOTAL_CANCELLATIONS = 1100;
+    const TOTAL_EXPENSES = 1050;
+    const TOTAL_ORDER_ITEMS = 1300;
+
+    const mockSupabaseAllLarge: any = {
+      from: (table: string) => {
+        const query: any = {
+          select: () => query,
+          eq: () => query,
+          neq: () => query,
+          gte: () => query,
+          lte: () => query,
+          in: () => query,
+          order: (field: string) => {
+            if (!orderedFields[table]) orderedFields[table] = [];
+            orderedFields[table].push(field);
+            return query;
+          },
+          range: (from: number, to: number) => {
+            if (table === "products") {
+              productsRangeCalls++;
+              const count = Math.min(to - from + 1, Math.max(0, TOTAL_PRODUCTS - from));
+              const slice = Array.from({ length: count }, (_, i) => ({
+                id: `prod-${from + i}`,
+                meli_item_id: `MLA-${from + i}`,
+                title: `Producto ${from + i}`,
+                sku: `SKU-${from + i}`,
+                cost: 100,
+                estimated_fee: 10,
+                estimated_shipping_cost: 5
+              }));
+              return {
+                then: (resolve: any) => resolve({ data: slice, error: null })
+              };
+            }
+            if (table === "order_cancellations") {
+              cancRangeCalls++;
+              const count = Math.min(to - from + 1, Math.max(0, TOTAL_CANCELLATIONS - from));
+              const slice = Array.from({ length: count }, (_, i) => ({
+                id: `canc-${from + i}`,
+                refund_amount: 50,
+                orders: { payments: [{ status: "refunded" }] }
+              }));
+              return {
+                then: (resolve: any) => resolve({ data: slice, error: null })
+              };
+            }
+            if (table === "monthly_expenses") {
+              expRangeCalls++;
+              const count = Math.min(to - from + 1, Math.max(0, TOTAL_EXPENSES - from));
+              const slice = Array.from({ length: count }, (_, i) => ({
+                id: `exp-${from + i}`,
+                name: `Gasto ${from + i}`,
+                type: "fixed_one_off",
+                amount: 10,
+                target_month: "2026-09-01",
+                is_active: true
+              }));
+              return {
+                then: (resolve: any) => resolve({ data: slice, error: null })
+              };
+            }
+            if (table === "order_items") {
+              itemsRangeCalls++;
+              const count = Math.min(to - from + 1, Math.max(0, TOTAL_ORDER_ITEMS - from));
+              const slice = Array.from({ length: count }, (_, i) => ({
+                id: `item-${from + i}`,
+                order_id: "bulk-order-1",
+                meli_item_id: `MLA-ITEM-${from + i}`,
+                title: `Item de orden ${from + i}`,
+                quantity: 1,
+                total_price: 200,
+                unit_cost: 100
+              }));
+              return {
+                then: (resolve: any) => resolve({ data: slice, error: null })
+              };
+            }
+            return query;
+          },
+          then: (resolve: any) => {
+            if (table === "orders") {
+              // 1 active order that contains the 1300 order items
+              resolve({
+                data: [
+                  {
+                    id: "bulk-order-1",
+                    total_amount: 260000,
+                    date_created: "2026-09-10T12:00:00Z",
+                    status: "paid",
+                    meli_order_id: "meli-bulk-1",
+                    meli_shipment_id: null,
+                    raw_data: { payments: [] }
+                  }
+                ],
+                error: null
+              });
+            } else if (table === "purchase_orders") {
+              resolve({ data: [], error: null });
+            } else {
+              resolve({ data: [], error: null });
+            }
+          }
+        };
+        return query;
+      }
+    };
+
+    const res = await getBalanceData({
+      supabase: mockSupabaseAllLarge,
+      tenantId: tenantA,
+      dateFrom,
+      dateTo,
+      packagingCost: 0,
+      ignoredOrderIds: []
+    });
+
+    // Verification: All sub-queries paginated in multiple pages without truncation
+    assert.equal(productsRangeCalls, 2, "Products should paginate in 2 calls for 1200 items");
+    assert.equal(cancRangeCalls, 2, "Cancellations should paginate in 2 calls for 1100 items");
+    assert.equal(expRangeCalls, 2, "Expenses should paginate in 2 calls for 1050 items");
+    assert.equal(itemsRangeCalls, 2, "Order items inside batch should paginate in 2 calls for 1300 items");
+
+    // Check ID tiebreaker used for stable pagination
+    assert.ok(orderedFields["products"].includes("id"), "Products must have ID ordering");
+    assert.ok(orderedFields["order_cancellations"].includes("id"), "Cancellations must have ID tiebreaker");
+    assert.ok(orderedFields["monthly_expenses"].includes("id"), "Monthly expenses must have ID ordering");
+    assert.ok(orderedFields["order_items"].includes("id"), "Order items must have ID ordering");
+
+    // Check cancellations were aggregated
+    assert.equal(res.financials.cancellationsAmount, 1100 * 50);
+  });
 });

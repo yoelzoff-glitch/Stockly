@@ -45,6 +45,7 @@ export interface FreightReconciliationAudit {
   purchasesFreightTotal: number;
   appliedFreightTotal: number;
   difference: number;
+  hasVerifiableLinkage?: boolean;
   reason: string;
 }
 
@@ -60,8 +61,9 @@ export interface CalculateBalanceParams {
   gananciaDespuesDeGastos: number; // financials.gananciaBolsilloLimpia
   cmv: number;                     // financials.costosProductos
   purchases: BalancePurchaseOrderInput[];
-  appliedFreightTotal?: number;   // Sum of freight expenses actually applied in Finance
+  appliedFreightTotal?: number;   // Sum of freight expenses identified in Finance
   isProratedTimeframe?: boolean;  // True if period prorates expenses (e.g. custom or partial month)
+  hasVerifiableLinkage?: boolean; // True only if an explicit foreign key or verifiable linkage exists
 }
 
 export interface BalanceCalculationResult {
@@ -245,7 +247,8 @@ export function calculateBalance(params: CalculateBalanceParams): BalanceCalcula
       purchasesFreightTotal: 0,
       appliedFreightTotal: 0,
       difference: 0,
-      reason: "Sin costos de flete registrados en el período.",
+      hasVerifiableLinkage: false,
+      reason: "Sin costos de flete ni extras registrados en el período.",
     };
   } else if (isProratedTimeframe) {
     freightAudit = {
@@ -253,7 +256,8 @@ export function calculateBalance(params: CalculateBalanceParams): BalanceCalcula
       purchasesFreightTotal: purchasesFreight,
       appliedFreightTotal: appliedFreight,
       difference: freightDiff,
-      reason: `El período seleccionado prorratea los gastos mensuales. El flete computado en Finanzas ($${appliedFreight.toLocaleString("es-AR")}) difiere del flete total de compras ($${purchasesFreight.toLocaleString("es-AR")}).`,
+      hasVerifiableLinkage: Boolean(params.hasVerifiableLinkage),
+      reason: `El período seleccionado prorratea los gastos mensuales. El gasto de flete computado en Finanzas ($${appliedFreight.toLocaleString("es-AR")}) difiere del total de compras ($${purchasesFreight.toLocaleString("es-AR")}).`,
     };
   } else if (purchasesFreight > 0 && appliedFreight === 0) {
     freightAudit = {
@@ -261,23 +265,36 @@ export function calculateBalance(params: CalculateBalanceParams): BalanceCalcula
       purchasesFreightTotal: purchasesFreight,
       appliedFreightTotal: 0,
       difference: purchasesFreight,
+      hasVerifiableLinkage: false,
       reason: `Las compras registran fletes por $${purchasesFreight.toLocaleString("es-AR")}, pero no se encontró un gasto de flete correspondiente en Finanzas. El balance se presenta como pendiente de conciliación.`,
     };
-  } else if (freightDiff <= 1) {
-    freightAudit = {
-      status: "reconciled",
-      purchasesFreightTotal: purchasesFreight,
-      appliedFreightTotal: appliedFreight,
-      difference: 0,
-      reason: "Fletes de compras sincronizados y verificados exactamente contra Finanzas.",
-    };
-  } else {
+  } else if (freightDiff > 1) {
     freightAudit = {
       status: "discrepancy",
       purchasesFreightTotal: purchasesFreight,
       appliedFreightTotal: appliedFreight,
       difference: freightDiff,
-      reason: `Existe una diferencia de $${freightDiff.toLocaleString("es-AR")} entre los fletes de compras ($${purchasesFreight.toLocaleString("es-AR")}) y los imputados en Finanzas ($${appliedFreight.toLocaleString("es-AR")}).`,
+      hasVerifiableLinkage: Boolean(params.hasVerifiableLinkage),
+      reason: `Existe una diferencia de $${freightDiff.toLocaleString("es-AR")} entre los extras registrados en Compras ($${purchasesFreight.toLocaleString("es-AR")}) y los gastos identificados como flete en Finanzas ($${appliedFreight.toLocaleString("es-AR")}).`,
+    };
+  } else if (!params.hasVerifiableLinkage) {
+    // Both amounts match or differ by <= $1, but without verifiable linkage, conserve "Sin trazabilidad verificable"
+    freightAudit = {
+      status: "unverified",
+      purchasesFreightTotal: purchasesFreight,
+      appliedFreightTotal: appliedFreight,
+      difference: freightDiff,
+      hasVerifiableLinkage: false,
+      reason: `Sin trazabilidad verificable: se registraron $${purchasesFreight.toLocaleString("es-AR")} en extras de Compras y $${appliedFreight.toLocaleString("es-AR")} en fletes de Finanzas. Aunque los importes coincidan, no existe una vinculación comprobable entre ambas fuentes.`,
+    };
+  } else {
+    freightAudit = {
+      status: "reconciled",
+      purchasesFreightTotal: purchasesFreight,
+      appliedFreightTotal: appliedFreight,
+      difference: 0,
+      hasVerifiableLinkage: true,
+      reason: "Fletes de compras vinculados y verificados con trazabilidad comprobable contra Finanzas.",
     };
   }
 
@@ -292,7 +309,7 @@ export function calculateBalance(params: CalculateBalanceParams): BalanceCalcula
     integrityExplanation = "Existen compras con costo unitario desconocido. La inversión real en mercadería podría ser superior.";
   } else if (freightAudit.status === "unverified") {
     integrityStatus = "freight_unverified";
-    integrityLabel = "Pendiente de Conciliación (Flete no verificado)";
+    integrityLabel = "Sin trazabilidad verificable (Fletes y extras)";
     integrityExplanation = freightAudit.reason;
   } else if (freightAudit.status === "discrepancy") {
     integrityStatus = "freight_discrepancy";
