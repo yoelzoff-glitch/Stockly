@@ -5,7 +5,7 @@ BEGIN;
 CREATE OR REPLACE FUNCTION public.persist_meli_shipment(
   p_tenant_id uuid, p_order_id uuid, p_shipment jsonb
 ) RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   v_existing public.shipments%ROWTYPE;
   v_shipment public.shipments%ROWTYPE;

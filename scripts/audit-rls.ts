@@ -105,15 +105,18 @@ function runRlsAudit() {
 
   // 4. Check that SECURITY DEFINER functions use strictly SET search_path = ''
   const securityDefinerRegex = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([a-zA-Z0-9_\.]+)\s*\([^)]*\)[\s\S]*?SECURITY\s+DEFINER[\s\S]*?AS\s+\$\$/gi;
-  let match: RegExpExecArray | null;
-  while ((match = securityDefinerRegex.exec(allSqlContent)) !== null) {
-    const fnBlock = match[0];
-    if (/SET\s+search_path\s*=\s*['"]?(?:public|pg_temp)/i.test(fnBlock) || !fnBlock.includes("SET search_path = ''")) {
-      violations.push({
-        file: "supabase/migrations/20260903000000_sprint03_a_foundations.sql",
-        category: "INSECURE_SEARCH_PATH",
-        message: `SECURITY DEFINER function ${match[1]} must use strictly SET search_path = '' without public or pg_temp.`,
-      });
+  for (const m of migrationFiles) {
+    let match: RegExpExecArray | null;
+    const regex = new RegExp(securityDefinerRegex.source, "gi");
+    while ((match = regex.exec(m.content)) !== null) {
+      const fnBlock = match[0];
+      if (/SET\s+search_path\s*=\s*['"]?(?:public|pg_temp)/i.test(fnBlock) || !fnBlock.includes("SET search_path = ''")) {
+        violations.push({
+          file: `supabase/migrations/${m.name}`,
+          category: "INSECURE_SEARCH_PATH",
+          message: `SECURITY DEFINER function ${match[1]} must use strictly SET search_path = '' without public or pg_temp.`,
+        });
+      }
     }
   }
 
