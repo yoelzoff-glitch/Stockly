@@ -1,9 +1,20 @@
 import { meliFetch } from "./client";
 
-export async function getOrders(tenantId: string, meliUserId: string, dateFrom?: string) {
+export interface GetOrdersOptions {
+  filterField?: "date_last_updated" | "date_created";
+}
+
+export async function getOrders(
+  tenantId: string,
+  meliUserId: string,
+  dateFrom?: string,
+  dateTo?: string,
+  options?: GetOrdersOptions
+) {
   let allOrders: any[] = [];
   const seenIds = new Set<number>();
   const endpoints = ["/orders/search", "/orders/search/archived"];
+  const filterField = options?.filterField || "date_last_updated";
 
   for (const endpointBase of endpoints) {
     let offset = 0;
@@ -12,7 +23,13 @@ export async function getOrders(tenantId: string, meliUserId: string, dateFrom?:
 
     try {
       while (hasMore) {
-        const searchUrl = `${endpointBase}?seller=${meliUserId}&offset=${offset}&limit=${limit}${dateFrom ? `&order.date_created.from=${dateFrom}` : ""}`;
+        let searchUrl = `${endpointBase}?seller=${meliUserId}&offset=${offset}&limit=${limit}`;
+        if (dateFrom) {
+          searchUrl += `&order.${filterField}.from=${dateFrom}`;
+        }
+        if (dateTo) {
+          searchUrl += `&order.${filterField}.to=${dateTo}`;
+        }
         const data = await meliFetch({
           tenantId,
           endpoint: searchUrl,

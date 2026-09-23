@@ -124,10 +124,12 @@ export async function syncOrders(
       }
       rawOrders = [orderData];
   } else {
-    // Incremental watermark sync (Sprint 40 Phase 4) or custom dateFrom or fallback 7 days
+    // Incremental watermark sync (Sprint 40/41) or custom dateFrom or fallback 7 days
     let startIso: string;
+    let toIso: string | undefined = undefined;
     if (dateFrom) {
       startIso = dateFrom;
+      toIso = executionStartedAt;
     } else {
       const isIncrementalEnabled = process.env.LIBRETAX_INCREMENTAL_ORDERS_SYNC !== "false";
       let watermarkDate: Date | null = null;
@@ -158,11 +160,25 @@ export async function syncOrders(
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         startIso = sevenDaysAgo.toISOString();
       }
+      toIso = executionStartedAt;
     }
-    rawOrders = await getOrders(tenantId, meli_user_id, startIso);
+    rawOrders = await getOrders(tenantId, meli_user_id, startIso, toIso);
   }
 
   if (rawOrders.length === 0) {
+    if (!specificMeliOrderId && !dateFrom) {
+      const { error: watermarkError } = await supabase.from("meli_sync_state").upsert(
+        {
+          tenant_id: tenantId,
+          resource_type: "orders",
+          last_successful_sync_at: executionStartedAt,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "tenant_id,resource_type" }
+      );
+      if (watermarkError) throw new Error(`Failed to save orders watermark: ${watermarkError.message}`);
+    }
+
     await recordSyncExecution({
       tenantId,
       operationType: "sync_orders",
@@ -265,7 +281,7 @@ export async function syncOrders(
   const meliOrderIds = rawOrders.map((o: any) => o.id?.toString()).filter(Boolean);
   const { data: existingOrders, error: existingOrdersError } = await supabase
     .from("orders")
-    .select("id, meli_order_id, status, packaging_cost_snapshot, flex_cost_snapshot, operational_cost_snapshot_version, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_status")
+    .select("id, meli_order_id, status, raw_data, packaging_cost_snapshot, flex_cost_snapshot, operational_cost_snapshot_version, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_status")
     .eq("tenant_id", tenantId)
     .in("meli_order_id", meliOrderIds);
   if (existingOrdersError) throw new Error(`Failed to read order snapshots: ${existingOrdersError.message}`);
@@ -282,8 +298,52 @@ export async function syncOrders(
     existingMap.set(o.meli_order_id, o);
   });
 
+  // SPRINT 41 (Test K): Filter out incoming orders where local order has a strictly newer meli_last_updated
+  const validRawOrders = rawOrders.filter((order: any) => {
+    const existing = existingMap.get(order.id?.toString());
+    const localLastUpdated = existing?.raw_data?.last_updated;
+    const incomingLastUpdated = order.last_updated;
+    if (existing && localLastUpdated && incomingLastUpdated) {
+      if (new Date(incomingLastUpdated).getTime() < new Date(localLastUpdated).getTime()) {
+        console.log(`[syncOrders] Skipping order ${order.id}: incoming last_updated (${incomingLastUpdated}) is older than local version (${localLastUpdated})`);
+        return false;
+      }
+    }
+    return true;
+  });
+
+  if (validRawOrders.length === 0) {
+    if (!specificMeliOrderId && !dateFrom) {
+      const { error: watermarkError } = await supabase.from("meli_sync_state").upsert(
+        {
+          tenant_id: tenantId,
+          resource_type: "orders",
+          last_successful_sync_at: executionStartedAt,
+          updated_at: syncTimestamp,
+        },
+        { onConflict: "tenant_id,resource_type" }
+      );
+      if (watermarkError) throw new Error(`Failed to save orders watermark: ${watermarkError.message}`);
+    }
+
+    await recordSyncExecution({
+      tenantId,
+      operationType: "sync_orders",
+      source: executionSource,
+      status: "completed",
+      startedAt: executionStartedAt,
+      finishedAt: new Date().toISOString(),
+      rowsRead: (rawOrders?.length || 0) + (existingOrders?.length || 0),
+      rowsWritten: 0,
+      estimatedBytes: 0,
+      itemsProcessed: 0,
+      correlationId: options?.correlationId,
+    });
+    return 0;
+  }
+
   // 4.5 Map Orders to DB Schema with Immutable Cost Snapshotting
-  const ordersToUpsert = rawOrders.map((order: any) => {
+  const ordersToUpsert = validRawOrders.map((order: any) => {
       const shipmentId = order.shipping?.id?.toString();
       const shipmentData = shipmentId ? shipmentsMap[shipmentId] : null;
       let orderFlexCost = 0;

@@ -158,3 +158,40 @@ export async function reconcileTenantSyncState(tenantId: string, customClient?: 
 
   return report;
 }
+
+export interface ReconcileOrdersParams {
+  tenantId: string;
+  from: string;
+  to: string;
+}
+
+/**
+ * PARTE 13: Reconciliación manual de emergencia acotada.
+ * Requiere explícitamente una ventana temporal (from y to).
+ * Nunca permite recorrer todo el histórico sin parámetros.
+ */
+export async function reconcileOrders({ tenantId, from, to }: ReconcileOrdersParams): Promise<number> {
+  if (!tenantId) throw new Error("tenantId is required for manual order reconciliation");
+  if (!from || !to) throw new Error("Explicit 'from' and 'to' ISO timestamps are required for order reconciliation");
+
+  const fromTime = new Date(from).getTime();
+  const toTime = new Date(to).getTime();
+
+  if (isNaN(fromTime) || isNaN(toTime)) {
+    throw new Error("Invalid date format provided for 'from' or 'to'");
+  }
+
+  if (fromTime >= toTime) {
+    throw new Error("'from' timestamp must be strictly earlier than 'to' timestamp");
+  }
+
+  // Safety guardrail: maximum 30 days window per execution
+  const MAX_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+  if (toTime - fromTime > MAX_WINDOW_MS) {
+    throw new Error("Reconciliation window cannot exceed 30 days to protect egress");
+  }
+
+  const { syncOrders } = await import("@/services/meli/syncOrders");
+  return await syncOrders(tenantId, undefined, from, { source: "manual" });
+}
+
