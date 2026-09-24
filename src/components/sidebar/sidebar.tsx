@@ -54,6 +54,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Rentabilidad & Mkt",
     items: [
+      { name: "Simulador", href: "/dashboard/simulator", icon: Calculator },
       { name: "Analíticas e Insights", href: "/dashboard/analytics", icon: BarChart3 },
       { name: "Finanzas", href: "/dashboard/finance", icon: DollarSign },
       { name: "Balance", href: "/dashboard/balance", icon: Scale },

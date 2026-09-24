@@ -1872,4 +1872,18 @@ CREATE TABLE IF NOT EXISTS public.egress_hourly_metrics (
 );
 ALTER TABLE public.egress_hourly_metrics ENABLE ROW LEVEL SECURITY;
 
+CREATE TABLE IF NOT EXISTS public.profitability_simulations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  user_id uuid,
+  name text NOT NULL,
+  scenario_mode text NOT NULL DEFAULT 'profit',
+  inputs jsonb NOT NULL DEFAULT '{}'::jsonb,
+  result jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+ALTER TABLE public.profitability_simulations ENABLE ROW LEVEL SECURITY;
+
+
 
