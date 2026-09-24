@@ -190,22 +190,43 @@ export default function SettingsClientPage({ profile, tenant, meliAccount }: { p
               </div>
 
               <form action={opAction} className="space-y-6">
-                <div className="space-y-1.5 max-w-sm">
-                  <Label htmlFor="packagingCost" className="text-xs font-semibold text-[#101828]">
-                    Costo Fijo de Empaque por Orden ($)
-                  </Label>
-                  <Input 
-                    id="packagingCost" 
-                    name="packagingCost" 
-                    type="number" 
-                    min="0"
-                    defaultValue={tenant?.metadata?.packaging_cost || 0} 
-                    disabled={isOpPending} 
-                    className="h-9 text-xs border-[#DCDAD4] bg-[#FFFFFF]"
-                  />
-                  <p className="text-[11px] text-[#5F6875]">
-                    Costo promedio de caja, film, etiquetas y mano de obra. Se descontará 1 vez por orden despachada.
-                  </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="packagingCost" className="text-xs font-semibold text-[#101828]">
+                      Costo Fijo de Empaque por Orden ($)
+                    </Label>
+                    <Input 
+                      id="packagingCost" 
+                      name="packagingCost" 
+                      type="number" 
+                      min="0"
+                      defaultValue={tenant?.metadata?.packaging_cost || 0} 
+                      disabled={isOpPending} 
+                      className="h-9 text-xs border-[#DCDAD4] bg-[#FFFFFF]"
+                    />
+                    <p className="text-[11px] text-[#5F6875]">
+                      Costo promedio de caja, film, etiquetas y mano de obra. Se descontará 1 vez por orden despachada.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="usdExchangeRate" className="text-xs font-semibold text-[#101828]">
+                      Cotización del Dólar (USD / ARS) ($)
+                    </Label>
+                    <Input 
+                      id="usdExchangeRate" 
+                      name="usdExchangeRate" 
+                      type="number" 
+                      step="0.01"
+                      min="1"
+                      defaultValue={tenant?.usd_exchange_rate ?? tenant?.metadata?.usd_exchange_rate ?? 1500} 
+                      disabled={isOpPending} 
+                      className="h-9 text-xs border-[#DCDAD4] bg-[#FFFFFF]"
+                    />
+                    <p className="text-[11px] text-[#5F6875]">
+                      Valor de cambio para compras en dólares. Si marcas el check en USD al ingresar insumos, se convertirá automáticamente a pesos.
+                    </p>
+                  </div>
                 </div>
                 
                 <div className="space-y-3 pt-4 border-t border-[#DCDAD4]">

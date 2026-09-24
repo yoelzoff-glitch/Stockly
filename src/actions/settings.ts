@@ -107,6 +107,8 @@ export async function updateOperationalCostsAction(prevState: any, formData: For
       .single();
 
     const packagingCost = formData.get("packagingCost") as string;
+    const usdExchangeRate = formData.get("usdExchangeRate") as string;
+    const parsedUsdRate = usdExchangeRate ? Math.max(1, Number(usdExchangeRate)) : 1500;
 
     const flexZones = [];
     for (let i = 1; i <= 4; i++) {
@@ -123,16 +125,27 @@ export async function updateOperationalCostsAction(prevState: any, formData: For
       ...(tenant?.metadata as Record<string, any> || {}),
       packaging_cost: Number(packagingCost) || 0,
       flex_zones: flexZones,
+      usd_exchange_rate: parsedUsdRate,
     };
 
-    const { error } = await adminSupabase
+    let updateError = null;
+    const { error: colErr } = await adminSupabase
       .from("tenants")
-      .update({ metadata: newMetadata })
+      .update({ metadata: newMetadata, usd_exchange_rate: parsedUsdRate })
       .eq("id", context.tenantId);
 
-    if (error) return { error: "Error al actualizar costos operativos" };
+    if (colErr) {
+      const { error: metaErr } = await adminSupabase
+        .from("tenants")
+        .update({ metadata: newMetadata })
+        .eq("id", context.tenantId);
+      updateError = metaErr;
+    }
+
+    if (updateError) return { error: "Error al actualizar costos operativos" };
 
     revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard/purchases");
     return { success: "Costos operativos actualizados correctamente" };
   } catch (err: any) {
     return { error: err.message || "No autenticado" };

@@ -30,7 +30,13 @@ import { DataTableShell } from "@/components/operational/data-table-shell";
 import { OperationalEmptyState } from "@/components/operational/empty-state";
 import { createManualPurchase, voidPurchase } from "./actions";
 
-export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] }) {
+export function PurchasesClient({
+  initialPurchases = [],
+  usdRate = 1500
+}: {
+  initialPurchases: any[];
+  usdRate?: number;
+}) {
   const [purchases, setPurchases] = useState(initialPurchases);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -44,6 +50,7 @@ export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] 
   // New PO form state
   const [supplierName, setSupplierName] = useState("");
   const [extraCosts, setExtraCosts] = useState("0");
+  const [isUsdCost, setIsUsdCost] = useState(false);
   const [items, setItems] = useState<{ sku: string; quantity: string; unit_cost: string }[]>([
     { sku: "", quantity: "1", unit_cost: "" }
   ]);
@@ -90,11 +97,18 @@ export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] 
     try {
       const validItems = items
         .filter(it => it.sku.trim() !== "")
-        .map(it => ({
-          sku: it.sku.trim(),
-          quantity: parseFloat(it.quantity) || 1,
-          unit_cost: it.unit_cost ? parseFloat(it.unit_cost) : undefined
-        }));
+        .map(it => {
+          const rawCost = it.unit_cost ? parseFloat(it.unit_cost) : undefined;
+          const finalCost = (rawCost !== undefined && !isNaN(rawCost))
+            ? (isUsdCost ? Number((rawCost * usdRate).toFixed(2)) : rawCost)
+            : undefined;
+
+          return {
+            sku: it.sku.trim(),
+            quantity: Math.max(1, Math.round(parseFloat(it.quantity) || 1)),
+            unit_cost: finalCost
+          };
+        });
 
       if (validItems.length === 0) {
         alert("Debes ingresar al menos un componente válido.");
@@ -485,62 +499,128 @@ export function PurchasesClient({ initialPurchases }: { initialPurchases: any[] 
             </div>
 
             <div className="space-y-2 border border-[#DCDAD4] rounded-lg p-3 bg-[#FCFCFA]">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-bold text-[#101828] text-xs">Componentes a ingresar</span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAddItemRow}
-                  className="h-7 text-xs border-[#DCDAD4]"
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1" />
-                  Agregar componente
-                </Button>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-medium text-[#101828] bg-white px-2 py-1 rounded border border-[#DCDAD4] hover:bg-[#F5F3EE] transition-colors select-none shadow-sm">
+                    <input
+                      type="checkbox"
+                      checked={isUsdCost}
+                      onChange={(e) => setIsUsdCost(e.target.checked)}
+                      className="rounded border-[#DCDAD4] text-[#102A56] focus:ring-[#102A56] w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span>Costo en USD (Cotización: ${usdRate.toLocaleString("es-AR")})</span>
+                  </label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddItemRow}
+                    className="h-7 text-xs border-[#DCDAD4]"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Agregar componente
+                  </Button>
+                </div>
               </div>
 
-              <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                {items.map((row, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Input
-                      placeholder="SKU componente"
-                      value={row.sku}
-                      onChange={(e) => handleItemChange(idx, "sku", e.target.value)}
-                      required
-                      className="h-8 text-xs flex-1 border-[#DCDAD4]"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Cantidad"
-                      min="1"
-                      value={row.quantity}
-                      onChange={(e) => handleItemChange(idx, "quantity", e.target.value)}
-                      required
-                      className="h-8 text-xs w-24 border-[#DCDAD4]"
-                    />
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="Costo unitario"
-                      value={row.unit_cost}
-                      onChange={(e) => handleItemChange(idx, "unit_cost", e.target.value)}
-                      className="h-8 text-xs w-28 border-[#DCDAD4]"
-                    />
-                    {items.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveItemRow(idx)}
-                        className="h-8 w-8 p-0 text-[#D92D20]"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
+              <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+                {items.map((row, idx) => {
+                  const rowUnitVal = parseFloat(row.unit_cost) || 0;
+                  const rowUnitArs = isUsdCost ? rowUnitVal * usdRate : rowUnitVal;
+                  const rowQty = parseFloat(row.quantity) || 0;
+                  const rowTotalArs = rowQty * rowUnitArs;
+
+                  return (
+                    <div key={idx} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder="SKU componente"
+                          value={row.sku}
+                          onChange={(e) => handleItemChange(idx, "sku", e.target.value)}
+                          required
+                          className="h-8 text-xs flex-1 border-[#DCDAD4]"
+                        />
+                        <Input
+                          type="number"
+                          placeholder="Cantidad"
+                          min="1"
+                          value={row.quantity}
+                          onChange={(e) => handleItemChange(idx, "quantity", e.target.value)}
+                          required
+                          className="h-8 text-xs w-24 border-[#DCDAD4]"
+                        />
+                        <div className="relative w-36">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder={isUsdCost ? "Costo (USD)" : "Costo ($)"}
+                            value={row.unit_cost}
+                            onChange={(e) => handleItemChange(idx, "unit_cost", e.target.value)}
+                            className="h-8 text-xs w-full pr-10 border-[#DCDAD4]"
+                          />
+                          <span className="absolute right-2 top-2 text-[10px] font-bold text-[#5F6875] pointer-events-none">
+                            {isUsdCost ? "USD" : "ARS"}
+                          </span>
+                        </div>
+                        {items.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveItemRow(idx)}
+                            className="h-8 w-8 p-0 text-[#D92D20]"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                      {isUsdCost && rowUnitVal > 0 && (
+                        <div className="flex items-center justify-between text-[11px] text-[#5F6875] px-2 py-0.5 rounded bg-white/70 border border-[#EBE9E1]">
+                          <span>
+                            Equivale a: <strong className="text-[#101828]">${rowUnitArs.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ARS</strong> / u.
+                          </span>
+                          <span>
+                            Subtotal fila: <strong className="text-[#101828]">${rowTotalArs.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ARS</strong>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
+
+            {/* Resumen Total Estimado con Conversión */}
+            {(() => {
+              const itemsSubtotalArs = items.reduce((acc, it) => {
+                const qty = parseFloat(it.quantity) || 0;
+                const cost = parseFloat(it.unit_cost) || 0;
+                const unitArs = isUsdCost ? cost * usdRate : cost;
+                return acc + (qty * unitArs);
+              }, 0);
+              const extraCostsArs = parseFloat(extraCosts) || 0;
+              const totalOrderArs = itemsSubtotalArs + extraCostsArs;
+
+              return (
+                <div className="rounded-lg p-2.5 bg-[#F5F3EE] border border-[#DCDAD4] flex items-center justify-between text-xs">
+                  <div className="space-y-0.5">
+                    <span className="text-[#5F6875] font-medium">Total abonado estimado:</span>
+                    {isUsdCost && (
+                      <p className="text-[10px] text-[#175CD3] font-medium">
+                        (Convertido a 1 USD = ${usdRate.toLocaleString("es-AR")} ARS)
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-bold text-[#101828]">
+                      ${totalOrderArs.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[10px] text-[#5F6875] ml-1 font-semibold">ARS</span>
+                  </div>
+                </div>
+              );
+            })()}
 
             <DialogFooter className="gap-2 sm:gap-0 pt-2">
               <Button type="button" variant="outline" onClick={() => setIsNewPOOpen(false)} className="h-8 text-xs border-[#DCDAD4]">

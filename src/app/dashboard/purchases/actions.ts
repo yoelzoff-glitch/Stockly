@@ -45,6 +45,36 @@ export async function getPurchases() {
 }
 
 /**
+ * Obtiene la cotización del dólar configurada para el tenant.
+ */
+export async function getTenantUsdRate(): Promise<number> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 1500;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile?.tenant_id) return 1500;
+
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("metadata")
+      .eq("id", profile.tenant_id)
+      .single();
+
+    const rate = Number(tenant?.metadata?.usd_exchange_rate);
+    return !isNaN(rate) && rate > 0 ? rate : 1500;
+  } catch {
+    return 1500;
+  }
+}
+
+/**
  * Registra manualmente una compra desde el dashboard.
  */
 export async function createManualPurchase(
