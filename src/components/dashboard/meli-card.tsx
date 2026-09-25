@@ -37,6 +37,130 @@ export interface MeliCardProps {
   isDemo?: boolean;
 }
 
+export function computeMeliCardState(
+  meliAccount: MeliCardProps["meliAccount"],
+  syncState?: MeliCardProps["syncState"],
+  isDemo = false
+) {
+  const isDisconnected = !isDemo && (!meliAccount || meliAccount.status === "disconnected");
+
+  let hoursLeft = 0;
+  let isTokenExpired = false;
+  if (meliAccount?.token_expires_at) {
+    const expiresAt = new Date(meliAccount.token_expires_at).getTime();
+    hoursLeft = Math.max(0, Math.round((expiresAt - Date.now()) / (1000 * 60 * 60)));
+    isTokenExpired = expiresAt < Date.now();
+  }
+
+  const category = meliAccount?.last_failure_category;
+
+  // rotation_uncertain: Protected state; automatic retries paused
+  const isRotationUncertain = Boolean(
+    !isDemo &&
+    (category === "rotation_uncertain" ||
+     (!category && meliAccount?.sync_error && /rotation_uncertain|rotaci[oó]n incierta/i.test(meliAccount.sync_error)))
+  );
+
+  // Transient rate limit, network, timeout, server error
+  const isTransientFailure = Boolean(
+    !isDemo &&
+    !isRotationUncertain &&
+    (
+      category === "rate_limit" ||
+      category === "network" ||
+      category === "timeout" ||
+      category === "server_error" ||
+      category === "transient_rate_limit" ||
+      category === "transient_network" ||
+      (!category && meliAccount?.sync_error && /429|local_rate_limited|rate_limit|rate limit|limitando temporalmente|timeout|econnreset|etimedout|servidor|500|502|503|504/i.test(meliAccount.sync_error))
+    )
+  );
+
+  const isPermanentError = Boolean(
+    !isDemo &&
+    !isRotationUncertain &&
+    (
+      category === "permanent_auth" ||
+      (meliAccount?.status === "error" && !isTransientFailure) ||
+      (!category && meliAccount?.sync_error && /invalid_grant|unauthorized|revocada/i.test(meliAccount.sync_error))
+    )
+  );
+
+  // Sales watermark from meli_sync_state with resource_type = 'orders' ONLY (Req 9)
+  const lastSalesSyncAt = syncState?.last_successful_sync_at ?? null;
+  const salesLagMinutes = lastSalesSyncAt
+    ? Math.round((Date.now() - new Date(lastSalesSyncAt).getTime()) / (1000 * 60))
+    : null;
+  const isSalesLagged = Boolean(
+    !isDemo &&
+    !isDisconnected &&
+    !isPermanentError &&
+    !isRotationUncertain &&
+    salesLagMinutes !== null &&
+    salesLagMinutes > 20
+  );
+
+  const isConnected = isDemo || (meliAccount && meliAccount.status === "connected" && !isTransientFailure && !isRotationUncertain && !isTokenExpired);
+
+  // Format timestamps
+  const lastTokenRefreshStr = meliAccount?.last_success_refresh 
+    ? new Date(meliAccount.last_success_refresh).toLocaleString("es-AR")
+    : isDemo ? "Simulado (reciente)" : "Nunca";
+
+  const lastSalesSyncStr = lastSalesSyncAt
+    ? new Date(lastSalesSyncAt).toLocaleString("es-AR")
+    : isDemo ? "Simulado (reciente)" : "Todavía no hay una sincronización de ventas confirmada";
+
+  const nextRetryStr = meliAccount?.next_retry_at
+    ? new Date(meliAccount.next_retry_at).toLocaleTimeString("es-AR")
+    : null;
+
+  let badgeVariant: "neutral" | "danger" | "warning" | "success" = "neutral";
+  let badgeLabel = "Desconectado";
+
+  if (isDemo) {
+    badgeVariant = "neutral";
+    badgeLabel = "Simulación demo";
+  } else if (isPermanentError) {
+    badgeVariant = "danger";
+    badgeLabel = "Requiere reconexión";
+  } else if (isRotationUncertain) {
+    badgeVariant = "warning";
+    badgeLabel = "Rotación protegida";
+  } else if (isTransientFailure) {
+    badgeVariant = "warning";
+    badgeLabel = "Reintentando automáticamente";
+  } else if (isTokenExpired) {
+    badgeVariant = "warning";
+    badgeLabel = "Token por renovar";
+  } else if (isSalesLagged) {
+    badgeVariant = "warning";
+    badgeLabel = "Sincronización atrasada";
+  } else if (isConnected) {
+    badgeVariant = "success";
+    badgeLabel = "Conectado";
+  }
+
+  return {
+    isDisconnected,
+    hoursLeft,
+    isTokenExpired,
+    category,
+    isRotationUncertain,
+    isTransientFailure,
+    isPermanentError,
+    lastSalesSyncAt,
+    salesLagMinutes,
+    isSalesLagged,
+    isConnected,
+    lastTokenRefreshStr,
+    lastSalesSyncStr,
+    nextRetryStr,
+    badgeVariant,
+    badgeLabel,
+  };
+}
+
 export function MeliCard({
   meliAccount,
   syncState,
@@ -47,6 +171,23 @@ export function MeliCard({
   const [isSyncingOrders, setIsSyncingOrders] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const router = useRouter();
+
+  const {
+    isDisconnected,
+    hoursLeft,
+    isTokenExpired,
+    isRotationUncertain,
+    isTransientFailure,
+    isPermanentError,
+    salesLagMinutes,
+    isSalesLagged,
+    isConnected,
+    lastTokenRefreshStr,
+    lastSalesSyncStr,
+    nextRetryStr,
+    badgeVariant,
+    badgeLabel,
+  } = computeMeliCardState(meliAccount, syncState, isDemo);
 
   const showDemoNotice = () => {
     alert("Esta es una cuenta de demostración\n\nPodés recorrer toda la información, pero los cambios y las conexiones externas están deshabilitados.");
@@ -147,63 +288,6 @@ export function MeliCard({
     }
   };
 
-  // Determine actual display state
-  const isDisconnected = !isDemo && (!meliAccount || meliAccount.status === "disconnected");
-
-  // Token expiration details
-  let hoursLeft = 0;
-  let isTokenExpired = false;
-  if (meliAccount?.token_expires_at) {
-    const expiresAt = new Date(meliAccount.token_expires_at).getTime();
-    hoursLeft = Math.max(0, Math.round((expiresAt - Date.now()) / (1000 * 60 * 60)));
-    isTokenExpired = expiresAt < Date.now();
-  }
-
-  // Transient rate limit / network error classification
-  const isTransientFailure = Boolean(
-    !isDemo &&
-    (
-      meliAccount?.last_failure_category === "transient_rate_limit" ||
-      meliAccount?.last_failure_category === "transient_network" ||
-      (meliAccount?.sync_error && /429|local_rate_limited|rate_limit|rate limit|limitando temporalmente|timeout|servidor/i.test(meliAccount.sync_error))
-    )
-  );
-
-  const isPermanentError = Boolean(
-    !isDemo &&
-    meliAccount &&
-    meliAccount.status === "error" &&
-    !isTransientFailure
-  );
-
-  // Sales watermark lag calculation (15+ min is delayed)
-  const lastSalesSyncAt = syncState?.last_successful_sync_at || meliAccount?.last_sync_at;
-  const salesLagMinutes = lastSalesSyncAt
-    ? Math.round((Date.now() - new Date(lastSalesSyncAt).getTime()) / (1000 * 60))
-    : null;
-  const isSalesLagged = Boolean(
-    !isDemo &&
-    !isDisconnected &&
-    !isPermanentError &&
-    salesLagMinutes !== null &&
-    salesLagMinutes > 20
-  );
-
-  const isConnected = isDemo || (meliAccount && meliAccount.status === "connected" && !isTransientFailure && !isTokenExpired);
-
-  // Format timestamps
-  const lastTokenRefreshStr = meliAccount?.last_success_refresh 
-    ? new Date(meliAccount.last_success_refresh).toLocaleString("es-AR")
-    : isDemo ? "Simulado (reciente)" : "Nunca";
-
-  const lastSalesSyncStr = lastSalesSyncAt
-    ? new Date(lastSalesSyncAt).toLocaleString("es-AR")
-    : isDemo ? "Simulado (reciente)" : "Sin ventas sincronizadas";
-
-  const nextRetryStr = meliAccount?.next_retry_at
-    ? new Date(meliAccount.next_retry_at).toLocaleTimeString("es-AR")
-    : null;
-
   return (
     <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-5 flex flex-col justify-between h-full space-y-4">
       <div className="space-y-3">
@@ -217,21 +301,7 @@ export function MeliCard({
               <p className="text-[11px] text-[#5F6875]">Canal de Venta Principal</p>
             </div>
           </div>
-          {isDemo ? (
-            <StatusBadge variant="neutral">Simulación demo</StatusBadge>
-          ) : isPermanentError ? (
-            <StatusBadge variant="danger">Requiere reconexión</StatusBadge>
-          ) : isTransientFailure ? (
-            <StatusBadge variant="warning">Reintentando automáticamente</StatusBadge>
-          ) : isTokenExpired ? (
-            <StatusBadge variant="warning">Token por renovar</StatusBadge>
-          ) : isSalesLagged ? (
-            <StatusBadge variant="warning">Sincronización atrasada</StatusBadge>
-          ) : isConnected ? (
-            <StatusBadge variant="success">Conectado</StatusBadge>
-          ) : (
-            <StatusBadge variant="neutral">Desconectado</StatusBadge>
-          )}
+          <StatusBadge variant={badgeVariant}>{badgeLabel}</StatusBadge>
         </div>
 
         <p className="text-xs text-[#5F6875] leading-relaxed">
@@ -296,6 +366,20 @@ export function MeliCard({
                     <span className="font-semibold text-[#D97706]">{meliAccount.retry_count}</span>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Rotation Uncertain Operational Warning */}
+            {isRotationUncertain && (
+              <div className="bg-[#FFF9EB] border border-[#F2C94C] text-[#7A4100] p-2.5 rounded text-xs leading-relaxed mt-1 flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-[#7A4100]">Rotación protegida (verificación pendiente)</p>
+                  <p className="text-[11px] text-[#7A4100]/90 mt-0.5">
+                    La cuenta continúa protegida. Los reintentos automáticos se pausaron para evitar invalidar credenciales.
+                    {meliAccount.last_failure_reason ? ` (${meliAccount.last_failure_reason})` : ""}
+                  </p>
+                </div>
               </div>
             )}
 

@@ -65,6 +65,22 @@ function query(table: string) {
 const db = {
   from: query,
   rpc: async (name: string, args: any) => {
+    if (name === "advance_meli_sync_watermark") {
+      const existing = (tables.meli_sync_state || []).find(
+        (s: any) => s.tenant_id === args.p_tenant_id && s.resource_type === args.p_resource_type
+      );
+      if (existing) {
+        existing.last_successful_sync_at = args.p_new_watermark;
+      } else {
+        tables.meli_sync_state = tables.meli_sync_state || [];
+        tables.meli_sync_state.push({
+          tenant_id: args.p_tenant_id,
+          resource_type: args.p_resource_type,
+          last_successful_sync_at: args.p_new_watermark,
+        });
+      }
+      return { data: { success: true, advanced: true, watermark: args.p_new_watermark }, error: null };
+    }
     assert.equal(name, "persist_meli_shipment");
     if (failWrite === "shipments") return { error: { message: "injected shipment persistence failure" } };
     assert.equal(args.p_tenant_id, tenantId);

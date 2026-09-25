@@ -42,6 +42,81 @@ const mockDbClient: any = {
       return { data: { acquired: false, reason: "lease_active", current_owner: existing.lease_owner }, error: null };
     }
 
+    if (fnName === "renew_operation_lease") {
+      const lease = mockTables.operation_leases.find(
+        (l) =>
+          l.tenant_id === params.p_tenant_id &&
+          l.operation_type === params.p_operation_type &&
+          l.lease_owner === params.p_lease_owner
+      );
+      if (!lease || new Date(lease.expires_at).getTime() <= Date.now()) {
+        return { data: { renewed: false, reason: "lease_not_found_or_lost" }, error: null };
+      }
+      lease.expires_at = new Date(Date.now() + params.p_ttl_seconds * 1000).toISOString();
+      return { data: { renewed: true, expires_at: lease.expires_at }, error: null };
+    }
+
+    if (fnName === "check_meli_token_refresh_lease") {
+      const lease = mockTables.operation_leases.find(
+        (l) =>
+          l.tenant_id === params.p_tenant_id &&
+          l.operation_type === params.p_operation_type
+      );
+      if (!lease || lease.lease_owner !== params.p_lease_owner) {
+        return { data: { valid: false, reason: "lease_not_owned" }, error: null };
+      }
+      if (new Date(lease.expires_at).getTime() <= Date.now()) {
+        return { data: { valid: false, reason: "lease_expired" }, error: null };
+      }
+      return { data: { valid: true, expires_at: lease.expires_at }, error: null };
+    }
+
+    if (fnName === "persist_meli_token_rotation") {
+      if (dbWriteFailCount < dbWriteFailMax) {
+        dbWriteFailCount++;
+        return { data: null, error: { message: "Simulated transient Supabase RPC failure" } };
+      }
+      const lease = mockTables.operation_leases.find(
+        (l) =>
+          l.tenant_id === params.p_tenant_id &&
+          l.operation_type === params.p_operation_type
+      );
+      if (!lease || lease.lease_owner !== params.p_lease_owner) {
+        return { data: { persisted: false, reason: "lease_not_owned" }, error: null };
+      }
+      if (new Date(lease.expires_at).getTime() <= Date.now()) {
+        return { data: { persisted: false, reason: "lease_expired" }, error: null };
+      }
+      const account = mockTables.meli_accounts.find(
+        (a) =>
+          a.id === params.p_account_id &&
+          a.tenant_id === params.p_tenant_id
+      );
+      if (!account) {
+        return { data: { persisted: false, reason: "account_not_found" }, error: null };
+      }
+      if (account.token_version !== params.p_expected_version) {
+        return { data: { persisted: false, reason: "version_conflict", actual_version: account.token_version }, error: null };
+      }
+      Object.assign(account, {
+        access_token: params.p_access_token,
+        refresh_token: params.p_refresh_token,
+        token_expires_at: params.p_expires_at,
+        token_version: params.p_expected_version + 1,
+        status: "connected",
+        retry_count: 0,
+        next_retry_at: null,
+        last_failure_category: null,
+        last_failure_reason: null,
+        last_success_refresh: params.p_refreshed_at,
+        sync_error: null,
+      });
+      return {
+        data: { persisted: true, token_version: account.token_version },
+        error: null,
+      };
+    }
+
     if (fnName === "release_operation_lease") {
       const idx = mockTables.operation_leases.findIndex(
         (l) => l.tenant_id === params.p_tenant_id && l.operation_type === params.p_operation_type && l.lease_owner === params.p_lease_owner
@@ -53,28 +128,32 @@ const mockDbClient: any = {
     }
 
     if (fnName === "advance_meli_sync_watermark") {
-      const existing = mockTables.meli_sync_state.find(
+      if (!params.p_resource_type || params.p_resource_type.trim().length === 0) {
+        return { data: { success: false, reason: "invalid_parameters" }, error: null };
+      }
+      let existing = mockTables.meli_sync_state.find(
         (s) => s.tenant_id === params.p_tenant_id && s.resource_type === params.p_resource_type
       );
       const newMs = new Date(params.p_new_watermark).getTime();
-      if (existing?.last_successful_sync_at) {
-        const currentMs = new Date(existing.last_successful_sync_at).getTime();
-        if (newMs <= currentMs) {
-          return { data: { success: true, advanced: false, watermark: existing.last_successful_sync_at }, error: null };
-        }
-      }
-      if (existing) {
-        existing.last_successful_sync_at = params.p_new_watermark;
-        existing.updated_at = new Date().toISOString();
-      } else {
-        mockTables.meli_sync_state.push({
+      if (!existing) {
+        existing = {
           tenant_id: params.p_tenant_id,
           resource_type: params.p_resource_type,
           last_successful_sync_at: params.p_new_watermark,
           updated_at: new Date().toISOString(),
-        });
+        };
+        mockTables.meli_sync_state.push(existing);
+        return { data: { success: true, advanced: true, watermark: params.p_new_watermark }, error: null };
       }
-      return { data: { success: true, advanced: true, watermark: params.p_new_watermark }, error: null };
+
+      const currentMs = new Date(existing.last_successful_sync_at).getTime();
+      if (newMs > currentMs) {
+        existing.last_successful_sync_at = params.p_new_watermark;
+        existing.updated_at = new Date().toISOString();
+        return { data: { success: true, advanced: true, watermark: params.p_new_watermark }, error: null };
+      }
+
+      return { data: { success: true, advanced: false, watermark: existing.last_successful_sync_at }, error: null };
     }
 
     return { data: null, error: null };
@@ -451,50 +530,75 @@ describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Venta
       assert.equal(dbAccount.token_version, 2);
     });
 
-    test("Caso K: Proceso que perdió su lease o quedó desactualizado no puede sobrescribir tokens con token_version anterior", async () => {
-      // Simulate account already advanced to version 5 by another worker
+    test("Caso 1 (OBLIGATORIO): Dos workers compiten por la misma cuenta y solo uno llama/persiste la rotación", async () => {
+      let postCount = 0;
       mockTables.meli_accounts.push({
-        id: "acc-stale-worker",
-        tenant_id: "tenant-stale",
-        access_token: "LATEST_TOKEN_V5",
-        refresh_token: "LATEST_REF_V5",
-        status: "connected",
-        token_version: 5,
-        token_expires_at: new Date(Date.now() + 20000000).toISOString(),
-      });
-
-      // An outdated worker that read token_version: 1 attempts to update with token_version: 1
-      const res = await mockDbClient
-        .from("meli_accounts")
-        .update({ access_token: "STALE_TOKEN_OVERWRITE", token_version: 2 })
-        .eq("id", "acc-stale-worker")
-        .eq("token_version", 1);
-
-      assert.deepEqual(res.data, [], "El bloqueo optimista debe rechazar la escritura con version desactualizada");
-
-      const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-stale-worker");
-      assert.equal(dbAccount.access_token, "LATEST_TOKEN_V5", "Los tokens vigentes deben quedar protegidos");
-      assert.equal(dbAccount.token_version, 5);
-    });
-
-    test("Caso L: invalid_grant confirmado pasa la cuenta a 'error' y solicita reconexión", async () => {
-      mockTables.meli_accounts.push({
-        id: "acc-invalid-grant",
-        tenant_id: "tenant-ig",
-        access_token: "OLD_ACC",
-        refresh_token: "REVOKED_REF",
+        id: "acc-concurrent-dist",
+        tenant_id: "tenant-dist-1",
+        access_token: "OLD_ACC_DIST",
+        refresh_token: "OLD_REF_DIST",
         status: "connected",
         token_version: 1,
+        token_expires_at: new Date(Date.now() - 1000).toISOString(),
       });
 
       globalThis.fetch = async (url: any) => {
         if (String(url).includes("/oauth/token")) {
+          postCount++;
+          await new Promise((r) => setTimeout(r, 60));
           return new Response(
             JSON.stringify({
-              error: "invalid_grant",
-              message: "Error validating grant. Your refresh token is invalid or revoked.",
+              access_token: "DIST_WINNER_ACC",
+              refresh_token: "DIST_WINNER_REF",
+              expires_in: 21600,
             }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return new Response("{}", { status: 200 });
+      };
+
+      const [res1, res2] = await Promise.all([
+        refreshMeliToken("acc-concurrent-dist", { force: true }),
+        refreshMeliToken("acc-concurrent-dist", { force: true }),
+      ]);
+
+      assert.equal(postCount, 1, "Debe existir un único POST OAuth a Mercado Libre");
+      assert.equal(res1, "DIST_WINNER_ACC");
+      assert.equal(res2, "DIST_WINNER_ACC");
+
+      const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-concurrent-dist");
+      assert.equal(dbAccount.access_token, "DIST_WINNER_ACC");
+      assert.equal(dbAccount.token_version, 2);
+    });
+
+    test("Caso 2 (OBLIGATORIO): Un worker pierde el lease antes de persistir y no puede sobrescribir tokens", async () => {
+      mockTables.meli_accounts.push({
+        id: "acc-lease-loss-1",
+        tenant_id: "tenant-ll-1",
+        access_token: "PROTECTED_OLD_ACCESS",
+        refresh_token: "PROTECTED_OLD_REFRESH",
+        status: "connected",
+        token_version: 1,
+        token_expires_at: new Date(Date.now() - 1000).toISOString(),
+      });
+
+      globalThis.fetch = async (url: any) => {
+        if (String(url).includes("/oauth/token")) {
+          // While OAuth call is running, another worker steals the lease!
+          const lease = mockTables.operation_leases.find(
+            (l) => l.tenant_id === "tenant-ll-1" && l.operation_type === "meli_token_refresh:acc-lease-loss-1"
+          );
+          if (lease) {
+            lease.lease_owner = "competitor-worker-stole-lease";
+          }
+          return new Response(
+            JSON.stringify({
+              access_token: "NEW_ACC_FROM_OAUTH",
+              refresh_token: "NEW_REF_FROM_OAUTH",
+              expires_in: 21600,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
           );
         }
         return new Response("{}", { status: 200 });
@@ -502,67 +606,481 @@ describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Venta
 
       await assert.rejects(
         async () => {
-          await refreshMeliToken("acc-invalid-grant", { force: true });
+          await refreshMeliToken("acc-lease-loss-1", { force: true });
         },
         (err: any) => {
-          assert.match(err.message, /invalid_grant|revoked/i);
+          assert.equal(err.name, "UncertainMeliTokenRotationError");
           return true;
         }
       );
 
-      const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-invalid-grant");
-      assert.equal(dbAccount.status, "error");
-      assert.equal(dbAccount.last_failure_category, "permanent_auth");
+      // Existing tokens in DB must NOT be overwritten!
+      const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-lease-loss-1");
+      assert.equal(dbAccount.access_token, "PROTECTED_OLD_ACCESS");
+      assert.equal(dbAccount.refresh_token, "PROTECTED_OLD_REFRESH");
+      assert.equal(dbAccount.token_version, 1);
+      assert.equal(dbAccount.last_failure_category, "rotation_uncertain");
+      assert.equal(dbAccount.status, "connected");
     });
-  });
 
-  describe("3. Criterio de Selección de Cron y Guard de 60 Minutos", () => {
-    test("Caso M (OBLIGATORIO): Un token realmente vencido NUNCA es bloqueado por el guard de 60 minutos", () => {
-      const now = Date.now();
-      const accountRecentlyRefreshedButExpired = {
-        id: "acc-expired-guard",
-        tenant_id: "tenant-exp",
+    test("Caso 3 (OBLIGATORIO): Un worker con token_version anterior no puede persistir", async () => {
+      mockTables.meli_accounts.push({
+        id: "acc-stale-v-test",
+        tenant_id: "tenant-sv",
+        access_token: "CURRENT_V2_TOKEN",
+        refresh_token: "CURRENT_V2_REFRESH",
         status: "connected",
-        last_success_refresh: new Date(now - 10 * 60 * 1000).toISOString(), // 10 minutes ago
-        token_expires_at: new Date(now - 1000).toISOString(), // Expired 1 second ago!
+        token_version: 2,
+        token_expires_at: new Date(Date.now() + 1000000).toISOString(),
+      });
+
+      const leaseOwner = "worker-stale-version";
+      mockTables.operation_leases.push({
+        tenant_id: "tenant-sv",
+        operation_type: "meli_token_refresh:acc-stale-v-test",
+        lease_owner: leaseOwner,
+        expires_at: new Date(Date.now() + 60000).toISOString(),
+      });
+
+      const res = await mockDbClient.rpc("persist_meli_token_rotation", {
+        p_tenant_id: "tenant-sv",
+        p_account_id: "acc-stale-v-test",
+        p_operation_type: "meli_token_refresh:acc-stale-v-test",
+        p_lease_owner: leaseOwner,
+        p_expected_version: 1, // Stale!
+        p_access_token: "UNAUTHORIZED_OVERWRITE",
+        p_refresh_token: "UNAUTHORIZED_REFRESH",
+        p_expires_at: new Date(Date.now() + 20000).toISOString(),
+        p_refreshed_at: new Date().toISOString(),
+      });
+
+      assert.equal(res.data.persisted, false);
+      assert.equal(res.data.reason, "version_conflict");
+      assert.equal(res.data.actual_version, 2);
+
+      const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-stale-v-test");
+      assert.equal(dbAccount.access_token, "CURRENT_V2_TOKEN");
+      assert.equal(dbAccount.token_version, 2);
+    });
+
+    test("Caso 4 (OBLIGATORIO): Ante conflicto de versión, se recupera el token vigente del worker ganador", async () => {
+      mockTables.meli_accounts.push({
+        id: "acc-winner-rec",
+        tenant_id: "tenant-wr",
+        access_token: "INITIAL_TOKEN",
+        refresh_token: "INITIAL_REFRESH",
+        status: "connected",
+        token_version: 1,
+        token_expires_at: new Date(Date.now() - 1000).toISOString(),
+      });
+
+      globalThis.fetch = async (url: any) => {
+        if (String(url).includes("/oauth/token")) {
+          // While this worker is in OAuth, another worker already persisted version 2!
+          const acc = mockTables.meli_accounts.find((a) => a.id === "acc-winner-rec");
+          if (acc) {
+            acc.access_token = "WINNING_WORKER_ACCESS_TOKEN";
+            acc.refresh_token = "WINNING_WORKER_REFRESH_TOKEN";
+            acc.token_version = 2;
+            acc.token_expires_at = new Date(Date.now() + 6 * 3600 * 1000).toISOString();
+          }
+          return new Response(
+            JSON.stringify({
+              access_token: "LOSING_WORKER_ACC",
+              refresh_token: "LOSING_WORKER_REF",
+              expires_in: 21600,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return new Response("{}", { status: 200 });
       };
 
-      const isActuallyExpired = new Date(accountRecentlyRefreshedButExpired.token_expires_at).getTime() <= now;
-      let blockedBy60mGuard = false;
+      const token = await refreshMeliToken("acc-winner-rec", { force: true });
+      assert.equal(token, "WINNING_WORKER_ACCESS_TOKEN", "Debe reutilizar el token del worker ganador");
 
-      if (accountRecentlyRefreshedButExpired.last_success_refresh && !isActuallyExpired) {
-        const timeSince = now - new Date(accountRecentlyRefreshedButExpired.last_success_refresh).getTime();
-        if (timeSince < 60 * 60 * 1000) {
-          blockedBy60mGuard = true;
+      const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-winner-rec");
+      assert.equal(dbAccount.access_token, "WINNING_WORKER_ACCESS_TOKEN");
+      assert.equal(dbAccount.token_version, 2);
+    });
+
+    test("Caso 5 (OBLIGATORIO): Timeout o error ambiguo de red (OAuth se invoca una sola vez, tokens no cambian, queda en rotation_uncertain, no se inicia otro refresh)", async () => {
+      let postCount = 0;
+      mockTables.meli_accounts.push({
+        id: "acc-timeout-test",
+        tenant_id: "tenant-to",
+        access_token: "PRE_TIMEOUT_ACCESS",
+        refresh_token: "PRE_TIMEOUT_REFRESH",
+        status: "connected",
+        token_version: 1,
+        token_expires_at: new Date(Date.now() - 1000).toISOString(),
+      });
+
+      globalThis.fetch = async (url: any) => {
+        if (String(url).includes("/oauth/token")) {
+          postCount++;
+          const err = new Error("fetch failed (network dropped after sending POST)");
+          err.name = "TypeError";
+          throw err;
         }
-      }
+        return new Response("{}", { status: 200 });
+      };
 
-      assert.equal(isActuallyExpired, true);
-      assert.equal(blockedBy60mGuard, false, "El guard de 60m no debe bloquear un token realmente vencido");
+      await assert.rejects(
+        async () => {
+          await refreshMeliToken("acc-timeout-test", { force: true });
+        },
+        (err: any) => {
+          assert.equal(err.name, "UncertainMeliTokenRotationError");
+          return true;
+        }
+      );
+
+      // 1. OAuth invoked exactly once!
+      assert.equal(postCount, 1);
+
+      // 2. Existing tokens do not change
+      const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-timeout-test");
+      assert.equal(dbAccount.access_token, "PRE_TIMEOUT_ACCESS");
+      assert.equal(dbAccount.refresh_token, "PRE_TIMEOUT_REFRESH");
+      assert.equal(dbAccount.token_version, 1);
+
+      // 3. Account status stays connected, category is rotation_uncertain
+      assert.equal(dbAccount.status, "connected");
+      assert.equal(dbAccount.last_failure_category, "rotation_uncertain");
+
+      // 4. No new automatic refresh while rotation_uncertain
+      await assert.rejects(
+        async () => {
+          await refreshMeliToken("acc-timeout-test");
+        },
+        (err: any) => {
+          assert.equal(err.name, "UncertainMeliTokenRotationError");
+          assert.match(err.message, /estado incierto/i);
+          return true;
+        }
+      );
+      assert.equal(postCount, 1, "No debe invocar OAuth nuevamente mientras siga rotation_uncertain");
+    });
+
+    test("Caso 6 (OBLIGATORIO): Respuesta OAuth sin refresh_token, sin access_token o con expires_in inválido no modifica tokens", async () => {
+      mockTables.meli_accounts.push({
+        id: "acc-invalid-resp",
+        tenant_id: "tenant-ir",
+        access_token: "INTACT_ACCESS",
+        refresh_token: "INTACT_REFRESH",
+        status: "connected",
+        token_version: 1,
+        token_expires_at: new Date(Date.now() - 1000).toISOString(),
+      });
+
+      // 6a: Missing refresh_token
+      globalThis.fetch = async () => {
+        return new Response(
+          JSON.stringify({ access_token: "NEW_ACC", expires_in: 21600 }), // No refresh_token!
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      };
+
+      await assert.rejects(
+        async () => {
+          await refreshMeliToken("acc-invalid-resp", { force: true });
+        },
+        (err: any) => {
+          assert.equal(err.name, "UncertainMeliTokenRotationError");
+          return true;
+        }
+      );
+
+      const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-invalid-resp");
+      assert.equal(dbAccount.access_token, "INTACT_ACCESS");
+      assert.equal(dbAccount.refresh_token, "INTACT_REFRESH");
+
+      // 6b: Invalid expires_in <= 0
+      dbAccount.last_failure_category = null;
+      globalThis.fetch = async () => {
+        return new Response(
+          JSON.stringify({ access_token: "NEW_ACC", refresh_token: "NEW_REF", expires_in: -10 }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      };
+
+      await assert.rejects(
+        async () => {
+          await refreshMeliToken("acc-invalid-resp", { force: true });
+        },
+        (err: any) => {
+          assert.equal(err.name, "UncertainMeliTokenRotationError");
+          return true;
+        }
+      );
+
+      assert.equal(dbAccount.access_token, "INTACT_ACCESS");
+      assert.equal(dbAccount.refresh_token, "INTACT_REFRESH");
+    });
+
+    test("Caso 7 (OBLIGATORIO): Respuesta HTTP 429 clasificación y backoff correctos", async () => {
+      mockTables.meli_accounts.push({
+        id: "acc-429-case",
+        tenant_id: "tenant-429-c",
+        access_token: "OLD_ACC",
+        refresh_token: "OLD_REF",
+        status: "connected",
+        token_version: 1,
+        retry_count: 0,
+        token_expires_at: new Date(Date.now() + 10000).toISOString(),
+      });
+
+      globalThis.fetch = async () => {
+        return new Response(
+          JSON.stringify({ status: 429, message: "local_rate_limited", error: "rate_limited" }),
+          { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "15" } }
+        );
+      };
+
+      await assert.rejects(
+        async () => {
+          await refreshMeliToken("acc-429-case", { force: true });
+        },
+        (err: any) => {
+          assert.equal(err.name, "TransientMeliTokenError");
+          assert.equal(err.statusCode, 429);
+          assert.equal(err.retryAfterMs, 15000);
+          return true;
+        }
+      );
+
+      const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-429-case");
+      assert.equal(dbAccount.status, "connected");
+      assert.equal(dbAccount.last_failure_category, "rate_limit");
+      assert.equal(dbAccount.retry_count, 1);
+      assert.ok(dbAccount.next_retry_at !== null);
+      assert.ok(new Date(dbAccount.next_retry_at).getTime() > Date.now());
+    });
+
+    test("Caso 8 (OBLIGATORIO): invalid_grant clasifica como permanente; tras rotation_uncertain no produce desconexión destructiva", async () => {
+      // 8a: Clean account gets invalid_grant -> status error
+      mockTables.meli_accounts.push({
+        id: "acc-ig-clean",
+        tenant_id: "tenant-ig-1",
+        access_token: "OLD_A",
+        refresh_token: "OLD_R",
+        status: "connected",
+        token_version: 1,
+        last_failure_category: null,
+      });
+
+      globalThis.fetch = async () => {
+        return new Response(
+          JSON.stringify({ error: "invalid_grant", message: "Grant invalid" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      };
+
+      await assert.rejects(async () => refreshMeliToken("acc-ig-clean", { force: true }));
+      const dbClean = mockTables.meli_accounts.find((a) => a.id === "acc-ig-clean");
+      assert.equal(dbClean.status, "error");
+      assert.equal(dbClean.last_failure_category, "permanent_auth");
+
+      // 8b: Account in rotation_uncertain gets invalid_grant -> MUST NOT disconnect destructively or delete tokens!
+      mockTables.meli_accounts.push({
+        id: "acc-ig-uncertain",
+        tenant_id: "tenant-ig-2",
+        access_token: "PROTECTED_A",
+        refresh_token: "PROTECTED_R",
+        status: "connected",
+        token_version: 1,
+        last_failure_category: "rotation_uncertain",
+      });
+
+      await assert.rejects(
+        async () => refreshMeliToken("acc-ig-uncertain", { force: true }),
+        (err: any) => {
+          assert.equal(err.name, "UncertainMeliTokenRotationError");
+          return true;
+        }
+      );
+
+      const dbUncertain = mockTables.meli_accounts.find((a) => a.id === "acc-ig-uncertain");
+      assert.equal(dbUncertain.status, "connected", "No debe pasar a error si venía de rotation_uncertain");
+      assert.equal(dbUncertain.access_token, "PROTECTED_A", "No debe borrar tokens");
+      assert.equal(dbUncertain.refresh_token, "PROTECTED_R", "No debe borrar tokens");
     });
   });
 
-  describe("4. Monotonic Watermark y Sincronización de Ventas", () => {
-    test("Caso N (OBLIGATORIO): advanceOrdersWatermark previene regresiones en el watermark ante ejecuciones atrasadas", async () => {
-      const tenantId = "tenant-watermark-1";
-      const t1 = "2026-09-25T10:00:00.000Z";
-      const t0 = "2026-09-25T09:30:00.000Z"; // Older
-      const t2 = "2026-09-25T10:45:00.000Z"; // Newer
+  describe("3. Watermark Monotónico y Protección de Sincronización", () => {
+    test("Caso 9 (OBLIGATORIO): Inserción concurrente inicial del watermark", async () => {
+      const tenantId = "tenant-watermark-race";
+      mockTables.meli_sync_state = [];
 
-      // 1. Initial advance to T1
-      const res1 = await advanceOrdersWatermark(mockDbClient, tenantId, t1);
-      assert.equal(res1.advanced, true);
-      assert.equal(res1.watermark, t1);
+      const t1 = "2026-09-25T11:00:00.000Z";
+      const t2 = "2026-09-25T11:05:00.000Z";
 
-      // 2. Delayed execution finishing with T0 (older)
-      const resStale = await advanceOrdersWatermark(mockDbClient, tenantId, t0);
-      assert.equal(resStale.advanced, false, "No debe avanzar con un watermark más viejo");
-      assert.equal(resStale.watermark, t1, "Debe preservar el watermark más nuevo");
+      // Concurrent invocation of initial insert
+      const [res1, res2] = await Promise.all([
+        advanceOrdersWatermark(mockDbClient, tenantId, t1),
+        advanceOrdersWatermark(mockDbClient, tenantId, t2),
+      ]);
 
-      // 3. Normal execution with T2 (newer)
-      const resNewer = await advanceOrdersWatermark(mockDbClient, tenantId, t2);
-      assert.equal(resNewer.advanced, true);
-      assert.equal(resNewer.watermark, t2);
+      assert.ok(res1.watermark);
+      assert.ok(res2.watermark);
+
+      const rows = mockTables.meli_sync_state.filter((s) => s.tenant_id === tenantId);
+      assert.equal(rows.length, 1, "Debe existir una única fila en meli_sync_state para el tenant y resource");
+      assert.equal(rows[0].last_successful_sync_at, t2, "El watermark final almacenado debe ser el mayor");
+    });
+
+    test("Caso 10 (OBLIGATORIO): Una ejecución antigua termina después que una nueva y no retrocede el watermark", async () => {
+      const tenantId = "tenant-watermark-mono";
+      mockTables.meli_sync_state = [];
+
+      const tNew = "2026-09-25T12:00:00.000Z";
+      const tOld = "2026-09-25T11:30:00.000Z";
+
+      const resNew = await advanceOrdersWatermark(mockDbClient, tenantId, tNew);
+      assert.equal(resNew.advanced, true);
+      assert.equal(resNew.watermark, tNew);
+
+      const resOld = await advanceOrdersWatermark(mockDbClient, tenantId, tOld);
+      assert.equal(resOld.advanced, false, "No debe avanzar el watermark con un valor anterior");
+      assert.equal(resOld.watermark, tNew, "El valor almacenado no debe retroceder");
+
+      const dbRow = mockTables.meli_sync_state.find((s) => s.tenant_id === tenantId);
+      assert.equal(dbRow.last_successful_sync_at, tNew);
+    });
+
+    test("Caso 11 (OBLIGATORIO): Ningún camino de syncOrders escribe directamente el watermark", () => {
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const syncOrdersContent = fs.readFileSync(
+        path.resolve(__dirname, "../../src/services/meli/syncOrders.ts"),
+        "utf8"
+      );
+
+      assert.doesNotMatch(
+        syncOrdersContent,
+        /\.from\s*\(\s*["']meli_sync_state["']\s*\)\s*\.(upsert|update|insert)/i,
+        "syncOrders.ts no debe realizar escrituras directas (upsert/update/insert) a meli_sync_state"
+      );
+
+      assert.match(
+        syncOrdersContent,
+        /advanceOrdersWatermark\s*\(/,
+        "syncOrders.ts debe usar advanceOrdersWatermark para actualizar el watermark"
+      );
+    });
+  });
+
+  describe("4. Dashboard UI: Categorías Normalizadas y Watermark de Ventas", () => {
+    test("Caso 12 (OBLIGATORIO): La UI reconoce exactamente las categorías generadas por backend", () => {
+      const { computeMeliCardState } = require("../../src/components/dashboard/meli-card.tsx");
+
+      // 1. rotation_uncertain
+      const uncertainState = computeMeliCardState({
+        id: "acc-1",
+        status: "connected",
+        token_expires_at: new Date(Date.now() + 100000).toISOString(),
+        last_failure_category: "rotation_uncertain",
+        last_failure_reason: "Rotación no confirmada",
+      });
+      assert.equal(uncertainState.isRotationUncertain, true);
+      assert.equal(uncertainState.badgeVariant, "warning");
+      assert.equal(uncertainState.badgeLabel, "Rotación protegida");
+      assert.equal(uncertainState.isPermanentError, false);
+
+      // 2. rate_limit
+      const rateLimitState = computeMeliCardState({
+        id: "acc-1",
+        status: "connected",
+        token_expires_at: new Date(Date.now() + 100000).toISOString(),
+        last_failure_category: "rate_limit",
+      });
+      assert.equal(rateLimitState.isTransientFailure, true);
+      assert.equal(rateLimitState.badgeLabel, "Reintentando automáticamente");
+
+      // 3. network
+      const networkState = computeMeliCardState({
+        id: "acc-1",
+        status: "connected",
+        token_expires_at: new Date(Date.now() + 100000).toISOString(),
+        last_failure_category: "network",
+      });
+      assert.equal(networkState.isTransientFailure, true);
+      assert.equal(networkState.badgeLabel, "Reintentando automáticamente");
+
+      // 4. timeout
+      const timeoutState = computeMeliCardState({
+        id: "acc-1",
+        status: "connected",
+        token_expires_at: new Date(Date.now() + 100000).toISOString(),
+        last_failure_category: "timeout",
+      });
+      assert.equal(timeoutState.isTransientFailure, true);
+      assert.equal(timeoutState.badgeLabel, "Reintentando automáticamente");
+
+      // 5. server_error
+      const serverErrorState = computeMeliCardState({
+        id: "acc-1",
+        status: "connected",
+        token_expires_at: new Date(Date.now() + 100000).toISOString(),
+        last_failure_category: "server_error",
+      });
+      assert.equal(serverErrorState.isTransientFailure, true);
+      assert.equal(serverErrorState.badgeLabel, "Reintentando automáticamente");
+
+      // 6. permanent_auth
+      const permanentState = computeMeliCardState({
+        id: "acc-1",
+        status: "error",
+        token_expires_at: new Date(Date.now() + 100000).toISOString(),
+        last_failure_category: "permanent_auth",
+      });
+      assert.equal(permanentState.isPermanentError, true);
+      assert.equal(permanentState.badgeVariant, "danger");
+      assert.equal(permanentState.badgeLabel, "Requiere reconexión");
+    });
+
+    test("Caso 13 (OBLIGATORIO): La fecha mostrada como última venta proviene del watermark de órdenes", () => {
+      const { computeMeliCardState } = require("../../src/components/dashboard/meli-card.tsx");
+
+      const ordersWatermark = "2026-09-25T10:30:00.000Z";
+      const productsSyncAt = "2026-09-25T14:00:00.000Z";
+
+      // 13a: With orders watermark: strictly uses orders watermark, ignores products last_sync_at
+      const stateWithWatermark = computeMeliCardState(
+        {
+          id: "acc-1",
+          status: "connected",
+          token_expires_at: new Date(Date.now() + 100000).toISOString(),
+          last_sync_at: productsSyncAt,
+        },
+        {
+          last_successful_sync_at: ordersWatermark,
+        }
+      );
+      assert.equal(stateWithWatermark.lastSalesSyncAt, ordersWatermark);
+      assert.notEqual(
+        stateWithWatermark.lastSalesSyncStr,
+        "Todavía no hay una sincronización de ventas confirmada"
+      );
+
+      // 13b: Without orders watermark: does NOT fallback to meli_accounts.last_sync_at
+      const stateWithoutWatermark = computeMeliCardState(
+        {
+          id: "acc-1",
+          status: "connected",
+          token_expires_at: new Date(Date.now() + 100000).toISOString(),
+          last_sync_at: productsSyncAt,
+        },
+        {
+          last_successful_sync_at: null,
+        }
+      );
+      assert.equal(stateWithoutWatermark.lastSalesSyncAt, null);
+      assert.equal(
+        stateWithoutWatermark.lastSalesSyncStr,
+        "Todavía no hay una sincronización de ventas confirmada"
+      );
     });
   });
 });

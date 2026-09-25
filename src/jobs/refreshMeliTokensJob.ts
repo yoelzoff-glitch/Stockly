@@ -47,6 +47,11 @@ export const refreshMeliTokensJob = inngest.createFunction(
 
       const now = Date.now();
       const accountsToRefresh = accounts.filter((acc) => {
+        // Impedir nuevos refresh automáticos mientras continúe rotation_uncertain
+        if (acc.last_failure_category === "rotation_uncertain") {
+          return false;
+        }
+
         const isActuallyExpired = !acc.token_expires_at || new Date(acc.token_expires_at).getTime() <= now;
 
         // Regla 1: Omitir si se renovó exitosamente hace menos de 60 minutos,
@@ -78,6 +83,7 @@ export const refreshMeliTokensJob = inngest.createFunction(
         if (acc.status === "error") {
           const isTransient =
             acc.last_failure_category === "rate_limit" ||
+            acc.last_failure_category === "network" ||
             acc.last_failure_category === "timeout" ||
             acc.last_failure_category === "server_error" ||
             isTransientErrorString(acc.sync_error);

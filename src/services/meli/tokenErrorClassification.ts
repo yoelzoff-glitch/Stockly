@@ -4,10 +4,18 @@
  * from permanent authorization failures (invalid_grant, invalid_client, unauthorized_client).
  */
 
+export type TokenRefreshCategory =
+  | "rate_limit"
+  | "network"
+  | "timeout"
+  | "server_error"
+  | "rotation_uncertain"
+  | "permanent_auth";
+
 export interface TokenRefreshClassification {
   isTransient: boolean;
   isPermanentAuth: boolean;
-  category: "rate_limit" | "timeout" | "server_error" | "permanent_auth" | "unknown";
+  category: TokenRefreshCategory;
   statusCode?: number;
   retryAfterMs?: number;
   reason: string;
@@ -31,7 +39,7 @@ export function parseRetryAfterHeader(headerValue: string | null | undefined): n
 
 export function isTransientErrorString(errorStr: string | null | undefined): boolean {
   if (!errorStr) return false;
-  return /429|local_rate_limited|rate[_\s-]?limit|limitando temporalmente|too many requests|timeout|econnreset|etimedout|500|502|503|504/i.test(errorStr);
+  return /429|local_rate_limited|rate[_\s-]?limit|limitando temporalmente|too many requests|timeout|aborted|econnreset|econnrefused|etimedout|fetch failed|network|socket hang up|500|502|503|504/i.test(errorStr);
 }
 
 export function classifyTokenRefreshError(
@@ -67,7 +75,18 @@ export function classifyTokenRefreshError(
     };
   }
 
-  // 2. Rate Limiting (429, local_rate_limited)
+  // 2. Explicit 401/403 (unauthorized) -> permanent auth failure
+  if (statusCode === 401 || statusCode === 403) {
+    return {
+      isTransient: false,
+      isPermanentAuth: true,
+      category: "permanent_auth",
+      statusCode,
+      reason: body?.message || err?.message || `No autorizado (${statusCode})`,
+    };
+  }
+
+  // 3. Rate Limiting (429, local_rate_limited)
   if (
     statusCode === 429 ||
     errorCode === "rate_limited" ||
@@ -85,25 +104,40 @@ export function classifyTokenRefreshError(
     };
   }
 
-  // 3. Network Timeouts & Aborts
+  // 4. Timeouts & Aborts
   if (
     statusCode === 408 ||
     err?.name === "TimeoutError" ||
     err?.name === "AbortError" ||
     errorCode === "etimedout" ||
-    errorCode === "econnreset" ||
-    /timeout|aborted|econnreset|etimedout|fetch failed/i.test(message)
+    /timeout|aborted|timed out|request timeout/i.test(message)
   ) {
     return {
       isTransient: true,
       isPermanentAuth: false,
       category: "timeout",
       statusCode: statusCode || 408,
-      reason: "Fallo temporal de conexión o tiempo de espera con Mercado Libre.",
+      reason: "Tiempo de espera agotado al conectar con Mercado Libre (timeout).",
     };
   }
 
-  // 4. Server Errors (5xx)
+  // 5. Network errors (drops, connection resets, dns, fetch failed)
+  if (
+    errorCode === "econnreset" ||
+    errorCode === "econnrefused" ||
+    errorCode === "enotfound" ||
+    /econnreset|econnrefused|enotfound|fetch failed|network error|socket hang up/i.test(message)
+  ) {
+    return {
+      isTransient: true,
+      isPermanentAuth: false,
+      category: "network",
+      statusCode: statusCode || 503,
+      reason: "Fallo temporal de conexión o red con Mercado Libre.",
+    };
+  }
+
+  // 6. Server Errors (5xx)
   if (statusCode && statusCode >= 500 && statusCode <= 599) {
     return {
       isTransient: true,
@@ -114,23 +148,22 @@ export function classifyTokenRefreshError(
     };
   }
 
-  // 5. Explicit 401/403 (unauthorized) -> permanent auth failure
-  if (statusCode === 401 || statusCode === 403) {
+  // 7. Fallback: Check if transient string
+  if (isTransientErrorString(message)) {
     return {
-      isTransient: false,
-      isPermanentAuth: true,
-      category: "permanent_auth",
-      statusCode,
-      reason: body?.message || err?.message || `No autorizado (${statusCode})`,
+      isTransient: true,
+      isPermanentAuth: false,
+      category: "network",
+      statusCode: statusCode || 503,
+      reason: body?.message || err?.message || "Fallo transitorio de comunicación con Mercado Libre",
     };
   }
 
-  // 6. Unknown fallback
   return {
     isTransient: false,
-    isPermanentAuth: false,
-    category: "unknown",
-    statusCode,
+    isPermanentAuth: true,
+    category: "permanent_auth",
+    statusCode: statusCode || 400,
     reason: body?.message || err?.message || "Error al procesar renovación de token",
   };
 }

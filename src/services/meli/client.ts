@@ -182,7 +182,10 @@ export async function meliFetch({
           endpoint,
         });
         try {
-          accessToken = await refreshMeliToken(account.id, { force: true });
+          accessToken = await refreshMeliToken(account.id, {
+            force: true,
+            staleAccessToken: accessToken,
+          });
           response = await executeRequest(accessToken || "");
           if (response.ok) break;
           const postRefreshClassification = classifyExternalError({ status: response.status });

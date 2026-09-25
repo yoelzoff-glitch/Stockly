@@ -306,16 +306,7 @@ export async function syncOrders(
 
   if (validRawOrders.length === 0) {
     if (!specificMeliOrderId && !dateFrom) {
-      const { error: watermarkError } = await supabase.from("meli_sync_state").upsert(
-        {
-          tenant_id: tenantId,
-          resource_type: "orders",
-          last_successful_sync_at: executionStartedAt,
-          updated_at: syncTimestamp,
-        },
-        { onConflict: "tenant_id,resource_type" }
-      );
-      if (watermarkError) throw new Error(`Failed to save orders watermark: ${watermarkError.message}`);
+      await advanceOrdersWatermark(supabase, tenantId, executionStartedAt);
     }
 
     await recordSyncExecution({
