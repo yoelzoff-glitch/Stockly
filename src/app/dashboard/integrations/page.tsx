@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -33,12 +34,35 @@ export default async function IntegrationsPage({
 
   const tenantId = profile?.tenant_id;
 
-  // Fetch Mercado Libre Account Details
+  // Fetch Mercado Libre Account Details & Verified Orders Sync State
   const { data: meliAccount } = await supabase
     .from("meli_accounts")
-    .select("id, status, token_expires_at, sync_error, last_success_refresh")
+    .select("id, status, token_expires_at, sync_error, last_success_refresh, last_sync_at, retry_count, next_retry_at, last_failure_category, last_failure_reason, updated_at")
     .eq("tenant_id", tenantId)
     .maybeSingle();
+
+  const { data: ordersSyncState } = await supabase
+    .from("meli_sync_state")
+    .select("last_successful_sync_at, updated_at")
+    .eq("tenant_id", tenantId)
+    .eq("resource_type", "orders")
+    .maybeSingle();
+
+  // Metrics for sales synchronization and recovery
+  const { data: lastOrder } = await supabase
+    .from("orders")
+    .select("date_created")
+    .eq("tenant_id", tenantId)
+    .order("date_created", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const adminSupabase = createAdminClient();
+  const { count: deadLetterCount } = await adminSupabase
+    .from("webhook_events")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("status", "dead_letter");
 
   // Check WhatsApp
   const { data: waAccount } = await supabase
@@ -92,7 +116,16 @@ export default async function IntegrationsPage({
       )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <MeliCard meliAccount={meliAccount} isDemo={isDemo} />
+        <MeliCard
+          meliAccount={meliAccount}
+          syncState={ordersSyncState}
+          healthMetrics={{
+            lastOrderDate: lastOrder?.date_created || null,
+            deadLetterCount: deadLetterCount || 0,
+            retryCount: meliAccount?.retry_count || 0,
+          }}
+          isDemo={isDemo}
+        />
 
         {/* WhatsApp */}
         <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-5 flex flex-col justify-between h-full space-y-4">

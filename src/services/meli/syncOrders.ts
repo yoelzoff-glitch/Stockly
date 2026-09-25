@@ -10,6 +10,7 @@ import { recordSyncExecution, SyncExecutionSource } from "@/lib/observability/op
 import { getShipment } from "./getShipment";
 import { RetryAfterError } from "inngest";
 import { meliFetch } from "./client";
+import { advanceOrdersWatermark } from "./watermark";
 
 export async function syncOrders(
   tenantId: string,
@@ -167,16 +168,7 @@ export async function syncOrders(
 
   if (rawOrders.length === 0) {
     if (!specificMeliOrderId && !dateFrom) {
-      const { error: watermarkError } = await supabase.from("meli_sync_state").upsert(
-        {
-          tenant_id: tenantId,
-          resource_type: "orders",
-          last_successful_sync_at: executionStartedAt,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "tenant_id,resource_type" }
-      );
-      if (watermarkError) throw new Error(`Failed to save orders watermark: ${watermarkError.message}`);
+      await advanceOrdersWatermark(supabase, tenantId, executionStartedAt);
     }
 
     await recordSyncExecution({
@@ -780,18 +772,9 @@ export async function syncOrders(
       .update({ last_sync_at: syncTimestamp, updated_at: syncTimestamp })
       .eq("tenant_id", tenantId);
 
-    // Sprint 40 Phase 4: Update orders watermark in meli_sync_state
+    // Sprint 40 Phase 4 & Sprint Urgent: Update orders watermark monotonically
     if (!specificMeliOrderId && !dateFrom) {
-        const { error: watermarkError } = await supabase.from("meli_sync_state").upsert(
-          {
-            tenant_id: tenantId,
-            resource_type: "orders",
-            last_successful_sync_at: executionStartedAt,
-            updated_at: syncTimestamp,
-          },
-          { onConflict: "tenant_id,resource_type" }
-        );
-        if (watermarkError) throw new Error(`Failed to save orders watermark: ${watermarkError.message}`);
+      await advanceOrdersWatermark(supabase, tenantId, executionStartedAt);
     }
 
     // Invalidate Next.js dashboard route caches & tags so refresh immediately reflects the synced orders

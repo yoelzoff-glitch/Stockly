@@ -24,7 +24,7 @@ export const refreshMeliTokensJob = inngest.createFunction(
       // Buscar cuentas activas con refresh token presente
       const { data: accounts, error } = await supabase
         .from("meli_accounts")
-        .select("id, tenant_id, status, sync_error, token_expires_at, last_success_refresh, tenants!inner(is_demo)")
+        .select("id, tenant_id, status, sync_error, token_expires_at, last_success_refresh, next_retry_at, last_failure_category, tenants!inner(is_demo)")
         .eq("tenants.is_demo", false)
         .not("refresh_token", "is", null);
 
@@ -35,8 +35,11 @@ export const refreshMeliTokensJob = inngest.createFunction(
 
       const now = Date.now();
       const accountsToRefresh = accounts.filter((acc) => {
-        // Regla 1: NUNCA renovar si ya se renovó exitosamente hace menos de 60 minutos
-        if (acc.last_success_refresh) {
+        const isActuallyExpired = !acc.token_expires_at || new Date(acc.token_expires_at).getTime() <= now;
+
+        // Regla 1: Omitir si se renovó exitosamente hace menos de 60 minutos,
+        // PERO NUNCA bloquear si el token está realmente vencido!
+        if (acc.last_success_refresh && !isActuallyExpired) {
           const timeSinceLastRefreshMs = now - new Date(acc.last_success_refresh).getTime();
           if (timeSinceLastRefreshMs < 60 * 60 * 1000) {
             return false;
@@ -45,15 +48,36 @@ export const refreshMeliTokensJob = inngest.createFunction(
 
         // Regla 2: Cuentas conectadas que expiren en las próximas 1.5 horas (90 min) o ya expiradas
         if (acc.status === "connected") {
-          if (!acc.token_expires_at) return true;
+          if (isActuallyExpired) {
+            logger.warn({
+              event: "MELI_EXPIRED_TOKEN_DETECTED_IN_CRON",
+              tenantId: acc.tenant_id,
+              accountId: acc.id,
+              message: "Token is actually expired; renewing immediately regardless of 60m guard",
+            });
+            return true;
+          }
           const remainingMs = new Date(acc.token_expires_at).getTime() - now;
           return remainingMs <= 90 * 60 * 1000;
         }
 
         // Regla 3: Recuperación automática controlada para cuentas en 'error' SOLO si el error fue transitorio
-        // (429 rate limit, 5xx, timeout). Jamás reintentar automáticamente rechazos definitivos (invalid_grant).
+        // Usar datos estructurados (last_failure_category) con fallback retrocompatible a sync_error
         if (acc.status === "error") {
-          return isTransientErrorString(acc.sync_error);
+          const isTransient =
+            acc.last_failure_category === "rate_limit" ||
+            acc.last_failure_category === "timeout" ||
+            acc.last_failure_category === "server_error" ||
+            isTransientErrorString(acc.sync_error);
+
+          if (!isTransient) return false;
+
+          // Si hay espera programada (next_retry_at), respetarla salvo que esté vencido
+          if (acc.next_retry_at && new Date(acc.next_retry_at).getTime() > now && !isActuallyExpired) {
+            return false;
+          }
+
+          return true;
         }
 
         return false;

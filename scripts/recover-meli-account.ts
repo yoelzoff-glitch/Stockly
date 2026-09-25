@@ -8,7 +8,12 @@ import { syncOrders } from "@/services/meli/syncOrders";
 import { syncShipments } from "@/services/meli/syncShipments";
 
 async function main() {
-  const tenantId = process.argv[2] || "198b6356-4bbf-43d8-ae0e-3cc406f66f87";
+  const tenantId = process.argv[2];
+  if (!tenantId) {
+    console.error("❌ ERROR: Debe especificar un tenantId explícito como argumento.");
+    console.error("   Uso: node --env-file=.env.local -r ./tests/setup.cjs --import tsx scripts/recover-meli-account.ts <tenantId>");
+    process.exit(1);
+  }
   const supabase = createAdminClient();
 
   console.log("=================================================");

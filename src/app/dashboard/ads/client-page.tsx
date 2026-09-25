@@ -20,11 +20,11 @@ import { MetricStrip, MetricItem } from "@/components/operational/metric-strip";
 import { DataTableShell } from "@/components/operational/data-table-shell";
 import { OperationalEmptyState } from "@/components/operational/empty-state";
 import { getAdsDataAction } from "./actions";
-import {
+import type {
   AdsDataResult,
   ProductAdsProductGroup,
-  groupProductAdsForDisplay,
-} from "@/services/meli/ads";
+} from "@/services/meli/ads/types";
+import { groupProductAdsForDisplay } from "@/services/meli/ads/groupProductAdsForDisplay";
 
 interface AdsClientPageProps {
   initialAdsData: AdsDataResult;

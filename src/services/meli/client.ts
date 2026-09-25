@@ -182,7 +182,7 @@ export async function meliFetch({
           endpoint,
         });
         try {
-          accessToken = await refreshMeliToken(account.id);
+          accessToken = await refreshMeliToken(account.id, { force: true });
           response = await executeRequest(accessToken || "");
           if (response.ok) break;
           const postRefreshClassification = classifyExternalError({ status: response.status });
@@ -265,20 +265,26 @@ export async function meliFetch({
     });
 
     if (status === 401) {
-      await supabase
-        .from("meli_accounts")
-        .update({
-          status: "error",
-          sync_error: errorMessage,
-        })
-        .eq("id", account.id);
+      const finalClassification = classifyExternalError({ status, message: errorMessage });
+      if (finalClassification.isPermanentAuth) {
+        await supabase
+          .from("meli_accounts")
+          .update({
+            status: "error",
+            sync_error: errorMessage,
+            last_failure_category: "permanent_auth",
+            last_failure_reason: errorMessage,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", account.id);
 
-      await createAlert({
-        tenantId: finalTenantId,
-        title: "Fallo de comunicación con Mercado Libre",
-        body: `La sincronización ha fallado: ${errorMessage.substring(0, 100)}`,
-        severity: "error",
-      });
+        await createAlert({
+          tenantId: finalTenantId,
+          title: "Fallo de comunicación con Mercado Libre",
+          body: `La sincronización ha fallado: ${errorMessage.substring(0, 100)}`,
+          severity: "error",
+        });
+      }
     }
 
     throw new AppError("VALIDATION_ERROR", `Mercado Libre API Error: ${errorMessage}`, status);

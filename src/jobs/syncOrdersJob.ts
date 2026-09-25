@@ -54,10 +54,101 @@ export const syncOrdersDispatcherJob = inngest.createFunction(
         if (repairError) throw new Error(`Failed to read repair state: ${repairError.message}`);
         const repaired = new Set((repairs || []).map(r => r.tenant_id));
         const repairFrom = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-        const events = tenantIds.map((tenantId) => ({
-          name: "meli/tenant.sync-orders.requested" as any,
-          data: { tenantId, source: "cron_dispatcher" },
-        }));
+        // Health check: check orders watermark lag for each tenant
+        const { data: orderSyncStates } = await supabase
+          .from("meli_sync_state")
+          .select("tenant_id, last_successful_sync_at")
+          .eq("resource_type", "orders")
+          .in("tenant_id", tenantIds);
+
+        const orderSyncMap = new Map<string, string | null>();
+        (orderSyncStates || []).forEach((s) => orderSyncMap.set(s.tenant_id, s.last_successful_sync_at));
+
+        const now = Date.now();
+        const events = [];
+
+        for (const tenantId of tenantIds) {
+          const lastSuccess = orderSyncMap.get(tenantId);
+          const lagMinutes = lastSuccess ? (now - new Date(lastSuccess).getTime()) / (1000 * 60) : 999;
+          const correlationId = `cron-sync-${tenantId}-${now}`;
+
+          if (lagMinutes > 15) {
+            // Watermark lag > 15 minutes while account is connected: trigger incremental repair
+            logger.warn({
+              event: "ORDERS_WATERMARK_LAG_DETECTED",
+              tenantId,
+              lagMinutes: Math.round(lagMinutes),
+              correlationId,
+              stage: "health_check_dispatcher",
+            });
+
+            events.push({
+              name: "meli/tenant.sync-orders.requested" as any,
+              data: {
+                tenantId,
+                source: "health_check_repair",
+                correlationId,
+                lagMinutes: Math.round(lagMinutes),
+              },
+            });
+
+            // If lag persists beyond 45 minutes, raise an operational alert
+            if (lagMinutes > 45) {
+              try {
+                const { upsertStateAlert } = await import("@/services/notifications/notificationService");
+                await upsertStateAlert({
+                  tenantId,
+                  type: "sync_failed",
+                  severity: "warning",
+                  title: "Sincronización de ventas demorada",
+                  body: `La sincronización de órdenes tiene un atraso de más de ${Math.round(lagMinutes)} minutos. Se activó la recuperación automática.`,
+                  actionUrl: "/dashboard/integrations",
+                  actionLabel: "Revisar integración",
+                  entityType: "integration",
+                  dedupeKey: `tenant:${tenantId}:state:sync_lag_alert`,
+                  count: 1,
+                  metadata: {
+                    lag_minutes: Math.round(lagMinutes),
+                    stage: "health_check_dispatcher",
+                    correlation_id: correlationId,
+                  },
+                });
+              } catch (alertErr: any) {
+                logger.error({
+                  event: "ORDERS_WATERMARK_LAG_ALERT_FAILED",
+                  tenantId,
+                  error: alertErr?.message,
+                });
+              }
+            }
+          } else {
+            // Normal 5-minute incremental reconciliation
+            events.push({
+              name: "meli/tenant.sync-orders.requested" as any,
+              data: {
+                tenantId,
+                source: "cron_dispatcher",
+                correlationId,
+              },
+            });
+
+            // Auto-resolve lag alert when lag is healthy
+            try {
+              const { upsertStateAlert } = await import("@/services/notifications/notificationService");
+              await upsertStateAlert({
+                tenantId,
+                type: "sync_failed",
+                title: "Sincronización de ventas demorada",
+                body: "Sincronización normalizada.",
+                actionUrl: "/dashboard/integrations",
+                actionLabel: "Revisar integración",
+                entityType: "integration",
+                dedupeKey: `tenant:${tenantId}:state:sync_lag_alert`,
+                count: 0,
+              });
+            } catch {}
+          }
+        }
 
         await step.sendEvent(`dispatch-orders-batch-${offset}`, events);
         totalDispatched += tenantIds.length;
