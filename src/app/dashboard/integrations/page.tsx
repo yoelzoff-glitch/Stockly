@@ -35,11 +35,23 @@ export default async function IntegrationsPage({
   const tenantId = profile?.tenant_id;
 
   // Fetch Mercado Libre Account Details & Verified Orders Sync State
-  const { data: meliAccount } = await supabase
+  let meliAccount: any = null;
+  const { data: fullMeliAccount, error: meliQueryError } = await supabase
     .from("meli_accounts")
     .select("id, status, token_expires_at, sync_error, last_success_refresh, last_sync_at, retry_count, next_retry_at, last_failure_category, last_failure_reason, updated_at")
     .eq("tenant_id", tenantId)
     .maybeSingle();
+
+  if (meliQueryError) {
+    const { data: baseMeliAccount } = await supabase
+      .from("meli_accounts")
+      .select("id, status, token_expires_at, sync_error, last_success_refresh, last_sync_at, updated_at")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    meliAccount = baseMeliAccount;
+  } else {
+    meliAccount = fullMeliAccount;
+  }
 
   const { data: ordersSyncState } = await supabase
     .from("meli_sync_state")
