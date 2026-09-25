@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { ShoppingBag, Loader2, RefreshCw, AlertTriangle, CheckCircle, Flame } from "lucide-react";
+import { ShoppingBag, Loader2, RefreshCw, AlertTriangle, CheckCircle, Flame, Clock } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { refreshMeliConnectionAction, disconnectMeliConnectionAction } from "@/actions/meli-connection";
@@ -95,23 +95,32 @@ export function MeliCard({ meliAccount, isDemo = false }: { meliAccount: any; is
   };
 
   // Determine actual display state
-  const isConnected = isDemo || (meliAccount && meliAccount.status === "connected");
-  const isError = !isDemo && meliAccount && meliAccount.status === "error";
   const isDisconnected = !isDemo && (!meliAccount || meliAccount.status === "disconnected");
+  const isTransientRateLimit = Boolean(
+    !isDemo &&
+    meliAccount?.sync_error &&
+    /429|local_rate_limited|rate_limit|rate limit|limitando temporalmente|timeout|servidor/i.test(meliAccount.sync_error)
+  );
+  const isPermanentError = !isDemo && meliAccount && meliAccount.status === "error" && !isTransientRateLimit;
+  const isConnected = isDemo || (meliAccount && meliAccount.status === "connected" && !isTransientRateLimit);
 
   // Calculate token expiration details
   let hoursLeft = 0;
   let isTokenExpired = false;
-  if (isConnected && meliAccount?.token_expires_at) {
+  if (meliAccount?.token_expires_at) {
     const expiresAt = new Date(meliAccount.token_expires_at).getTime();
     hoursLeft = Math.max(0, Math.round((expiresAt - Date.now()) / (1000 * 60 * 60)));
     isTokenExpired = expiresAt < Date.now();
   }
 
-  // Format last successful refresh
+  // Format last successful refresh vs last attempt
   const lastRefreshStr = meliAccount?.last_success_refresh 
     ? new Date(meliAccount.last_success_refresh).toLocaleString("es-AR")
     : isDemo ? "Simulado (reciente)" : "Nunca";
+
+  const lastAttemptStr = meliAccount?.updated_at
+    ? new Date(meliAccount.updated_at).toLocaleString("es-AR")
+    : null;
 
   return (
     <div className="rounded-lg border border-[#DCDAD4] bg-[#FFFFFF] p-5 flex flex-col justify-between h-full space-y-4">
@@ -130,7 +139,9 @@ export function MeliCard({ meliAccount, isDemo = false }: { meliAccount: any; is
             <StatusBadge variant="neutral">Simulación demo</StatusBadge>
           ) : isConnected ? (
             <StatusBadge variant="success">Conectado</StatusBadge>
-          ) : isError ? (
+          ) : isTransientRateLimit ? (
+            <StatusBadge variant="warning">Limitado temporalmente</StatusBadge>
+          ) : isPermanentError ? (
             <StatusBadge variant="danger">Error</StatusBadge>
           ) : (
             <StatusBadge variant="neutral">Desconectado</StatusBadge>
@@ -142,28 +153,53 @@ export function MeliCard({ meliAccount, isDemo = false }: { meliAccount: any; is
         </p>
 
         {meliAccount && !isDisconnected && (
-          <div className="space-y-1.5 pt-2 border-t border-[#DCDAD4] text-xs font-mono">
-            {isConnected && (
-              <div className="flex justify-between items-center text-[#5F6875]">
-                <span>Token de Acceso:</span>
-                {isTokenExpired ? (
-                  <span className="text-[#D92D20] font-semibold flex items-center gap-1">
-                    <AlertTriangle className="w-3.5 h-3.5" /> Expirado
-                  </span>
-                ) : (
-                  <span className="text-[#198754] font-medium flex items-center gap-1">
-                    <CheckCircle className="w-3.5 h-3.5" /> Vigente ({hoursLeft}h restantes)
-                  </span>
-                )}
+          <div className="space-y-2 pt-2 border-t border-[#DCDAD4] text-xs">
+            <div className="flex justify-between items-center text-[#5F6875] font-mono">
+              <span>Token de Acceso:</span>
+              {isTokenExpired ? (
+                <span className="text-[#D92D20] font-semibold flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Expirado
+                </span>
+              ) : (
+                <span className="text-[#198754] font-medium flex items-center gap-1">
+                  <CheckCircle className="w-3.5 h-3.5" /> Vigente ({hoursLeft}h restantes)
+                </span>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center text-[#5F6875] font-mono">
+              <span>Última sincronización exitosa:</span>
+              <span className="text-[#101828] font-medium">{lastRefreshStr}</span>
+            </div>
+
+            {lastAttemptStr && lastAttemptStr !== lastRefreshStr && (
+              <div className="flex justify-between items-center text-[#5F6875] font-mono text-[11px]">
+                <span>Último intento:</span>
+                <span className="text-[#5F6875]">{lastAttemptStr}</span>
               </div>
             )}
-            <div className="flex justify-between items-center text-[#5F6875]">
-              <span>Última sincronización:</span>
-              <span className="text-[#101828]">{lastRefreshStr}</span>
-            </div>
-            {meliAccount.sync_error && (
-              <div className="bg-[#FEF3F2] border border-[#FECDCA] text-[#D92D20] p-2 rounded text-[11px] font-mono leading-tight mt-1">
-                <span className="font-semibold">Error detectado:</span> {meliAccount.sync_error}
+
+            {isTransientRateLimit && (
+              <div className="bg-[#FFF9EB] border border-[#F2C94C] text-[#7A4100] p-2.5 rounded text-xs leading-relaxed mt-1 flex items-start gap-2">
+                <Clock className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-[#7A4100]">Mercado Libre está limitando temporalmente las llamadas</p>
+                  <p className="text-[11px] text-[#7A4100]/90 mt-0.5">
+                    Reintentaremos automáticamente en unos minutos. Tu conexión sigue activa y no es necesario reconectar tu cuenta.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {isPermanentError && meliAccount.sync_error && (
+              <div className="bg-[#FEF3F2] border border-[#FECDCA] text-[#D92D20] p-2.5 rounded text-xs leading-relaxed mt-1 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-[#D92D20] shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-[#912018]">Es necesario reconectar la cuenta</p>
+                  <p className="text-[11px] text-[#D92D20] mt-0.5 font-mono">
+                    {meliAccount.sync_error}
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -171,7 +207,7 @@ export function MeliCard({ meliAccount, isDemo = false }: { meliAccount: any; is
       </div>
 
       <div className="pt-3 border-t border-[#DCDAD4] mt-auto">
-        {isConnected ? (
+        {isConnected || isTransientRateLimit ? (
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <Button 
@@ -215,7 +251,7 @@ export function MeliCard({ meliAccount, isDemo = false }: { meliAccount: any; is
               Desconectar
             </Button>
           </div>
-        ) : isError ? (
+        ) : isPermanentError ? (
           <div className="space-y-2">
             <Link href="/api/meli/connect" onClick={() => trackConnectMercadoLibre()} className="block w-full">
               <Button size="sm" className="w-full h-8 bg-[#102A56] hover:bg-[#102A56]/90 text-white text-xs font-semibold">

@@ -1,5 +1,6 @@
 import { inngest } from "../inngest/client";
 import { refreshMeliToken } from "../services/meli/refreshToken";
+import { isTransientErrorString } from "../services/meli/tokenErrorClassification";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/errors/logger";
 import { startOperationRun, completeOperationRun, partialOperationRun, failOperationRun } from "@/lib/observability/operationRuns";
@@ -7,7 +8,7 @@ import { startOperationRun, completeOperationRun, partialOperationRun, failOpera
 export const refreshMeliTokensJob = inngest.createFunction(
   { 
     id: "refresh-meli-tokens",
-    triggers: [{ cron: "0 */6 * * *" }] // Cada 6 horas
+    triggers: [{ cron: "*/30 * * * *" }] // Cada 30 minutos
   },
   async ({ step, event }) => {
     const correlationId = event?.id || undefined;
@@ -20,19 +21,46 @@ export const refreshMeliTokensJob = inngest.createFunction(
     try {
       const supabase = createAdminClient();
       
-      // Buscar cuentas conectadas cuyo token expire en las próximas 12 horas
-      const twelveHoursFromNow = new Date();
-      twelveHoursFromNow.setHours(twelveHoursFromNow.getHours() + 12);
-
+      // Buscar cuentas activas con refresh token presente
       const { data: accounts, error } = await supabase
         .from("meli_accounts")
-        .select("id, tenant_id, tenants!inner(is_demo)")
-        .eq("status", "connected")
+        .select("id, tenant_id, status, sync_error, token_expires_at, last_success_refresh, tenants!inner(is_demo)")
         .eq("tenants.is_demo", false)
-        .lt("token_expires_at", twelveHoursFromNow.toISOString());
+        .not("refresh_token", "is", null);
 
       if (error || !accounts || accounts.length === 0) {
-        await completeOperationRun(runId, { itemsProcessed: 0, metadata: { message: "No tokens require refresh" } });
+        await completeOperationRun(runId, { itemsProcessed: 0, metadata: { message: "No accounts found for token check" } });
+        return { message: "No accounts found for token check." };
+      }
+
+      const now = Date.now();
+      const accountsToRefresh = accounts.filter((acc) => {
+        // Regla 1: NUNCA renovar si ya se renovó exitosamente hace menos de 60 minutos
+        if (acc.last_success_refresh) {
+          const timeSinceLastRefreshMs = now - new Date(acc.last_success_refresh).getTime();
+          if (timeSinceLastRefreshMs < 60 * 60 * 1000) {
+            return false;
+          }
+        }
+
+        // Regla 2: Cuentas conectadas que expiren en las próximas 1.5 horas (90 min) o ya expiradas
+        if (acc.status === "connected") {
+          if (!acc.token_expires_at) return true;
+          const remainingMs = new Date(acc.token_expires_at).getTime() - now;
+          return remainingMs <= 90 * 60 * 1000;
+        }
+
+        // Regla 3: Recuperación automática controlada para cuentas en 'error' SOLO si el error fue transitorio
+        // (429 rate limit, 5xx, timeout). Jamás reintentar automáticamente rechazos definitivos (invalid_grant).
+        if (acc.status === "error") {
+          return isTransientErrorString(acc.sync_error);
+        }
+
+        return false;
+      });
+
+      if (accountsToRefresh.length === 0) {
+        await completeOperationRun(runId, { itemsProcessed: 0, metadata: { message: "No tokens require refresh at this moment" } });
         return { message: "No tokens require refresh at this moment." };
       }
 
@@ -41,17 +69,17 @@ export const refreshMeliTokensJob = inngest.createFunction(
         correlationId,
         operation: "refresh_meli_tokens_job",
         source: "inngest_cron",
-        accountCount: accounts.length,
+        accountCount: accountsToRefresh.length,
       });
 
       const results = await step.run("refresh-all-tokens", async () => {
         const settled = await Promise.allSettled(
-          accounts.map((acc) => refreshMeliToken(acc.id))
+          accountsToRefresh.map((acc) => refreshMeliToken(acc.id))
         );
         
         return settled.map((result, index) => ({
-          accountId: accounts[index].id,
-          tenantId: accounts[index].tenant_id,
+          accountId: accountsToRefresh[index].id,
+          tenantId: accountsToRefresh[index].tenant_id,
           status: result.status,
           reason: result.status === "rejected" ? String(result.reason) : null
         }));
@@ -59,21 +87,21 @@ export const refreshMeliTokensJob = inngest.createFunction(
 
       const successCount = results.filter((r) => r.status === "fulfilled").length;
 
-      if (successCount === accounts.length) {
+      if (successCount === accountsToRefresh.length) {
         await completeOperationRun(runId, {
           itemsProcessed: successCount,
-          metadata: { total: accounts.length, success: successCount },
+          metadata: { total: accountsToRefresh.length, success: successCount },
         });
       } else if (successCount > 0) {
         await partialOperationRun(runId, {
           itemsProcessed: successCount,
-          metadata: { total: accounts.length, success: successCount, failed: accounts.length - successCount },
+          metadata: { total: accountsToRefresh.length, success: successCount, failed: accountsToRefresh.length - successCount },
         });
       } else {
         await failOperationRun(runId, {
           errorCode: "ALL_TOKEN_REFRESHES_FAILED",
           errorMessage: "Failed to refresh any of the target tokens",
-          metadata: { total: accounts.length, success: 0 },
+          metadata: { total: accountsToRefresh.length, success: 0 },
         });
       }
 
@@ -82,12 +110,12 @@ export const refreshMeliTokensJob = inngest.createFunction(
         correlationId,
         operation: "refresh_meli_tokens_job",
         source: "inngest_cron",
-        total: accounts.length,
+        total: accountsToRefresh.length,
         refreshed: successCount,
-        status: successCount === accounts.length ? "completed" : (successCount > 0 ? "partial" : "failed"),
+        status: successCount === accountsToRefresh.length ? "completed" : (successCount > 0 ? "partial" : "failed"),
       });
 
-      return { message: `Attempted to refresh ${accounts.length} tokens`, details: results };
+      return { message: `Attempted to refresh ${accountsToRefresh.length} tokens`, details: results };
     } catch (err: any) {
       logger.error({
         event: "REFRESH_MELI_TOKENS_JOB_FAILED",
