@@ -276,113 +276,161 @@ export function createMeliTokenRefresher(
 
           // Inner handler that coordinates uncertain rotation while lease is held
           const handleUncertainRotation = async (reason: string, originalError?: unknown): Promise<string> => {
-            // 1. Re-read the account to check if another worker won and advanced token_version
-            const { data: latestAccount } = await supabaseAdmin
-              .from("meli_accounts")
-              .select("access_token, token_expires_at, status, token_version")
-              .eq("id", accountId)
-              .maybeSingle();
+            // 1. Establecer allowLeaseRelease = false antes de la primera operación asíncrona
+            allowLeaseRelease = false;
 
-            if (
-              latestAccount?.access_token &&
-              (latestAccount.token_version ?? 1) > expectedVersion &&
-              hasFreshAccessToken(latestAccount)
-            ) {
-              logger.info({
-                event: "MELI_RECOVERED_WINNING_WORKER_TOKEN_POST_UNCERTAIN",
-                tenantId,
-                accountId,
-                tokenVersion: latestAccount.token_version,
-              });
-              allowLeaseRelease = true;
-              return latestAccount.access_token;
-            }
-
-            // 2. Persist rotation_uncertain atomically via dedicated RPC while holding the lease
-            let markConfirmed = false;
-            for (let markAttempt = 1; markAttempt <= 3; markAttempt++) {
-              const { data: markResult, error: markError } = await supabaseAdmin.rpc(
-                "mark_meli_token_rotation_uncertain",
-                {
-                  p_tenant_id: tenantId,
-                  p_account_id: accountId,
-                  p_operation_type: leaseOperationType,
-                  p_lease_owner: workerId,
-                  p_expected_version: expectedVersion,
-                  p_reason: reason,
-                  p_marked_at: new Date().toISOString(),
-                }
-              );
-
-              if (!markError && markResult?.marked) {
-                markConfirmed = true;
-                break;
-              }
-
-              // Check if an ambiguous response actually saved the mark
-              const { data: checkAcc } = await supabaseAdmin
-                .from("meli_accounts")
-                .select("last_failure_category, token_version, access_token, token_expires_at, status")
-                .eq("id", accountId)
-                .maybeSingle();
-
-              if (checkAcc?.last_failure_category === "rotation_uncertain") {
-                markConfirmed = true;
-                break;
+            try {
+              // 1. Re-read the account to check if another worker won and advanced token_version
+              let latestAccount: any = null;
+              try {
+                const { data } = await supabaseAdmin
+                  .from("meli_accounts")
+                  .select("access_token, token_expires_at, status, token_version")
+                  .eq("id", accountId)
+                  .maybeSingle();
+                latestAccount = data;
+              } catch (readErr: any) {
+                logger.warn({
+                  event: "MELI_UNCERTAIN_PEER_LOOKUP_FAILED",
+                  tenantId,
+                  accountId,
+                  error: readErr?.message,
+                });
               }
 
               if (
-                checkAcc?.access_token &&
-                (checkAcc.token_version ?? 1) > expectedVersion &&
-                hasFreshAccessToken(checkAcc)
+                latestAccount?.access_token &&
+                (latestAccount.token_version ?? 1) > expectedVersion &&
+                hasFreshAccessToken(latestAccount)
               ) {
-                allowLeaseRelease = true;
-                return checkAcc.access_token;
-              }
-
-              if (markAttempt < 3) {
-                await new Promise((r) => setTimeout(r, process.env.NODE_ENV === "test" ? 20 : 200));
-              }
-            }
-
-            if (markConfirmed) {
-              // 3. Mark is confirmed stored; only now allow lease release
-              allowLeaseRelease = true;
-              try {
-                const { upsertStateAlert } = await import("@/services/notifications/notificationService");
-                await upsertStateAlert({
-                  tenantId,
-                  type: "sync_failed",
-                  severity: "danger",
-                  title: "Renovación de Mercado Libre pendiente de verificación",
-                  body: "Mercado Libre pudo haber rotado la credencial, pero no se confirmó su persistencia. Detuvimos nuevos intentos para proteger la conexión.",
-                  actionUrl: "/dashboard/integrations",
-                  actionLabel: "Revisar integración",
-                  entityType: "integration",
-                  entityId: accountId,
-                  dedupeKey: `tenant:${tenantId}:state:meli_rotation_uncertain`,
-                  count: 1,
-                  metadata: { stage: "oauth_rotation_persistence" },
-                });
-              } catch (alertError: any) {
-                logger.error({
-                  event: "MELI_TOKEN_UNCERTAIN_ALERT_FAILED",
+                logger.info({
+                  event: "MELI_RECOVERED_WINNING_WORKER_TOKEN_POST_UNCERTAIN",
                   tenantId,
                   accountId,
-                  error: alertError?.message,
+                  tokenVersion: latestAccount.token_version,
+                });
+                allowLeaseRelease = true;
+                return latestAccount.access_token;
+              }
+
+              // 2. Persist rotation_uncertain atomically via dedicated RPC while holding the lease
+              let markConfirmed = false;
+              for (let markAttempt = 1; markAttempt <= 3; markAttempt++) {
+                try {
+                  const { data: markResult, error: markError } = await supabaseAdmin.rpc(
+                    "mark_meli_token_rotation_uncertain",
+                    {
+                      p_tenant_id: tenantId,
+                      p_account_id: accountId,
+                      p_operation_type: leaseOperationType,
+                      p_lease_owner: workerId,
+                      p_expected_version: expectedVersion,
+                      p_reason: reason,
+                      p_marked_at: new Date().toISOString(),
+                    }
+                  );
+
+                  if (!markError && markResult?.marked) {
+                    markConfirmed = true;
+                    break;
+                  }
+                } catch (rpcErr: any) {
+                  logger.warn({
+                    event: "MELI_RPC_MARK_UNCERTAIN_THREW",
+                    tenantId,
+                    accountId,
+                    attempt: markAttempt,
+                    error: rpcErr?.message,
+                  });
+                }
+
+                // Check if an ambiguous response or concurrent worker actually saved the mark
+                try {
+                  const { data: checkAcc } = await supabaseAdmin
+                    .from("meli_accounts")
+                    .select("last_failure_category, token_version, access_token, token_expires_at, status")
+                    .eq("id", accountId)
+                    .maybeSingle();
+
+                  if (checkAcc?.last_failure_category === "rotation_uncertain") {
+                    markConfirmed = true;
+                    break;
+                  }
+
+                  if (
+                    checkAcc?.access_token &&
+                    (checkAcc.token_version ?? 1) > expectedVersion &&
+                    hasFreshAccessToken(checkAcc)
+                  ) {
+                    allowLeaseRelease = true;
+                    return checkAcc.access_token;
+                  }
+                } catch (checkErr: any) {
+                  logger.warn({
+                    event: "MELI_CHECK_UNCERTAIN_READ_THREW",
+                    tenantId,
+                    accountId,
+                    attempt: markAttempt,
+                    error: checkErr?.message,
+                  });
+                }
+
+                if (markAttempt < 3) {
+                  await new Promise((r) => setTimeout(r, process.env.NODE_ENV === "test" ? 20 : 200));
+                }
+              }
+
+              if (markConfirmed) {
+                // 3. Mark is confirmed stored; only now allow lease release
+                allowLeaseRelease = true;
+                try {
+                  const { upsertStateAlert } = await import("@/services/notifications/notificationService");
+                  await upsertStateAlert({
+                    tenantId,
+                    type: "sync_failed",
+                    severity: "danger",
+                    title: "Renovación de Mercado Libre pendiente de verificación",
+                    body: "Mercado Libre pudo haber rotado la credencial, pero no se confirmó su persistencia. Detuvimos nuevos intentos para proteger la conexión.",
+                    actionUrl: "/dashboard/integrations",
+                    actionLabel: "Revisar integración",
+                    entityType: "integration",
+                    entityId: accountId,
+                    dedupeKey: `tenant:${tenantId}:state:meli_rotation_uncertain`,
+                    count: 1,
+                    metadata: { stage: "oauth_rotation_persistence" },
+                  });
+                } catch (alertError: any) {
+                  logger.error({
+                    event: "MELI_TOKEN_UNCERTAIN_ALERT_FAILED",
+                    tenantId,
+                    accountId,
+                    error: alertError?.message,
+                  });
+                }
+              } else {
+                // If the mark cannot be confirmed:
+                // - Do NOT voluntarily release the lease. Keep it held until TTL expiry.
+                // - Do not call OAuth again.
+                allowLeaseRelease = false;
+                logger.error({
+                  event: "MELI_MARK_ROTATION_UNCERTAIN_FAILED_HOLDING_LEASE",
+                  tenantId,
+                  accountId,
+                  workerId,
+                  reason,
                 });
               }
-            } else {
-              // If the mark cannot be confirmed:
-              // - Do NOT voluntarily release the lease. Keep it held until TTL expiry.
-              // - Do not call OAuth again.
+            } catch (unexpectedError: any) {
               allowLeaseRelease = false;
               logger.error({
-                event: "MELI_MARK_ROTATION_UNCERTAIN_FAILED_HOLDING_LEASE",
+                event: "MELI_HANDLE_UNCERTAIN_ROTATION_UNEXPECTED_ERROR",
                 tenantId,
                 accountId,
                 workerId,
-                reason,
+                error: unexpectedError?.message,
+              });
+              throw new UncertainMeliTokenRotationError(reason, {
+                cause: unexpectedError ?? originalError,
               });
             }
 

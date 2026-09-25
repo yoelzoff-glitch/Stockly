@@ -1006,6 +1006,91 @@ describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Venta
       assert.equal(dbAccount.refresh_token, "INTACT_FM_REF");
     });
 
+    test("Caso 5c (CORRECCIÓN FINAL): Excepción al invocar mark_meli_token_rotation_uncertain y relectura posterior retiene el lease, no reclasifica como transitorio y propaga UncertainMeliTokenRotationError", async () => {
+      let postCount = 0;
+      mockTables.meli_accounts.push({
+        id: "acc-throw-mark-test",
+        tenant_id: "tenant-tm",
+        access_token: "INTACT_TM_ACC",
+        refresh_token: "INTACT_TM_REF",
+        status: "connected",
+        token_version: 1,
+        token_expires_at: new Date(Date.now() - 1000).toISOString(),
+        last_failure_category: null,
+        next_retry_at: null,
+      });
+
+      const originalRpc = mockDbClient.rpc;
+      const originalFrom = mockDbClient.from;
+
+      mockDbClient.rpc = async (fn: string, p: any) => {
+        if (fn === "mark_meli_token_rotation_uncertain") {
+          rpcCallLog.push({ fnName: fn, params: p });
+          throw new Error("Simulated database network partition during mark RPC");
+        }
+        return originalRpc(fn, p);
+      };
+
+      mockDbClient.from = (table: string) => {
+        const builder = originalFrom(table);
+        if (table === "meli_accounts") {
+          const originalMaybeSingle = builder.maybeSingle;
+          builder.maybeSingle = async () => {
+            if (postCount > 0) {
+              throw new Error("Simulated database timeout during account check");
+            }
+            return originalMaybeSingle();
+          };
+        }
+        return builder;
+      };
+
+      globalThis.fetch = async (url: any) => {
+        if (String(url).includes("/oauth/token")) {
+          postCount++;
+          const err = new Error("Network connection dropped");
+          err.name = "TypeError";
+          throw err;
+        }
+        return new Response("{}", { status: 200 });
+      };
+
+      try {
+        await assert.rejects(
+          async () => {
+            await refreshMeliToken("acc-throw-mark-test", { force: true });
+          },
+          (err: any) => {
+            assert.equal(err.name, "UncertainMeliTokenRotationError");
+            assert.equal(err.isRotationUncertain, true);
+            return true;
+          }
+        );
+
+        // 1. OAuth se llamó exactamente una vez
+        assert.equal(postCount, 1, "OAuth debe haberse llamado exactamente una vez");
+
+        // 2. release_operation_lease NO fue llamado
+        const leaseReleaseCalls = rpcCallLog.filter((c) => c.fnName === "release_operation_lease");
+        assert.equal(leaseReleaseCalls.length, 0, "No debe liberarse el lease cuando marcar la incertidumbre falla o lanza excepción");
+
+        // 3. Los tokens permanecen intactos
+        const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-throw-mark-test");
+        assert.equal(dbAccount.access_token, "INTACT_TM_ACC");
+        assert.equal(dbAccount.refresh_token, "INTACT_TM_REF");
+        assert.equal(dbAccount.token_version, 1);
+
+        // 4. El catch exterior no guarda una categoría transitoria común (e.g. network, timeout, server_error) ni programa next_retry_at
+        assert.notEqual(dbAccount.last_failure_category, "network");
+        assert.notEqual(dbAccount.last_failure_category, "timeout");
+        assert.notEqual(dbAccount.last_failure_category, "server_error");
+        assert.equal(dbAccount.next_retry_at, null);
+      } finally {
+        mockDbClient.rpc = originalRpc;
+        mockDbClient.from = originalFrom;
+      }
+    });
+
     test("Caso 6 (OBLIGATORIO): Respuesta OAuth sin refresh_token, sin access_token o con expires_in inválido no modifica tokens", async () => {
       mockTables.meli_accounts.push({
         id: "acc-invalid-resp",
