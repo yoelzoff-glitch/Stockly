@@ -103,7 +103,7 @@ export function computeMeliCardState(
   const isConnected = isDemo || (meliAccount && meliAccount.status === "connected" && !isTransientFailure && !isRotationUncertain && !isTokenExpired);
 
   // Format timestamps
-  const lastTokenRefreshStr = meliAccount?.last_success_refresh 
+  const lastTokenRefreshStr = meliAccount?.last_success_refresh
     ? new Date(meliAccount.last_success_refresh).toLocaleString("es-AR")
     : isDemo ? "Simulado (reciente)" : "Nunca";
 
@@ -141,6 +141,8 @@ export function computeMeliCardState(
     badgeLabel = "Conectado";
   }
 
+  const canManualRefresh = !isDemo && !isDisconnected && !isPermanentError && !isRotationUncertain;
+
   return {
     isDisconnected,
     hoursLeft,
@@ -149,6 +151,7 @@ export function computeMeliCardState(
     isRotationUncertain,
     isTransientFailure,
     isPermanentError,
+    canManualRefresh,
     lastSalesSyncAt,
     salesLagMinutes,
     isSalesLagged,
@@ -414,7 +417,7 @@ export function MeliCard({
       </div>
 
       <div className="pt-3 border-t border-[#DCDAD4] mt-auto">
-        {!isDisconnected && !isPermanentError ? (
+        {!isDisconnected && !isPermanentError && !isRotationUncertain ? (
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
               {/* Authenticated isolated orders sync retry button */}
@@ -477,6 +480,23 @@ export function MeliCard({
                 Desconectar
               </Button>
             </div>
+          </div>
+        ) : isRotationUncertain ? (
+          <div className="space-y-2">
+            <Link href="/api/meli/connect" onClick={() => trackConnectMercadoLibre()} className="block w-full">
+              <Button size="sm" className="w-full h-8 bg-[#102A56] hover:bg-[#102A56]/90 text-white text-xs font-semibold">
+                Verificar o reconectar cuenta
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDisconnect}
+              disabled={isSyncingOrders || isSyncingAll || isRefreshing}
+              className="w-full h-8 border-[#DCDAD4] text-[#D92D20] hover:bg-[#D92D20]/5 text-xs font-semibold"
+            >
+              Desconectar
+            </Button>
           </div>
         ) : isPermanentError ? (
           <div className="space-y-2">

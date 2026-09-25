@@ -194,3 +194,129 @@ REVOKE ALL ON FUNCTION public.advance_meli_sync_watermark(uuid, text, timestampt
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.advance_meli_sync_watermark(uuid, text, timestamptz)
   TO service_role;
+
+-- Hardened renew_operation_lease: Prevents resurrecting expired leases by enforcing expires_at > now().
+CREATE OR REPLACE FUNCTION public.renew_operation_lease(
+  p_tenant_id uuid,
+  p_operation_type text,
+  p_lease_owner text,
+  p_ttl_seconds integer DEFAULT 300
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_now timestamp with time zone := clock_timestamp();
+  v_expires timestamp with time zone;
+BEGIN
+  IF p_tenant_id IS NULL
+     OR p_operation_type IS NULL
+     OR length(btrim(p_operation_type)) NOT BETWEEN 1 AND 100
+     OR p_lease_owner IS NULL
+     OR length(btrim(p_lease_owner)) NOT BETWEEN 1 AND 200
+     OR p_ttl_seconds IS NULL
+     OR p_ttl_seconds NOT BETWEEN 30 AND 3600 THEN
+    RETURN jsonb_build_object('renewed', false, 'reason', 'invalid_parameters');
+  END IF;
+
+  v_expires := v_now + make_interval(secs => p_ttl_seconds);
+
+  UPDATE public.operation_leases
+  SET expires_at = v_expires,
+      heartbeat_at = v_now
+  WHERE tenant_id = p_tenant_id
+    AND operation_type = btrim(p_operation_type)
+    AND lease_owner = p_lease_owner
+    AND expires_at > v_now;
+
+  IF FOUND THEN
+    RETURN jsonb_build_object('renewed', true, 'expires_at', v_expires);
+  END IF;
+
+  RETURN jsonb_build_object('renewed', false, 'reason', 'lease_not_found_or_lost');
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.renew_operation_lease(uuid, text, text, integer)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.renew_operation_lease(uuid, text, text, integer)
+  TO service_role;
+
+-- Atomic mark_meli_token_rotation_uncertain:
+-- Locks the lease, verifies tenant, owner, non-expired lease, and token_version.
+-- Persists rotation_uncertain without altering tokens, status, or releasing lease.
+CREATE OR REPLACE FUNCTION public.mark_meli_token_rotation_uncertain(
+  p_tenant_id uuid,
+  p_account_id uuid,
+  p_operation_type text,
+  p_lease_owner text,
+  p_expected_version integer,
+  p_reason text,
+  p_marked_at timestamptz DEFAULT clock_timestamp()
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_owner text;
+  v_lease_expires_at timestamptz;
+  v_actual_version integer;
+  v_marked_at timestamptz := COALESCE(p_marked_at, clock_timestamp());
+BEGIN
+  IF p_tenant_id IS NULL OR p_account_id IS NULL
+     OR p_operation_type IS NULL OR p_lease_owner IS NULL
+     OR p_expected_version IS NULL OR p_expected_version < 1 THEN
+    RETURN jsonb_build_object('marked', false, 'reason', 'invalid_parameters');
+  END IF;
+
+  -- Lock the lease row
+  SELECT lease_owner, expires_at
+  INTO v_owner, v_lease_expires_at
+  FROM public.operation_leases
+  WHERE tenant_id = p_tenant_id
+    AND operation_type = btrim(p_operation_type)
+  FOR UPDATE;
+
+  IF NOT FOUND OR v_owner IS DISTINCT FROM p_lease_owner THEN
+    RETURN jsonb_build_object('marked', false, 'reason', 'lease_not_owned');
+  END IF;
+
+  IF v_lease_expires_at <= clock_timestamp() THEN
+    RETURN jsonb_build_object('marked', false, 'reason', 'lease_expired');
+  END IF;
+
+  -- Update account only if tenant_id and expected version match
+  UPDATE public.meli_accounts
+  SET sync_error = p_reason,
+      last_failure_category = 'rotation_uncertain',
+      last_failure_reason = p_reason,
+      next_retry_at = NULL,
+      updated_at = v_marked_at
+  WHERE id = p_account_id
+    AND tenant_id = p_tenant_id
+    AND token_version = p_expected_version;
+
+  IF FOUND THEN
+    RETURN jsonb_build_object('marked', true, 'reason', NULL, 'actual_version', p_expected_version);
+  END IF;
+
+  SELECT token_version INTO v_actual_version
+  FROM public.meli_accounts
+  WHERE id = p_account_id AND tenant_id = p_tenant_id;
+
+  RETURN jsonb_build_object(
+    'marked', false,
+    'reason', CASE WHEN v_actual_version IS NULL THEN 'account_not_found' ELSE 'version_conflict' END,
+    'actual_version', v_actual_version
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.mark_meli_token_rotation_uncertain(uuid, uuid, text, text, integer, text, timestamptz)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.mark_meli_token_rotation_uncertain(uuid, uuid, text, text, integer, text, timestamptz)
+  TO service_role;

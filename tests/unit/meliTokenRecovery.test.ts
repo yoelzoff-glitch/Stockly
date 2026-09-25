@@ -16,9 +16,13 @@ const mockTables: Record<string, any[]> = {
 
 let dbWriteFailCount = 0;
 let dbWriteFailMax = 0;
+let rpcCallLog: Array<{ fnName: string; params: any }> = [];
+let mockFailMarkUncertain = false;
 
 const mockDbClient: any = {
   rpc: async (fnName: string, params: any) => {
+    rpcCallLog.push({ fnName, params });
+
     if (fnName === "acquire_operation_lease") {
       const existing = mockTables.operation_leases.find(
         (l) => l.tenant_id === params.p_tenant_id && l.operation_type === params.p_operation_type
@@ -54,6 +58,36 @@ const mockDbClient: any = {
       }
       lease.expires_at = new Date(Date.now() + params.p_ttl_seconds * 1000).toISOString();
       return { data: { renewed: true, expires_at: lease.expires_at }, error: null };
+    }
+
+    if (fnName === "mark_meli_token_rotation_uncertain") {
+      if (mockFailMarkUncertain) {
+        return { data: { marked: false, reason: "simulated_mark_failure" }, error: null };
+      }
+      const lease = mockTables.operation_leases.find(
+        (l) => l.tenant_id === params.p_tenant_id && l.operation_type === params.p_operation_type
+      );
+      if (!lease || lease.lease_owner !== params.p_lease_owner) {
+        return { data: { marked: false, reason: "lease_not_owned" }, error: null };
+      }
+      if (new Date(lease.expires_at).getTime() <= Date.now()) {
+        return { data: { marked: false, reason: "lease_expired" }, error: null };
+      }
+      const account = mockTables.meli_accounts.find(
+        (a) => a.id === params.p_account_id && a.tenant_id === params.p_tenant_id
+      );
+      if (!account) {
+        return { data: { marked: false, reason: "account_not_found" }, error: null };
+      }
+      if (account.token_version !== params.p_expected_version) {
+        return { data: { marked: false, reason: "version_conflict", actual_version: account.token_version }, error: null };
+      }
+      account.sync_error = params.p_reason;
+      account.last_failure_category = "rotation_uncertain";
+      account.last_failure_reason = params.p_reason;
+      account.next_retry_at = null;
+      account.updated_at = params.p_marked_at || new Date().toISOString();
+      return { data: { marked: true, reason: null, actual_version: account.token_version }, error: null };
     }
 
     if (fnName === "check_meli_token_refresh_lease") {
@@ -279,8 +313,13 @@ function boundary(path: string, exports: any) {
 
 boundary("../../src/lib/supabase/admin", { createAdminClient: () => mockDbClient });
 
-// Import refreshMeliToken after boundary is registered
-const { refreshMeliToken, TransientMeliTokenError } = require("../../src/services/meli/refreshToken");
+// Import refreshMeliToken and createMeliTokenRefresher after boundary is registered
+const {
+  refreshMeliToken,
+  createMeliTokenRefresher,
+  TransientMeliTokenError,
+  UncertainMeliTokenRotationError,
+} = require("../../src/services/meli/refreshToken");
 
 describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Ventas", () => {
   const originalFetch = globalThis.fetch;
@@ -292,6 +331,8 @@ describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Venta
     process.env.MELI_CLIENT_SECRET = "TEST_APP_SECRET";
     dbWriteFailCount = 0;
     dbWriteFailMax = 0;
+    rpcCallLog = [];
+    mockFailMarkUncertain = false;
     mockTables.meli_accounts = [];
     mockTables.operation_leases = [];
     mockTables.meli_sync_state = [];
@@ -530,7 +571,7 @@ describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Venta
       assert.equal(dbAccount.token_version, 2);
     });
 
-    test("Caso 1 (OBLIGATORIO): Dos workers compiten por la misma cuenta y solo uno llama/persiste la rotación", async () => {
+    test("Caso 1 (OBLIGATORIO): Dos workers compiten con Maps independientes por la misma cuenta y solo uno llama/persiste la rotación", async () => {
       let postCount = 0;
       mockTables.meli_accounts.push({
         id: "acc-concurrent-dist",
@@ -541,6 +582,10 @@ describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Venta
         token_version: 1,
         token_expires_at: new Date(Date.now() - 1000).toISOString(),
       });
+
+      // Two independent refresher instances with independent Maps sharing ONLY mockDbClient
+      const refresherA = createMeliTokenRefresher({ supabase: mockDbClient, inFlightMap: new Map() });
+      const refresherB = createMeliTokenRefresher({ supabase: mockDbClient, inFlightMap: new Map() });
 
       globalThis.fetch = async (url: any) => {
         if (String(url).includes("/oauth/token")) {
@@ -559,8 +604,8 @@ describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Venta
       };
 
       const [res1, res2] = await Promise.all([
-        refreshMeliToken("acc-concurrent-dist", { force: true }),
-        refreshMeliToken("acc-concurrent-dist", { force: true }),
+        refresherA.refresh("acc-concurrent-dist", { force: true }),
+        refresherB.refresh("acc-concurrent-dist", { force: true }),
       ]);
 
       assert.equal(postCount, 1, "Debe existir un único POST OAuth a Mercado Libre");
@@ -569,7 +614,68 @@ describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Venta
 
       const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-concurrent-dist");
       assert.equal(dbAccount.access_token, "DIST_WINNER_ACC");
-      assert.equal(dbAccount.token_version, 2);
+      assert.equal(dbAccount.token_version, 2, "token_version debe incrementarse una sola vez");
+    });
+
+    test("Caso 1b (OBLIGATORIO): Respuesta 500/502 de Mercado Libre ejecuta un solo POST, no reintenta OAuth y marca rotation_uncertain", async () => {
+      let postCount = 0;
+      mockTables.meli_accounts.push({
+        id: "acc-500-test",
+        tenant_id: "tenant-500",
+        access_token: "OLD_ACC_500",
+        refresh_token: "OLD_REF_500",
+        status: "connected",
+        token_version: 1,
+        token_expires_at: new Date(Date.now() - 1000).toISOString(),
+      });
+
+      const refresher = createMeliTokenRefresher({ supabase: mockDbClient, inFlightMap: new Map() });
+
+      globalThis.fetch = async (url: any) => {
+        if (String(url).includes("/oauth/token")) {
+          postCount++;
+          return new Response(
+            JSON.stringify({ status: 502, message: "Bad Gateway" }),
+            { status: 502, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return new Response("{}", { status: 200 });
+      };
+
+      await assert.rejects(
+        async () => {
+          await refresher.refresh("acc-500-test", { force: true });
+        },
+        (err: any) => {
+          assert.equal(err.name, "UncertainMeliTokenRotationError");
+          return true;
+        }
+      );
+
+      // 1. fetch called exactly once
+      assert.equal(postCount, 1, "fetch debe llamarse exactamente una vez ante 5xx");
+
+      // 2. Previous tokens unchanged
+      const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-500-test");
+      assert.equal(dbAccount.access_token, "OLD_ACC_500");
+      assert.equal(dbAccount.refresh_token, "OLD_REF_500");
+      assert.equal(dbAccount.token_version, 1);
+
+      // 3. Account ended in rotation_uncertain
+      assert.equal(dbAccount.last_failure_category, "rotation_uncertain");
+      assert.equal(dbAccount.status, "connected");
+
+      // 4. Subsequent attempt does not invoke OAuth
+      await assert.rejects(
+        async () => {
+          await refresher.refresh("acc-500-test");
+        },
+        (err: any) => {
+          assert.equal(err.name, "UncertainMeliTokenRotationError");
+          return true;
+        }
+      );
+      assert.equal(postCount, 1, "Un intento posterior no debe volver a invocar OAuth");
     });
 
     test("Caso 2 (OBLIGATORIO): Un worker pierde el lease antes de persistir y no puede sobrescribir tokens", async () => {
@@ -619,47 +725,57 @@ describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Venta
       assert.equal(dbAccount.access_token, "PROTECTED_OLD_ACCESS");
       assert.equal(dbAccount.refresh_token, "PROTECTED_OLD_REFRESH");
       assert.equal(dbAccount.token_version, 1);
-      assert.equal(dbAccount.last_failure_category, "rotation_uncertain");
       assert.equal(dbAccount.status, "connected");
     });
 
-    test("Caso 3 (OBLIGATORIO): Un worker con token_version anterior no puede persistir", async () => {
+    test("Caso 3 (OBLIGATORIO): Flujo completo de versión obsoleta - Worker obsoleto no puede persistir, no re-llama OAuth y recupera el ganador vigente", async () => {
+      let postCount = 0;
       mockTables.meli_accounts.push({
         id: "acc-stale-v-test",
         tenant_id: "tenant-sv",
-        access_token: "CURRENT_V2_TOKEN",
-        refresh_token: "CURRENT_V2_REFRESH",
+        access_token: "INITIAL_V1_TOKEN",
+        refresh_token: "INITIAL_V1_REFRESH",
         status: "connected",
-        token_version: 2,
-        token_expires_at: new Date(Date.now() + 1000000).toISOString(),
+        token_version: 1,
+        token_expires_at: new Date(Date.now() - 1000).toISOString(),
       });
 
-      const leaseOwner = "worker-stale-version";
-      mockTables.operation_leases.push({
-        tenant_id: "tenant-sv",
-        operation_type: "meli_token_refresh:acc-stale-v-test",
-        lease_owner: leaseOwner,
-        expires_at: new Date(Date.now() + 60000).toISOString(),
-      });
+      const staleRefresher = createMeliTokenRefresher({ supabase: mockDbClient, inFlightMap: new Map() });
 
-      const res = await mockDbClient.rpc("persist_meli_token_rotation", {
-        p_tenant_id: "tenant-sv",
-        p_account_id: "acc-stale-v-test",
-        p_operation_type: "meli_token_refresh:acc-stale-v-test",
-        p_lease_owner: leaseOwner,
-        p_expected_version: 1, // Stale!
-        p_access_token: "UNAUTHORIZED_OVERWRITE",
-        p_refresh_token: "UNAUTHORIZED_REFRESH",
-        p_expires_at: new Date(Date.now() + 20000).toISOString(),
-        p_refreshed_at: new Date().toISOString(),
-      });
+      globalThis.fetch = async (url: any) => {
+        if (String(url).includes("/oauth/token")) {
+          postCount++;
+          // While stale worker is waiting for OAuth, a concurrent winner advances to version 2!
+          const acc = mockTables.meli_accounts.find((a) => a.id === "acc-stale-v-test");
+          if (acc) {
+            acc.access_token = "WINNING_V2_TOKEN";
+            acc.refresh_token = "WINNING_V2_REFRESH";
+            acc.token_version = 2;
+            acc.token_expires_at = new Date(Date.now() + 6 * 3600 * 1000).toISOString();
+          }
+          return new Response(
+            JSON.stringify({
+              access_token: "STALE_WORKER_TRYING_OVERWRITE",
+              refresh_token: "STALE_WORKER_REF",
+              expires_in: 21600,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return new Response("{}", { status: 200 });
+      };
 
-      assert.equal(res.data.persisted, false);
-      assert.equal(res.data.reason, "version_conflict");
-      assert.equal(res.data.actual_version, 2);
+      const result = await staleRefresher.refresh("acc-stale-v-test", { force: true });
 
+      // 1. OAuth was called only once by stale worker
+      assert.equal(postCount, 1);
+
+      // 2. Winner's token was recovered
+      assert.equal(result, "WINNING_V2_TOKEN");
+
+      // 3. Database retains version 2 and winning token intact
       const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-stale-v-test");
-      assert.equal(dbAccount.access_token, "CURRENT_V2_TOKEN");
+      assert.equal(dbAccount.access_token, "WINNING_V2_TOKEN");
       assert.equal(dbAccount.token_version, 2);
     });
 
@@ -704,7 +820,80 @@ describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Venta
       assert.equal(dbAccount.token_version, 2);
     });
 
-    test("Caso 5 (OBLIGATORIO): Timeout o error ambiguo de red (OAuth se invoca una sola vez, tokens no cambian, queda en rotation_uncertain, no se inicia otro refresh)", async () => {
+    test("Caso 4b (OBLIGATORIO): Un lease vencido no puede renovarse y OAuth nunca es llamado", async () => {
+      let oauthCalled = false;
+      const tenantId = "tenant-expired-lease";
+      const accountId = "acc-expired-lease";
+
+      mockTables.meli_accounts.push({
+        id: accountId,
+        tenant_id: tenantId,
+        access_token: "OLD_ACC_EXPIRED",
+        refresh_token: "OLD_REF_EXPIRED",
+        status: "connected",
+        token_version: 1,
+        token_expires_at: new Date(Date.now() - 1000).toISOString(),
+      });
+
+      // Worker already owns the lease, but expires_at is in the PAST
+      const leaseOwner = `worker-holding-expired-lease`;
+      mockTables.operation_leases.push({
+        tenant_id: tenantId,
+        operation_type: `meli_token_refresh:${accountId}`,
+        lease_owner: leaseOwner,
+        expires_at: new Date(Date.now() - 5000).toISOString(), // Expired
+      });
+
+      globalThis.fetch = async () => {
+        oauthCalled = true;
+        return new Response("{}", { status: 200 });
+      };
+
+      // 1. Direct renew_operation_lease RPC test:
+      const renewResult = await mockDbClient.rpc("renew_operation_lease", {
+        p_tenant_id: tenantId,
+        p_operation_type: `meli_token_refresh:${accountId}`,
+        p_lease_owner: leaseOwner,
+        p_ttl_seconds: 180,
+      });
+
+      assert.equal(renewResult.data.renewed, false, "Un lease vencido nunca puede revivirse ni renovarse");
+
+      // 2. Full refresh flow test when lease is expired and renewal fails:
+      const originalAcquire = mockDbClient.rpc;
+      mockDbClient.rpc = async (fn: string, p: any) => {
+        if (fn === "acquire_operation_lease") {
+          mockTables.operation_leases.push({
+            tenant_id: p.p_tenant_id,
+            operation_type: p.p_operation_type,
+            lease_owner: p.p_lease_owner,
+            expires_at: new Date(Date.now() - 10000).toISOString(), // Already expired!
+          });
+          return { data: { acquired: true, lease_owner: p.p_lease_owner, expires_at: new Date(Date.now() - 10000).toISOString() }, error: null };
+        }
+        return originalAcquire(fn, p);
+      };
+
+      try {
+        const refresher = createMeliTokenRefresher({ supabase: mockDbClient, inFlightMap: new Map() });
+        await assert.rejects(
+          async () => {
+            await refresher.refresh(accountId, { force: true });
+          },
+          (err: any) => {
+            assert.equal(err.name, "TransientMeliTokenError");
+            return true;
+          }
+        );
+
+        // OAuth was NOT called!
+        assert.equal(oauthCalled, false, "OAuth no debe llamarse cuando la renovación del lease falla");
+      } finally {
+        mockDbClient.rpc = originalAcquire;
+      }
+    });
+
+    test("Caso 5 (OBLIGATORIO): Timeout o error ambiguo de red - Orden estricto marca -> liberación de lease", async () => {
       let postCount = 0;
       mockTables.meli_accounts.push({
         id: "acc-timeout-test",
@@ -749,7 +938,14 @@ describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Venta
       assert.equal(dbAccount.status, "connected");
       assert.equal(dbAccount.last_failure_category, "rotation_uncertain");
 
-      // 4. No new automatic refresh while rotation_uncertain
+      // 4. Verificación obligatoria de orden: mark_meli_token_rotation_uncertain ANTES de release_operation_lease
+      const idxMark = rpcCallLog.findIndex((c) => c.fnName === "mark_meli_token_rotation_uncertain");
+      const idxRelease = rpcCallLog.findIndex((c) => c.fnName === "release_operation_lease");
+      assert.ok(idxMark !== -1, "Debe llamarse a mark_meli_token_rotation_uncertain");
+      assert.ok(idxRelease !== -1, "Debe liberarse el lease una vez confirmada la marca");
+      assert.ok(idxMark < idxRelease, "mark_meli_token_rotation_uncertain debe ejecutarse ANTES de release_operation_lease");
+
+      // 5. No new automatic refresh while rotation_uncertain
       await assert.rejects(
         async () => {
           await refreshMeliToken("acc-timeout-test");
@@ -761,6 +957,53 @@ describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Venta
         }
       );
       assert.equal(postCount, 1, "No debe invocar OAuth nuevamente mientras siga rotation_uncertain");
+    });
+
+    test("Caso 5b (OBLIGATORIO): Si falla la persistencia de la marca incierta, NO se libera el lease ni ocurre otro POST", async () => {
+      let postCount = 0;
+      mockTables.meli_accounts.push({
+        id: "acc-fail-mark-test",
+        tenant_id: "tenant-fm",
+        access_token: "INTACT_FM_ACC",
+        refresh_token: "INTACT_FM_REF",
+        status: "connected",
+        token_version: 1,
+        token_expires_at: new Date(Date.now() - 1000).toISOString(),
+      });
+
+      mockFailMarkUncertain = true; // Force simulated failure of mark RPC
+
+      globalThis.fetch = async (url: any) => {
+        if (String(url).includes("/oauth/token")) {
+          postCount++;
+          const err = new Error("Connection reset by peer");
+          err.name = "TimeoutError";
+          throw err;
+        }
+        return new Response("{}", { status: 200 });
+      };
+
+      await assert.rejects(
+        async () => {
+          await refreshMeliToken("acc-fail-mark-test", { force: true });
+        },
+        (err: any) => {
+          assert.equal(err.name, "UncertainMeliTokenRotationError");
+          return true;
+        }
+      );
+
+      // 1. Exactly one POST OAuth
+      assert.equal(postCount, 1);
+
+      // 2. release_operation_lease was NOT called! Lease remains held until TTL
+      const leaseReleaseCalls = rpcCallLog.filter((c) => c.fnName === "release_operation_lease");
+      assert.equal(leaseReleaseCalls.length, 0, "No debe liberarse voluntariamente el lease si la marca no se confirmó");
+
+      // 3. Tokens remain intact
+      const dbAccount = mockTables.meli_accounts.find((a) => a.id === "acc-fail-mark-test");
+      assert.equal(dbAccount.access_token, "INTACT_FM_ACC");
+      assert.equal(dbAccount.refresh_token, "INTACT_FM_REF");
     });
 
     test("Caso 6 (OBLIGATORIO): Respuesta OAuth sin refresh_token, sin access_token o con expires_in inválido no modifica tokens", async () => {
@@ -1081,6 +1324,23 @@ describe("Sprint: Continuidad Mercado Libre y Recuperación Automática de Venta
         stateWithoutWatermark.lastSalesSyncStr,
         "Todavía no hay una sincronización de ventas confirmada"
       );
+    });
+
+    test("Caso 14 (OBLIGATORIO): Durante rotation_uncertain no se ofrece ni permite el refresh manual", () => {
+      const { computeMeliCardState } = require("../../src/components/dashboard/meli-card.tsx");
+
+      const uncertainState = computeMeliCardState({
+        id: "acc-uncertain-ui-test",
+        status: "connected",
+        token_expires_at: new Date(Date.now() + 100000).toISOString(),
+        last_failure_category: "rotation_uncertain",
+        last_failure_reason: "Network timeout during OAuth refresh",
+      });
+
+      assert.equal(uncertainState.isRotationUncertain, true);
+      assert.equal(uncertainState.canManualRefresh, false, "No debe habilitar ni ofrecer refresco manual");
+      assert.equal(uncertainState.badgeVariant, "warning");
+      assert.equal(uncertainState.badgeLabel, "Rotación protegida");
     });
   });
 });
