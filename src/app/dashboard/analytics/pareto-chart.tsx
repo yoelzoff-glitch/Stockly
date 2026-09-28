@@ -6,22 +6,30 @@ import { OperationalPanel } from "@/components/operational/panel";
 import { OperationalEmptyState } from "@/components/operational/empty-state";
 
 export default function ParetoChart({ data }: { data: ParetoAnalysisResult }) {
-  const top20 = data.paretoProducts.concat(data.longTailProducts).slice(0, 20);
+  const top20 = (data.paretoProducts || []).concat(data.longTailProducts || []).slice(0, 20);
 
-  const chartData = top20.map(p => ({
-    name: p.title.length > 18 ? p.title.substring(0, 18) + "..." : p.title,
-    revenue: p.revenue,
-    cumulative: p.cumulative_percentage
-  }));
+  const chartData = top20.map(p => {
+    const rawTitle = p.title || p.sku || "Producto";
+    return {
+      name: rawTitle.length > 18 ? rawTitle.substring(0, 18) + "..." : rawTitle,
+      fullName: rawTitle,
+      revenue: p.revenue,
+      cumulative: p.cumulative_percentage
+    };
+  });
+
+  const description = data.totalRevenue > 0
+    ? `${data.productsToReach80} productos generan el 80% de tu facturación (${data.percentageOfCatalog.toFixed(1)}% del catálogo activo).`
+    : "Sin órdenes con facturación en el período seleccionado para calcular la curva 80/20.";
 
   return (
     <OperationalPanel
       title="Curva Pareto 80/20 de Concentración de Ventas"
-      description={`${data.productsToReach80} productos generan el 80% de tu facturación (${data.percentageOfCatalog.toFixed(1)}% del catálogo activo).`}
+      description={description}
       action={<span className="text-[11px] font-mono text-[#5F6875]">Unidad: $ ARS / % acum.</span>}
     >
       <div className="h-[380px] w-full pt-2">
-        {chartData.length > 0 ? (
+        {chartData.length > 0 && data.totalRevenue > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chartData} margin={{ top: 15, right: 20, bottom: 25, left: 10 }}>
               <CartesianGrid stroke="#E5E3DC" strokeDasharray="2 2" vertical={false} />
@@ -36,7 +44,11 @@ export default function ParetoChart({ data }: { data: ParetoAnalysisResult }) {
               <YAxis
                 yAxisId="left"
                 tick={{ fontSize: 10, fill: "#5F6875" }}
-                tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(v) => {
+                  if (v >= 1000000) return `$${(v / 1000000).toFixed(1)}M`;
+                  if (v >= 1000) return `$${(v / 1000).toFixed(0)}k`;
+                  return `$${v}`;
+                }}
               />
               <YAxis
                 yAxisId="right"
@@ -46,6 +58,10 @@ export default function ParetoChart({ data }: { data: ParetoAnalysisResult }) {
                 domain={[0, 100]}
               />
               <Tooltip
+                labelFormatter={(label, payload) => {
+                  const item = payload?.[0]?.payload;
+                  return item?.fullName || label;
+                }}
                 formatter={(value: any, name: any) => {
                   const numVal = Number(value) || 0;
                   if (name === "Facturación") return [`$${numVal.toLocaleString("es-AR")}`, name];

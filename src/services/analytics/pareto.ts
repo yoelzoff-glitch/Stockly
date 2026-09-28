@@ -77,7 +77,7 @@ export async function getParetoAnalysis({
     const orderIds = orders.map(o => o.id);
     const { data: fetchedItems, error: itemsError } = await supabase
       .from("order_items")
-      .select("product_id, title, sku, quantity, unit_price")
+      .select("product_id, title, sku, quantity, unit_price, total_price")
       .in("order_id", orderIds);
 
     logEgressSample({
@@ -112,7 +112,9 @@ export async function getParetoAnalysis({
     const sku = item.sku?.trim();
     const key = sku || item.title || "Otros";
     const qty = Number(item.quantity) || 1;
-    const amount = (Number(item.unit_price) || 0) * qty;
+    const amount = (item.total_price != null && !isNaN(Number(item.total_price)) && Number(item.total_price) > 0)
+      ? Number(item.total_price)
+      : ((Number(item.unit_price) || 0) * qty);
 
     totalRevenue += amount;
     totalUnits += qty;
@@ -151,12 +153,6 @@ export async function getParetoAnalysis({
   for (const p of sortedProducts) {
     cumulativeRevenue += p.revenue;
     const cumulative_percentage = totalRevenue > 0 ? (cumulativeRevenue / totalRevenue) * 100 : 0;
-    
-    const isPareto = !reached80 && cumulative_percentage <= 80;
-    
-    if (isPareto || (cumulative_percentage > 80 && !reached80)) {
-       // Include the one that crosses the 80 threshold as pareto as well
-    }
 
     const product: ParetoProduct = {
       product_id: p.product_id,
@@ -166,10 +162,10 @@ export async function getParetoAnalysis({
       units_sold: p.units,
       cumulative_revenue: cumulativeRevenue,
       cumulative_percentage,
-      is_pareto: !reached80
+      is_pareto: totalRevenue > 0 && !reached80
     };
 
-    if (!reached80) {
+    if (totalRevenue > 0 && !reached80) {
       paretoProducts.push(product);
       productsToReach80++;
       if (cumulative_percentage >= 80) {
@@ -180,14 +176,14 @@ export async function getParetoAnalysis({
     }
   }
 
-  const percentageOfCatalog = sortedProducts.length > 0 
+  const percentageOfCatalog = sortedProducts.length > 0 && totalRevenue > 0
     ? (productsToReach80 / sortedProducts.length) * 100 
     : 0;
 
   return {
     totalRevenue,
     totalProductsSold: totalUnits,
-    productsToReach80,
+    productsToReach80: totalRevenue > 0 ? productsToReach80 : 0,
     percentageOfCatalog,
     paretoProducts,
     longTailProducts

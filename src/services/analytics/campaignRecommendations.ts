@@ -149,7 +149,7 @@ export async function getCampaignRecommendations(
     // 3. Fetch order items for these orders
     const { data: fetchedItems, error: itemsError } = await supabase
       .from("order_items")
-      .select("product_id, quantity, unit_price, title, sku")
+      .select("product_id, quantity, unit_price, total_price, title, sku")
       .in("order_id", orderIds);
 
     logEgressSample({
@@ -174,7 +174,9 @@ export async function getCampaignRecommendations(
     const sku = item.sku?.trim();
     if (!sku) return;
     const qty = Number(item.quantity) || 0;
-    const rev = (Number(item.unit_price) || 0) * qty;
+    const rev = (item.total_price != null && !isNaN(Number(item.total_price)) && Number(item.total_price) > 0)
+      ? Number(item.total_price)
+      : ((Number(item.unit_price) || 0) * qty);
 
     if (!skuSales[sku]) {
       skuSales[sku] = {

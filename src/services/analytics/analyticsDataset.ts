@@ -142,7 +142,7 @@ export async function getAnalyticsDataset(params: GetAnalyticsDatasetParams): Pr
       const chunkIds = activeOrderIds.slice(i, i + CHUNK_SIZE);
       const { data: itemsChunk } = await supabase
         .from("order_items")
-        .select("order_id, product_id, meli_item_id, title, quantity, total_price, estimated_fee, estimated_shipping_cost, sku, unit_cost, line_key, unit_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_version, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot, estimated_tax_snapshot")
+        .select("order_id, product_id, meli_item_id, title, quantity, unit_price, total_price, estimated_fee, estimated_shipping_cost, sku, unit_cost, line_key, unit_cost_snapshot, cost_snapshot_frozen_at, cost_snapshot_source, cost_snapshot_version, estimated_fee_snapshot, estimated_shipping_cost_snapshot, extra_fee_amount_snapshot, promotion_discount_amount_snapshot, estimated_tax_snapshot")
         .in("order_id", chunkIds);
 
       if (itemsChunk && itemsChunk.length > 0) {
