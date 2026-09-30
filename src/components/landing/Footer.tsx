@@ -154,6 +154,11 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/calculadora-rentabilidad" className="text-white/90 hover:text-[#00DFDB] transition-colors font-semibold flex items-center gap-1 text-[#FAF984]">
+                  <span>Calculadora de Rentabilidad</span>
+                </Link>
+              </li>
+              <li>
                 <Link href="#faq" className="text-white/70 hover:text-[#00DFDB] transition-colors">
                   Preguntas
                 </Link>

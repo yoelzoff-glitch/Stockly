@@ -92,6 +92,12 @@ export function Navbar() {
             >
               Precios
             </Link>
+            <Link
+              href="/calculadora-rentabilidad"
+              className="text-sm font-semibold text-[#003968] hover:text-[#002B4D] transition-colors relative py-1 hover:after:content-[''] hover:after:absolute hover:after:bottom-0 hover:after:left-0 hover:after:w-full hover:after:h-[2px] hover:after:bg-[#00DFDB] hover:after:rounded-full flex items-center gap-1.5"
+            >
+              <span>Calculadora de Rentabilidad</span>
+            </Link>
           </nav>
 
           {/* Desktop Actions */}
@@ -169,6 +175,14 @@ export function Navbar() {
               >
                 <span>Precios</span>
                 <span className="text-xs font-mono text-[rgba(0,43,77,0.50)]">04</span>
+              </Link>
+              <Link
+                href="/calculadora-rentabilidad"
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-base font-bold text-[#003968] hover:text-[#00DFDB] py-2 border-b border-[rgba(0,57,104,0.08)] flex items-center justify-between"
+              >
+                <span>Calculadora de Rentabilidad</span>
+                <span className="text-xs font-mono text-[#00DFDB]">05</span>
               </Link>
             </nav>
 

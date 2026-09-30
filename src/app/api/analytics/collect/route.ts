@@ -16,6 +16,10 @@ const ALLOWED_EVENTS = new Set([
   "contact_clicked",
   "whatsapp_clicked",
   "signup_completed",
+  "profitability_calculator_view",
+  "profitability_calculator_calculate",
+  "profitability_calculator_result",
+  "profitability_calculator_signup_click",
 ]);
 
 interface AnalyticsPayload {

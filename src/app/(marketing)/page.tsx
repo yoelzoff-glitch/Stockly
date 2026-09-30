@@ -12,6 +12,7 @@ import { FAQ } from "@/components/landing/FAQ";
 import { CTA } from "@/components/landing/CTA";
 import { Footer } from "@/components/landing/Footer";
 import { LeadCaptureModal } from "@/components/landing/LeadCaptureModal";
+import { ProfitabilityCalculatorSection } from "@/components/landing/ProfitabilityCalculatorSection";
 
 export const metadata: Metadata = {
   title: "LibretaX | Rentabilidad y gestión para Mercado Libre",
@@ -62,6 +63,7 @@ export default function MarketingPage() {
         <Problem />
         <ProductTour />
         <FeatureIndex />
+        <ProfitabilityCalculatorSection />
         <HowItWorks />
         <FounderStory />
         <SecurityAndIntegrations />

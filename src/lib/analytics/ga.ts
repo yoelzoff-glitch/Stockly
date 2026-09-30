@@ -112,4 +112,25 @@ export function trackLaunchOfferConversion(planName: string, promotion: string =
   });
 }
 
+/**
+ * Calculadora de Rentabilidad Pública Analytics
+ * Conforme con las reglas de privacidad: nunca envía precios, costos ni datos comerciales sensibles.
+ */
+export function trackProfitabilityCalculatorView(source: string = "landing") {
+  trackGAEvent("profitability_calculator_view", { source });
+}
+
+export function trackProfitabilityCalculatorCalculate(mode: "profit" | "ideal_price" = "profit") {
+  trackGAEvent("profitability_calculator_calculate", { mode });
+}
+
+export function trackProfitabilityCalculatorResult(mode: "profit" | "ideal_price" = "profit") {
+  trackGAEvent("profitability_calculator_result", { mode });
+}
+
+export function trackProfitabilityCalculatorSignupClick(ctaLocation: string = "calculator_results") {
+  trackGAEvent("profitability_calculator_signup_click", { cta_location: ctaLocation });
+}
+
+
 
