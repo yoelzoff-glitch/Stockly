@@ -5,8 +5,9 @@ conserva para rollback, pero queda deshabilitado por defecto.
 
 ## Presupuesto de trabajo
 
-- Un respaldo cada **45 minutos exactos**, 32 invocaciones diarias. Las cuatro
-  expresiones de `vercel.json` cubren el ciclo; `*/45` no significa cada 45 minutos.
+- Un respaldo cada **45 minutos exactos**, 32 invocaciones diarias. Supabase Cron
+  dispara una petición autenticada a Vercel. `vercel.json` no contiene crons:
+  Hobby no admite programación subdiaria. `*/45` no significa cada 45 minutos.
 - Ventas y envíos: webhook, con cola persistente y recuperación por cron.
 - Productos: los avisos sólo marcan el catálogo pendiente. Se revisa cada 45
   minutos y se sincroniza sólo si cambió o lleva seis horas sin actualización.
@@ -36,11 +37,14 @@ conserva para rollback, pero queda deshabilitado por defecto.
    `20261117000001_background_budget.sql`. No aplicar cambios ajenos pendientes.
 2. Configurar `CRON_SECRET` aleatorio en producción. Mantener
    `LIBRETAX_BACKGROUND_PROVIDER=vercel` (también es el valor predeterminado).
-3. Confirmar que el plan existente de Vercel permite cron subdiario. Hobby sólo
-   admite cron diario; esta configuración no compra ni cambia ningún plan.
+3. En Supabase Vault crear `libretax_background_url` con el origen HTTPS estable
+   de producción, y `libretax_cron_secret` con el mismo `CRON_SECRET` de Vercel.
+   No usar una URL temporal de preview ni incluir las claves en el repositorio.
 4. Desplegar y pausar el registro de la aplicación en Inngest para evitar sus
    invocaciones residuales. `/api/inngest` rechaza ejecuciones en modo Vercel.
-5. Invocar `/api/cron/background` con `Authorization: Bearer $CRON_SECRET` desde
+5. Ejecutar `supabase/sql/schedule_vercel_background.sql` como `postgres` para
+   activar Supabase Cron. No compra ni cambia ningún plan. Después invocar
+   `/api/cron/background` con `Authorization: Bearer $CRON_SECRET` desde
    un cliente seguro. Verificar órdenes, envíos, watermark y trabajos pendientes.
 6. Verificar la siguiente ejecución programada. La recuperación inicial y la
    revisión diaria cubren siete días; períodos anteriores necesitan una reparación
@@ -54,4 +58,5 @@ coste cero: el consumo real depende del volumen y duración de las llamadas.
 
 Detener/drenar primero la cola Vercel, cambiar el proveedor a `inngest`, desplegar
 y registrar nuevamente Inngest. No habilitar ambos consumidores a la vez. Los
-crons Vercel no procesan trabajo si el proveedor está configurado como Inngest.
+disparadores no procesan trabajo si el proveedor está configurado como Inngest.
+Desactivar los cuatro jobs `libretax-background-45m-*` en Supabase Cron al volver.
