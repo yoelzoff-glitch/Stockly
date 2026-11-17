@@ -16,6 +16,7 @@ export interface MeliFetchArgs {
   headers?: Record<string, string>;
   timeoutMs?: number;
   maxRetries?: number;
+  rejectPartialResponse?: boolean;
 }
 
 const DEFAULT_TIMEOUT_MS = 15000;
@@ -49,6 +50,7 @@ export async function meliFetch({
   headers,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   maxRetries = MAX_RETRY_ATTEMPTS,
+  rejectPartialResponse = false,
 }: MeliFetchArgs): Promise<any> {
   const startTime = Date.now();
   const isReadOperation = !method || method === "GET";
@@ -291,6 +293,10 @@ export async function meliFetch({
     }
 
     throw new AppError("VALIDATION_ERROR", `Mercado Libre API Error: ${errorMessage}`, status);
+  }
+
+  if (rejectPartialResponse && response.status === 206) {
+    throw new AppError("MELI_API_ERROR", "Mercado Libre devolvió un reporte parcial", 502);
   }
 
   // 5. Parse and Return JSON

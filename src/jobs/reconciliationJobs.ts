@@ -1,4 +1,4 @@
-import { inngest } from "../inngest/client";
+import { defineJob } from "@/lib/background/registry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncShipments } from "@/services/meli/syncShipments";
 import { syncCancellations } from "@/services/meli/syncCancellations";
@@ -9,7 +9,7 @@ const BATCH_PAGE_SIZE = 50;
 /**
  * Background safety reconciliation for Shipments: Runs every 2 hours
  */
-export const reconcileShipmentsDispatcherJob = inngest.createFunction(
+export const reconcileShipmentsDispatcherJob = defineJob(
   {
     id: "reconcile-shipments-dispatcher",
     triggers: [{ cron: "0 */2 * * *" }],
@@ -56,7 +56,7 @@ export const reconcileShipmentsDispatcherJob = inngest.createFunction(
 /**
  * Background safety reconciliation for Cancellations: Runs every 60 minutes
  */
-export const reconcileCancellationsDispatcherJob = inngest.createFunction(
+export const reconcileCancellationsDispatcherJob = defineJob(
   {
     id: "reconcile-cancellations-dispatcher",
     triggers: [{ cron: "0 * * * *" }],
@@ -103,7 +103,7 @@ export const reconcileCancellationsDispatcherJob = inngest.createFunction(
 /**
  * Sprint 40 Phase 5: Deep Safety Reconciliation for Orders: Runs every 4 hours (7-day historical window)
  */
-export const reconcileOrdersDeepDispatcherJob = inngest.createFunction(
+export const reconcileOrdersDeepDispatcherJob = defineJob(
   {
     id: "orders-deep-reconciliation",
     triggers: [{ cron: "0 */4 * * *" }],

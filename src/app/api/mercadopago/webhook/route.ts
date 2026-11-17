@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { inngest } from "@/inngest/client";
+import { dispatchBackgroundEvent } from "@/lib/background/dispatch";
 import { logger } from "@/lib/errors/logger";
 import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { validateMercadoPagoWebhookSignature } from "@/lib/security/webhookSignatures";
 import { getWebhookSignatureConfig } from "@/lib/security/signatureConfig";
 import { claimWebhookEvent, updateWebhookEventStatus, hashWebhookPayload } from "@/lib/security/idempotency";
 import * as Sentry from "@sentry/nextjs";
+
+export const maxDuration = 300;
 
 const MAX_PAYLOAD_SIZE = 512 * 1024; // 512 KB
 
@@ -147,7 +149,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Asynchronous Inngest Dispatch
-    await inngest.send({
+    await dispatchBackgroundEvent({
       name: "mercadopago/subscription.updated" as any,
       data: {
         resourceId,

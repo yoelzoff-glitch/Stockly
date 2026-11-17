@@ -536,13 +536,17 @@ export function runEgressAudit(): EgressViolation[] {
         if (relPath === "src/jobs/syncProductsJob.ts") {
           if (
             !content.includes("LIBRETAX_PRODUCTS_RECONCILIATION_MODE") ||
-            !content.includes("shouldSkipProductCron")
+            !(content.includes("shouldSkipProductCron") || (
+              content.includes("productCronDecision(byTenant.get(id)).skip") &&
+              content.includes('.select("tenant_id, products_dirty, last_full_sync_at")') &&
+              content.includes('.in("tenant_id", tenantIds)')
+            ))
           ) {
             violations.push({
               file: relPath,
               category: "FULL_PRODUCTS_SYNC_HIGH_FREQUENCY",
               line: 1,
-              message: `syncProductsJob must enforce reduced reconciliation mode (hourly + dirty check) to avoid polling clean catalogs.`,
+              message: `syncProductsJob must check dirty/stale state (per tenant or batched) to avoid polling clean catalogs.`,
             });
           }
         }

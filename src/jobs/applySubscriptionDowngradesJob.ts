@@ -1,9 +1,9 @@
-import { inngest } from "../inngest/client";
+import { defineJob } from "@/lib/background/registry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/errors/logger";
 import * as Sentry from "@sentry/nextjs";
 
-export const applySubscriptionDowngradesJob = inngest.createFunction(
+export const applySubscriptionDowngradesJob = defineJob(
   { 
     id: "apply-subscription-downgrades", 
     name: "Apply Subscription Downgrades",

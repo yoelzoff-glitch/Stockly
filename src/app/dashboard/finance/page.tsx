@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import FinanceClientPage from "./client-page";
 import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 import { getFinancialData } from "@/services/finance/getFinancialData";
+import { getSalesVat } from "@/services/finance/getSalesVat";
+import { VatCard } from "./vat-card";
+import { getVatReconciliation } from "@/services/finance/getVatReconciliation";
 
 export default async function FinancePage(props: { searchParams: Promise<{ period?: string }> }) {
   const searchParams = await props.searchParams;
@@ -42,6 +45,12 @@ export default async function FinancePage(props: { searchParams: Promise<{ perio
   });
   const tenantDateStr = tenantDateFormatter.format(new Date()); // "YYYY-MM-DD"
   const [tenantYear, tenantMonth, tenantDay] = tenantDateStr.split('-').map(Number);
+  const vatDate = new Date(Date.UTC(tenantYear, tenantMonth - (period === "last_month" ? 2 : 1), 1, 12));
+  const vatMonth = `${vatDate.getUTCFullYear()}-${String(vatDate.getUTCMonth() + 1).padStart(2, "0")}`;
+  const vatFrom = getMidnightInTimezone(vatDate, timezone);
+  const vatUntil = getMidnightInTimezone(new Date(Date.UTC(vatDate.getUTCFullYear(), vatDate.getUTCMonth() + 1, 1, 12)), timezone);
+  const vatPromise = getSalesVat(supabase, tenantId, vatFrom, vatUntil,
+    Array.isArray(ignoredOrderIds) ? ignoredOrderIds.map(String) : []);
 
   let dateFrom: Date;
   let dateTo = new Date(); // now
@@ -127,12 +136,16 @@ export default async function FinancePage(props: { searchParams: Promise<{ perio
     }
   }
 
+  const vatData = await vatPromise;
+  const reconciliation = vatData.settings.enabled && !vatData.error
+    ? await getVatReconciliation(supabase, tenantId, vatMonth) : { record: null, error: null };
   return (
     <div className="flex-1 p-8 pt-6">
       <FinanceClientPage 
         financials={financials}
         currentPeriod={period}
         comparisonData={comparisonData}
+        vatCard={<VatCard data={vatData} month={vatMonth} reconciliation={reconciliation} />}
       />
     </div>
   );

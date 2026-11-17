@@ -1,7 +1,7 @@
 // src/app/dashboard/accounting/client-page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,12 +28,14 @@ export function AccountingClient({
   initialExpenses,
   actualRevenue,
   actualOperatingProfit,
-  currentMonthStr
+  currentMonthStr,
+  salesVatPanel,
 }: {
   initialExpenses: MonthlyExpense[];
   actualRevenue: number;
   actualOperatingProfit: number;
   currentMonthStr: string;
+  salesVatPanel?: ReactNode;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -573,6 +575,8 @@ export function AccountingClient({
           </div>
         }
       />
+
+      {salesVatPanel}
 
       {/* Top 5 Key Metrics */}
       <MetricStrip metrics={metricItems} columns={5} />

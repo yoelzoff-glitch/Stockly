@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { inngest } from "@/inngest/client";
+import { dispatchBackgroundEvent } from "@/lib/background/dispatch";
 import { logger } from "@/lib/errors/logger";
 import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { validateWhatsAppWebhookSignature } from "@/lib/security/webhookSignatures";
 import { getWebhookSignatureConfig } from "@/lib/security/signatureConfig";
 import { claimWebhookEvent, updateWebhookEventStatus } from "@/lib/security/idempotency";
 import * as Sentry from "@sentry/nextjs";
+
+export const maxDuration = 300;
 
 const MAX_PAYLOAD_SIZE = 512 * 1024; // 512 KB
 
@@ -231,7 +233,7 @@ export async function POST(req: NextRequest) {
         }
 
         // 7. Enqueue Inngest Job
-        await inngest.send({
+        await dispatchBackgroundEvent({
           name: "whatsapp/message.received" as any,
           data: {
             tenantId,

@@ -1,9 +1,9 @@
-import { inngest } from "../inngest/client";
+import { defineJob } from "@/lib/background/registry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateResponse } from "../services/meli/questions/generateResponse";
 import { sendResponse } from "../services/meli/questions/sendResponse";
 
-export const questionsJob = inngest.createFunction(
+export const questionsJob = defineJob(
   { 
     id: "process-meli-question",
     triggers: [{ event: "meli/questions.received" as any }]

@@ -1,6 +1,6 @@
 // src/jobs/fullReplenishmentJob.ts
 
-import { inngest } from "../inngest/client";
+import { defineJob } from "@/lib/background/registry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildReplenishmentSnapshots } from "@/services/inventory/replenishment/buildReplenishmentSnapshot";
 import { calculateReplenishment } from "@/services/inventory/replenishment/calculateReplenishment";
@@ -14,7 +14,7 @@ import { logger } from "@/lib/errors/logger";
  * Job de Inngest: Análisis y cálculo diario / on-demand de reposición inteligente FULL.
  * Ejecuta el motor determinístico sin llamadas desatendidas a OpenAI en cron.
  */
-export const fullReplenishmentAnalysisJob = inngest.createFunction(
+export const fullReplenishmentAnalysisJob = defineJob(
   {
     id: "full-replenishment-analysis",
     triggers: [

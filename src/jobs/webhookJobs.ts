@@ -1,4 +1,4 @@
-import { inngest } from "../inngest/client";
+import { defineJob } from "@/lib/background/registry";
 import { syncShipments } from "../services/meli/syncShipments";
 import { updateWebhookEventStatus } from "@/lib/security/idempotency";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -14,7 +14,7 @@ import { isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 /**
  * Inngest Job: Process Mercado Libre Shipments Webhook
  */
-export const meliShipmentsJob = inngest.createFunction(
+export const meliShipmentsJob = defineJob(
   {
     id: "meli-shipments-webhook",
     triggers: [{ event: "meli/shipments.updated" as any }],
@@ -104,7 +104,7 @@ export const meliShipmentsJob = inngest.createFunction(
 /**
  * Inngest Job: Process Mercado Pago Subscription Webhook
  */
-export const mercadopagoWebhookJob = inngest.createFunction(
+export const mercadopagoWebhookJob = defineJob(
   {
     id: "mercadopago-webhook-processor",
     triggers: [{ event: "mercadopago/subscription.updated" as any }],
@@ -264,7 +264,7 @@ export const mercadopagoWebhookJob = inngest.createFunction(
 /**
  * Inngest Job: Process WhatsApp Inbound Message Webhook
  */
-export const whatsappWebhookJob = inngest.createFunction(
+export const whatsappWebhookJob = defineJob(
   {
     id: "whatsapp-webhook-processor",
     triggers: [{ event: "whatsapp/message.received" as any }],

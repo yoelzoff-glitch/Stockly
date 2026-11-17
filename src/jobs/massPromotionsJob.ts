@@ -1,10 +1,10 @@
-import { inngest } from "../inngest/client";
+import { defineJob } from "@/lib/background/registry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/errors/logger";
 import { isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 import * as Sentry from "@sentry/nextjs";
 
-export const massPromotionsJob = inngest.createFunction(
+export const massPromotionsJob = defineJob(
   { 
     id: "mass-promotions", 
     name: "Mass Promotions",

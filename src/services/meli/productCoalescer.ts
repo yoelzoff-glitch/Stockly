@@ -7,6 +7,16 @@ const MAX_FULL_SYNC_AGE_MS = 6 * 60 * 60 * 1000; // 6 hours maximum idle age bef
 // In-memory debounce tracker per tenant to complement DB state across hot requests
 const inMemoryScheduledSyncs = new Map<string, number>();
 
+export async function markProductCatalogDirty(tenantId: string, client = createAdminClient()): Promise<void> {
+  if (!tenantId) throw new Error("Missing tenant for product notification");
+  const now = new Date().toISOString();
+  const { error } = await client.from("meli_sync_state").upsert({
+    tenant_id: tenantId, resource_type: "products", products_dirty: true,
+    last_item_event_at: now, updated_at: now,
+  }, { onConflict: "tenant_id,resource_type" });
+  if (error) throw new Error(`Cannot mark product catalog dirty: ${error.message}`);
+}
+
 export interface ProductCoalesceDecision {
   shouldSchedule: boolean;
   reason: "initial_scheduled" | "already_in_progress_marked_dirty" | "within_coalescing_window_marked_dirty";
@@ -141,6 +151,10 @@ export async function shouldSkipProductCron(tenantId: string): Promise<{ skip: b
     .eq("resource_type", "products")
     .maybeSingle();
 
+  return productCronDecision(state);
+}
+
+export function productCronDecision(state: { products_dirty?: boolean; last_full_sync_at?: string | null } | null | undefined, now = Date.now()): { skip: boolean; reason: string } {
   if (!state) {
     return { skip: false, reason: "no_prior_sync_state" };
   }
@@ -154,7 +168,7 @@ export async function shouldSkipProductCron(tenantId: string): Promise<{ skip: b
   }
 
   const lastSyncTime = new Date(state.last_full_sync_at).getTime();
-  const ageMs = Date.now() - lastSyncTime;
+  const ageMs = now - lastSyncTime;
 
   if (ageMs >= MAX_FULL_SYNC_AGE_MS) {
     return { skip: false, reason: "max_age_exceeded" };

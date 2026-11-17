@@ -1,4 +1,4 @@
-import { inngest } from "../inngest/client";
+import { defineJob, usesVercelJobs } from "@/lib/background/registry";
 import { syncOrders } from "../services/meli/syncOrders";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withOperationLease } from "@/lib/security/leases";
@@ -15,7 +15,7 @@ const REPAIR_RESOURCE = "orders_shipments_repair_v41";
  * Inngest Cron Dispatcher: Paginates active connected tenants and dispatches individual Inngest events.
  * Eliminates serverless timeout and unconstrained Promise.all execution.
  */
-export const syncOrdersDispatcherJob = inngest.createFunction(
+export const syncOrdersDispatcherJob = defineJob(
   {
     id: "sync-orders-dispatcher",
     triggers: [{ cron: "*/5 * * * *" }],
@@ -72,7 +72,7 @@ export const syncOrdersDispatcherJob = inngest.createFunction(
           const lagMinutes = lastSuccess ? (now - new Date(lastSuccess).getTime()) / (1000 * 60) : 999;
           const correlationId = `cron-sync-${tenantId}-${now}`;
 
-          if (lagMinutes > 15) {
+          if (lagMinutes > (usesVercelJobs() ? 60 : 15)) {
             // Watermark lag > 15 minutes while account is connected: trigger incremental repair
             logger.warn({
               event: "ORDERS_WATERMARK_LAG_DETECTED",
@@ -93,7 +93,7 @@ export const syncOrdersDispatcherJob = inngest.createFunction(
             });
 
             // If lag persists beyond 45 minutes, raise an operational alert
-            if (lagMinutes > 45) {
+            if (lagMinutes > (usesVercelJobs() ? 100 : 45)) {
               try {
                 const { upsertStateAlert } = await import("@/services/notifications/notificationService");
                 await upsertStateAlert({
@@ -176,7 +176,7 @@ export const syncOrdersDispatcherJob = inngest.createFunction(
  * - Distributed lease protection to prevent overlap between webhook, cron and manual sync
  * - Errors isolated to the specific tenant and re-thrown for Inngest retry handling
  */
-export const syncOrdersTenantJob = inngest.createFunction(
+export const syncOrdersTenantJob = defineJob(
   {
     id: "sync-orders-tenant-worker",
     triggers: [
@@ -274,7 +274,7 @@ export const syncOrdersTenantJob = inngest.createFunction(
             tenantId,
             operationType: "sync_orders",
             leaseOwner: workerId,
-            ttlSeconds: 180,
+            ttlSeconds: 330,
           },
           async () => {
             logger.info({

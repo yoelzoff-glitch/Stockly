@@ -1,5 +1,5 @@
 import { RetryAfterError } from "inngest";
-import { inngest } from "@/inngest/client";
+import { defineJob } from "@/lib/background/registry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDemoTenant } from "@/lib/demo/assert-demo-write-allowed";
 import { withOperationLease } from "@/lib/security/leases";
@@ -10,7 +10,7 @@ const REPAIR_RESOURCE = "orders_shipments_repair_v41";
 
 // Separate function/steps: historical repair must not occupy the live sales
 // worker's concurrency slot or repeat the entire history on a single failure.
-export const repairOrdersJob = inngest.createFunction({
+export const repairOrdersJob = defineJob({
   id: "orders-history-recovery",
   triggers: [{ event: "meli/orders.repair.requested" as any }],
   retries: 6,
@@ -47,7 +47,7 @@ export const repairOrdersJob = inngest.createFunction({
     await step.run(`recover-order-${orderId}`, async () => {
       const lease = await withOperationLease({
         tenantId, operationType: "sync_orders",
-        leaseOwner: `repair-${tenantId}-${orderId}-${Date.now()}`, ttlSeconds: 180,
+        leaseOwner: `repair-${tenantId}-${orderId}-${Date.now()}`, ttlSeconds: 330,
       }, () => syncOrders(tenantId, orderId, undefined, { source: "cron_deep" }));
       if (!lease.executed) throw new RetryAfterError("Live orders sync holds the lease", "30s");
     });

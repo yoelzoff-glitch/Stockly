@@ -1,4 +1,5 @@
-import { inngest } from "../inngest/client";
+import { defineJob, usesVercelJobs } from "@/lib/background/registry";
+import { RetryAfterError } from "inngest";
 import { syncProducts } from "../services/meli/syncProducts";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withOperationLease } from "@/lib/security/leases";
@@ -10,7 +11,7 @@ const BATCH_PAGE_SIZE = 50;
 /**
  * Inngest Cron Dispatcher: Paginates connected accounts and dispatches per-tenant product sync events.
  */
-export const syncProductsDispatcherJob = inngest.createFunction(
+export const syncProductsDispatcherJob = defineJob(
   {
     id: "sync-products-dispatcher",
     triggers: [{ cron: "*/15 * * * *" }],
@@ -18,7 +19,7 @@ export const syncProductsDispatcherJob = inngest.createFunction(
   async ({ step }) => {
     // Sprint 40 Phase 8: Product cron reduced mode (hourly instead of every 15 min)
     const reconciliationMode = process.env.LIBRETAX_PRODUCTS_RECONCILIATION_MODE || "reduced";
-    if (reconciliationMode === "reduced") {
+    if (!usesVercelJobs() && reconciliationMode === "reduced") {
       const currentMinute = new Date().getUTCMinutes();
       if (currentMinute % 60 !== 0) {
         logger.info({
@@ -36,7 +37,7 @@ export const syncProductsDispatcherJob = inngest.createFunction(
     let hasMore = true;
     let totalDispatched = 0;
 
-    const { shouldSkipProductCron } = await import("@/services/meli/productCoalescer");
+    const { productCronDecision } = await import("@/services/meli/productCoalescer");
 
     while (hasMore) {
       const { data: accounts, error } = await supabase
@@ -46,35 +47,21 @@ export const syncProductsDispatcherJob = inngest.createFunction(
         .eq("tenants.is_demo", false)
         .range(offset, offset + BATCH_PAGE_SIZE - 1);
 
-      if (error || !accounts || accounts.length === 0) {
+      if (error) throw new Error(error.message);
+      if (!accounts || accounts.length === 0) {
         hasMore = false;
         break;
       }
 
       const tenantIds = Array.from(new Set(accounts.map((a) => a.tenant_id)));
 
-      // Sprint 40 Phase 9: Lightweight dirty check per tenant
-      const activeTenants: string[] = [];
-      for (const tId of tenantIds) {
-        const check = await shouldSkipProductCron(tId);
-        if (check.skip) {
-          logger.info({
-            event: "SYNC_PRODUCTS_DISPATCHER_TENANT_SKIPPED_CLEAN",
-            tenantId: tId,
-            reason: check.reason,
-          });
-          const { recordSyncExecution } = await import("@/lib/observability/operationRuns");
-          await recordSyncExecution({
-            tenantId: tId,
-            operationType: "sync_products",
-            source: "cron_incremental",
-            status: "skipped",
-            skipReason: check.reason,
-          });
-        } else {
-          activeTenants.push(tId);
-        }
-      }
+      // One lightweight state query per batch, not one read/write pair per tenant.
+      const { data: states, error: stateError } = await supabase.from("meli_sync_state")
+        .select("tenant_id, products_dirty, last_full_sync_at")
+        .eq("resource_type", "products").in("tenant_id", tenantIds);
+      if (stateError) throw new Error(stateError.message);
+      const byTenant = new Map((states || []).map(state => [state.tenant_id, state]));
+      const activeTenants = tenantIds.filter(id => !productCronDecision(byTenant.get(id)).skip);
 
       if (activeTenants.length > 0) {
         const events = activeTenants.map((tenantId) => ({
@@ -103,7 +90,7 @@ export const syncProductsDispatcherJob = inngest.createFunction(
  * - Distributed lease protection against concurrent cron/webhook execution
  * - Individual error handling and retry support
  */
-export const syncProductsTenantJob = inngest.createFunction(
+export const syncProductsTenantJob = defineJob(
   {
     id: "sync-products-tenant-worker",
     triggers: [
@@ -186,7 +173,7 @@ export const syncProductsTenantJob = inngest.createFunction(
 
     if (isWebhook && isCoalescingEnabled) {
       const { recordProductItemWebhook } = await import("@/services/meli/productCoalescer");
-      const decision = await recordProductItemWebhook(tenantId);
+      const decision = await step.run("record-product-webhook", () => recordProductItemWebhook(tenantId));
       if (!decision.shouldSchedule) {
         return { status: "coalesced", reason: decision.reason, tenantId };
       }
@@ -202,7 +189,7 @@ export const syncProductsTenantJob = inngest.createFunction(
           tenantId,
           operationType: "sync_products",
           leaseOwner: workerId,
-          ttlSeconds: 300,
+          ttlSeconds: 330,
         },
         async () => {
           const rawSource = event.data?.source || event.name;
@@ -277,7 +264,7 @@ export const syncProductsTenantJob = inngest.createFunction(
           tenantId,
           reason: leaseResult.skipReason,
         });
-        return { tenantId, status: "skipped", reason: leaseResult.skipReason };
+        throw new RetryAfterError(`Products lease unavailable: ${leaseResult.skipReason}`, "30s");
       }
 
       return leaseResult.result;

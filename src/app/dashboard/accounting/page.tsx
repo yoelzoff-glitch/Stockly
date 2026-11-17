@@ -5,6 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getMidnightInTimezone } from "@/services/ai/tools/finance";
 import { getFinancialData } from "@/services/finance/getFinancialData";
+import { getSalesVat } from "@/services/finance/getSalesVat";
+import { SalesVatPanel } from "./sales-vat-panel";
+import { VatReconciliationPanel } from "./vat-reconciliation-panel";
+import { getVatReconciliation } from "@/services/finance/getVatReconciliation";
+import { getMeliVat } from "@/services/finance/getMeliVat";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +27,7 @@ export default async function AccountingPage(props: { searchParams: Promise<{ mo
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tenant_id")
+    .select("tenant_id, role, is_active")
     .eq("id", user.id)
     .single();
 
@@ -53,7 +58,8 @@ export default async function AccountingPage(props: { searchParams: Promise<{ mo
 
   // Determine selected month (e.g. "2026-07")
   const defaultMonthStr = `${tenantYear}-${String(tenantMonth).padStart(2, '0')}`;
-  const selectedMonthStr = searchParams.month || defaultMonthStr;
+  const selectedMonthStr = /^\d{4}-(0[1-9]|1[0-2])$/.test(searchParams.month || "") && Number(searchParams.month?.slice(0, 4)) >= 2000
+    ? searchParams.month! : defaultMonthStr;
 
   const [year, month] = selectedMonthStr.split('-').map(Number);
 
@@ -65,6 +71,8 @@ export default async function AccountingPage(props: { searchParams: Promise<{ mo
   const nextMonth = month === 12 ? 1 : month + 1;
   const nextMonthStart = getMidnightInTimezone(new Date(Date.UTC(nextMonthYear, nextMonth - 1, 1, 12, 0, 0)), timezone);
   const dateTo = new Date(nextMonthStart.getTime() - 1);
+  const vatPromise = getSalesVat(supabase, tenantId, dateFrom, nextMonthStart,
+    Array.isArray(ignoredOrderIds) ? ignoredOrderIds.map(String) : []);
 
   let initialExpenses: MonthlyExpense[] = [];
   let actualRevenue = 0;
@@ -89,6 +97,11 @@ export default async function AccountingPage(props: { searchParams: Promise<{ mo
     console.error("Failed to load monthly expenses or finance data:", e);
   }
 
+  const vatData = await vatPromise;
+  const [reconciliation, mlVat] = vatData.settings.enabled && !vatData.error
+    ? await Promise.all([getVatReconciliation(supabase, tenantId, selectedMonthStr), getMeliVat(supabase, tenantId, selectedMonthStr)])
+    : [{ record: null, error: null }, { estimate: null, error: null }];
+
   return (
     <div className="flex-1 p-6 md:p-8">
       <AccountingClient
@@ -96,6 +109,18 @@ export default async function AccountingPage(props: { searchParams: Promise<{ mo
         actualRevenue={actualRevenue}
         actualOperatingProfit={actualOperatingProfit}
         currentMonthStr={selectedMonthStr}
+        salesVatPanel={<><SalesVatPanel
+          key={`${selectedMonthStr}-${vatData.settings.enabled}-${vatData.settings.rate}`}
+          data={vatData}
+          month={selectedMonthStr}
+          canManage={profile.is_active === true && ["owner", "admin"].includes(profile.role)}
+        />
+          {vatData.settings.enabled ? <VatReconciliationPanel
+            key={`${selectedMonthStr}-${reconciliation.record?.revision || 0}-${mlVat.estimate?.fetchedAt || "pending"}`}
+            data={reconciliation} ml={mlVat} month={selectedMonthStr} salesVat={vatData.summary?.vat ?? null}
+            canManage={profile.is_active === true && ["owner", "admin"].includes(profile.role)}
+          /> : null}
+        </>}
       />
     </div>
   );

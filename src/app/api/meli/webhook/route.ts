@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { inngest } from "@/inngest/client";
+import { dispatchBackgroundEvent } from "@/lib/background/dispatch";
 import { logger } from "@/lib/errors/logger";
 import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/observability/correlationId";
 import { validateMercadoLibreWebhookSignature } from "@/lib/security/webhookSignatures";
 import { getWebhookSignatureConfig } from "@/lib/security/signatureConfig";
 import { claimWebhookEvent, updateWebhookEventStatus, hashWebhookPayload } from "@/lib/security/idempotency";
 import * as Sentry from "@sentry/nextjs";
+
+export const maxDuration = 300;
 
 const MAX_PAYLOAD_SIZE = 512 * 1024; // 512 KB
 
@@ -189,7 +191,7 @@ export async function POST(req: NextRequest) {
 
     if (inngestEventName) {
       logger.info({
-        event: "MELI_WEBHOOK_INNGEST_DISPATCH_STARTED",
+        event: "MELI_WEBHOOK_BACKGROUND_DISPATCH_STARTED",
         correlationId,
         tenantId,
         topic,
@@ -199,7 +201,7 @@ export async function POST(req: NextRequest) {
       });
 
       try {
-        await inngest.send({
+        await dispatchBackgroundEvent({
           name: inngestEventName as any,
           data: {
             tenantId,
@@ -212,7 +214,7 @@ export async function POST(req: NextRequest) {
         await updateWebhookEventStatus(claim.eventId, "queued");
 
         logger.info({
-          event: "MELI_WEBHOOK_INNGEST_DISPATCHED",
+          event: "MELI_WEBHOOK_BACKGROUND_DISPATCHED",
           correlationId,
           tenantId,
           topic,
@@ -227,7 +229,7 @@ export async function POST(req: NextRequest) {
         );
       } catch (inngestErr: any) {
         logger.error({
-          event: "MELI_WEBHOOK_INNGEST_DISPATCH_FAILED",
+          event: "MELI_WEBHOOK_BACKGROUND_DISPATCH_FAILED",
           correlationId,
           tenantId,
           topic,
@@ -237,13 +239,13 @@ export async function POST(req: NextRequest) {
         });
 
         await updateWebhookEventStatus(claim.eventId, "retrying", {
-          lastErrorCode: "INNGEST_DISPATCH_FAILED",
-          lastErrorMessage: inngestErr?.message || "Inngest dispatch failed",
+          lastErrorCode: "BACKGROUND_DISPATCH_FAILED",
+          lastErrorMessage: inngestErr?.message || "Background dispatch failed",
           incrementAttempts: true,
         });
 
         return NextResponse.json(
-          { error: "Service Unavailable", reason: "inngest_dispatch_failed", eventId: claim.eventId },
+          { error: "Service Unavailable", reason: "background_dispatch_failed", eventId: claim.eventId },
           { status: 503, headers: { [CORRELATION_ID_HEADER]: correlationId } }
         );
       }

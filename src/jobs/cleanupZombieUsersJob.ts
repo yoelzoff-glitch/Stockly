@@ -1,9 +1,9 @@
-import { inngest } from "../inngest/client";
+import { defineJob } from "@/lib/background/registry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/errors/logger";
 import * as Sentry from "@sentry/nextjs";
 
-export const cleanupZombieUsersJob = inngest.createFunction(
+export const cleanupZombieUsersJob = defineJob(
   { 
     id: "cleanup-zombie-users", 
     name: "Cleanup Zombie Users",

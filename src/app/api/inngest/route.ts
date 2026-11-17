@@ -1,40 +1,11 @@
 import { serve } from "inngest/next";
-import { inngest } from "../../../inngest/client";
-import { syncProductsDispatcherJob, syncProductsTenantJob } from "../../../jobs/syncProductsJob";
-import { syncOrdersDispatcherJob, syncOrdersTenantJob } from "../../../jobs/syncOrdersJob";
-import { refreshMeliTokensJob } from "../../../jobs/refreshMeliTokensJob";
-import { massPromotionsJob } from "../../../jobs/massPromotionsJob";
-import { competitorAnalysisJob } from "../../../jobs/competitorAnalysisJob";
-import { cleanupZombieUsersJob } from "../../../jobs/cleanupZombieUsersJob";
-import { applySubscriptionDowngradesJob } from "../../../jobs/applySubscriptionDowngradesJob";
-import { meliShipmentsJob, mercadopagoWebhookJob, whatsappWebhookJob } from "../../../jobs/webhookJobs";
-import { fullReplenishmentAnalysisJob } from "../../../jobs/fullReplenishmentJob";
-import { repairOrdersJob } from "../../../jobs/repairOrdersJob";
-import { 
-  reconcileShipmentsDispatcherJob, 
-  reconcileCancellationsDispatcherJob,
-  reconcileOrdersDeepDispatcherJob 
-} from "../../../jobs/reconciliationJobs";
+import { inngest } from "@/inngest/client";
+import { registeredJobs } from "@/jobs/registry";
+import { usesVercelJobs } from "@/lib/background/registry";
 
-export const { GET, POST, PUT } = serve({
-  client: inngest,
-  functions: [
-    syncProductsDispatcherJob,
-    syncProductsTenantJob,
-    syncOrdersDispatcherJob,
-    syncOrdersTenantJob,
-    refreshMeliTokensJob,
-    massPromotionsJob,
-    competitorAnalysisJob,
-    cleanupZombieUsersJob,
-    applySubscriptionDowngradesJob,
-    meliShipmentsJob,
-    mercadopagoWebhookJob,
-    whatsappWebhookJob,
-    fullReplenishmentAnalysisJob,
-    reconcileShipmentsDispatcherJob,
-    reconcileCancellationsDispatcherJob,
-    reconcileOrdersDeepDispatcherJob,
-    repairOrdersJob,
-  ],
-});
+const handlers = serve({ client: inngest, functions: registeredJobs });
+// A stale Inngest registration must not run jobs after the cutover.
+const disabled = async () => Response.json({ error: "Inngest temporarily disabled", provider: "vercel" }, { status: 503 });
+export const GET: typeof handlers.GET = (...args) => usesVercelJobs() ? disabled() : handlers.GET(...args);
+export const POST: typeof handlers.POST = (...args) => usesVercelJobs() ? disabled() : handlers.POST(...args);
+export const PUT: typeof handlers.PUT = (...args) => usesVercelJobs() ? disabled() : handlers.PUT(...args);

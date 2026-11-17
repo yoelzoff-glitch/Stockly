@@ -1,11 +1,11 @@
-import { inngest } from "../inngest/client";
+import { defineJob } from "@/lib/background/registry";
 import { refreshMeliToken } from "../services/meli/refreshToken";
 import { isTransientErrorString } from "../services/meli/tokenErrorClassification";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/errors/logger";
 import { startOperationRun, completeOperationRun, partialOperationRun, failOperationRun } from "@/lib/observability/operationRuns";
 
-export const refreshMeliTokensJob = inngest.createFunction(
+export const refreshMeliTokensJob = defineJob(
   { 
     id: "refresh-meli-tokens",
     triggers: [{ cron: "*/30 * * * *" }] // Cada 30 minutos

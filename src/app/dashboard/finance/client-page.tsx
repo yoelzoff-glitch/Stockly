@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Download, AlertTriangle, CheckCircle2, AlertCircle, TrendingUp, TrendingDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,10 +15,12 @@ import { FinancialData } from "@/services/finance/getFinancialData";
 export default function FinanceClientPage({
   financials,
   currentPeriod,
-  comparisonData
+  comparisonData,
+  vatCard,
 }: {
   financials: FinancialData;
   currentPeriod: string;
+  vatCard?: ReactNode;
   comparisonData?: {
     label: string;
     prevFacturacionBruta: number;
@@ -209,6 +211,7 @@ export default function FinanceClientPage({
 
       {/* Top 5 Metrics */}
       <MetricStrip metrics={topMetricItems} columns={5} />
+      {vatCard}
 
       {/* Financial Breakdown: 4 High-Density Operational Panels */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
