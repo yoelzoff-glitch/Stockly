@@ -46,7 +46,7 @@ export interface FinancialData {
   tableData: ProductFinancialRow[];
   monthlyExpensesTotal: number;
   gananciaBolsilloLimpia: number;
-  appliedExpensesBreakdown: { name: string; amount: number; type: string }[];
+  appliedExpensesBreakdown: { name: string; amount: number; type: string; netAmount?: number; vatAmount?: number }[];
 }
 
 import { AnalyticsDataset } from "@/services/analytics/analyticsDataset";
@@ -728,7 +728,7 @@ export async function getFinancialData(
 
   // 6. Calcular Gastos Mensuales del período
   let monthlyExpensesTotal = 0;
-  const appliedExpensesBreakdown: { name: string; amount: number; type: string }[] = [];
+  const appliedExpensesBreakdown: FinancialData["appliedExpensesBreakdown"] = [];
 
   try {
     let expenses: any[] = [];
@@ -838,7 +838,7 @@ export async function getFinancialData(
       const tenantCurrentDay = parseInt(tenantTodayStr.substring(8, 10), 10);
 
       // Acumulador para agrupar gastos con el mismo nombre y tipo en el breakdown final
-      const expenseAccumulator: Record<string, { name: string; amount: number; type: string }> = {};
+      const expenseAccumulator: Record<string, { name: string; amount: number; type: string; netAmount: number; vatAmount: number }> = {};
 
       monthsTouched.forEach(m => {
         const monthRevenue = monthlyRevenueMap[m.key] || 0;
@@ -922,6 +922,8 @@ export async function getFinancialData(
             appliedAmount = (Number(e.percentage) * monthRevenue) / 100;
           }
 
+          const netAmount = appliedAmount;
+          const vatAmount = e.has_iva && appliedAmount > 0 ? appliedAmount * 0.21 : 0;
           if (e.has_iva && appliedAmount > 0) {
             appliedAmount = appliedAmount * 1.21;
           }
@@ -934,10 +936,14 @@ export async function getFinancialData(
               expenseAccumulator[aggKey] = {
                 name: e.name,
                 amount: 0,
+                netAmount: 0,
+                vatAmount: 0,
                 type: e.type
               };
             }
             expenseAccumulator[aggKey].amount += appliedAmount;
+            expenseAccumulator[aggKey].netAmount += netAmount;
+            expenseAccumulator[aggKey].vatAmount += vatAmount;
           }
         });
       });
@@ -946,6 +952,8 @@ export async function getFinancialData(
         appliedExpensesBreakdown.push({
           name: agg.name,
           amount: Number(agg.amount.toFixed(2)),
+          netAmount: Number(agg.netAmount.toFixed(2)),
+          vatAmount: Number(agg.vatAmount.toFixed(2)),
           type: agg.type
         });
       });

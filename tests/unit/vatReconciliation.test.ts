@@ -61,6 +61,13 @@ const report = {
   }, errors: [],
 };
 
+test("advertising credit reduces the balance once and old saved reconciliations remain compatible", () => {
+  const oldResult = calculateVatReconciliation(base);
+  const withAdvertising = calculateVatReconciliation({ ...base, advertisingVat: 210 });
+  assert.equal(withAdvertising.due, oldResult.due - 210);
+  assert.equal(withAdvertising.totalCredit, oldResult.totalCredit + 210);
+});
+
 test("automated ML VAT uses only commission/shipping codes net of bonuses", () => {
   const result = parseMeliVatSummary(report, "2026-11", base.mlFetchedAt);
   assert.equal(result.commissionVat, 189);

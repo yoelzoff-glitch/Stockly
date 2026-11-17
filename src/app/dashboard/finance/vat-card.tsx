@@ -25,7 +25,7 @@ export function VatCard({ data, month, reconciliation }: { data: SalesVatData; m
       {data.settings.enabled && !data.error ? <>
         {reconciliation.error ? <p role="alert" className="text-sm text-red-700">{reconciliation.error}</p> : result && reconciliation.record ?
           <div className="grid gap-3 sm:grid-cols-3 border-t pt-3">
-            <div><p className="text-sm text-[#5F6875]">Saldo estimado a pagar · último guardado</p><p className="text-xl font-bold">{money.format(result.due)}</p>
+            <div><p className="text-sm text-[#5F6875]">IVA aproximado a pagar · último guardado</p><p className="text-xl font-bold">{money.format(result.due)}</p>
               <p className="text-xs text-[#5F6875]">Guardado el {reconciliation.record.updatedAt.slice(0, 10)}. Actualizalo si cambian tus ventas o compras.</p></div>
             <div><p className="text-sm text-[#5F6875]">Saldo ARCA cargado manualmente</p><p className="text-xl font-bold">{reconciliation.record.values.arcaBalance === null ? "Sin cargar" : money.format(reconciliation.record.values.arcaBalance)}</p></div>
             <div><p className="text-sm text-[#5F6875]">Diferencia estimado − ARCA</p><p className="text-xl font-bold">{result.difference === null ? "Pendiente" : money.format(result.difference)}</p></div>

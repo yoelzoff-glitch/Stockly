@@ -29,17 +29,19 @@ usa su propio período; los rangos móviles/todo el historial muestran el mes ac
 
 La conciliación tiene tres fuentes de crédito:
 
-- Comisiones y envíos: reporte de facturación ML, automáticamente al consultar Contabilidad,
-  guardado por cuenta/mes durante 24 horas. Solo cuentas MLA. Se consideran códigos CV y CXD,
-  restando BV y BXD respectivamente y extrayendo el IVA incluido al 21%. Son **estimaciones**,
-  no lectura del IVA discriminado en PDF. No incluye publicidad, Full, otros cargos ni percepciones.
+- Comisiones y envíos: toma `comisionesML` y `envios` de `getFinancialData` para el mismo mes y zona horaria de la cuenta, igual que Finanzas. Extrae aproximadamente el IVA incluido al 21% (`monto × 21 / 121`). Se muestra **Aproximado · desde Finanzas**. No consulta la API de reportes de ML ni depende de su caché. Puede incluir costos estimados o envíos sin crédito computable; requiere revisión contra comprobantes.
 - Compras opcionales: referencia del comprobante, tipo A/C/otro, IVA discriminado en ARS y
   selección explícita de crédito computable. C/otro no admiten crédito. No afecta stock.
+- Publicidad: gastos registrados cuyo nombre contiene Publicidad, Ads o Advertising.
+  Usa el IVA agregado por `has_iva` sobre el presupuesto base acumulado, sin volver a
+  multiplicar un total que ya contiene IVA. Respeta los días transcurridos, fechas y
+  versiones del presupuesto calculados por Finanzas. No consulta la API de Ads.
+  Se identifica como aproximación del presupuesto; no confirma inversión facturada.
+  Los gastos sin “+21% de IVA” no suman crédito. No repetir esos importes en otros créditos.
 - Otros créditos, retenciones, percepciones, pagos a cuenta y saldos anteriores: carga manual,
   sin repetir ML ni comprobantes ya ingresados. El traslado entre meses no es automático.
 
-El período del reporte ML se muestra explícitamente: puede diferir del mes calendario fiscal.
-Antes de presentar, validar con las facturas y notas de crédito. El campo ARCA corresponde
+Se usa el mes calendario de la cuenta. Antes de presentar, validar con las facturas y notas de crédito. El campo ARCA corresponde
 al saldo a ingresar de la declaración cargado manualmente; no representa deuda en tiempo real,
 intereses ni pagos posteriores, y no hay integración ni presentación automática en ARCA.
 
@@ -47,10 +49,10 @@ Saldo técnico = débito − créditos − saldo técnico anterior. Solo su part
 se reduce por retenciones, percepciones, pagos a cuenta y libre disponibilidad anterior.
 Se conservan por separado los saldos a favor técnico y de libre disponibilidad.
 
-Los errores de ML no se convierten en crédito cero; impiden guardar un nuevo cálculo.
+Los errores al cargar Finanzas no se convierten en crédito cero; impiden guardar un nuevo cálculo.
 La última conciliación es un snapshot y no se altera al cambiar la alícuota ni al sincronizar
 ventas. La card lo identifica como último guardado. La escritura usa revisión optimista
-para evitar pisar cambios de otra sesión y verifica los importes ML del lado servidor.
+para evitar pisar cambios de otra sesión y recalcula los importes de Finanzas del lado servidor. Si cambiaron desde la vista previa, pide recargar. Los nuevos registros guardan `creditSource: finance_approximation`; las conciliaciones anteriores siguen siendo legibles. No requiere nuevas migraciones.
 
 Fuentes:
 - https://developers.mercadolibre.com.ar/es_ar/pagos/reportes-de-facturacion
@@ -64,7 +66,7 @@ La configuración tiene RLS por cuenta y escritura limitada a propietarios/admin
 
 `npm run typecheck`
 
-`node -r ./tests/setup.cjs --import tsx --test tests/unit/salesVat.test.ts tests/unit/salesVatRls.test.ts tests/unit/vatReconciliation.test.ts`
+`node -r ./tests/setup.cjs --import tsx --test tests/unit/salesVat.test.ts tests/unit/salesVatRls.test.ts tests/unit/vatReconciliation.test.ts tests/unit/financeVat.test.ts`
 
 Prueba de interfaz con una sesión real: activar y guardar, cambiar el mes,
 recargar para comprobar persistencia y desactivar. Confirmar que otra cuenta

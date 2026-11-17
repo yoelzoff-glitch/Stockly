@@ -21,7 +21,7 @@ export async function getMeliVat(db: SupabaseClient, tenantId: string, month: st
       return { estimate: parseMeliVatSummary(cached.summary, month, cached.fetched_at), error: null };
     }
     const raw = await meliFetch({ tenantId, meliAccountId: account.id,
-      endpoint: `/billing/integration/periods/key/${month}-01/summary/details?group=ML`, maxRetries: 1, rejectPartialResponse: true });
+      endpoint: `/billing/integration/periods/key/${month}-01/summary/details?group=ML&document_type=BILL`, maxRetries: 1, rejectPartialResponse: true });
     const fetchedAt = new Date().toISOString();
     const estimate = parseMeliVatSummary(raw, month, fetchedAt);
     // Persist only the billing fields needed for the calculation, not account/user information.

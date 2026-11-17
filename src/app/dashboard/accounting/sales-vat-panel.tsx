@@ -67,7 +67,7 @@ export function SalesVatPanel({ data, month, canManage }: {
           {data.summary.count === 0 ? <p className="text-sm">No hay ventas que cumplan esos criterios en este mes.</p> : null}
         </>
       ) : null}
-      <p className="text-xs text-[#5F6875]">Este es el IVA de tus ventas. Más abajo podés ver cuánto pagarías después de descontar comisiones, envíos y compras.</p>
+      <p className="text-xs text-[#5F6875]">Este es el IVA de tus ventas. Más abajo podés ver cuánto pagarías después de descontar comisiones, envíos, publicidad y compras.</p>
       <details className="text-xs text-[#5F6875]">
         <summary className="cursor-pointer">Sobre esta estimación</summary>
         <p className="mt-2">Usamos el mismo porcentaje de IVA para todas las ventas, con IVA incluido en el precio. Cambiarlo recalcula también los meses anteriores. No se ajusta automáticamente por notas de crédito ni devoluciones parciales.</p>

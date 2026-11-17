@@ -5,7 +5,7 @@ import { assertTenantWritable } from "@/lib/demo/assert-demo-write-allowed";
 import { SALES_VAT_RATES, type SalesVatSettings } from "@/services/finance/salesVat";
 import { revalidatePath } from "next/cache";
 import { vatReconciliationSchema } from "@/services/finance/vatReconciliation";
-import { getMeliVat } from "@/services/finance/getMeliVat";
+import { getFinanceVat } from "@/services/finance/getFinanceVat";
 
 export async function saveSalesVatSettings(settings: SalesVatSettings) {
   if (!settings || typeof settings.enabled !== "boolean" ||
@@ -48,13 +48,17 @@ export async function saveVatReconciliation(input: unknown, revision: number) {
   const { data: settings, error: settingsError } = await db.from("sales_vat_settings")
     .select("enabled").eq("tenant_id", profile.tenant_id).maybeSingle();
   if (settingsError || !settings?.enabled) return { error: "Activá el módulo de IVA antes de guardar la conciliación." };
-  const ml = await getMeliVat(db, profile.tenant_id, parsed.data.month);
-  if (!ml.estimate) return { error: ml.error || "Falta el reporte de Mercado Libre." };
-  if (ml.estimate.fetchedAt !== parsed.data.mlFetchedAt) {
-    return { error: "El reporte de Mercado Libre se actualizó. Recargá la página para revisar los nuevos importes." };
+  const finance = await getFinanceVat(db, profile.tenant_id, parsed.data.month);
+  if (!finance.estimate) return { error: finance.error || "No pudimos cargar los montos de Finanzas." };
+  if (finance.estimate.commissionVat !== parsed.data.commissionVat || finance.estimate.shippingVat !== parsed.data.shippingVat
+      || finance.estimate.advertisingVat !== (parsed.data.advertisingVat ?? 0)) {
+    return { error: "Los montos de Finanzas cambiaron. Recargá la página para revisar el cálculo actualizado." };
   }
-  parsed.data.commissionVat = ml.estimate.commissionVat;
-  parsed.data.shippingVat = ml.estimate.shippingVat;
+  parsed.data.commissionVat = finance.estimate.commissionVat;
+  parsed.data.shippingVat = finance.estimate.shippingVat;
+  parsed.data.advertisingVat = finance.estimate.advertisingVat;
+  parsed.data.mlFetchedAt = finance.estimate.fetchedAt;
+  parsed.data.creditSource = "finance_approximation";
   const payload = { values: parsed.data, updated_by: user.id, updated_at: new Date().toISOString(), revision: revision + 1 };
   const query = revision === 0
     ? db.from("vat_reconciliations").insert({ ...payload, tenant_id: profile.tenant_id, month: parsed.data.month })

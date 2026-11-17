@@ -9,7 +9,7 @@ import { getSalesVat } from "@/services/finance/getSalesVat";
 import { SalesVatPanel } from "./sales-vat-panel";
 import { VatReconciliationPanel } from "./vat-reconciliation-panel";
 import { getVatReconciliation } from "@/services/finance/getVatReconciliation";
-import { getMeliVat } from "@/services/finance/getMeliVat";
+import { calculateFinanceVat, type FinanceVatData } from "@/services/finance/financeVat";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +77,7 @@ export default async function AccountingPage(props: { searchParams: Promise<{ mo
   let initialExpenses: MonthlyExpense[] = [];
   let actualRevenue = 0;
   let actualOperatingProfit = 0;
+  let financeVat: FinanceVatData = { estimate: null, error: "No pudimos cargar los montos de Finanzas. Reintentá en unos momentos." };
 
   try {
     initialExpenses = await getMonthlyExpenses();
@@ -93,14 +94,15 @@ export default async function AccountingPage(props: { searchParams: Promise<{ mo
     );
     actualRevenue = financials.facturacionBruta;
     actualOperatingProfit = financials.gananciaNeta;
+    financeVat = { estimate: calculateFinanceVat(financials), error: null };
   } catch (e) {
     console.error("Failed to load monthly expenses or finance data:", e);
   }
 
   const vatData = await vatPromise;
-  const [reconciliation, mlVat] = vatData.settings.enabled && !vatData.error
-    ? await Promise.all([getVatReconciliation(supabase, tenantId, selectedMonthStr), getMeliVat(supabase, tenantId, selectedMonthStr)])
-    : [{ record: null, error: null }, { estimate: null, error: null }];
+  const reconciliation = vatData.settings.enabled && !vatData.error
+    ? await getVatReconciliation(supabase, tenantId, selectedMonthStr)
+    : { record: null, error: null };
 
   return (
     <div className="flex-1 p-6 md:p-8">
@@ -116,8 +118,8 @@ export default async function AccountingPage(props: { searchParams: Promise<{ mo
           canManage={profile.is_active === true && ["owner", "admin"].includes(profile.role)}
         />
           {vatData.settings.enabled ? <VatReconciliationPanel
-            key={`${selectedMonthStr}-${reconciliation.record?.revision || 0}-${mlVat.estimate?.fetchedAt || "pending"}`}
-            data={reconciliation} ml={mlVat} month={selectedMonthStr} salesVat={vatData.summary?.vat ?? null}
+            key={`${selectedMonthStr}-${reconciliation.record?.revision || 0}`}
+            data={reconciliation} financeVat={financeVat} month={selectedMonthStr} salesVat={vatData.summary?.vat ?? null}
             canManage={profile.is_active === true && ["owner", "admin"].includes(profile.role)}
           /> : null}
         </>}

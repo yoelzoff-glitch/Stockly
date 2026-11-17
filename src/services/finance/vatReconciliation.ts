@@ -9,7 +9,9 @@ export const vatReconciliationSchema = z.object({
   creditFiscal: amount,
   commissionVat: z.number().finite().min(-999999999999.99).max(999999999999.99),
   shippingVat: z.number().finite().min(-999999999999.99).max(999999999999.99),
+  advertisingVat: amount.optional(),
   mlFetchedAt: z.string().datetime(),
+  creditSource: z.enum(["finance_approximation", "meli_report"]).optional(),
   purchases: z.array(z.object({
     reference: z.string().trim().min(1).max(200),
     invoiceType: z.enum(["A", "C", "OTHER"]),
@@ -42,7 +44,8 @@ export function calculateVatReconciliation(input: VatReconciliationInput) {
   const cents = (value: number) => Math.round(value * 100);
   const purchaseCredit = values.purchases.reduce((sum, purchase) =>
     sum + (purchase.eligible && purchase.invoiceType === "A" ? cents(purchase.vat) : 0), 0);
-  const totalCredit = cents(values.creditFiscal) + cents(values.commissionVat) + cents(values.shippingVat) + purchaseCredit;
+  const totalCredit = cents(values.creditFiscal) + cents(values.commissionVat) + cents(values.shippingVat)
+    + cents(values.advertisingVat ?? 0) + purchaseCredit;
   const technical = cents(values.debitFiscal) - totalCredit - cents(values.previousTechnicalBalance);
   const payable = Math.max(technical, 0) - cents(values.retentions) - cents(values.perceptions)
     - cents(values.paymentsOnAccount) - cents(values.previousFreeBalance);
