@@ -25,14 +25,14 @@ export const refreshMeliTokensJob = defineJob(
       let accounts: any[] | null = null;
       const { data: fullAccounts, error: accountsError } = await supabase
         .from("meli_accounts")
-        .select("id, tenant_id, status, sync_error, token_expires_at, last_success_refresh, next_retry_at, last_failure_category, tenants!inner(is_demo)")
+        .select("id, tenant_id, status, sync_error, token_expires_at, last_success_refresh, next_retry_at, last_failure_category, tenants!meli_accounts_tenant_id_fkey!inner(is_demo)")
         .eq("tenants.is_demo", false)
         .not("refresh_token", "is", null);
 
       if (accountsError) {
         const { data: baseAccounts } = await supabase
           .from("meli_accounts")
-          .select("id, tenant_id, status, sync_error, token_expires_at, last_success_refresh, tenants!inner(is_demo)")
+          .select("id, tenant_id, status, sync_error, token_expires_at, last_success_refresh, tenants!meli_accounts_tenant_id_fkey!inner(is_demo)")
           .eq("tenants.is_demo", false)
           .not("refresh_token", "is", null);
         accounts = baseAccounts;

@@ -31,7 +31,7 @@ export const syncOrdersDispatcherJob = defineJob(
     while (hasMore) {
       const { data: accounts, error } = await supabase
         .from("meli_accounts")
-        .select("tenant_id, tenants!inner(is_demo)")
+        .select("tenant_id, tenants!meli_accounts_tenant_id_fkey!inner(is_demo)")
         .eq("status", "connected")
         .eq("tenants.is_demo", false)
         .order("tenant_id")
