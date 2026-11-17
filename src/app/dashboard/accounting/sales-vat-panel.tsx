@@ -46,7 +46,7 @@ export function SalesVatPanel({ data, month, canManage }: {
             Soy responsable inscripto: activar módulo
           </label>
           <label className="flex items-center gap-2 text-sm">
-            Alícuota general
+            Porcentaje de IVA
             <select className="rounded-md border p-2 bg-white" value={rate} disabled={pending} onChange={e => setRate(Number(e.target.value))}>
               {SALES_VAT_RATES.map(value => <option key={value} value={value}>{value.toLocaleString("es-AR")}%</option>)}
             </select>
@@ -67,7 +67,11 @@ export function SalesVatPanel({ data, month, canManage }: {
           {data.summary.count === 0 ? <p className="text-sm">No hay ventas que cumplan esos criterios en este mes.</p> : null}
         </>
       ) : null}
-      <p className="text-xs text-[#5F6875]">Estimación con precios que incluyen IVA y una única alícuota para todas las ventas. Cambiar la alícuota recalcula también los meses anteriores. No contempla alícuotas por producto, notas de crédito ni devoluciones parciales. No es el saldo a pagar: no descuenta compras, retenciones, percepciones ni saldos a favor.</p>
+      <p className="text-xs text-[#5F6875]">Este es el IVA de tus ventas. Más abajo podés ver cuánto pagarías después de descontar comisiones, envíos y compras.</p>
+      <details className="text-xs text-[#5F6875]">
+        <summary className="cursor-pointer">Sobre esta estimación</summary>
+        <p className="mt-2">Usamos el mismo porcentaje de IVA para todas las ventas, con IVA incluido en el precio. Cambiarlo recalcula también los meses anteriores. No se ajusta automáticamente por notas de crédito ni devoluciones parciales.</p>
+      </details>
     </section>
   );
 }

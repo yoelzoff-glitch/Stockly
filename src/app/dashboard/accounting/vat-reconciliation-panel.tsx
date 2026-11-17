@@ -10,13 +10,13 @@ import { saveVatReconciliation } from "./vat-actions";
 
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
 const fields = [
-  ["debitFiscal", "IVA de ventas / débito fiscal"],
-  ["creditFiscal", "Otros créditos fiscales (sin repetir ML ni compras de abajo)"],
+  ["debitFiscal", "Corregir el IVA de ventas"],
+  ["creditFiscal", "Otros importes de IVA a descontar"],
   ["previousTechnicalBalance", "Saldo técnico a favor anterior"],
-  ["retentions", "Retenciones de IVA computables"],
-  ["perceptions", "Percepciones de IVA computables"],
-  ["paymentsOnAccount", "Pagos a cuenta computables"],
-  ["previousFreeBalance", "Saldo de libre disponibilidad anterior aún disponible"],
+  ["retentions", "Retenciones de IVA"],
+  ["perceptions", "Percepciones de IVA"],
+  ["paymentsOnAccount", "Pagos a cuenta"],
+  ["previousFreeBalance", "Saldo anterior de libre disponibilidad"],
 ] as const;
 type AmountKey = typeof fields[number][0];
 
@@ -40,6 +40,13 @@ export function VatReconciliationPanel({ data, ml, month, salesVat, canManage }:
     purchases: purchases.map(p => ({ ...p, vat: p.vat === "" ? NaN : Number(p.vat) })),
   });
   const result = parsed.success ? calculateVatReconciliation(parsed.data) : null;
+  const purchaseVat = purchases.reduce((total, purchase) => total + (
+    purchase.invoiceType === "A" && purchase.eligible && Number.isFinite(Number(purchase.vat))
+      ? Math.round(Number(purchase.vat) * 100) : 0
+  ), 0) / 100;
+  const hasAdjustments = fields.some(([key]) => key !== "debitFiscal" && Number(amounts[key]) !== 0);
+  const displayedSales = amounts.debitFiscal !== "" && Number.isFinite(Number(amounts.debitFiscal))
+    ? money.format(Number(amounts.debitFiscal)) : "Sin datos";
 
   function save(event: React.FormEvent) {
     event.preventDefault();
@@ -57,29 +64,37 @@ export function VatReconciliationPanel({ data, ml, month, salesVat, canManage }:
 
   return (
     <section id="vat-reconciliation" className="rounded-lg border border-[#DCDAD4] bg-white p-5 space-y-4" aria-labelledby="vat-reconciliation-title">
-      <h2 id="vat-reconciliation-title" className="text-lg font-semibold">Conciliación de IVA · {month}</h2>
-      <p className="text-sm text-[#5F6875]">Comisiones y Mercado Envíos se obtienen automáticamente del reporte de facturación de ML. Las compras son opcionales: cargá el IVA discriminado y marcá si es computable. Una factura C no suma crédito fiscal.</p>
+      <h2 id="vat-reconciliation-title" className="text-lg font-semibold">Tu IVA del mes · {month}</h2>
+      <p className="text-sm text-[#5F6875]">Al IVA de tus ventas le descontamos el de comisiones, envíos y las compras que agregues.</p>
       {data.error ? <p role="alert" className="text-red-700">{data.error}</p> : null}
-      {ml.error ? <p role="alert" className="text-red-700">{ml.error}</p> : null}
-      {ml.estimate ? <div className="rounded-md bg-[#F5F3EE] p-3 text-sm space-y-1">
-        <p>IVA estimado de comisiones ML: <strong>{money.format(ml.estimate.commissionVat)}</strong></p>
-        <p>IVA estimado de Mercado Envíos: <strong>{money.format(ml.estimate.shippingVat)}</strong></p>
-        <p className="text-xs">Reporte ML: {ml.estimate.periodFrom} al {ml.estimate.periodTo}. Consulta: {ml.estimate.fetchedAt.slice(0, 10)}. Actualización diaria al consultar.</p>
-        <p className="text-xs">Se extrae el 21% incluido en cargos CV/CXD, descontando bonificaciones BV/BXD. No es IVA discriminado importado de la factura. Verificá período fiscal, notas de crédito y otros cargos antes de presentar.</p>
+      {ml.error ? <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <p className="font-semibold">No pudimos traer los datos de Mercado Libre.</p>
+        <p className="mt-1">Faltan las comisiones y los envíos. Cuando estén disponibles podremos calcular cuánto pagarías.</p>
+        <Button className="mt-2" type="button" variant="outline" disabled={pending} onClick={() => startTransition(() => router.refresh())}>{pending ? "Reintentando…" : "Reintentar"}</Button>
       </div> : null}
+      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          ["IVA de ventas", displayedSales, "Importe de partida"],
+          ["IVA de comisiones", ml.estimate ? money.format(ml.estimate.commissionVat) : "Pendiente", "Se descuenta · automático"],
+          ["IVA de envíos", ml.estimate ? money.format(ml.estimate.shippingVat) : "Pendiente", "Se descuenta · automático"],
+          ["IVA de compras", money.format(purchaseVat), "Se descuenta · opcional"],
+        ].map(([label, value, hint]) => <div key={label} className="rounded-md border border-[#DCDAD4] p-4">
+          <dt className="text-sm text-[#5F6875]">{label}</dt><dd className="mt-1 text-xl font-semibold">{value}</dd>
+          <dd className="mt-1 text-xs text-[#5F6875]">{hint}</dd>
+        </div>)}
+      </dl>
+      <div className="rounded-lg bg-[#F5F3EE] p-5" aria-live="polite">
+        <p className="text-sm font-semibold">IVA estimado a pagar</p>
+        <p className="mt-1 text-3xl font-bold text-[#102A56]">{result && !data.error ? money.format(result.due) : "Pendiente"}</p>
+        <p className="mt-2 text-sm text-[#5F6875]">{!ml.estimate ? "Faltan los datos de Mercado Libre." : !result ? "Revisá los importes y las facturas que agregaste." : "Es una estimación. El importe definitivo se confirma en ARCA."}</p>
+        {hasAdjustments ? <p className="mt-1 text-xs text-[#5F6875]">Incluye los importes de Ajustes avanzados.</p> : null}
+        {result && (result.technicalCarryForward > 0 || result.freeCarryForward > 0) ? <p className="mt-2 text-sm">Tenés saldo a favor. Podés ver el detalle en Ajustes avanzados.</p> : null}
+      </div>
       <form onSubmit={save} className="space-y-4">
         <fieldset disabled={!canManage || pending || !!data.error} className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {fields.map(([key, label]) => <label key={key} className="text-sm space-y-1">
-              <span className="block">{label} (ARS)</span>
-              <input className="w-full rounded-md border p-2" type="number" min="0" max="999999999999.99" step="0.01" required
-                value={amounts[key]} onChange={e => setAmounts(current => ({ ...current, [key]: e.target.value }))} />
-            </label>)}
-          </div>
-          <p className="text-xs text-[#5F6875]">El débito inicial proviene de la estimación de ventas. Ajustalo al IVA de tus comprobantes, incluyendo sus ajustes. Los saldos anteriores se cargan manualmente; no se trasladan automáticamente.</p>
           <div className="space-y-3">
-            <h3 className="font-semibold">Compras del período (opcional)</h3>
-            <p className="text-xs text-[#5F6875]">Registrá aquí cada comprobante una sola vez, en pesos y con su IVA computable. Esta carga fiscal no modifica el inventario ni registra una nueva compra de mercadería.</p>
+            <h3 className="font-semibold">Sumá el IVA de tus compras <span className="text-sm font-normal text-[#5F6875]">(opcional)</span></h3>
+            <p className="text-sm text-[#5F6875]">Si tenés una factura A, agregá el IVA que figura en ella. Las facturas C no descuentan IVA.</p>
             {purchases.map((purchase, index) => <div key={index} className="grid gap-2 rounded-md border p-3 sm:grid-cols-2 lg:grid-cols-5">
               <label className="text-sm">Proveedor y número de factura
                 <input className="w-full rounded border p-2" required maxLength={200} value={purchase.reference}
@@ -89,39 +104,62 @@ export function VatReconciliationPanel({ data, ml, month, salesVat, canManage }:
                 <select className="w-full rounded border p-2" value={purchase.invoiceType} onChange={e => {
                   const invoiceType = e.target.value as VatReconciliationInput["purchases"][number]["invoiceType"];
                   setPurchases(rows => rows.map((p, i) => i === index ? { ...p, invoiceType, eligible: false, vat: "0" } : p));
-                }}><option value="A">Factura A</option><option value="C">Factura C (sin crédito IVA)</option><option value="OTHER">Otro / sin crédito</option></select>
+                }}><option value="A">Factura A</option><option value="C">Factura C (sin IVA)</option><option value="OTHER">Otro (no descuenta IVA)</option></select>
               </label>
-              <label className="text-sm">IVA discriminado (ARS)
-                <input className="w-full rounded border p-2" type="number" min="0" max="999999999999.99" step="0.01" required disabled={purchase.invoiceType !== "A"}
+              <label className="text-sm">IVA de la factura ($)
+                <input className="w-full rounded border p-2" type="number" min="0" max="9999999999.99" step="0.01" required disabled={purchase.invoiceType !== "A"}
                   value={purchase.vat} onChange={e => setPurchases(rows => rows.map((p, i) => i === index ? { ...p, vat: e.target.value } : p))} />
               </label>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={purchase.eligible} disabled={purchase.invoiceType !== "A"}
-                onChange={e => setPurchases(rows => rows.map((p, i) => i === index ? { ...p, eligible: e.target.checked } : p))} />Computar crédito</label>
+                onChange={e => setPurchases(rows => rows.map((p, i) => i === index ? { ...p, eligible: e.target.checked } : p))} />Descontar este IVA</label>
               <Button type="button" variant="outline" onClick={() => setPurchases(rows => rows.filter((_, i) => i !== index))}>Quitar comprobante {index + 1}</Button>
             </div>)}
             {canManage ? <Button type="button" variant="outline" disabled={purchases.length >= 500} onClick={() => setPurchases(rows => [...rows,
-              { reference: "", invoiceType: "A", eligible: false, vat: "0" }])}>Agregar comprobante de compra</Button> : null}
+              { reference: "", invoiceType: "A", eligible: false, vat: "0" }])}>Agregar factura de compra</Button> : null}
+            <p className="text-xs text-[#5F6875]">Agregá cada factura una sola vez. Esto no modifica tu stock.</p>
           </div>
+          <details className="rounded-md border border-[#DCDAD4] p-4">
+            <summary className="cursor-pointer font-semibold">Ajustes avanzados{hasAdjustments ? " · con importes cargados" : " (opcional)"}</summary>
+            <p className="my-3 text-sm text-[#5F6875]">Usá esta sección si necesitás corregir el IVA de ventas o cargar datos de tu contador. No repitas las comisiones, los envíos ni las compras de arriba.</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {fields.map(([key, label]) => <label key={key} className="text-sm space-y-1">
+                <span className="block">{label} ($)</span>
+                <input className="w-full rounded-md border p-2" type="number" min="0" max="9999999999.99" step="0.01"
+                  value={amounts[key]} onChange={e => setAmounts(current => ({ ...current, [key]: e.target.value }))} />
+              </label>)}
+            </div>
+            <p className="mt-3 text-xs text-[#5F6875]">Los saldos anteriores se cargan manualmente y no se trasladan al mes siguiente.</p>
+            {result ? <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div><dt className="text-sm">Saldo técnico a favor</dt><dd className="font-semibold">{money.format(result.technicalCarryForward)}</dd></div>
+              <div><dt className="text-sm">Saldo de libre disponibilidad</dt><dd className="font-semibold">{money.format(result.freeCarryForward)}</dd></div>
+            </dl> : null}
+          </details>
+          <details className="rounded-md border border-[#DCDAD4] p-4">
+            <summary className="cursor-pointer font-semibold">Comparar con ARCA (opcional){arcaBalance !== "" ? " · importe cargado" : ""}</summary>
+            <p className="my-3 text-sm text-[#5F6875]">Si ya tenés el importe de tu declaración, cargalo para compararlo. No nos conectamos a ARCA ni presentamos nada por vos.</p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm">Saldo a ingresar de la declaración ARCA (opcional, ARS)
-              <input className="w-full rounded border p-2" type="number" min="0" max="999999999999.99" step="0.01" value={arcaBalance} onChange={e => setArcaBalance(e.target.value)} />
+            <label className="text-sm">Importe a pagar según ARCA ($)
+              <input className="w-full rounded border p-2" type="number" min="0" max="9999999999.99" step="0.01" value={arcaBalance} onChange={e => setArcaBalance(e.target.value)} />
             </label>
-            <label className="text-sm">Referencia de la declaración / observaciones
-              <input className="w-full rounded border p-2" maxLength={500} required={arcaBalance !== ""} value={reference} onChange={e => setReference(e.target.value)} />
+            <label className="text-sm">Referencia o nota sobre la declaración
+              <input className="w-full rounded border p-2" maxLength={500} value={reference} onChange={e => setReference(e.target.value)} />
             </label>
           </div>
+          {arcaBalance !== "" && reference.trim() === "" ? <p className="mt-2 text-sm text-amber-800">Agregá una referencia o nota para guardar este importe.</p> : null}
+          {result?.difference !== null && result?.difference !== undefined ? <p className="mt-3 text-sm">Diferencia entre nuestra estimación y el importe que cargaste: <strong>{money.format(result.difference)}</strong></p> : null}
+          </details>
         </fieldset>
-        {result ? <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 rounded-md bg-[#F5F3EE] p-4">
-          <div><dt className="text-sm">Saldo estimado a pagar</dt><dd className="text-xl font-bold">{money.format(result.due)}</dd></div>
-          <div><dt className="text-sm">Saldo técnico a favor</dt><dd className="font-semibold">{money.format(result.technicalCarryForward)}</dd></div>
-          <div><dt className="text-sm">Libre disponibilidad estimada</dt><dd className="font-semibold">{money.format(result.freeCarryForward)}</dd></div>
-          <div><dt className="text-sm">Diferencia: estimado − ARCA cargado</dt><dd className="font-semibold">{result.difference === null ? "ARCA sin cargar" : money.format(result.difference)}</dd></div>
-        </dl> : <p className="text-sm">Saldo pendiente: completá los datos y verificá que el reporte ML esté disponible.</p>}
-        <p className="text-xs text-[#5F6875]">Vista previa de los datos del formulario. Guardá para actualizar la card de Finanzas. El saldo de ARCA se carga manualmente desde la declaración; no se consulta ni se presenta una declaración en ARCA.</p>
-        {data.record ? <p className="text-xs text-[#5F6875]">Último guardado: {data.record.updatedAt.replace("T", " ").slice(0, 19)} UTC · versión {data.record.revision}</p> : null}
+        <p className="text-xs text-[#5F6875]">Guardá los cambios para actualizar el resumen de Finanzas. Todos los importes están en pesos.</p>
+        {data.record ? <p className="text-xs text-[#5F6875]">Último guardado: {data.record.updatedAt.slice(0, 10)}</p> : null}
         {message ? <p role="status" className="text-sm">{message}</p> : null}
-        {canManage ? <Button type="submit" disabled={pending || !!data.error || !parsed.success}>{pending ? "Guardando…" : "Guardar conciliación mensual"}</Button> : null}
+        {canManage ? <Button type="submit" disabled={pending || !!data.error || !parsed.success}>{pending ? "Guardando…" : "Guardar cambios"}</Button> : null}
       </form>
+      {ml.estimate ? <details className="text-xs text-[#5F6875]">
+        <summary className="cursor-pointer">Cómo se calcula</summary>
+        <p className="mt-2">Estimamos el IVA incluido al 21% en las comisiones y los envíos del reporte de Mercado Libre, descontando sus bonificaciones. El IVA de compras es el que ingresás de tus facturas.</p>
+        <p className="mt-1">Reporte de Mercado Libre: {ml.estimate.periodFrom} al {ml.estimate.periodTo}. Consultado el {ml.estimate.fetchedAt.slice(0, 10)}; se actualiza diariamente al consultar.</p>
+        <p className="mt-1">Ese período puede diferir del mes calendario. Revisá las facturas y sus ajustes con tu contador antes de confirmar el pago.</p>
+      </details> : null}
     </section>
   );
 }
